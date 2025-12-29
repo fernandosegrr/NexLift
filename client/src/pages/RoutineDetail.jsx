@@ -1,0 +1,130 @@
+import { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { ArrowLeft, Play, Calendar, Dumbbell, Clock } from 'lucide-react';
+import { api } from '../services/api';
+
+export default function RoutineDetail() {
+    const { id } = useParams();
+    const [routine, setRoutine] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        async function fetchRoutine() {
+            try {
+                const data = await api.getRoutine(id);
+                setRoutine(data);
+            } catch (error) {
+                console.error('Error:', error);
+            } finally {
+                setLoading(false);
+            }
+        }
+        fetchRoutine();
+    }, [id]);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <div className="w-8 h-8 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    if (!routine) {
+        return (
+            <div className="text-center py-12">
+                <p className="text-[var(--text-secondary)]">Rutina no encontrada</p>
+                <Link to="/routines" className="text-[var(--primary)] mt-2 inline-block">
+                    Volver a rutinas
+                </Link>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            {/* Header */}
+            <div>
+                <Link
+                    to="/routines"
+                    className="inline-flex items-center gap-2 text-[var(--text-secondary)] hover:text-white mb-4"
+                >
+                    <ArrowLeft size={18} />
+                    <span>Rutinas</span>
+                </Link>
+                <h1 className="text-2xl font-bold">{routine.name}</h1>
+                {routine.description && (
+                    <p className="text-[var(--text-secondary)] mt-1">{routine.description}</p>
+                )}
+            </div>
+
+            {/* Days */}
+            <div className="space-y-4">
+                {routine.days.map((day) => (
+                    <div key={day.id} className="card overflow-hidden">
+                        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/20 flex items-center justify-center">
+                                    <Calendar size={20} className="text-[var(--primary)]" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold">{day.dayName}</h3>
+                                    <p className="text-sm text-[var(--text-secondary)]">
+                                        {day.exercises.length} ejercicios
+                                    </p>
+                                </div>
+                            </div>
+                            <Link
+                                to={`/workout/${day.id}`}
+                                className="btn-primary flex items-center gap-2 text-sm py-2 px-4"
+                            >
+                                <Play size={16} />
+                                Empezar
+                            </Link>
+                        </div>
+
+                        {/* Exercises */}
+                        <div className="divide-y divide-[var(--border)]">
+                            {day.exercises.map((exercise) => (
+                                <div key={exercise.id} className="p-4 hover:bg-[var(--bg-card-hover)] transition-colors">
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                            <h4 className="font-medium">{exercise.name}</h4>
+                                            <div className="flex items-center gap-3 mt-1 text-sm text-[var(--text-secondary)]">
+                                                <span className="flex items-center gap-1">
+                                                    <Dumbbell size={14} />
+                                                    {exercise.targetSets} × {exercise.targetReps}
+                                                </span>
+                                                {exercise.restSeconds && (
+                                                    <span className="flex items-center gap-1">
+                                                        <Clock size={14} />
+                                                        {exercise.restSeconds}s
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {exercise.note && (
+                                                <p className="text-xs text-[var(--accent)] mt-2 italic">
+                                                    💡 {exercise.note}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        {/* Last workout indicator */}
+                                        {exercise.workoutLogs?.length > 0 && (
+                                            <div className="text-right">
+                                                <p className="text-xs text-[var(--text-secondary)]">Último</p>
+                                                <p className="text-sm font-medium text-[var(--success)]">
+                                                    {exercise.workoutLogs[0].sets[0]?.weight}kg
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}

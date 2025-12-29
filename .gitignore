@@ -1,0 +1,19 @@
+# NexLift dependencies
+node_modules/
+.env
+
+# Build outputs
+client/dist/
+.vercel/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma
+server/prisma/migrations/
