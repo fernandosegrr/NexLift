@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Rutina general (ej: "Golden Split", "Push Pull Legs")
+model Routine {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  days        RoutineDay[]
+}
+
+// Días de la rutina (ej: "Domingo: Torso", "Lunes: Pierna")
+model RoutineDay {
+  id          String     @id @default(cuid())
+  dayName     String
+  isRestDay   Boolean    @default(false)  // Si es día de descanso
+  order       Int        @default(0)
+  routineId   String
+  routine     Routine    @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  exercises   Exercise[]
+}
+
+// Ejercicios configurados en cada día
+model Exercise {
+  id           String       @id @default(cuid())
+  name         String
+  muscleGroup  String?      // Grupo muscular (pecho, espalda, piernas, etc.)
+  targetSets   Int          // Series objetivo
+  targetReps   String       // "8-10", "12-15", etc.
+  restSeconds  Int?         // Descanso entre series (opcional)
+  note         String?      // Notas adicionales
+  order        Int          @default(0)
+  routineDayId String
+  routineDay   RoutineDay   @relation(fields: [routineDayId], references: [id], onDelete: Cascade)
+  workoutLogs  WorkoutLog[]
+}
+
+// Registro de sesión de entrenamiento
+model WorkoutLog {
+  id          String    @id @default(cuid())
+  date        DateTime  @default(now())
+  exerciseId  String
+  exercise    Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  sets        SetLog[]
+  notes       String?   // Notas de la sesión
+}
+
+// Registro individual de cada serie
+model SetLog {
+  id           String     @id @default(cuid())
+  setNumber    Int        // Número de serie (1, 2, 3...)
+  weight       Float      // Peso en kg
+  reps         Int        // Repeticiones realizadas
+  rpe          Int?       // Rate of Perceived Exertion (1-10)
+  completed    Boolean    @default(true)
+  workoutLogId String
+  workoutLog   WorkoutLog @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
+}
+
+// Personal Records - Récords personales por ejercicio
+model PersonalRecord {
+  id           String   @id @default(cuid())
+  exerciseName String   // Nombre del ejercicio (normalizado)
+  weight       Float    // Peso del PR
+  reps         Int      // Reps con las que se logró
+  estimated1RM Float?   // 1RM estimado
+  date         DateTime @default(now())
+
+  @@index([exerciseName])
+}
