@@ -1,127 +1,116 @@
 # 🏋️ NexLift
 
 > **Tu compañero de gimnasio inteligente**  
-> Registra entrenamientos, trackea PRs y visualiza tu progreso
+> Gestiona tus rutinas, registra tu progreso y supera tus límites.
 
-![React](https://img.shields.io/badge/React-18.3-61DAFB?style=flat-square&logo=react)
-![Vite](https://img.shields.io/badge/Vite-7.3-646CFF?style=flat-square&logo=vite)
-![Tailwind](https://img.shields.io/badge/Tailwind-4.0-38B2AC?style=flat-square&logo=tailwind-css)
-![Prisma](https://img.shields.io/badge/Prisma-6.19-2D3748?style=flat-square&logo=prisma)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql)
+![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
+![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.0.0-blue?style=flat-square)
 
 ---
 
-## ✨ Features
+## 📱 Descripción
 
-### 📱 Core
-- **Importar rutinas via JSON** - Carga tu rutina personalizada en segundos
-- **Sistema de rutina activa** - Una rutina principal para organizar tu semana
-- **Días de descanso** - Marca días de descanso en tu rutina
-- **Registro de entrenamientos** - Peso, reps y RIR por cada serie
+**NexLift** es una Progressive Web App (PWA) diseñada para levantadores de pesas serios. Olvida las notas de celular desordenadas; NexLift te ofrece una experiencia nativa para trackear cada serie, repetición y RPE, calculando automáticamente tus récords personales y mostrándote gráficas de evolución.
 
-### 📊 Tracking
-- **Ghost Mode** - Ve tu mejor serie anterior para superarla
-- **PRs automáticos** - Detecta y guarda tus récords personales
-- **1RM estimado** - Calcula tu máximo teórico por ejercicio
-- **Progreso por músculo** - Visualiza evolución agrupada por grupo muscular
-
-### 📈 Análisis
-- **Cumplimiento de asistencia** - % de días entrenados últimos 30 días
-- **Comparativas anuales** - Compara tu actividad año vs año
-- **Gráficas de progreso** - Ve la curva de tu fuerza a lo largo del tiempo
-- **Clasificación de ejercicios** - Asigna músculos manualmente
-
-### 🎨 UI/UX
-- **Diseño mobile-first** - Optimizado para usar en el gym
-- **Tema oscuro premium** - Fácil a la vista
-- **PWA instalable** - Añádelo a tu pantalla de inicio
-- **Animaciones fluidas** - Experiencia de app nativa
+Diseñada con un enfoque **Mobile-First**, funciona perfectamente en tu celular dentro del gimnasio, incluso con mala conexión.
 
 ---
 
-## 🚀 Demo
+## ✨ Características Principales
 
-**Live:** [https://nex-lift.vercel.app](https://nex-lift.vercel.app)
+### 🎯 Gestión de Rutinas
+- **Importación JSON Simplificada:** Carga rutinas complejas (Push/Pull/Legs, Upper/Lower) en segundos copiando y pegando un texto.
+- **Rutina Activa:** Define tu foco actual y organiza tus semanas.
+- **Días de Descanso:** Planifica tu recuperación con días marcados específicamente para descanso.
+
+### 📝 Tracking de Entrenamiento
+- **Registro Preciso:** Peso (kg/lbs), Repeticiones y RIR/RPE.
+- **Ghost Mode 👻:** Visualiza tu mejor desempeño histórico en cada serie para motivarte a superarlo.
+- **Notas por Ejercicio:** Guarda tips técnicos o recordatorios para la próxima sesión.
+
+### 📊 Análisis y Progreso
+- **Dashboard Interactivo:** Resumen semanal, racha actual y próximos entrenamientos.
+- **Calendario de Asistencia:** Visualización estilo GitHub de tus días de entrenamiento (últimos 30 días).
+- **Métricas de Volumen:** % de Cumplimiento basado en tu constancia real.
+- **Desglose Muscular:** Analiza qué grupos musculares estás priorizando.
+- **Evolución 1RM:** Gráficas de línea estimando tu 1RM teórico a lo largo del tiempo.
+
+### 📱 Experiencia de Usuario (UX)
+- **Modo Oscuro Profundo:** Interfaz OLED-friendly perfecta para gimnasios.
+- **Instalable (PWA):** Añádela a tu pantalla de inicio en iOS y Android.
+- **Sin Distracciones:** UI minimalista enfocada en lo importante: levantar peso.
 
 ---
 
 ## 🛠️ Stack Tecnológico
 
-| Layer | Tecnología |
-|-------|------------|
-| Frontend | React 18, Vite, Tailwind CSS, Recharts |
-| Backend | Vercel Serverless Functions |
-| Database | PostgreSQL |
-| ORM | Prisma |
-| Icons | Lucide React |
-| Deploy | Vercel |
+Este proyecto utiliza las últimas tecnologías de desarrollo web moderno:
+
+| Área | Tecnología | Descripción |
+|------|------------|-------------|
+| **Frontend** | React 18 | Biblioteca de UI basada en componentes |
+| **Build Tool** | Vite 6 | Entorno de desarrollo ultrarrápido |
+| **Estilos** | Tailwind CSS 4 | Framework de utilidad para diseño responsive |
+| **Gráficos** | Recharts | Visualización de datos y estadísticas |
+| **Backend** | Node.js (Serverless) | API ejecutada en Vercel Functions |
+| **Base de Datos** | PostgreSQL | Base de datos relacional robusta |
+| **ORM** | Prisma | Acceso a datos type-safe y gestión de esquema |
 
 ---
 
-## 📦 Instalación Local
+## 🚀 Despliegue (Deploy)
 
-### Prerrequisitos
-- Node.js 18+
-- PostgreSQL database
+La aplicación está optimizada para desplegarse en **Vercel** con base de datos PostgreSQL (ej. Supabase, Neon, Railway).
 
-### 1. Clonar repositorio
-```bash
-git clone https://github.com/fernandosegrr/NexLift.git
-cd NexLift
-```
+### Variables de Entorno
+Configura las siguientes variables en tu proyecto de Vercel:
 
-### 2. Configurar Backend
-```bash
-cd server
-npm install
-```
-
-Crear archivo `.env`:
 ```env
-DATABASE_URL="postgresql://user:password@host:port/database"
-PORT=3001
+DATABASE_URL="postgresql://usuario:password@host:port/database?schema=public"
 ```
 
-Aplicar schema:
-```bash
-npx prisma db push
+### Estructura de Directorios para Vercel
+Para soportar Vercel Serverless Functions, la estructura del proyecto es:
+
 ```
-
-### 3. Configurar Frontend
-```bash
-cd ../client
-npm install
+NexLift/
+├── api/                  # Serverless Functions (Backend)
+│   ├── prisma/           # Schema de BD para producción
+│   └── index.js          # Entry point de la API
+├── client/               # SPA React (Frontend)
+│   ├── public/           # Assets estáticos (iconos PWA)
+│   └── src/              # Código fuente React
+├── server/               # Servidor de desarrollo local
+└── vercel.json           # Configuración de rutas y rewrites
 ```
-
-### 4. Ejecutar
-```bash
-# Terminal 1 - Backend
-cd server && npm run dev
-
-# Terminal 2 - Frontend  
-cd client && npm run dev
-```
-
-Abre: [http://localhost:5173](http://localhost:5173)
 
 ---
 
-## 📄 Formato JSON para Rutinas
+## 📋 Formato de Importación de Rutina
+
+Para importar tu rutina, usa el siguiente formato JSON en la sección "Importar":
 
 ```json
 {
-  "name": "Mi Rutina PPL",
-  "description": "Push Pull Legs 6 días",
+  "name": "Rutina Hipertrofia 4 Días",
+  "description": "Torso Pierna Frecuencia 2",
   "days": [
     {
-      "dayName": "Lunes - Push",
+      "dayName": "Lunes - Torso Fuerza",
       "exercises": [
-        { "name": "Press Banca", "sets": 4, "reps": "6-8", "note": "Control excéntrico" },
-        { "name": "Press Inclinado", "sets": 3, "reps": "8-10" }
+        { "name": "Press Banca", "sets": 3, "reps": "6-8" },
+        { "name": "Remo Pendlay", "sets": 3, "reps": "6-8" }
       ]
     },
     {
-      "dayName": "Domingo - Descanso",
+      "dayName": "Martes - Pierna Fuerza",
+      "exercises": [
+        { "name": "Sentadilla", "sets": 3, "reps": "5-7" }
+      ]
+    },
+    {
+      "dayName": "Miércoles - Descanso",
       "isRestDay": true,
       "exercises": []
     }
@@ -131,57 +120,15 @@ Abre: [http://localhost:5173](http://localhost:5173)
 
 ---
 
-## 🚀 Deploy en Vercel
-
-1. Importa el repositorio desde GitHub
-2. Configura la variable de entorno:
-   - `DATABASE_URL` = tu conexión PostgreSQL
-3. Deploy automático ✨
-
----
-
-## 📁 Estructura del Proyecto
-
-```
-NexLift/
-├── api/                    # Vercel Serverless Functions
-│   └── index.js            # API handler principal
-├── client/                 # React Frontend
-│   ├── public/             # Assets estáticos
-│   └── src/
-│       ├── components/     # Componentes reutilizables
-│       ├── pages/          # Páginas de la app
-│       └── services/       # API client
-├── server/                 # Backend development
-│   ├── prisma/             # Schema de base de datos
-│   └── src/                # Express server (desarrollo)
-├── vercel.json             # Configuración Vercel
-└── README.md
-```
-
----
-
-## 🔮 Roadmap
-
-- [ ] Notificaciones de entrenamiento
-- [ ] Exportar datos a Excel
-- [ ] Modo offline completo
-- [ ] Integración con Apple Watch
-- [ ] Compartir rutinas entre usuarios
-
----
-
 ## 👤 Autor
 
 **Fernando Guerrero**
 
-GitHub: [@fernandosegrr](https://github.com/fernandosegrr)
+*   **GitHub**: [@fernandosegrr](https://github.com/fernandosegrr)
 
 ---
 
-## 📜 Licencia
+## 📄 Licencia
 
-Este proyecto es **software propietario**.  
-Todos los derechos reservados © 2024-2025 Fernando Guerrero.
-
-No está permitida la copia, distribución, modificación o uso comercial sin autorización expresa del autor.
+Copyright © 2025 Fernando Guerrero.
+Este proyecto es software propietario. Todos los derechos reservados.
