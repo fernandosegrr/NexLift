@@ -1,10 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+// Singleton pattern for Prisma in serverless
+const globalForPrisma = globalThis;
+const prisma = globalForPrisma.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 export default async function handler(req, res) {
     // Enable CORS
-    res.setHeader('Access-Control-Allow-Credentials', true);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -35,6 +38,7 @@ export default async function handler(req, res) {
                     days: {
                         create: days.map((day, dayIndex) => ({
                             dayName: day.dayName,
+                            isRestDay: day.isRestDay || false,
                             order: dayIndex,
                             exercises: {
                                 create: (day.exercises || []).map((ex, exIndex) => ({
@@ -123,6 +127,34 @@ export default async function handler(req, res) {
         if (routineMatch && method === 'DELETE') {
             await prisma.routine.delete({ where: { id: routineMatch[1] } });
             return res.json({ message: 'Deleted' });
+        }
+
+        // ==========================================
+        // EXERCISES
+        // ==========================================
+
+        // GET /api/exercises
+        if (path === '/exercises' && method === 'GET') {
+            const exercises = await prisma.exercise.findMany({
+                select: { id: true, name: true, muscleGroup: true },
+                distinct: ['name']
+            });
+            return res.json(exercises);
+        }
+
+        // PUT /api/exercises/:id/muscle
+        const exMuscleMatch = path.match(/^\/exercises\/([^/]+)\/muscle$/);
+        if (exMuscleMatch && method === 'PUT') {
+            const { muscleGroup } = body;
+            const exercise = await prisma.exercise.update({
+                where: { id: exMuscleMatch[1] },
+                data: { muscleGroup }
+            });
+            await prisma.exercise.updateMany({
+                where: { name: exercise.name },
+                data: { muscleGroup }
+            });
+            return res.json({ message: 'Updated', exercise });
         }
 
         // ==========================================
@@ -335,6 +367,6 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error('API Error:', error);
-        return res.status(500).json({ error: 'Internal server error' });
+        return res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 }
