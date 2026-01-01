@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Save, Trophy, History, X, ChevronLeft, ChevronRight, Target, Lock, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Check, Save, Trophy, History, X, ChevronLeft, ChevronRight, Target, Lock, ArrowRight, TrendingUp } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import Celebration from '../components/ui/Celebration';
@@ -30,6 +30,7 @@ export default function Workout() {
     const [history, setHistory] = useState([]);
     const [showSuccess, setShowSuccess] = useState(false);
     const [previousBest, setPreviousBest] = useState(null);
+    const [suggestedWeights, setSuggestedWeights] = useState([]); // Pesos sugeridos de la última sesión
 
     useEffect(() => {
         fetchDay();
@@ -87,17 +88,44 @@ export default function Workout() {
         try {
             const historyData = await api.getExerciseHistory(exerciseId);
             if (historyData?.length > 0 && historyData[0].sets?.length > 0) {
+                // Obtener el mejor set (mayor volumen)
                 const bestSet = historyData[0].sets.reduce((best, set) => {
                     const volume = (Number(set.weight) || 0) * (Number(set.reps) || 0);
                     const bestVolume = (Number(best.weight) || 0) * (Number(best.reps) || 0);
                     return volume > bestVolume ? set : best;
                 }, historyData[0].sets[0]);
                 setPreviousBest(bestSet);
+
+                // Calcular peso sugerido basado en el rendimiento de la última sesión
+                const lastSets = historyData[0].sets;
+                const avgWeight = lastSets.reduce((sum, s) => sum + (s.weight || 0), 0) / lastSets.length;
+                const avgRPE = lastSets.filter(s => s.rpe).reduce((sum, s) => sum + s.rpe, 0) / lastSets.filter(s => s.rpe).length || 8;
+                const avgRIR = 10 - avgRPE; // Convertir RPE a RIR
+
+                // Lógica de progresión:
+                // RIR >= 3: subir 5% (ej: 40kg -> 42kg)
+                // RIR 2: subir 2.5kg
+                // RIR 0-1: mantener peso
+                // RPE 10 (fallo): bajar 2.5kg
+                let suggestedWeight = avgWeight;
+
+                if (avgRIR >= 3) {
+                    suggestedWeight = Math.round((avgWeight * 1.05) * 2) / 2; // Redondear a 0.5kg
+                } else if (avgRIR >= 2) {
+                    suggestedWeight = avgWeight + 2.5;
+                } else if (avgRPE >= 10) {
+                    suggestedWeight = Math.max(avgWeight - 2.5, 0);
+                }
+                // Si RIR 0-1, mantener el mismo peso
+
+                setSuggestedWeights([Math.round(suggestedWeight * 2) / 2]); // Redondear a 0.5kg
             } else {
                 setPreviousBest(null);
+                setSuggestedWeights([]);
             }
         } catch (error) {
             setPreviousBest(null);
+            setSuggestedWeights([]);
         }
     }
 
@@ -297,16 +325,27 @@ export default function Workout() {
                 </div>
             )}
 
-            {/* Previous Best */}
-            {!isAlreadyLogged && previousBest && (
-                <div className="bg-[var(--bg-card)] rounded-xl p-3 mb-4 flex items-center justify-center gap-2 border border-[var(--border)]">
-                    <Target size={16} className="text-[var(--warning)]" />
-                    <span className="text-sm">
-                        <span className="text-[var(--text-secondary)]">Mejor previo: </span>
-                        <span className="font-bold text-[var(--warning)]">
-                            {previousBest.weight}kg × {previousBest.reps}
+            {/* Previous Best + Suggested Weight */}
+            {!isAlreadyLogged && (previousBest || suggestedWeights.length > 0) && (
+                <div className="bg-[var(--bg-card)] rounded-xl p-3 mb-4 flex items-center justify-center gap-4 border border-[var(--border)]">
+                    {previousBest && (
+                        <span className="text-sm flex items-center gap-1.5">
+                            <Target size={14} className="text-[var(--warning)]" />
+                            <span className="text-[var(--text-secondary)]">Previo:</span>
+                            <span className="font-bold text-[var(--warning)]">
+                                {previousBest.weight}kg
+                            </span>
                         </span>
-                    </span>
+                    )}
+                    {suggestedWeights.length > 0 && suggestedWeights[0] !== previousBest?.weight && (
+                        <span className="text-sm flex items-center gap-1.5">
+                            <TrendingUp size={14} className="text-[var(--success)]" />
+                            <span className="text-[var(--text-secondary)]">Sugerido:</span>
+                            <span className="font-bold text-[var(--success)]">
+                                {suggestedWeights[0]}kg
+                            </span>
+                        </span>
+                    )}
                 </div>
             )}
 
@@ -347,15 +386,15 @@ export default function Workout() {
                                 />
                             </div>
                             <div className="col-span-3">
-                                <div className="flex gap-0.5 justify-center flex-wrap">
+                                <div className="flex gap-0.5 justify-center">
                                     {[0, 1, 2, 3].map(rir => (
                                         <button
                                             key={rir}
                                             onClick={() => setRIR(i, set.rir === rir ? null : rir)}
-                                            disabled={isAlreadyLogged} // Deshabilitado
-                                            className={`w-6 h-8 rounded text-xs font-medium transition-colors ${set.rir === rir
+                                            disabled={isAlreadyLogged}
+                                            className={`w-6 h-7 rounded text-xs font-medium transition-colors ${set.rir === rir
                                                 ? 'bg-[var(--primary)] text-white'
-                                                : 'bg-[var(--bg-dark)] text-[var(--text-secondary)]'
+                                                : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] border border-[var(--border)]'
                                                 }`}
                                         >
                                             {rir}
