@@ -2,10 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, Save, Trophy, History, X, ChevronLeft, ChevronRight, Target, Lock, ArrowRight } from 'lucide-react';
 import { api } from '../services/api';
+import { useToast } from '../components/ui/Toast';
+import Celebration from '../components/ui/Celebration';
 
 export default function Workout() {
     const { dayId } = useParams();
     const navigate = useNavigate();
+    const toast = useToast();
+    const [showCelebration, setShowCelebration] = useState(false);
 
     // --- ESTADOS DE DATOS ---
     const [exercises, setExercises] = useState([]);
@@ -175,7 +179,7 @@ export default function Workout() {
             }));
 
         if (validSets.length === 0) {
-            alert('Registra al menos 1 serie válida');
+            toast.error('Registra al menos 1 serie válida');
             return;
         }
 
@@ -193,7 +197,7 @@ export default function Workout() {
                 setTimeout(() => navigate('/'), 2000);
             }
         } catch (error) {
-            alert('Error al guardar.');
+            toast.error('Error al guardar. Intenta de nuevo.');
         } finally {
             setSaving(false);
         }

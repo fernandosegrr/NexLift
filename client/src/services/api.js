@@ -1,7 +1,10 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+// En producción (Vercel), usa ruta relativa. En desarrollo, usa localhost
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
 
 export const api = {
-    // Stats
+    // ==========================================
+    // STATS
+    // ==========================================
     async getOverviewStats() {
         const res = await fetch(`${API_URL}/stats/overview`);
         if (!res.ok) throw new Error('Failed to fetch stats');
@@ -14,7 +17,21 @@ export const api = {
         return res.json();
     },
 
-    // Routines
+    async getPersonalRecords() {
+        const res = await fetch(`${API_URL}/stats/prs`);
+        if (!res.ok) throw new Error('Failed to fetch PRs');
+        return res.json();
+    },
+
+    async getExerciseProgress(exerciseName) {
+        const res = await fetch(`${API_URL}/stats/progress/${encodeURIComponent(exerciseName)}`);
+        if (!res.ok) throw new Error('Failed to fetch exercise progress');
+        return res.json();
+    },
+
+    // ==========================================
+    // ROUTINES
+    // ==========================================
     async getRoutines() {
         const res = await fetch(`${API_URL}/routines`);
         if (!res.ok) throw new Error('Failed to fetch routines');
@@ -46,6 +63,16 @@ export const api = {
         return res.json();
     },
 
+    async importRoutine(routine) {
+        const res = await fetch(`${API_URL}/routines/import`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(routine),
+        });
+        if (!res.ok) throw new Error('Failed to import routine');
+        return res.json();
+    },
+
     async updateRoutine(id, routine) {
         const res = await fetch(`${API_URL}/routines/${id}`, {
             method: 'PUT',
@@ -66,52 +93,69 @@ export const api = {
 
     async activateRoutine(id) {
         const res = await fetch(`${API_URL}/routines/${id}/activate`, {
-            method: 'POST',
+            method: 'PUT',
         });
         if (!res.ok) throw new Error('Failed to activate routine');
         return res.json();
     },
 
-    // Workouts
-    async logWorkout(data) {
-        const res = await fetch(`${API_URL}/workouts`, {
+    // ==========================================
+    // WORKOUTS
+    // ==========================================
+    async logWorkout(exerciseId, sets, notes = null) {
+        const res = await fetch(`${API_URL}/workouts/log`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data),
+            body: JSON.stringify({ exerciseId, sets, notes }),
         });
         if (!res.ok) throw new Error('Failed to log workout');
         return res.json();
     },
 
-    async logRestDay() {
+    async logRestDay(note = null) {
         const res = await fetch(`${API_URL}/workouts/log-rest`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note }),
         });
         if (!res.ok) throw new Error('Failed to log rest day');
         return res.json();
     },
 
-    async getHistory(exerciseId) {
-        const res = await fetch(`${API_URL}/workouts/history/${exerciseId}`);
-        if (!res.ok) throw new Error('Failed to fetch history');
+    async getWorkoutHistory() {
+        const res = await fetch(`${API_URL}/workouts/history`);
+        if (!res.ok) throw new Error('Failed to fetch workout history');
         return res.json();
     },
 
-    // Data
-    async getMuscleGroups() {
-        const res = await fetch(`${API_URL}/exercises/muscle-groups`);
-        if (!res.ok) throw new Error('Failed to fetch muscle groups');
+    async getExerciseHistory(exerciseId) {
+        const res = await fetch(`${API_URL}/workouts/exercise/${exerciseId}/history`);
+        if (!res.ok) throw new Error('Failed to fetch exercise history');
         return res.json();
     },
 
+    // ==========================================
+    // EXERCISES
+    // ==========================================
     async getExercises() {
         const res = await fetch(`${API_URL}/exercises`);
         if (!res.ok) throw new Error('Failed to fetch exercises');
         return res.json();
     },
 
-    // System
+    async updateExerciseMuscle(exerciseId, muscleGroup) {
+        const res = await fetch(`${API_URL}/exercises/${exerciseId}/muscle`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ muscleGroup }),
+        });
+        if (!res.ok) throw new Error('Failed to update muscle group');
+        return res.json();
+    },
+
+    // ==========================================
+    // SYSTEM
+    // ==========================================
     async checkServer() {
         try {
             const res = await fetch(`${API_URL}/health`);

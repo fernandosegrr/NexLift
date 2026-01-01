@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Dumbbell, ChevronDown, ChevronRight, Play, Check,
-    Trash2, BarChart2, Plus, Pencil
+    Trash2, BarChart2, Plus, Pencil, AlertTriangle
 } from 'lucide-react';
 import { api } from '../services/api';
+import { useToast } from '../components/ui/Toast';
 
 export default function Routines() {
     const [routines, setRoutines] = useState([]);
@@ -12,6 +13,8 @@ export default function Routines() {
     const [expandedRoutine, setExpandedRoutine] = useState(null);
     const [expandedDay, setExpandedDay] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [deleteConfirm, setDeleteConfirm] = useState(null); // { id, name } or null
+    const toast = useToast();
 
     useEffect(() => {
         fetchRoutines();
@@ -34,19 +37,30 @@ export default function Routines() {
     async function handleActivate(id) {
         try {
             await api.activateRoutine(id);
+            toast.success('Rutina activada');
             fetchRoutines();
         } catch (error) {
+            toast.error('Error al activar rutina');
             console.error('Error activating:', error);
         }
     }
 
     async function handleDelete(id, name) {
-        if (!confirm(`¿Eliminar "${name}"?`)) return;
+        // Usar modal de confirmación en vez de confirm()
+        setDeleteConfirm({ id, name });
+    }
+
+    async function confirmDelete() {
+        if (!deleteConfirm) return;
         try {
-            await api.deleteRoutine(id);
-            setRoutines(prev => prev.filter(r => r.id !== id));
+            await api.deleteRoutine(deleteConfirm.id);
+            setRoutines(prev => prev.filter(r => r.id !== deleteConfirm.id));
+            toast.success(`"${deleteConfirm.name}" eliminada`);
         } catch (error) {
+            toast.error('Error al eliminar');
             console.error('Error:', error);
+        } finally {
+            setDeleteConfirm(null);
         }
     }
 
@@ -159,6 +173,41 @@ export default function Routines() {
                             />
                         ))
                     )}
+                </div>
+            )}
+
+            {/* Modal de Confirmación de Eliminación */}
+            {deleteConfirm && (
+                <div
+                    className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 animate-fade-in"
+                    onClick={() => setDeleteConfirm(null)}
+                >
+                    <div
+                        className="bg-[var(--bg-card)] rounded-2xl p-6 max-w-sm w-full animate-scale-in border border-[var(--border)]"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <AlertTriangle size={24} className="text-red-400" />
+                        </div>
+                        <h3 className="text-lg font-bold text-center mb-2">¿Eliminar rutina?</h3>
+                        <p className="text-center text-[var(--text-secondary)] text-sm mb-6">
+                            Se eliminará <span className="font-medium text-white">"{deleteConfirm.name}"</span> y todos sus datos.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setDeleteConfirm(null)}
+                                className="flex-1 py-3 px-4 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl font-medium hover:bg-[var(--bg-card-hover)] transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={confirmDelete}
+                                className="flex-1 py-3 px-4 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors"
+                            >
+                                Eliminar
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

@@ -131,99 +131,98 @@ export default async function handler(req, res) {
             const routineId = updateMatch[1];
             const { name, description, days } = body;
 
-            // 1. Update basic info
-            await prisma.routine.update({
-                where: { routineId },
-                data: { name, description }
-            });
+            // Transacción para evitar corrupción de datos
+            const updatedRoutine = await prisma.$transaction(async (tx) => {
+                // 1. Update basic info
+                await tx.routine.update({
+                    where: { id: routineId },
+                    data: { name, description }
+                });
 
-            // 2. Handle Days
-            // Get existing days to know what to delete
-            const existingDays = await prisma.routineDay.findMany({
-                where: { routineId },
-                select: { id: true }
-            });
-            const incomingDayIds = days.filter(d => d.id).map(d => d.id);
-            const daysToDelete = existingDays.filter(d => !incomingDayIds.includes(d.id)).map(d => d.id);
+                // 2. Handle Days (Delete removed ones)
+                const existingDays = await tx.routineDay.findMany({
+                    where: { routineId },
+                    select: { id: true }
+                });
+                const incomingDayIds = days.filter(d => d.id).map(d => d.id);
+                const daysToDelete = existingDays.filter(d => !incomingDayIds.includes(d.id)).map(d => d.id);
 
-            // Delete removed days
-            if (daysToDelete.length > 0) {
-                await prisma.routineDay.deleteMany({ where: { id: { in: daysToDelete } } });
-            }
-
-            // Upsert days (Update or Create)
-            for (let i = 0; i < days.length; i++) {
-                const day = days[i];
-                let dayId = day.id;
-
-                if (dayId) {
-                    await prisma.routineDay.update({
-                        where: { id: dayId },
-                        data: {
-                            dayName: day.dayName,
-                            isRestDay: day.isRestDay || false,
-                            order: i
-                        }
-                    });
-                } else {
-                    const newDay = await prisma.routineDay.create({
-                        data: {
-                            routineId,
-                            dayName: day.dayName,
-                            isRestDay: day.isRestDay || false,
-                            order: i
-                        }
-                    });
-                    dayId = newDay.id;
+                if (daysToDelete.length > 0) {
+                    await tx.routineDay.deleteMany({ where: { id: { in: daysToDelete } } });
                 }
 
-                // 3. Handle Exercises for this Day
-                if (day.exercises && Array.isArray(day.exercises)) {
-                    const existingExercises = await prisma.exercise.findMany({
-                        where: { routineDayId: dayId },
-                        select: { id: true }
-                    });
-                    const incomingExIds = day.exercises.filter(e => e.id).map(e => e.id);
-                    const exToDelete = existingExercises.filter(e => !incomingExIds.includes(e.id)).map(e => e.id);
+                // 3. Upsert Days and Exercises
+                for (let i = 0; i < days.length; i++) {
+                    const day = days[i];
+                    let dayId = day.id;
 
-                    if (exToDelete.length > 0) {
-                        await prisma.exercise.deleteMany({ where: { id: { in: exToDelete } } });
+                    if (dayId) {
+                        await tx.routineDay.update({
+                            where: { id: dayId },
+                            data: {
+                                dayName: day.dayName,
+                                isRestDay: day.isRestDay || false,
+                                order: i
+                            }
+                        });
+                    } else {
+                        const newDay = await tx.routineDay.create({
+                            data: {
+                                routineId,
+                                dayName: day.dayName,
+                                isRestDay: day.isRestDay || false,
+                                order: i
+                            }
+                        });
+                        dayId = newDay.id;
                     }
 
-                    for (let j = 0; j < day.exercises.length; j++) {
-                        const ex = day.exercises[j];
-                        if (ex.id) {
-                            await prisma.exercise.update({
-                                where: { id: ex.id },
-                                data: {
-                                    name: ex.name,
-                                    targetSets: parseInt(ex.targetSets),
-                                    targetReps: ex.targetReps,
-                                    restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
-                                    note: ex.note,
-                                    order: j
-                                }
-                            });
-                        } else {
-                            await prisma.exercise.create({
-                                data: {
-                                    routineDayId: dayId,
-                                    name: ex.name,
-                                    targetSets: parseInt(ex.targetSets || 3),
-                                    targetReps: ex.targetReps || '8-12',
-                                    restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
-                                    note: ex.note,
-                                    order: j
-                                }
-                            });
+                    // Handle Exercises for this Day
+                    if (day.exercises && Array.isArray(day.exercises)) {
+                        const existingExercises = await tx.exercise.findMany({
+                            where: { routineDayId: dayId },
+                            select: { id: true }
+                        });
+                        const incomingExIds = day.exercises.filter(e => e.id).map(e => e.id);
+                        const exToDelete = existingExercises.filter(e => !incomingExIds.includes(e.id)).map(e => e.id);
+
+                        if (exToDelete.length > 0) {
+                            await tx.exercise.deleteMany({ where: { id: { in: exToDelete } } });
+                        }
+
+                        for (let j = 0; j < day.exercises.length; j++) {
+                            const ex = day.exercises[j];
+                            const exData = {
+                                name: ex.name,
+                                targetSets: parseInt(ex.targetSets || 3),
+                                targetReps: String(ex.targetReps || '8-12'),
+                                restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
+                                note: ex.note || null,
+                                order: j,
+                                routineDayId: dayId // Needed for create
+                            };
+
+                            if (ex.id) {
+                                // Remove routineDayId for update as it doesn't change
+                                const { routineDayId, ...updateData } = exData;
+                                await tx.exercise.update({
+                                    where: { id: ex.id },
+                                    data: updateData
+                                });
+                            } else {
+                                await tx.exercise.create({
+                                    data: exData
+                                });
+                            }
                         }
                     }
                 }
-            }
 
-            const updatedRoutine = await prisma.routine.findUnique({
-                where: { id: routineId },
-                include: { days: { include: { exercises: { orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } } }
+                // Return fresh data
+                return tx.routine.findUnique({
+                    where: { id: routineId },
+                    include: { days: { include: { exercises: { orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } } }
+                });
             });
 
             return res.json(updatedRoutine);
@@ -243,7 +242,8 @@ export default async function handler(req, res) {
         if (path === '/exercises' && method === 'GET') {
             const exercises = await prisma.exercise.findMany({
                 select: { id: true, name: true, muscleGroup: true },
-                distinct: ['name']
+                distinct: ['name'],
+                orderBy: { name: 'asc' }
             });
             return res.json(exercises);
         }
@@ -281,9 +281,9 @@ export default async function handler(req, res) {
                     sets: {
                         create: sets.map((set, i) => ({
                             setNumber: i + 1,
-                            weight: set.weight,
-                            reps: set.reps,
-                            rpe: set.rpe || null,
+                            weight: parseFloat(set.weight),
+                            reps: parseInt(set.reps),
+                            rpe: set.rpe ? parseFloat(set.rpe) : null,
                             completed: true
                         }))
                     }
@@ -291,18 +291,34 @@ export default async function handler(req, res) {
                 include: { sets: true, exercise: true }
             });
 
-            // Update PR
+            // Update PR with safety check
             const exercise = await prisma.exercise.findUnique({ where: { id: exerciseId } });
             if (exercise) {
                 for (const set of sets) {
-                    const est1RM = set.weight * (36 / (37 - set.reps));
+                    const weight = parseFloat(set.weight);
+                    const reps = parseInt(set.reps);
+
+                    // Safety: Avoid division by zero if reps >= 37
+                    let est1RM = weight;
+                    if (reps > 1 && reps < 37) {
+                        est1RM = weight * (36 / (37 - reps));
+                    } else if (reps >= 37) {
+                        est1RM = weight; // Fallback seguro
+                    }
+
                     const existingPR = await prisma.personalRecord.findFirst({
                         where: { exerciseName: exercise.name.toLowerCase() },
                         orderBy: { estimated1RM: 'desc' }
                     });
+
                     if (!existingPR || est1RM > (existingPR.estimated1RM || 0)) {
                         await prisma.personalRecord.create({
-                            data: { exerciseName: exercise.name.toLowerCase(), weight: set.weight, reps: set.reps, estimated1RM: est1RM }
+                            data: {
+                                exerciseName: exercise.name.toLowerCase(),
+                                weight: weight,
+                                reps: reps,
+                                estimated1RM: est1RM
+                            }
                         });
                     }
                 }
@@ -382,7 +398,8 @@ export default async function handler(req, res) {
             const weekAgo = new Date();
             weekAgo.setDate(weekAgo.getDate() - 7);
             const weekSets = await prisma.setLog.findMany({
-                where: { workoutLog: { date: { gte: weekAgo } } }
+                where: { workoutLog: { date: { gte: weekAgo } } },
+                select: { weight: true, reps: true }
             });
             const weeklyVolume = weekSets.reduce((acc, s) => acc + (s.weight * s.reps), 0);
 
@@ -394,7 +411,6 @@ export default async function handler(req, res) {
             });
         }
 
-        // GET /api/stats/consistency
         // GET /api/stats/consistency
         if (path === '/stats/consistency' && method === 'GET') {
             const ninetyDaysAgo = new Date();
@@ -417,7 +433,6 @@ export default async function handler(req, res) {
 
             return res.json({ events: allEvents });
         }
-
 
         // GET /api/stats/prs
         if (path === '/stats/prs' && method === 'GET') {
@@ -444,7 +459,9 @@ export default async function handler(req, res) {
 
             const data = logs.map(log => {
                 const maxSet = log.sets.reduce((max, s) => {
-                    const e = s.weight * (36 / (37 - s.reps));
+                    let e = s.weight;
+                    if (s.reps > 1 && s.reps < 37) e = s.weight * (36 / (37 - s.reps));
+
                     return e > max.e ? { ...s, e } : max;
                 }, { e: 0 });
                 return {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Settings as SettingsIcon, Dumbbell, Check, ChevronDown, ChevronRight, Info } from 'lucide-react';
 import { api } from '../services/api';
+import { useToast } from '../components/ui/Toast';
 
 const MUSCLE_OPTIONS = [
     'Pecho',
@@ -18,6 +19,7 @@ export default function Settings() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(null); // ID del ejercicio guardándose
     const [expandedMuscle, setExpandedMuscle] = useState(null);
+    const toast = useToast();
 
     useEffect(() => {
         fetchExercises();
@@ -41,9 +43,10 @@ export default function Settings() {
             setExercises(prev => prev.map(ex =>
                 ex.id === exerciseId ? { ...ex, muscleGroup } : ex
             ));
+            toast.success(`Clasificado como ${muscleGroup}`);
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al guardar el cambio');
+            toast.error('Error al guardar el cambio');
         } finally {
             setSaving(null);
         }
