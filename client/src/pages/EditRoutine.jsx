@@ -28,7 +28,7 @@ export default function EditRoutine() {
         setSaving(true);
         try {
             await api.updateRoutine(id, routine);
-            navigate(`/workout/${routine.days[0]?.id || ''}`); // Redirect locally or back to list
+            navigate(`/routines/${id}`); // Redirect back to routine detail
         } catch (error) {
             console.error('Error updating routine:', error);
             alert('Error al guardar. Intenta de nuevo.');

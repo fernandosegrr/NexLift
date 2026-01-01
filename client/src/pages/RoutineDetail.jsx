@@ -82,57 +82,66 @@ export default function RoutineDetail() {
                                     </p>
                                 </div>
                             </div>
-                            <Link
-                                to={`/workout/${day.id}`}
-                                className="btn-primary flex items-center gap-2 text-sm py-2 px-4"
-                            >
-                                <Play size={16} />
-                                Empezar
-                            </Link>
+                            {day.isRestDay ? (
+                                <span className="text-sm font-medium text-[var(--text-secondary)] bg-[var(--bg-dark)] px-3 py-1 rounded-lg border border-[var(--border)]">
+                                    ☕ Día de Descanso
+                                </span>
+                            ) : (
+                                <Link
+                                    to={`/workout/${day.id}`}
+                                    className="btn-primary flex items-center gap-2 text-sm py-2 px-4"
+                                >
+                                    <Play size={16} />
+                                    Empezar
+                                </Link>
+                            )}
                         </div>
 
                         {/* Exercises */}
-                        <div className="divide-y divide-[var(--border)]">
-                            {day.exercises.map((exercise) => (
-                                <div key={exercise.id} className="p-4 hover:bg-[var(--bg-card-hover)] transition-colors">
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                            <h4 className="font-medium">{exercise.name}</h4>
-                                            <div className="flex items-center gap-3 mt-1 text-sm text-[var(--text-secondary)]">
-                                                <span className="flex items-center gap-1">
-                                                    <Dumbbell size={14} />
-                                                    {exercise.targetSets} × {exercise.targetReps}
-                                                </span>
-                                                {exercise.restSeconds && (
+                        < div className="divide-y divide-[var(--border)]" >
+                            {
+                                day.exercises.map((exercise) => (
+                                    <div key={exercise.id} className="p-4 hover:bg-[var(--bg-card-hover)] transition-colors">
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1">
+                                                <h4 className="font-medium">{exercise.name}</h4>
+                                                <div className="flex items-center gap-3 mt-1 text-sm text-[var(--text-secondary)]">
                                                     <span className="flex items-center gap-1">
-                                                        <Clock size={14} />
-                                                        {exercise.restSeconds}s
+                                                        <Dumbbell size={14} />
+                                                        {exercise.targetSets} × {exercise.targetReps}
                                                     </span>
+                                                    {exercise.restSeconds && (
+                                                        <span className="flex items-center gap-1">
+                                                            <Clock size={14} />
+                                                            {exercise.restSeconds}s
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {exercise.note && (
+                                                    <p className="text-xs text-[var(--accent)] mt-2 italic">
+                                                        💡 {exercise.note}
+                                                    </p>
                                                 )}
                                             </div>
-                                            {exercise.note && (
-                                                <p className="text-xs text-[var(--accent)] mt-2 italic">
-                                                    💡 {exercise.note}
-                                                </p>
+
+                                            {/* Last workout indicator */}
+                                            {exercise.workoutLogs?.length > 0 && (
+                                                <div className="text-right">
+                                                    <p className="text-xs text-[var(--text-secondary)]">Último</p>
+                                                    <p className="text-sm font-medium text-[var(--success)]">
+                                                        {exercise.workoutLogs[0].sets[0]?.weight}kg
+                                                    </p>
+                                                </div>
                                             )}
                                         </div>
-
-                                        {/* Last workout indicator */}
-                                        {exercise.workoutLogs?.length > 0 && (
-                                            <div className="text-right">
-                                                <p className="text-xs text-[var(--text-secondary)]">Último</p>
-                                                <p className="text-sm font-medium text-[var(--success)]">
-                                                    {exercise.workoutLogs[0].sets[0]?.weight}kg
-                                                </p>
-                                            </div>
-                                        )}
                                     </div>
-                                </div>
-                            ))}
+                                ))
+                            }
                         </div>
                     </div>
-                ))}
-            </div>
-        </div>
+                ))
+                }
+            </div >
+        </div >
     );
 }
