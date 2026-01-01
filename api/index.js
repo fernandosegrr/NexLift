@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 
-// Singleton pattern for Prisma in serverless
+// Singleton pattern for Prisma in serverless (prevents connection exhaustion)
 const globalForPrisma = globalThis;
 const prisma = globalForPrisma.prisma || new PrismaClient();
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
@@ -16,8 +16,10 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    const { url, method, body } = req;
-    const path = url.replace('/api', '');
+    // MEJORA: Parseo seguro de URL para ignorar query params (ej. ?foo=bar)
+    const urlObj = new URL(req.url, `http://${req.headers.host}`);
+    const path = urlObj.pathname.replace('/api', '');
+    const { method, body } = req;
 
     try {
         // ==========================================
@@ -43,9 +45,10 @@ export default async function handler(req, res) {
                             exercises: {
                                 create: (day.exercises || []).map((ex, exIndex) => ({
                                     name: ex.name,
-                                    targetSets: ex.sets || 3,
-                                    targetReps: ex.reps || '8-12',
-                                    restSeconds: ex.rest || null,
+                                    // Compatibilidad: acepta targetSets O sets
+                                    targetSets: parseInt(ex.targetSets || ex.sets || 3),
+                                    targetReps: String(ex.targetReps || ex.reps || '8-12'),
+                                    restSeconds: ex.restSeconds || ex.rest ? parseInt(ex.restSeconds || ex.rest) : null,
                                     note: ex.note || null,
                                     order: exIndex
                                 }))
@@ -116,13 +119,16 @@ export default async function handler(req, res) {
         // PUT /api/routines/:id/activate
         const activateMatch = path.match(/^\/routines\/([^/]+)\/activate$/);
         if (activateMatch && method === 'PUT') {
-            await prisma.routine.updateMany({ where: { isActive: true }, data: { isActive: false } });
-            const routine = await prisma.routine.update({
-                where: { id: activateMatch[1] },
-                data: { isActive: true },
-                include: { days: { include: { exercises: { orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } } }
-            });
-            return res.json({ message: 'Activated!', routine });
+            // MEJORA: Transacción para asegurar que solo haya 1 activa
+            const result = await prisma.$transaction([
+                prisma.routine.updateMany({ where: { isActive: true }, data: { isActive: false } }),
+                prisma.routine.update({
+                    where: { id: activateMatch[1] },
+                    data: { isActive: true },
+                    include: { days: { include: { exercises: { orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } } }
+                })
+            ]);
+            return res.json({ message: 'Activated!', routine: result[1] });
         }
 
         // PUT /api/routines/:id - Update routine structure
@@ -131,99 +137,98 @@ export default async function handler(req, res) {
             const routineId = updateMatch[1];
             const { name, description, days } = body;
 
-            // 1. Update basic info
-            await prisma.routine.update({
-                where: { id: routineId },
-                data: { name, description }
-            });
+            // MEJORA CRÍTICA: Transacción para evitar corrupción de datos si falla a la mitad
+            const updatedRoutine = await prisma.$transaction(async (tx) => {
+                // 1. Update basic info
+                await tx.routine.update({
+                    where: { id: routineId },
+                    data: { name, description }
+                });
 
-            // 2. Handle Days
-            // Get existing days to know what to delete
-            const existingDays = await prisma.routineDay.findMany({
-                where: { routineId },
-                select: { id: true }
-            });
-            const incomingDayIds = days.filter(d => d.id).map(d => d.id);
-            const daysToDelete = existingDays.filter(d => !incomingDayIds.includes(d.id)).map(d => d.id);
+                // 2. Handle Days (Delete removed ones)
+                const existingDays = await tx.routineDay.findMany({
+                    where: { routineId },
+                    select: { id: true }
+                });
+                const incomingDayIds = days.filter(d => d.id).map(d => d.id);
+                const daysToDelete = existingDays.filter(d => !incomingDayIds.includes(d.id)).map(d => d.id);
 
-            // Delete removed days
-            if (daysToDelete.length > 0) {
-                await prisma.routineDay.deleteMany({ where: { id: { in: daysToDelete } } });
-            }
-
-            // Upsert days (Update or Create)
-            for (let i = 0; i < days.length; i++) {
-                const day = days[i];
-                let dayId = day.id;
-
-                if (dayId) {
-                    await prisma.routineDay.update({
-                        where: { id: dayId },
-                        data: {
-                            dayName: day.dayName,
-                            isRestDay: day.isRestDay || false,
-                            order: i
-                        }
-                    });
-                } else {
-                    const newDay = await prisma.routineDay.create({
-                        data: {
-                            routineId,
-                            dayName: day.dayName,
-                            isRestDay: day.isRestDay || false,
-                            order: i
-                        }
-                    });
-                    dayId = newDay.id;
+                if (daysToDelete.length > 0) {
+                    await tx.routineDay.deleteMany({ where: { id: { in: daysToDelete } } });
                 }
 
-                // 3. Handle Exercises for this Day
-                if (day.exercises && Array.isArray(day.exercises)) {
-                    const existingExercises = await prisma.exercise.findMany({
-                        where: { routineDayId: dayId },
-                        select: { id: true }
-                    });
-                    const incomingExIds = day.exercises.filter(e => e.id).map(e => e.id);
-                    const exToDelete = existingExercises.filter(e => !incomingExIds.includes(e.id)).map(e => e.id);
+                // 3. Upsert Days and Exercises
+                for (let i = 0; i < days.length; i++) {
+                    const day = days[i];
+                    let dayId = day.id;
 
-                    if (exToDelete.length > 0) {
-                        await prisma.exercise.deleteMany({ where: { id: { in: exToDelete } } });
+                    if (dayId) {
+                        await tx.routineDay.update({
+                            where: { id: dayId },
+                            data: {
+                                dayName: day.dayName,
+                                isRestDay: day.isRestDay || false,
+                                order: i
+                            }
+                        });
+                    } else {
+                        const newDay = await tx.routineDay.create({
+                            data: {
+                                routineId,
+                                dayName: day.dayName,
+                                isRestDay: day.isRestDay || false,
+                                order: i
+                            }
+                        });
+                        dayId = newDay.id;
                     }
 
-                    for (let j = 0; j < day.exercises.length; j++) {
-                        const ex = day.exercises[j];
-                        if (ex.id) {
-                            await prisma.exercise.update({
-                                where: { id: ex.id },
-                                data: {
-                                    name: ex.name,
-                                    targetSets: parseInt(ex.targetSets),
-                                    targetReps: ex.targetReps,
-                                    restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
-                                    note: ex.note,
-                                    order: j
-                                }
-                            });
-                        } else {
-                            await prisma.exercise.create({
-                                data: {
-                                    routineDayId: dayId,
-                                    name: ex.name,
-                                    targetSets: parseInt(ex.targetSets || 3),
-                                    targetReps: ex.targetReps || '8-12',
-                                    restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
-                                    note: ex.note,
-                                    order: j
-                                }
-                            });
+                    // Handle Exercises for this Day
+                    if (day.exercises && Array.isArray(day.exercises)) {
+                        const existingExercises = await tx.exercise.findMany({
+                            where: { routineDayId: dayId },
+                            select: { id: true }
+                        });
+                        const incomingExIds = day.exercises.filter(e => e.id).map(e => e.id);
+                        const exToDelete = existingExercises.filter(e => !incomingExIds.includes(e.id)).map(e => e.id);
+
+                        if (exToDelete.length > 0) {
+                            await tx.exercise.deleteMany({ where: { id: { in: exToDelete } } });
+                        }
+
+                        for (let j = 0; j < day.exercises.length; j++) {
+                            const ex = day.exercises[j];
+                            const exData = {
+                                name: ex.name,
+                                targetSets: parseInt(ex.targetSets || 3),
+                                targetReps: String(ex.targetReps || '8-12'),
+                                restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
+                                note: ex.note || null,
+                                order: j,
+                                routineDayId: dayId // Needed for create
+                            };
+
+                            if (ex.id) {
+                                // Remove routineDayId for update as it doesn't change
+                                const { routineDayId, ...updateData } = exData;
+                                await tx.exercise.update({
+                                    where: { id: ex.id },
+                                    data: updateData
+                                });
+                            } else {
+                                await tx.exercise.create({
+                                    data: exData
+                                });
+                            }
                         }
                     }
                 }
-            }
 
-            const updatedRoutine = await prisma.routine.findUnique({
-                where: { id: routineId },
-                include: { days: { include: { exercises: { orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } } }
+                // Return fresh data
+                return tx.routine.findUnique({
+                    where: { id: routineId },
+                    include: { days: { include: { exercises: { orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } } }
+                });
             });
 
             return res.json(updatedRoutine);
@@ -241,9 +246,11 @@ export default async function handler(req, res) {
 
         // GET /api/exercises
         if (path === '/exercises' && method === 'GET') {
+            // Distinct is handled carefully in Prisma
             const exercises = await prisma.exercise.findMany({
+                distinct: ['name'],
                 select: { id: true, name: true, muscleGroup: true },
-                distinct: ['name']
+                orderBy: { name: 'asc' }
             });
             return res.json(exercises);
         }
@@ -256,6 +263,7 @@ export default async function handler(req, res) {
                 where: { id: exMuscleMatch[1] },
                 data: { muscleGroup }
             });
+            // Update all exercises with same name for consistency
             await prisma.exercise.updateMany({
                 where: { name: exercise.name },
                 data: { muscleGroup }
@@ -281,9 +289,9 @@ export default async function handler(req, res) {
                     sets: {
                         create: sets.map((set, i) => ({
                             setNumber: i + 1,
-                            weight: set.weight,
-                            reps: set.reps,
-                            rpe: set.rpe || null,
+                            weight: parseFloat(set.weight),
+                            reps: parseInt(set.reps),
+                            rpe: set.rpe ? parseFloat(set.rpe) : null,
                             completed: true
                         }))
                     }
@@ -291,18 +299,34 @@ export default async function handler(req, res) {
                 include: { sets: true, exercise: true }
             });
 
-            // Update PR
+            // Update PR with safety check
             const exercise = await prisma.exercise.findUnique({ where: { id: exerciseId } });
             if (exercise) {
                 for (const set of sets) {
-                    const est1RM = set.weight * (36 / (37 - set.reps));
+                    const weight = parseFloat(set.weight);
+                    const reps = parseInt(set.reps);
+
+                    // MEJORA: Evitar división por cero o negativo si reps >= 37
+                    let est1RM = weight;
+                    if (reps > 1 && reps < 37) {
+                        est1RM = weight * (36 / (37 - reps));
+                    } else if (reps >= 37) {
+                        est1RM = weight; // Fallback seguro
+                    }
+
                     const existingPR = await prisma.personalRecord.findFirst({
                         where: { exerciseName: exercise.name.toLowerCase() },
                         orderBy: { estimated1RM: 'desc' }
                     });
+
                     if (!existingPR || est1RM > (existingPR.estimated1RM || 0)) {
                         await prisma.personalRecord.create({
-                            data: { exerciseName: exercise.name.toLowerCase(), weight: set.weight, reps: set.reps, estimated1RM: est1RM }
+                            data: {
+                                exerciseName: exercise.name.toLowerCase(),
+                                weight: weight,
+                                reps: reps,
+                                estimated1RM: est1RM
+                            }
                         });
                     }
                 }
@@ -364,6 +388,7 @@ export default async function handler(req, res) {
                 select: { date: true }
             });
 
+            // Convert DB dates to strings safely (server uses UTC usually)
             const uniqueDays = new Set([
                 ...recentWorkouts.map(w => w.date.toISOString().split('T')[0]),
                 ...recentRestLogs.map(r => r.date.toISOString().split('T')[0])
@@ -376,13 +401,17 @@ export default async function handler(req, res) {
                 checkDate.setDate(checkDate.getDate() - i);
                 const dateStr = checkDate.toISOString().split('T')[0];
                 if (uniqueDays.has(dateStr)) streak++;
-                else if (i > 0) break;
+                else if (i > 0) break; // Break streak if missing day (except maybe today)
             }
 
+            // Calculate Volume
             const weekAgo = new Date();
             weekAgo.setDate(weekAgo.getDate() - 7);
+
+            // Optimize volume calc: use aggregation if possible, else manual is fine for low traffic
             const weekSets = await prisma.setLog.findMany({
-                where: { workoutLog: { date: { gte: weekAgo } } }
+                where: { workoutLog: { date: { gte: weekAgo } } },
+                select: { weight: true, reps: true }
             });
             const weeklyVolume = weekSets.reduce((acc, s) => acc + (s.weight * s.reps), 0);
 
@@ -408,7 +437,6 @@ export default async function handler(req, res) {
                 select: { date: true }
             });
 
-            // Return raw timestamps for frontend processing (Timezone fix)
             const allEvents = [
                 ...workouts.map(w => w.date),
                 ...restLogs.map(r => r.date)
@@ -420,6 +448,7 @@ export default async function handler(req, res) {
         // GET /api/stats/prs
         if (path === '/stats/prs' && method === 'GET') {
             const allPRs = await prisma.personalRecord.findMany({ orderBy: { date: 'desc' } });
+            // Manual deduping to find absolute MAX 1RM per exercise
             const byEx = {};
             allPRs.forEach(pr => {
                 if (!byEx[pr.exerciseName] || (pr.estimated1RM || 0) > (byEx[pr.exerciseName].estimated1RM || 0)) {
@@ -435,16 +464,20 @@ export default async function handler(req, res) {
             const name = decodeURIComponent(progressMatch[1]);
             const logs = await prisma.workoutLog.findMany({
                 where: { exercise: { name: { contains: name, mode: 'insensitive' } } },
-                include: { sets: { orderBy: { setNumber: 'asc' } } },
+                include: { sets: true },
                 orderBy: { date: 'asc' },
                 take: 50
             });
 
             const data = logs.map(log => {
                 const maxSet = log.sets.reduce((max, s) => {
-                    const e = s.weight * (36 / (37 - s.reps));
+                    // Safe calculation
+                    let e = s.weight;
+                    if (s.reps > 1 && s.reps < 37) e = s.weight * (36 / (37 - s.reps));
+
                     return e > max.e ? { ...s, e } : max;
                 }, { e: 0 });
+
                 return {
                     date: log.date,
                     maxWeight: Math.max(...log.sets.map(s => s.weight)),
@@ -489,7 +522,6 @@ export default async function handler(req, res) {
             return res.json({ status: 'ok', timestamp: new Date().toISOString() });
         }
 
-        // 404
         return res.status(404).json({ error: 'Not found', path });
 
     } catch (error) {

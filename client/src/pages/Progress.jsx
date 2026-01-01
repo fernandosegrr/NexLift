@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     TrendingUp, Calendar, Trophy, Dumbbell, Target,
     ChevronDown, ChevronRight, Activity, AlertCircle, CheckCircle, Search
 } from 'lucide-react';
 
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, CartesianGrid } from 'recharts';
 import { api } from '../services/api';
 
 // Muscle groups for auto-classification
@@ -14,7 +14,7 @@ const MUSCLE_KEYWORDS = {
     'Hombros': ['press militar', 'elevaciones', 'laterales', 'frontales', 'pajaros', 'arnold', 'cruces'],
     'Bíceps': ['curl', 'martillo', 'predicador', 'bayesian', 'copa'],
     'Tríceps': ['extensión', 'extension', 'francés', 'frances', 'fondos', 'patada'],
-    'Piernas': ['sentadilla', 'prensa', 'hack', 'extensiones', 'femoral', 'zancadas', 'hip thrust', 'aductores', 'gemelo', 'cuádriceps'],
+    'Piernas': ['sentadilla', 'prensa', 'hack', 'extensiones', 'femoral', 'zancadas', 'hip thrust', 'aductores', 'gemelo', 'cuádriceps', 'peso muerto'],
     'Core': ['plancha', 'crunch', 'abdominales', 'rueda', 'hanging']
 };
 
@@ -28,27 +28,31 @@ function getMuscleGroup(exerciseName, dbMuscle) {
 }
 
 export default function Progress() {
+    // Data State
     const [stats, setStats] = useState(null);
     const [consistency, setConsistency] = useState({});
     const [prs, setPRs] = useState([]);
     const [exercises, setExercises] = useState([]);
-    const [selectedExercise, setSelectedExercise] = useState('');
     const [exerciseProgress, setExerciseProgress] = useState([]);
+
+    // UI State
+    const [selectedExercise, setSelectedExercise] = useState('');
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('overview');
     const [prSearch, setPrSearch] = useState('');
-
-    // Dropdowns state
     const [showMuscleDropdown, setShowMuscleDropdown] = useState(false);
     const [expandedMuscle, setExpandedMuscle] = useState(null);
 
-    const years = [2024, 2025, 2026];
+    // Dynamic Years: Current year + next year
+    const years = useMemo(() => {
+        const current = new Date().getFullYear();
+        return [current, current + 1];
+    }, []);
 
-    // Helper to get local date string YYYY-MM-DD
+    // Helper to get local date string YYYY-MM-DD safely
     const getLocalDateStr = (dateObj) => {
-        const offset = dateObj.getTimezoneOffset() * 60000;
-        return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
+        return dateObj.toLocaleDateString('en-CA');
     };
 
     useEffect(() => {
@@ -80,24 +84,27 @@ export default function Progress() {
                     map[localDate] = (map[localDate] || 0) + 1;
                 });
             } else {
-                // Fallback
                 Object.assign(map, consistencyRes);
             }
             setConsistency(map);
-
             setPRs(prsData);
 
-            // Extract unique exercises with their assigned muscles
+            // Extract unique exercises
             const allExercises = [];
+            const seen = new Set();
             routinesData.forEach(r => r.days.forEach(d => {
                 d.exercises.forEach(e => {
-                    if (!allExercises.find(ex => ex.name === e.name)) {
+                    if (!seen.has(e.name)) {
                         allExercises.push({ name: e.name, muscleGroup: e.muscleGroup });
+                        seen.add(e.name);
                     }
                 });
             }));
             setExercises(allExercises);
-            if (allExercises.length > 0) setSelectedExercise(allExercises[0].name);
+
+            if (allExercises.length > 0 && !selectedExercise) {
+                setSelectedExercise(allExercises[0].name);
+            }
         } catch (error) {
             console.error('Error:', error);
         } finally {
@@ -110,43 +117,52 @@ export default function Progress() {
             const data = await api.getExerciseProgress(name);
             setExerciseProgress(data.map(d => ({
                 ...d,
-                date: new Date(d.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+                displayDate: new Date(d.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
+                fullDate: new Date(d.date).toLocaleDateString('es-ES')
             })));
         } catch (error) {
             console.error('Error:', error);
         }
     }
 
-    // Group exercises by muscle
-    const exercisesByMuscle = exercises.reduce((acc, ex) => {
-        const muscle = getMuscleGroup(ex.name, ex.muscleGroup);
-        if (!acc[muscle]) acc[muscle] = [];
-        acc[muscle].push(ex);
-        return acc;
-    }, {});
+    // --- MEMOIZED CALCULATIONS (Performance Optimization) ---
 
-    // Group PRs by muscle
-    const prsByMuscle = prs.reduce((acc, pr) => {
-        const muscle = getMuscleGroup(pr.exerciseName, null);
-        if (!acc[muscle]) acc[muscle] = [];
-        acc[muscle].push(pr);
-        return acc;
-    }, {});
+    // 1. Group exercises by muscle
+    const exercisesByMuscle = useMemo(() => {
+        return exercises.reduce((acc, ex) => {
+            const muscle = getMuscleGroup(ex.name, ex.muscleGroup);
+            if (!acc[muscle]) acc[muscle] = [];
+            acc[muscle].push(ex);
+            return acc;
+        }, {});
+    }, [exercises]);
 
-    // Filter PRs based on search
-    const filteredPRs = prSearch
-        ? prs.filter(pr => pr.exerciseName.toLowerCase().includes(prSearch.toLowerCase()))
-        : prs.slice(0, 5); // Default to top 5 recent if no search
+    // 2. Group PRs by muscle
+    const prsByMuscle = useMemo(() => {
+        return prs.reduce((acc, pr) => {
+            const muscle = getMuscleGroup(pr.exerciseName, null);
+            if (!acc[muscle]) acc[muscle] = [];
+            acc[muscle].push(pr);
+            return acc;
+        }, {});
+    }, [prs]);
 
-    // Calculate compliance stats
-    const getComplianceStats = () => {
+    // 3. Filter PRs
+    const filteredPRs = useMemo(() => {
+        return prSearch
+            ? prs.filter(pr => pr.exerciseName.toLowerCase().includes(prSearch.toLowerCase()))
+            : prs.slice(0, 5);
+    }, [prs, prSearch]);
+
+    // 4. Compliance Stats
+    const compliance = useMemo(() => {
         const today = new Date();
         const last30Days = [];
         for (let i = 29; i >= 0; i--) {
             const date = new Date(today);
             date.setDate(date.getDate() - i);
             const dateStr = getLocalDateStr(date);
-            const hasWorkout = consistency[dateStr] > 0;
+            const hasWorkout = (consistency[dateStr] || 0) > 0;
             last30Days.push({ date: dateStr, hasWorkout });
         }
 
@@ -154,20 +170,25 @@ export default function Progress() {
         const complianceRate = Math.round((daysWithWorkout / 30) * 100);
 
         return { daysWithWorkout, complianceRate, last30Days };
-    };
+    }, [consistency]);
 
-    const compliance = getComplianceStats();
-
-    // Generate weekly data for selected year
-    const getWeeklyData = () => {
+    // 5. Weekly Data for Chart
+    const weeklyData = useMemo(() => {
         const weeks = [];
         const yearStart = new Date(selectedYear, 0, 1);
+        const today = new Date();
+
+        // Si el año seleccionado es futuro, no mostramos nada
+        if (selectedYear > today.getFullYear()) return [];
 
         for (let w = 0; w < 52; w++) {
             const weekStart = new Date(yearStart);
             weekStart.setDate(weekStart.getDate() + (w * 7));
             const weekEnd = new Date(weekStart);
             weekEnd.setDate(weekEnd.getDate() + 6);
+
+            // Stop if we are past today in the current year
+            if (selectedYear === today.getFullYear() && weekStart > today) break;
 
             let count = 0;
             Object.keys(consistency).forEach(dateStr => {
@@ -179,8 +200,9 @@ export default function Progress() {
 
             weeks.push({ week: `S${w + 1}`, sessions: count });
         }
-        return weeks.slice(0, Math.min(52, Math.ceil((new Date() - yearStart) / (7 * 24 * 60 * 60 * 1000)) + 1));
-    };
+        return weeks;
+    }, [consistency, selectedYear]);
+
 
     function selectExercise(name) {
         setSelectedExercise(name);
@@ -300,15 +322,15 @@ export default function Progress() {
                             onClick={() => setShowMuscleDropdown(!showMuscleDropdown)}
                             className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg px-3 py-3 mb-3 flex items-center justify-between text-left"
                         >
-                            <span className="text-sm">
+                            <span className="text-sm font-medium truncate pr-2">
                                 {selectedExercise || 'Seleccionar ejercicio'}
                             </span>
-                            <ChevronDown size={18} className={`text-[var(--text-secondary)] transition-transform ${showMuscleDropdown ? 'rotate-180' : ''}`} />
+                            <ChevronDown size={18} className={`text-[var(--text-secondary)] shrink-0 transition-transform ${showMuscleDropdown ? 'rotate-180' : ''}`} />
                         </button>
 
                         {/* Dropdown Content */}
                         {showMuscleDropdown && (
-                            <div className="bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg mb-3 max-h-64 overflow-y-auto animate-fade-in">
+                            <div className="bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg mb-3 max-h-64 overflow-y-auto animate-fade-in z-10 relative">
                                 {Object.entries(exercisesByMuscle).map(([muscle, muscleExercises]) => (
                                     <div key={muscle}>
                                         <button
@@ -350,23 +372,24 @@ export default function Progress() {
 
                         {/* Chart */}
                         {exerciseProgress.length > 0 ? (
-                            <div className="h-48">
+                            <div className="h-48 mt-2">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={exerciseProgress}>
-                                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#a1a1aa' }} />
-                                        <YAxis tick={{ fontSize: 10, fill: '#a1a1aa' }} domain={['auto', 'auto']} />
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                                        <XAxis dataKey="displayDate" tick={{ fontSize: 10, fill: '#a1a1aa' }} />
+                                        <YAxis tick={{ fontSize: 10, fill: '#a1a1aa' }} domain={['auto', 'auto']} width={30} />
                                         <Tooltip
-                                            contentStyle={{ background: '#1a1a1a', border: '1px solid #27272a', borderRadius: '8px' }}
-                                            labelStyle={{ color: '#a1a1aa' }}
+                                            contentStyle={{ background: '#1a1a1a', border: '1px solid #27272a', borderRadius: '8px', fontSize: '12px' }}
+                                            labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
+                                            formatter={(value) => [`${value} kg`, '']}
                                         />
-                                        <Line type="monotone" dataKey="maxWeight" stroke="#8b5cf6" strokeWidth={2} dot={{ fill: '#8b5cf6', r: 3 }} name="Peso Máx (kg)" />
-                                        <Line type="monotone" dataKey="estimated1RM" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981', r: 3 }} name="1RM Estimado" />
+                                        <Line type="monotone" dataKey="maxWeight" stroke="#8b5cf6" strokeWidth={2} dot={{ fill: '#8b5cf6', r: 3 }} name="Peso Máx" activeDot={{ r: 5 }} />
                                     </LineChart>
                                 </ResponsiveContainer>
                             </div>
                         ) : (
-                            <p className="text-center text-[var(--text-secondary)] py-8 text-sm">
-                                Sin datos aún para este ejercicio
+                            <p className="text-center text-[var(--text-secondary)] py-8 text-sm bg-[var(--bg-dark)] rounded-lg">
+                                {selectedExercise ? 'Sin datos suficientes para gráfica' : 'Selecciona un ejercicio'}
                             </p>
                         )}
                     </div>
@@ -392,12 +415,12 @@ export default function Progress() {
 
                         <div className="space-y-2 max-h-60 overflow-y-auto">
                             {filteredPRs.map((pr, i) => (
-                                <div key={i} className="flex items-center justify-between bg-[var(--bg-dark)] rounded-lg p-2 hover:bg-[var(--bg-card-hover)] transition-colors">
-                                    <span className="text-sm font-medium">{pr.exerciseName}</span>
+                                <div key={i} className="flex items-center justify-between bg-[var(--bg-dark)] rounded-lg p-3 border border-[var(--border)] hover:border-[var(--primary)]/30 transition-colors">
+                                    <span className="text-sm font-medium text-white">{pr.exerciseName}</span>
                                     <div className="text-right">
-                                        <span className="text-sm font-bold block">{pr.weight}kg × {pr.reps}</span>
+                                        <span className="text-sm font-bold block text-[var(--primary)]">{pr.weight}kg × {pr.reps}</span>
                                         <span className="text-[10px] text-[var(--text-secondary)]">
-                                            1RM: ~{Math.round(pr.estimated1RM)}kg • {new Date(pr.date).toLocaleDateString()}
+                                            {new Date(pr.date).toLocaleDateString()}
                                         </span>
                                     </div>
                                 </div>
@@ -414,7 +437,7 @@ export default function Progress() {
 
             {/* Muscles Tab */}
             {activeTab === 'muscles' && (
-                <div className="space-y-2">
+                <div className="space-y-2 animate-fade-in">
                     {Object.entries(prsByMuscle).map(([muscle, musclePs]) => (
                         <MuscleAccordion
                             key={muscle}
@@ -439,14 +462,17 @@ export default function Progress() {
 
             {/* Yearly Tab */}
             {activeTab === 'yearly' && (
-                <>
+                <div className="animate-fade-in space-y-4">
                     {/* Year Selector */}
-                    <div className="flex gap-2 justify-center">
+                    <div className="flex gap-2 justify-center bg-[var(--bg-card)] p-2 rounded-xl">
                         {years.map(year => (
                             <button
                                 key={year}
                                 onClick={() => setSelectedYear(year)}
-                                className={`year-tab ${selectedYear === year ? 'active' : ''}`}
+                                className={`px-4 py-1.5 rounded-lg text-sm transition-all ${selectedYear === year
+                                    ? 'bg-[var(--primary)] text-white shadow-lg'
+                                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-dark)]'
+                                    }`}
                             >
                                 {year}
                             </button>
@@ -475,44 +501,53 @@ export default function Progress() {
                     <div className="bg-[var(--bg-card)] rounded-xl p-4">
                         <h3 className="font-medium text-sm mb-3">Sesiones por Semana - {selectedYear}</h3>
                         <div className="h-40">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={getWeeklyData()}>
-                                    <XAxis dataKey="week" tick={{ fontSize: 8, fill: '#a1a1aa' }} interval={3} />
-                                    <YAxis tick={{ fontSize: 10, fill: '#a1a1aa' }} />
-                                    <Tooltip
-                                        contentStyle={{ background: '#1a1a1a', border: '1px solid #27272a', borderRadius: '8px' }}
-                                    />
-                                    <Bar dataKey="sessions" fill="#8b5cf6" radius={[2, 2, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
+                            {weeklyData.length > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={weeklyData}>
+                                        <XAxis dataKey="week" tick={{ fontSize: 8, fill: '#a1a1aa' }} interval={3} />
+                                        <YAxis tick={{ fontSize: 10, fill: '#a1a1aa' }} />
+                                        <Tooltip
+                                            contentStyle={{ background: '#1a1a1a', border: '1px solid #27272a', borderRadius: '8px', fontSize: '12px' }}
+                                        />
+                                        <Bar dataKey="sessions" fill="#8b5cf6" radius={[2, 2, 0, 0]} name="Sesiones" />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="h-full flex items-center justify-center text-[var(--text-secondary)] text-sm">
+                                    Aún no hay datos para este año
+                                </div>
+                            )}
                         </div>
                     </div>
 
                     {/* Year Comparison */}
                     <div className="bg-[var(--bg-card)] rounded-xl p-4">
                         <h3 className="font-medium text-sm mb-3">Comparativa Anual</h3>
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                             {years.map(year => {
                                 const yearDays = Object.keys(consistency).filter(d => d.startsWith(year)).length;
                                 const maxDays = Math.max(...years.map(y =>
                                     Object.keys(consistency).filter(d => d.startsWith(y)).length
                                 )) || 1;
+
+                                if (year > new Date().getFullYear()) return null; // No mostrar futuro en comparativa
+
                                 return (
                                     <div key={year} className="flex items-center gap-3">
-                                        <span className="text-sm w-12">{year}</span>
-                                        <div className="flex-1 bg-[var(--bg-dark)] rounded-full h-4 overflow-hidden">
+                                        <span className="text-sm w-12 font-mono">{year}</span>
+                                        <div className="flex-1 bg-[var(--bg-dark)] rounded-full h-3 overflow-hidden">
                                             <div
                                                 className="h-full bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] rounded-full transition-all"
                                                 style={{ width: `${(yearDays / maxDays) * 100}%` }}
                                             />
                                         </div>
-                                        <span className="text-sm font-medium w-10 text-right">{yearDays}</span>
+                                        <span className="text-sm font-medium w-8 text-right">{yearDays}</span>
                                     </div>
                                 );
                             })}
                         </div>
                     </div>
-                </>
+                </div>
             )}
         </div>
     );
@@ -523,7 +558,7 @@ function MuscleAccordion({ muscle, exercises, onSelectExercise }) {
     const [expanded, setExpanded] = useState(false);
 
     return (
-        <div className="bg-[var(--bg-card)] rounded-xl overflow-hidden">
+        <div className="bg-[var(--bg-card)] rounded-xl overflow-hidden border border-[var(--border)]">
             <button
                 onClick={() => setExpanded(!expanded)}
                 className="w-full px-4 py-3 flex items-center justify-between hover:bg-[var(--bg-card-hover)] transition-colors"
@@ -531,7 +566,7 @@ function MuscleAccordion({ muscle, exercises, onSelectExercise }) {
                 <div className="flex items-center gap-2">
                     <Dumbbell size={18} className="text-[var(--primary)]" />
                     <span className="font-medium">{muscle}</span>
-                    <span className="text-xs text-[var(--text-secondary)] bg-[var(--bg-dark)] px-2 py-0.5 rounded-full">
+                    <span className="text-xs text-[var(--text-secondary)] bg-[var(--bg-dark)] px-2 py-0.5 rounded-full border border-[var(--border)]">
                         {exercises.length}
                     </span>
                 </div>
@@ -543,17 +578,17 @@ function MuscleAccordion({ muscle, exercises, onSelectExercise }) {
             </button>
 
             {expanded && (
-                <div className="px-4 pb-3 space-y-2 animate-fade-in">
+                <div className="px-4 pb-3 space-y-2 animate-fade-in bg-[var(--bg-dark)]/30 border-t border-[var(--border)] pt-3">
                     {exercises.map((pr, i) => (
                         <button
                             key={i}
                             onClick={() => onSelectExercise(pr.exerciseName)}
-                            className="w-full flex items-center justify-between bg-[var(--bg-dark)] rounded-lg p-3 hover:bg-[var(--border)] transition-colors"
+                            className="w-full flex items-center justify-between bg-[var(--bg-dark)] rounded-lg p-3 hover:border-[var(--primary)]/50 border border-transparent transition-all"
                         >
                             <span className="text-sm">{pr.exerciseName}</span>
                             <div className="flex items-center gap-2">
-                                <span className="font-bold text-sm">{pr.weight}kg × {pr.reps}</span>
-                                <TrendingUp size={14} className="text-[var(--primary)]" />
+                                <span className="font-bold text-sm text-[var(--primary)]">{pr.weight}kg × {pr.reps}</span>
+                                <TrendingUp size={14} className="text-[var(--text-secondary)]" />
                             </div>
                         </button>
                     ))}

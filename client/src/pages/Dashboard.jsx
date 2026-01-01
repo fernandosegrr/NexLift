@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react'; // Agregado useMemo
 import { Link } from 'react-router-dom';
 import {
     Flame, Target, Trophy, Calendar, Play,
-    ChevronRight, Dumbbell, TrendingUp, Coffee, CheckCircle2
+    ChevronRight, Dumbbell, TrendingUp, Coffee, CheckCircle2, Loader2 // Agregado Loader2
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -12,32 +12,30 @@ export default function Dashboard() {
     const [consistency, setConsistency] = useState({});
     const [loading, setLoading] = useState(true);
     const [showHeatmap, setShowHeatmap] = useState(false);
+    const [loggingRest, setLoggingRest] = useState(false); // Nuevo estado para UX
 
-    // Helper to get local date string YYYY-MM-DD
+    // MEJORA 1: Obtener YYYY-MM-DD local de forma nativa y segura
     const getLocalDateStr = (dateObj) => {
-        const offset = dateObj.getTimezoneOffset() * 60000;
-        return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
+        return dateObj.toLocaleDateString('en-CA');
     };
 
     useEffect(() => {
         async function fetchData() {
             try {
-                // Fetch basic stats and raw consistency events
                 const [statsData, activeData, consistencyRes] = await Promise.all([
                     api.getOverviewStats(),
                     api.getActiveRoutine(),
                     api.getConsistency()
                 ]);
 
-                // Process raw events to local map for correct heatmap
                 const map = {};
                 if (consistencyRes.events) {
                     consistencyRes.events.forEach(dateStr => {
+                        // Aseguramos compatibilidad de fechas
                         const localDate = getLocalDateStr(new Date(dateStr));
                         map[localDate] = (map[localDate] || 0) + 1;
                     });
                 } else {
-                    // Fallback for old API response style
                     Object.assign(map, consistencyRes);
                 }
 
@@ -53,17 +51,15 @@ export default function Dashboard() {
         fetchData();
     }, []);
 
-    // Helper to map English/JS days to Spanish routine names
     const getTodayName = () => {
         const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
         return days[new Date().getDay()];
     };
 
-    const getNextDay = () => {
+    // MEJORA 2: Memoizar cálculos costosos que no deben correr en cada render
+    const nextDay = useMemo(() => {
         if (!activeRoutine?.days?.length) return null;
-
         const todayName = getTodayName();
-        // 1. Try to find today in routine
         const todayRoutineDay = activeRoutine.days.find(d =>
             d.dayName.toLowerCase().includes(todayName.toLowerCase()) ||
             todayName.toLowerCase().includes(d.dayName.toLowerCase())
@@ -71,38 +67,63 @@ export default function Dashboard() {
 
         if (todayRoutineDay) return todayRoutineDay;
 
-        // 2. If today is NOT in routine, treat as Rest Day
-        // But we need to structure it like a RoutineDay object for the UI
         return {
             isRestDay: true,
             dayName: todayName,
             exercises: []
         };
-    };
+    }, [activeRoutine]);
 
-    const nextDay = getNextDay();
+    const { last30Days, localStreak, isTodayLogged } = useMemo(() => {
+        const days = [];
+        const todayStr = getLocalDateStr(new Date());
 
-    // Generate last 30 days for mini heatmap using LOCAL TIME keys
-    const last30Days = [];
-    for (let i = 29; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        last30Days.push(getLocalDateStr(date));
-    }
+        // Generar array de 30 días
+        for (let i = 29; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            days.push(getLocalDateStr(date));
+        }
 
-    const todayStr = getLocalDateStr(new Date());
-    const isTodayLogged = consistency[todayStr] > 0;
+        const todayLogged = (consistency[todayStr] || 0) > 0;
+
+        // Calcular Racha
+        let streak = 0;
+        const checkFrom = todayLogged ? 0 : 1;
+        for (let i = checkFrom; i < 30; i++) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            const dateStr = getLocalDateStr(date);
+            if ((consistency[dateStr] || 0) > 0) {
+                streak++;
+            } else {
+                break;
+            }
+        }
+
+        return { last30Days: days, localStreak: streak, isTodayLogged: todayLogged };
+    }, [consistency]); // Solo recalcula si cambia 'consistency'
 
     const handleLogRest = async () => {
+        if (loggingRest) return; // Prevenir doble submit
+        setLoggingRest(true);
         try {
             await api.logRestDay();
-            const newConsistency = { ...consistency };
-            newConsistency[todayStr] = (newConsistency[todayStr] || 0) + 1;
-            setConsistency(newConsistency);
+            const todayStr = getLocalDateStr(new Date());
+
+            // Actualización optimista
+            setConsistency(prev => ({
+                ...prev,
+                [todayStr]: (prev[todayStr] || 0) + 1
+            }));
+
+            // Actualizar stats en segundo plano
             const statsData = await api.getOverviewStats();
             setStats(statsData);
         } catch (error) {
             console.error('Failed to log rest:', error);
+        } finally {
+            setLoggingRest(false);
         }
     };
 
@@ -155,9 +176,15 @@ export default function Dashboard() {
                                         {!isTodayLogged && (
                                             <button
                                                 onClick={handleLogRest}
-                                                className="w-full bg-white text-[var(--primary)] py-2 rounded-lg font-medium text-sm hover:bg-white/90 transition-colors flex items-center justify-center gap-2"
+                                                disabled={loggingRest}
+                                                className="w-full bg-white text-[var(--primary)] py-2 rounded-lg font-medium text-sm hover:bg-white/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
                                             >
-                                                <CheckCircle2 size={16} /> Confirmar Descanso (+1 Racha)
+                                                {loggingRest ? (
+                                                    <Loader2 size={16} className="animate-spin" />
+                                                ) : (
+                                                    <CheckCircle2 size={16} />
+                                                )}
+                                                {loggingRest ? 'Registrando...' : 'Confirmar Descanso (+1 Racha)'}
                                             </button>
                                         )}
 
@@ -203,7 +230,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-4 gap-2">
                 <div className="bg-[var(--bg-card)] rounded-xl p-3 text-center">
                     <Flame size={18} className="mx-auto text-orange-500 mb-1" />
-                    <p className="text-lg font-bold">{stats?.currentStreak || 0}</p>
+                    <p className="text-lg font-bold">{localStreak}</p>
                     <p className="text-[10px] text-[var(--text-secondary)]">Racha</p>
                 </div>
                 <div className="bg-[var(--bg-card)] rounded-xl p-3 text-center">

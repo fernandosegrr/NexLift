@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Save, Plus, Trash2, ArrowUp, ArrowDown, GripVertical, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, ArrowUp, ArrowDown, AlertTriangle, GripVertical } from 'lucide-react';
 import { api } from '../services/api';
 
 export default function EditRoutine() {
@@ -25,10 +25,15 @@ export default function EditRoutine() {
     }, [id]);
 
     const handleSave = async () => {
+        if (!routine.name.trim()) {
+            alert('La rutina necesita un nombre');
+            return;
+        }
+
         setSaving(true);
         try {
             await api.updateRoutine(id, routine);
-            navigate('/routines'); // Redirect back to routines list
+            navigate('/routines');
         } catch (error) {
             console.error('Error updating routine:', error);
             alert('Error al guardar. Intenta de nuevo.');
@@ -50,7 +55,7 @@ export default function EditRoutine() {
 
     const addDay = () => {
         const newDay = {
-            dayName: 'Nuevo Día',
+            dayName: '',
             isRestDay: false,
             exercises: []
         };
@@ -71,8 +76,6 @@ export default function EditRoutine() {
         const newDays = [...routine.days];
         const swapIndex = direction === 'up' ? index - 1 : index + 1;
         [newDays[index], newDays[swapIndex]] = [newDays[swapIndex], newDays[index]];
-
-        // Update order property just in case, though backend might handle index
         setRoutine(prev => ({ ...prev, days: newDays }));
     };
 
@@ -117,48 +120,54 @@ export default function EditRoutine() {
         setRoutine(prev => ({ ...prev, days: newDays }));
     };
 
-    if (loading) return <div className="text-center py-10">Cargando...</div>;
+    if (loading) return (
+        <div className="flex items-center justify-center h-[60vh]">
+            <div className="w-10 h-10 border-3 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+        </div>
+    );
+
     if (!routine) return <div className="text-center py-10">No encontrado</div>;
 
     return (
         <div className="space-y-6 pb-20 animate-fade-in max-w-2xl mx-auto">
             {/* Header */}
-            <div className="flex items-center justify-between sticky top-0 bg-[var(--bg-card)]/90 backdrop-blur-md p-4 -mx-4 border-b border-[var(--border)] z-20">
-                <Link to={`/routines/${id}`} className="text-[var(--text-secondary)] hover:text-white">
-                    <ArrowLeft size={20} />
+            <div className="flex items-center justify-between sticky top-0 bg-[var(--bg-main)]/95 backdrop-blur-md p-4 -mx-4 border-b border-[var(--border)] z-20">
+                <Link to={`/routines/${id}`} className="text-[var(--text-secondary)] hover:text-white p-2 -ml-2">
+                    <ArrowLeft size={22} />
                 </Link>
                 <div className="flex items-center gap-2">
-                    <AlertTriangle size={16} className="text-yellow-500" />
-                    <span className="text-xs text-yellow-500">Edit Mode</span>
+                    <span className="text-xs font-mono text-[var(--text-secondary)] bg-[var(--bg-card)] px-2 py-1 rounded">MODO EDITOR</span>
                 </div>
                 <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="flex items-center gap-2 bg-[var(--primary)] text-white px-4 py-2 rounded-lg font-medium hover:bg-opacity-90 disabled:opacity-50"
+                    className="flex items-center gap-2 bg-[var(--primary)] text-white px-4 py-2 rounded-lg font-medium hover:bg-opacity-90 disabled:opacity-50 transition-all active:scale-95"
                 >
-                    <Save size={18} />
-                    {saving ? 'Guardando...' : 'Guardar'}
+                    {saving ? <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" /> : <Save size={18} />}
+                    {saving ? '...' : 'Guardar'}
                 </button>
             </div>
 
             {/* Routine Info */}
-            <div className="space-y-3 p-4 bg-[var(--bg-card)] rounded-xl border border-[var(--border)]">
+            <div className="space-y-4 p-4 bg-[var(--bg-card)] rounded-xl border border-[var(--border)]">
                 <div>
-                    <label className="text-xs text-[var(--text-secondary)] block mb-1">Nombre de la Rutina</label>
+                    <label className="text-xs text-[var(--text-secondary)] block mb-1 uppercase tracking-wider font-bold">Nombre de la Rutina</label>
                     <input
                         type="text"
                         value={routine.name}
                         onChange={(e) => updateRoutineField('name', e.target.value)}
-                        className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg px-3 py-2 focus:border-[var(--primary)] outline-none font-bold text-lg"
+                        className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg px-4 py-3 focus:border-[var(--primary)] outline-none font-bold text-lg transition-colors"
+                        placeholder="Ej. Hipertrofia PPL"
                     />
                 </div>
                 <div>
-                    <label className="text-xs text-[var(--text-secondary)] block mb-1">Descripción</label>
+                    <label className="text-xs text-[var(--text-secondary)] block mb-1 uppercase tracking-wider font-bold">Descripción</label>
                     <input
                         type="text"
                         value={routine.description || ''}
                         onChange={(e) => updateRoutineField('description', e.target.value)}
-                        className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg px-3 py-2 focus:border-[var(--primary)] outline-none text-sm"
+                        className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg px-4 py-3 focus:border-[var(--primary)] outline-none text-sm transition-colors"
+                        placeholder="Ej. Enfocada en fuerza y básicos"
                     />
                 </div>
             </div>
@@ -166,12 +175,24 @@ export default function EditRoutine() {
             {/* Days List */}
             <div className="space-y-6">
                 {routine.days.map((day, dayIndex) => (
-                    <div key={dayIndex} className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] overflow-hidden">
+                    <div key={dayIndex} className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] overflow-hidden transition-all hover:border-[var(--border)]/80">
                         {/* Day Header */}
-                        <div className="p-3 bg-[var(--bg-dark)] border-b border-[var(--border)] flex items-center gap-2">
+                        <div className="p-3 bg-[var(--bg-dark)] border-b border-[var(--border)] flex items-center gap-3">
                             <div className="flex flex-col gap-1">
-                                <button onClick={() => moveDay(dayIndex, 'up')} disabled={dayIndex === 0} className="text-[var(--text-secondary)] hover:text-white disabled:opacity-20"><ArrowUp size={14} /></button>
-                                <button onClick={() => moveDay(dayIndex, 'down')} disabled={dayIndex === routine.days.length - 1} className="text-[var(--text-secondary)] hover:text-white disabled:opacity-20"><ArrowDown size={14} /></button>
+                                <button
+                                    onClick={() => moveDay(dayIndex, 'up')}
+                                    disabled={dayIndex === 0}
+                                    className="p-1 text-[var(--text-secondary)] hover:text-white disabled:opacity-20 active:bg-[var(--bg-card)] rounded"
+                                >
+                                    <ArrowUp size={18} />
+                                </button>
+                                <button
+                                    onClick={() => moveDay(dayIndex, 'down')}
+                                    disabled={dayIndex === routine.days.length - 1}
+                                    className="p-1 text-[var(--text-secondary)] hover:text-white disabled:opacity-20 active:bg-[var(--bg-card)] rounded"
+                                >
+                                    <ArrowDown size={18} />
+                                </button>
                             </div>
 
                             <div className="flex-1">
@@ -179,22 +200,22 @@ export default function EditRoutine() {
                                     type="text"
                                     value={day.dayName}
                                     onChange={(e) => updateDay(dayIndex, 'dayName', e.target.value)}
-                                    className="bg-transparent font-semibold w-full outline-none focus:text-[var(--primary)]"
-                                    placeholder="Nombre del día (ej. Pull)"
+                                    className="bg-transparent font-bold text-lg w-full outline-none focus:text-[var(--primary)] placeholder:text-[var(--text-secondary)]/50"
+                                    placeholder={`Día ${dayIndex + 1}`}
                                 />
-                                <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] mt-1 cursor-pointer w-fit">
+                                <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] mt-1 cursor-pointer w-fit select-none">
                                     <input
                                         type="checkbox"
                                         checked={day.isRestDay}
                                         onChange={(e) => updateDay(dayIndex, 'isRestDay', e.target.checked)}
-                                        className="rounded border-[var(--border)] bg-[var(--bg-card)] text-[var(--primary)] focus:ring-0"
+                                        className="w-4 h-4 rounded border-[var(--border)] bg-[var(--bg-card)] text-[var(--primary)] focus:ring-0"
                                     />
                                     Es día de descanso
                                 </label>
                             </div>
 
-                            <button onClick={() => removeDay(dayIndex)} className="text-red-400 hover:text-red-300 p-2">
-                                <Trash2 size={16} />
+                            <button onClick={() => removeDay(dayIndex)} className="text-[var(--text-secondary)] hover:text-red-400 p-2 hover:bg-red-500/10 rounded-lg transition-colors">
+                                <Trash2 size={20} />
                             </button>
                         </div>
 
@@ -202,46 +223,61 @@ export default function EditRoutine() {
                         {!day.isRestDay && (
                             <div className="p-3 space-y-3">
                                 {day.exercises.map((ex, exIndex) => (
-                                    <div key={exIndex} className="flex gap-2 items-start bg-[var(--bg-dark)]/50 p-2 rounded-lg group">
+                                    <div key={exIndex} className="flex gap-3 items-start bg-[var(--bg-main)]/50 p-3 rounded-xl border border-transparent hover:border-[var(--border)] transition-colors">
                                         <div className="flex flex-col gap-1 mt-1">
-                                            <button onClick={() => moveExercise(dayIndex, exIndex, 'up')} disabled={exIndex === 0} className="text-[var(--text-secondary)] hover:text-white disabled:opacity-20"><ArrowUp size={12} /></button>
-                                            <button onClick={() => moveExercise(dayIndex, exIndex, 'down')} disabled={exIndex === day.exercises.length - 1} className="text-[var(--text-secondary)] hover:text-white disabled:opacity-20"><ArrowDown size={12} /></button>
+                                            <button
+                                                onClick={() => moveExercise(dayIndex, exIndex, 'up')}
+                                                disabled={exIndex === 0}
+                                                className="p-1.5 text-[var(--text-secondary)] hover:text-white disabled:opacity-20 bg-[var(--bg-card)] rounded-md"
+                                            >
+                                                <ArrowUp size={14} />
+                                            </button>
+                                            <button
+                                                onClick={() => moveExercise(dayIndex, exIndex, 'down')}
+                                                disabled={exIndex === day.exercises.length - 1}
+                                                className="p-1.5 text-[var(--text-secondary)] hover:text-white disabled:opacity-20 bg-[var(--bg-card)] rounded-md"
+                                            >
+                                                <ArrowDown size={14} />
+                                            </button>
                                         </div>
 
-                                        <div className="flex-1 space-y-2">
+                                        <div className="flex-1 space-y-3">
                                             <input
                                                 type="text"
                                                 value={ex.name}
                                                 onChange={(e) => updateExercise(dayIndex, exIndex, 'name', e.target.value)}
-                                                className="w-full bg-transparent border-b border-[var(--border)] focus:border-[var(--primary)] outline-none text-sm font-medium pb-1"
+                                                className="w-full bg-transparent border-b border-[var(--border)] focus:border-[var(--primary)] outline-none text-sm font-semibold pb-1 placeholder:text-[var(--text-secondary)]/50"
                                                 placeholder="Nombre del ejercicio"
                                             />
                                             <div className="grid grid-cols-3 gap-2">
                                                 <div>
-                                                    <label className="text-[10px] text-[var(--text-secondary)]">Series</label>
+                                                    <label className="text-[10px] text-[var(--text-secondary)] uppercase font-bold">Series</label>
                                                     <input
                                                         type="number"
+                                                        inputMode="numeric"
                                                         value={ex.targetSets}
                                                         onChange={(e) => updateExercise(dayIndex, exIndex, 'targetSets', e.target.value)}
-                                                        className="w-full bg-[var(--bg-card)] rounded px-2 py-1 text-xs"
+                                                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded px-2 py-1.5 text-xs focus:border-[var(--primary)] outline-none text-center"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="text-[10px] text-[var(--text-secondary)]">Reps</label>
+                                                    <label className="text-[10px] text-[var(--text-secondary)] uppercase font-bold">Reps</label>
                                                     <input
                                                         type="text"
                                                         value={ex.targetReps}
                                                         onChange={(e) => updateExercise(dayIndex, exIndex, 'targetReps', e.target.value)}
-                                                        className="w-full bg-[var(--bg-card)] rounded px-2 py-1 text-xs"
+                                                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded px-2 py-1.5 text-xs focus:border-[var(--primary)] outline-none text-center"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="text-[10px] text-[var(--text-secondary)]">Descanso (s)</label>
+                                                    <label className="text-[10px] text-[var(--text-secondary)] uppercase font-bold">Descanso</label>
                                                     <input
                                                         type="number"
+                                                        inputMode="numeric"
                                                         value={ex.restSeconds || ''}
                                                         onChange={(e) => updateExercise(dayIndex, exIndex, 'restSeconds', e.target.value)}
-                                                        className="w-full bg-[var(--bg-card)] rounded px-2 py-1 text-xs"
+                                                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded px-2 py-1.5 text-xs focus:border-[var(--primary)] outline-none text-center"
+                                                        placeholder="seg"
                                                     />
                                                 </div>
                                             </div>
@@ -249,22 +285,25 @@ export default function EditRoutine() {
                                                 type="text"
                                                 value={ex.note || ''}
                                                 onChange={(e) => updateExercise(dayIndex, exIndex, 'note', e.target.value)}
-                                                className="w-full bg-transparent text-[10px] text-[var(--text-secondary)] focus:text-white outline-none"
+                                                className="w-full bg-transparent text-[11px] text-[var(--text-secondary)] focus:text-white outline-none placeholder:text-[var(--text-secondary)]/40"
                                                 placeholder="Notas (opcional)..."
                                             />
                                         </div>
 
-                                        <button onClick={() => removeExercise(dayIndex, exIndex)} className="text-[var(--text-secondary)] hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Trash2 size={14} />
+                                        <button
+                                            onClick={() => removeExercise(dayIndex, exIndex)}
+                                            className="text-[var(--text-secondary)] hover:text-red-400 p-2 mt-1 hover:bg-red-500/10 rounded-lg transition-colors"
+                                        >
+                                            <Trash2 size={18} />
                                         </button>
                                     </div>
                                 ))}
 
                                 <button
                                     onClick={() => addExercise(dayIndex)}
-                                    className="w-full py-2 border border-dashed border-[var(--border)] rounded-lg text-xs text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors flex items-center justify-center gap-1"
+                                    className="w-full py-3 border border-dashed border-[var(--border)] rounded-xl text-xs text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/5 transition-all flex items-center justify-center gap-2"
                                 >
-                                    <Plus size={14} /> Agregar Ejercicio
+                                    <Plus size={16} /> Agregar Ejercicio
                                 </button>
                             </div>
                         )}
@@ -273,9 +312,9 @@ export default function EditRoutine() {
 
                 <button
                     onClick={addDay}
-                    className="w-full py-3 bg-[var(--bg-card)] rounded-xl border border-[var(--primary)]/50 text-[var(--primary)] font-medium hover:bg-[var(--primary)]/10 transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-[var(--bg-card)] rounded-xl border-2 border-dashed border-[var(--border)] text-[var(--text-secondary)] font-medium hover:border-[var(--primary)] hover:text-[var(--primary)] transition-all flex items-center justify-center gap-2"
                 >
-                    <Plus size={18} /> Agregar Nuevo Día
+                    <Plus size={20} /> Agregar Nuevo Día
                 </button>
             </div>
         </div>
