@@ -255,7 +255,7 @@ function RoutineCard({
                             {!isActive && onActivate && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onActivate(); }}
-                                    className="flex items-center gap-2 text-sm text-[var(--primary)] font-medium"
+                                    className="flex items-center gap-2 text-sm text-[var(--primary)] font-medium bg-[var(--primary)]/10 px-3 py-1.5 rounded-lg border border-[var(--primary)]/20"
                                 >
                                     <Check size={16} />
                                     Activar
@@ -264,33 +264,37 @@ function RoutineCard({
                             {isActive && (
                                 <Link
                                     to="/progress"
-                                    className="flex items-center gap-2 text-sm text-[var(--text-secondary)]"
+                                    className="p-2 text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-card)] rounded-lg transition-colors"
+                                    title="Ver estadísticas"
                                 >
-                                    <BarChart2 size={16} />
-                                    Ver estadísticas
+                                    <BarChart2 size={18} />
                                 </Link>
                             )}
+                        </div>
+
+                        <div className="flex items-center gap-1">
                             <Link
                                 to={`/routines/${routine.id}`}
-                                className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-white mr-3 ml-3"
+                                className="p-2 text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-card)] rounded-lg transition-colors"
+                                title="Ver detalles"
                             >
-                                <ChevronRight size={16} />
-                                Detalles
+                                <ChevronRight size={18} />
                             </Link>
                             <Link
                                 to={`/routines/${routine.id}/edit`}
-                                className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--primary)] mr-3"
+                                className="p-2 text-[var(--text-secondary)] hover:text-[var(--primary)] hover:bg-[var(--bg-card)] rounded-lg transition-colors"
+                                title="Editar rutina"
                             >
-                                <Pencil size={16} />
-                                Editar
+                                <Pencil size={18} />
                             </Link>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onDelete(routine.id, routine.name); }}
+                                className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                                title="Eliminar routine"
+                            >
+                                <Trash2 size={18} />
+                            </button>
                         </div>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onDelete(routine.id, routine.name); }}
-                            className="text-red-400 hover:text-red-300 transition-colors p-2"
-                        >
-                            <Trash2 size={16} />
-                        </button>
                     </div>
                 </div>
             )}

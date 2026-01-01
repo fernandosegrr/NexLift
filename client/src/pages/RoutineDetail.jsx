@@ -52,11 +52,11 @@ export default function RoutineDetail() {
                     <ArrowLeft size={18} />
                     <span>Rutinas</span>
                 </Link>
-                <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-bold">{routine.name}</h1>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <h1 className="text-2xl font-bold break-words">{routine.name}</h1>
                     <Link
                         to={`/routines/${id}/edit`}
-                        className="bg-[var(--primary)] text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-opacity-80 transition-colors flex items-center gap-2"
+                        className="bg-[var(--primary)] text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-opacity-80 transition-colors flex items-center gap-2 self-start sm:self-auto"
                     >
                         <Pencil size={16} /> EDITAR
                     </Link>
