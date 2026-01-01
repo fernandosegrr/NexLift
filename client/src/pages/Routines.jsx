@@ -270,24 +270,34 @@ function RoutineCard({
                                     <BarChart2 size={16} />
                                     Ver estadísticas
                                 </Link>
+                                    Ver estadísticas
+                        </Link>
                             )}
-                            <Link
-                                to={`/routines/${routine.id}/edit`}
-                                className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--primary)] mr-3"
-                            >
-                                <Pencil size={16} />
-                                Editar
-                            </Link>
-                        </div>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onDelete(routine.id, routine.name); }}
-                            className="btn-delete"
+                        <Link
+                            to={`/routines/${routine.id}`}
+                            className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-white mr-3"
                         >
-                            <Trash2 size={16} />
-                        </button>
+                            <ChevronRight size={16} />
+                            Detalles
+                        </Link>
+                        <Link
+                            to={`/routines/${routine.id}/edit`}
+                            className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--primary)] mr-3"
+                        >
+                            <Pencil size={16} />
+                            Editar
+                        </Link>
                     </div>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onDelete(routine.id, routine.name); }}
+                        className="btn-delete"
+                    >
+                        <Trash2 size={16} />
+                    </button>
                 </div>
-            )}
-        </div>
+                </div>
+    )
+}
+        </div >
     );
 }
