@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Play, Calendar, Dumbbell, Clock } from 'lucide-react';
+import { ArrowLeft, Play, Calendar, Dumbbell, Clock, Pencil } from 'lucide-react';
 import { api } from '../services/api';
 
 export default function RoutineDetail() {
@@ -52,7 +52,15 @@ export default function RoutineDetail() {
                     <ArrowLeft size={18} />
                     <span>Rutinas</span>
                 </Link>
-                <h1 className="text-2xl font-bold">{routine.name}</h1>
+                <div className="flex items-center justify-between">
+                    <h1 className="text-2xl font-bold">{routine.name}</h1>
+                    <Link
+                        to={`/routines/${id}/edit`}
+                        className="bg-[var(--primary)] text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-opacity-80 transition-colors flex items-center gap-2"
+                    >
+                        <Pencil size={16} /> EDITAR
+                    </Link>
+                </div>
                 {routine.description && (
                     <p className="text-[var(--text-secondary)] mt-1">{routine.description}</p>
                 )}

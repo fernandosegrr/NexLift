@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import {
     TrendingUp, Calendar, Trophy, Dumbbell, Target,
-    ChevronDown, ChevronRight, Activity, AlertCircle, CheckCircle
+    ChevronDown, ChevronRight, Activity, AlertCircle, CheckCircle, Search
 } from 'lucide-react';
+
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar } from 'recharts';
 import { api } from '../services/api';
 
@@ -36,12 +37,19 @@ export default function Progress() {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('overview');
+    const [prSearch, setPrSearch] = useState('');
 
     // Dropdowns state
     const [showMuscleDropdown, setShowMuscleDropdown] = useState(false);
     const [expandedMuscle, setExpandedMuscle] = useState(null);
 
     const years = [2024, 2025, 2026];
+
+    // Helper to get local date string YYYY-MM-DD
+    const getLocalDateStr = (dateObj) => {
+        const offset = dateObj.getTimezoneOffset() * 60000;
+        return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
+    };
 
     useEffect(() => {
         fetchAllData();
@@ -55,7 +63,7 @@ export default function Progress() {
 
     async function fetchAllData() {
         try {
-            const [statsData, consistencyData, prsData, routinesData] = await Promise.all([
+            const [statsData, consistencyRes, prsData, routinesData] = await Promise.all([
                 api.getOverviewStats(),
                 api.getConsistency(),
                 api.getPersonalRecords(),
@@ -63,7 +71,20 @@ export default function Progress() {
             ]);
 
             setStats(statsData);
-            setConsistency(consistencyData);
+
+            // Process raw events to local map
+            const map = {};
+            if (consistencyRes.events) {
+                consistencyRes.events.forEach(dateStr => {
+                    const localDate = getLocalDateStr(new Date(dateStr));
+                    map[localDate] = (map[localDate] || 0) + 1;
+                });
+            } else {
+                // Fallback
+                Object.assign(map, consistencyRes);
+            }
+            setConsistency(map);
+
             setPRs(prsData);
 
             // Extract unique exercises with their assigned muscles
@@ -112,6 +133,11 @@ export default function Progress() {
         return acc;
     }, {});
 
+    // Filter PRs based on search
+    const filteredPRs = prSearch
+        ? prs.filter(pr => pr.exerciseName.toLowerCase().includes(prSearch.toLowerCase()))
+        : prs.slice(0, 5); // Default to top 5 recent if no search
+
     // Calculate compliance stats
     const getComplianceStats = () => {
         const today = new Date();
@@ -119,7 +145,7 @@ export default function Progress() {
         for (let i = 29; i >= 0; i--) {
             const date = new Date(today);
             date.setDate(date.getDate() - i);
-            const dateStr = date.toISOString().split('T')[0];
+            const dateStr = getLocalDateStr(date);
             const hasWorkout = consistency[dateStr] > 0;
             last30Days.push({ date: dateStr, hasWorkout });
         }
@@ -189,8 +215,8 @@ export default function Progress() {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1 ${activeTab === tab.id
-                                ? 'bg-[var(--primary)] text-white'
-                                : 'text-[var(--text-secondary)]'
+                            ? 'bg-[var(--primary)] text-white'
+                            : 'text-[var(--text-secondary)]'
                             }`}
                     >
                         <tab.icon size={14} />
@@ -248,8 +274,8 @@ export default function Progress() {
                                     key={i}
                                     title={day.date}
                                     className={`w-full aspect-square rounded-sm ${day.hasWorkout
-                                            ? 'bg-[var(--success)]'
-                                            : 'bg-[var(--bg-dark)]'
+                                        ? 'bg-[var(--success)]'
+                                        : 'bg-[var(--bg-dark)]'
                                         }`}
                                 />
                             ))}
@@ -308,8 +334,8 @@ export default function Progress() {
                                                         key={ex.name}
                                                         onClick={() => selectExercise(ex.name)}
                                                         className={`w-full text-left px-6 py-2 text-sm transition-colors border-b border-[var(--border)] ${selectedExercise === ex.name
-                                                                ? 'bg-[var(--primary)]/20 text-[var(--primary)]'
-                                                                : 'text-[var(--text-secondary)] hover:bg-[var(--border)] hover:text-white'
+                                                            ? 'bg-[var(--primary)]/20 text-[var(--primary)]'
+                                                            : 'text-[var(--text-secondary)] hover:bg-[var(--border)] hover:text-white'
                                                             }`}
                                                     >
                                                         {ex.name}
@@ -345,27 +371,40 @@ export default function Progress() {
                         )}
                     </div>
 
-                    {/* Recent PRs */}
+                    {/* Recent PRs / Search PRs */}
                     <div className="bg-[var(--bg-card)] rounded-xl p-4">
                         <h3 className="font-medium text-sm mb-3 flex items-center gap-2">
                             <Trophy size={16} className="text-yellow-500" />
                             Récords Personales
                         </h3>
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                            {prs.slice(0, 5).map((pr, i) => (
-                                <div key={i} className="flex items-center justify-between bg-[var(--bg-dark)] rounded-lg p-2">
-                                    <span className="text-sm">{pr.exerciseName}</span>
+
+                        {/* PR Search Input */}
+                        <div className="relative mb-3">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+                            <input
+                                type="text"
+                                placeholder="Buscar ejercicio..."
+                                value={prSearch}
+                                onChange={(e) => setPrSearch(e.target.value)}
+                                className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg pl-9 pr-3 py-2 text-sm focus:border-[var(--primary)] outline-none transition-colors"
+                            />
+                        </div>
+
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {filteredPRs.map((pr, i) => (
+                                <div key={i} className="flex items-center justify-between bg-[var(--bg-dark)] rounded-lg p-2 hover:bg-[var(--bg-card-hover)] transition-colors">
+                                    <span className="text-sm font-medium">{pr.exerciseName}</span>
                                     <div className="text-right">
-                                        <span className="text-sm font-bold">{pr.weight}kg × {pr.reps}</span>
-                                        <span className="text-xs text-[var(--text-secondary)] ml-2">
-                                            ~{Math.round(pr.estimated1RM)}kg
+                                        <span className="text-sm font-bold block">{pr.weight}kg × {pr.reps}</span>
+                                        <span className="text-[10px] text-[var(--text-secondary)]">
+                                            1RM: ~{Math.round(pr.estimated1RM)}kg • {new Date(pr.date).toLocaleDateString()}
                                         </span>
                                     </div>
                                 </div>
                             ))}
-                            {prs.length === 0 && (
+                            {filteredPRs.length === 0 && (
                                 <p className="text-center text-[var(--text-secondary)] text-sm py-4">
-                                    Aún no hay PRs
+                                    {prSearch ? 'No se encontraron ejercicios' : 'Aún no hay PRs'}
                                 </p>
                             )}
                         </div>

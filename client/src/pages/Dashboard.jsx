@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Flame, Target, Trophy, Calendar, Play,
-    ChevronRight, Dumbbell, TrendingUp
+    ChevronRight, Dumbbell, TrendingUp, Coffee, CheckCircle2
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -13,17 +13,37 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [showHeatmap, setShowHeatmap] = useState(false);
 
+    // Helper to get local date string YYYY-MM-DD
+    const getLocalDateStr = (dateObj) => {
+        const offset = dateObj.getTimezoneOffset() * 60000;
+        return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
+    };
+
     useEffect(() => {
         async function fetchData() {
             try {
-                const [statsData, activeData, consistencyData] = await Promise.all([
+                // Fetch basic stats and raw consistency events
+                const [statsData, activeData, consistencyRes] = await Promise.all([
                     api.getOverviewStats(),
                     api.getActiveRoutine(),
                     api.getConsistency()
                 ]);
+
+                // Process raw events to local map for correct heatmap
+                const map = {};
+                if (consistencyRes.events) {
+                    consistencyRes.events.forEach(dateStr => {
+                        const localDate = getLocalDateStr(new Date(dateStr));
+                        map[localDate] = (map[localDate] || 0) + 1;
+                    });
+                } else {
+                    // Fallback for old API response style
+                    Object.assign(map, consistencyRes);
+                }
+
                 setStats(statsData);
                 setActiveRoutine(activeData);
-                setConsistency(consistencyData);
+                setConsistency(map);
             } catch (error) {
                 console.error('Dashboard error:', error);
             } finally {
@@ -33,23 +53,58 @@ export default function Dashboard() {
         fetchData();
     }, []);
 
-    // Get next workout day based on current day of week
+    // Helper to map English/JS days to Spanish routine names
+    const getTodayName = () => {
+        const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+        return days[new Date().getDay()];
+    };
+
     const getNextDay = () => {
         if (!activeRoutine?.days?.length) return null;
-        const dayOfWeek = new Date().getDay();
-        // Simple logic: cycle through days
-        return activeRoutine.days[dayOfWeek % activeRoutine.days.length];
+
+        const todayName = getTodayName();
+        // 1. Try to find today in routine
+        const todayRoutineDay = activeRoutine.days.find(d =>
+            d.dayName.toLowerCase().includes(todayName.toLowerCase()) ||
+            todayName.toLowerCase().includes(d.dayName.toLowerCase())
+        );
+
+        if (todayRoutineDay) return todayRoutineDay;
+
+        // 2. If today is NOT in routine, treat as Rest Day
+        // But we need to structure it like a RoutineDay object for the UI
+        return {
+            isRestDay: true,
+            dayName: todayName,
+            exercises: []
+        };
     };
 
     const nextDay = getNextDay();
 
-    // Generate last 30 days for mini heatmap
+    // Generate last 30 days for mini heatmap using LOCAL TIME keys
     const last30Days = [];
     for (let i = 29; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
-        last30Days.push(date.toISOString().split('T')[0]);
+        last30Days.push(getLocalDateStr(date));
     }
+
+    const todayStr = getLocalDateStr(new Date());
+    const isTodayLogged = consistency[todayStr] > 0;
+
+    const handleLogRest = async () => {
+        try {
+            await api.logRestDay();
+            const newConsistency = { ...consistency };
+            newConsistency[todayStr] = (newConsistency[todayStr] || 0) + 1;
+            setConsistency(newConsistency);
+            const statsData = await api.getOverviewStats();
+            setStats(statsData);
+        } catch (error) {
+            console.error('Failed to log rest:', error);
+        }
+    };
 
     if (loading) {
         return (
@@ -80,19 +135,54 @@ export default function Dashboard() {
                         <h2 className="text-xl font-bold text-white mb-3">{activeRoutine.name}</h2>
 
                         {nextDay && (
-                            <Link
-                                to={`/workout/${nextDay.id}`}
-                                className="flex items-center justify-between bg-white/20 backdrop-blur-sm rounded-xl p-4 hover:bg-white/30 transition-colors"
-                            >
-                                <div>
-                                    <p className="text-white/80 text-xs">SIGUIENTE</p>
-                                    <p className="text-white font-semibold">{nextDay.dayName}</p>
-                                    <p className="text-white/70 text-sm">{nextDay.exercises?.length} ejercicios</p>
-                                </div>
-                                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                                    <Play size={24} className="text-[var(--primary)] ml-1" fill="currentColor" />
-                                </div>
-                            </Link>
+                            <>
+                                {nextDay.isRestDay ? (
+                                    <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div>
+                                                <p className="text-white/80 text-xs">HOY</p>
+                                                <p className="text-white font-semibold flex items-center gap-2">
+                                                    <Coffee size={18} /> Día de Descanso
+                                                </p>
+                                            </div>
+                                            {isTodayLogged && (
+                                                <div className="bg-green-500/20 text-green-200 px-3 py-1 rounded-full text-xs flex items-center gap-1">
+                                                    <CheckCircle2 size={12} /> Completado
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {!isTodayLogged && (
+                                            <button
+                                                onClick={handleLogRest}
+                                                className="w-full bg-white text-[var(--primary)] py-2 rounded-lg font-medium text-sm hover:bg-white/90 transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <CheckCircle2 size={16} /> Confirmar Descanso (+1 Racha)
+                                            </button>
+                                        )}
+
+                                        {isTodayLogged && (
+                                            <p className="text-white/60 text-xs text-center">
+                                                ¡Disfruta tu recuperación! Mañana será otro día.
+                                            </p>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <Link
+                                        to={`/workout/${nextDay.id}`}
+                                        className="flex items-center justify-between bg-white/20 backdrop-blur-sm rounded-xl p-4 hover:bg-white/30 transition-colors"
+                                    >
+                                        <div>
+                                            <p className="text-white/80 text-xs">SIGUIENTE SESIÓN</p>
+                                            <p className="text-white font-semibold">{nextDay.dayName}</p>
+                                            <p className="text-white/70 text-sm">{nextDay.exercises?.length} ejercicios</p>
+                                        </div>
+                                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
+                                            <Play size={24} className="text-[var(--primary)] ml-1" fill="currentColor" />
+                                        </div>
+                                    </Link>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>

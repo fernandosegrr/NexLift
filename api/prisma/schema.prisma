@@ -77,3 +77,10 @@ model PersonalRecord {
 
   @@index([exerciseName])
 }
+
+// Registro de días de descanso chequeados (para mantener la racha)
+model RestLog {
+  id        String   @id @default(cuid())
+  date      DateTime @default(now())
+  note      String?
+}

@@ -7,6 +7,7 @@ import Workout from './pages/Workout';
 import Import from './pages/Import';
 import Progress from './pages/Progress';
 import Settings from './pages/Settings';
+import EditRoutine from './pages/EditRoutine';
 import './index.css';
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="routines" element={<Routines />} />
           <Route path="routines/:id" element={<RoutineDetail />} />
+          <Route path="routines/:id/edit" element={<EditRoutine />} />
           <Route path="workout/:dayId" element={<Workout />} />
           <Route path="import" element={<Import />} />
           <Route path="progress" element={<Progress />} />

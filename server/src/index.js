@@ -55,7 +55,7 @@ app.post('/api/routines/import', async (req, res) => {
             include: {
                 days: {
                     include: {
-                        exercises: true
+                        exercises: { orderBy: { order: 'asc' } }
                     },
                     orderBy: { order: 'asc' }
                 }
@@ -83,7 +83,7 @@ app.get('/api/routines', async (req, res) => {
             include: {
                 days: {
                     include: {
-                        exercises: true
+                        exercises: { orderBy: { order: 'asc' } }
                     },
                     orderBy: { order: 'asc' }
                 }
@@ -112,7 +112,8 @@ app.get('/api/routines/active', async (req, res) => {
                                     orderBy: { date: 'desc' },
                                     take: 1
                                 }
-                            }
+                            },
+                            orderBy: { order: 'asc' }
                         }
                     },
                     orderBy: { order: 'asc' }
@@ -141,7 +142,8 @@ app.get('/api/routines/:id', async (req, res) => {
                                     orderBy: { date: 'desc' },
                                     take: 5
                                 }
-                            }
+                            },
+                            orderBy: { order: 'asc' }
                         }
                     },
                     orderBy: { order: 'asc' }
@@ -170,6 +172,111 @@ app.delete('/api/routines/:id', async (req, res) => {
     } catch (error) {
         console.error('Error deleting routine:', error);
         res.status(500).json({ error: 'Failed to delete routine' });
+    }
+});
+
+// PUT /api/routines/:id - Update routine (Full Structure)
+app.put('/api/routines/:id', async (req, res) => {
+    try {
+        const routineId = req.params.id;
+        const { name, description, days } = req.body;
+
+        // 1. Update basic info
+        await prisma.routine.update({
+            where: { id: routineId },
+            data: { name, description }
+        });
+
+        // 2. Handle Days
+        const existingDays = await prisma.routineDay.findMany({
+            where: { routineId },
+            select: { id: true }
+        });
+        const incomingDayIds = days.filter(d => d.id).map(d => d.id);
+        const daysToDelete = existingDays.filter(d => !incomingDayIds.includes(d.id)).map(d => d.id);
+
+        if (daysToDelete.length > 0) {
+            await prisma.routineDay.deleteMany({ where: { id: { in: daysToDelete } } });
+        }
+
+        for (let i = 0; i < days.length; i++) {
+            const day = days[i];
+            let dayId = day.id;
+
+            if (dayId) {
+                await prisma.routineDay.update({
+                    where: { id: dayId },
+                    data: {
+                        dayName: day.dayName,
+                        isRestDay: day.isRestDay || false,
+                        order: i
+                    }
+                });
+            } else {
+                const newDay = await prisma.routineDay.create({
+                    data: {
+                        routineId,
+                        dayName: day.dayName,
+                        isRestDay: day.isRestDay || false,
+                        order: i
+                    }
+                });
+                dayId = newDay.id;
+            }
+
+            // 3. Handle Exercises
+            if (day.exercises && Array.isArray(day.exercises)) {
+                const existingExercises = await prisma.exercise.findMany({
+                    where: { routineDayId: dayId },
+                    select: { id: true }
+                });
+                const incomingExIds = day.exercises.filter(e => e.id).map(e => e.id);
+                const exToDelete = existingExercises.filter(e => !incomingExIds.includes(e.id)).map(e => e.id);
+
+                if (exToDelete.length > 0) {
+                    await prisma.exercise.deleteMany({ where: { id: { in: exToDelete } } });
+                }
+
+                for (let j = 0; j < day.exercises.length; j++) {
+                    const ex = day.exercises[j];
+                    if (ex.id) {
+                        await prisma.exercise.update({
+                            where: { id: ex.id },
+                            data: {
+                                name: ex.name,
+                                targetSets: parseInt(ex.targetSets),
+                                targetReps: ex.targetReps,
+                                restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
+                                note: ex.note,
+                                order: j
+                            }
+                        });
+                    } else {
+                        await prisma.exercise.create({
+                            data: {
+                                routineDayId: dayId,
+                                name: ex.name,
+                                targetSets: parseInt(ex.targetSets || 3),
+                                targetReps: ex.targetReps || '8-12',
+                                restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
+                                note: ex.note,
+                                order: j
+                            }
+                        });
+                    }
+                }
+            }
+        }
+
+        const updatedRoutine = await prisma.routine.findUnique({
+            where: { id: routineId },
+            include: { days: { include: { exercises: { orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } } }
+        });
+
+        res.json(updatedRoutine);
+    } catch (error) {
+        console.error('Error updating routine:', error);
+        res.status(500).json({ error: 'Failed to update routine' });
     }
 });
 
@@ -232,7 +339,7 @@ app.put('/api/routines/:id/activate', async (req, res) => {
             data: { isActive: true },
             include: {
                 days: {
-                    include: { exercises: true },
+                    include: { exercises: { orderBy: { order: 'asc' } } },
                     orderBy: { order: 'asc' }
                 }
             }
@@ -385,6 +492,20 @@ app.post('/api/workouts/log', async (req, res) => {
     }
 });
 
+// POST /api/workouts/log-rest - Log a rest day
+app.post('/api/workouts/log-rest', async (req, res) => {
+    try {
+        const { note } = req.body;
+        const restLog = await prisma.restLog.create({
+            data: { note: note || 'Día de descanso' }
+        });
+        res.status(201).json({ message: 'Rest logged!', restLog });
+    } catch (error) {
+        console.error('Error logging rest:', error);
+        res.status(500).json({ error: 'Failed to log rest' });
+    }
+});
+
 // GET /api/workouts/history - Get workout history
 app.get('/api/workouts/history', async (req, res) => {
     try {
@@ -446,11 +567,16 @@ app.get('/api/stats/overview', async (req, res) => {
             where: { date: { gte: thirtyDaysAgo } },
             select: { date: true }
         });
+        const recentRestLogs = await prisma.restLog.findMany({
+            where: { date: { gte: thirtyDaysAgo } },
+            select: { date: true }
+        });
 
         // Calculate unique training days
-        const uniqueDays = new Set(
-            recentWorkouts.map(w => w.date.toISOString().split('T')[0])
-        );
+        const uniqueDays = new Set([
+            ...recentWorkouts.map(w => w.date.toISOString().split('T')[0]),
+            ...recentRestLogs.map(r => r.date.toISOString().split('T')[0])
+        ]);
 
         // Calculate current streak
         let streak = 0;
@@ -504,15 +630,18 @@ app.get('/api/stats/consistency', async (req, res) => {
             where: { date: { gte: ninetyDaysAgo } },
             select: { date: true }
         });
-
-        // Group by date and count workouts
-        const consistencyMap = {};
-        workouts.forEach(w => {
-            const dateStr = w.date.toISOString().split('T')[0];
-            consistencyMap[dateStr] = (consistencyMap[dateStr] || 0) + 1;
+        const restLogs = await prisma.restLog.findMany({
+            where: { date: { gte: ninetyDaysAgo } },
+            select: { date: true }
         });
 
-        res.json(consistencyMap);
+        // Return raw timestamps for frontend processing (Timezone fix)
+        const allEvents = [
+            ...workouts.map(w => w.date),
+            ...restLogs.map(r => r.date)
+        ];
+
+        res.json({ events: allEvents });
     } catch (error) {
         console.error('Error fetching consistency:', error);
         res.status(500).json({ error: 'Failed to fetch consistency data' });

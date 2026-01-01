@@ -32,6 +32,16 @@ export const api = {
         return res.json();
     },
 
+    async updateRoutine(id, routineData) {
+        const res = await fetch(`${API_BASE}/routines/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(routineData)
+        });
+        if (!res.ok) throw new Error('Failed to update routine');
+        return res.json();
+    },
+
     // Workouts
     async logWorkout(exerciseId, sets, notes = null) {
         const res = await fetch(`${API_BASE}/workouts/log`, {
@@ -40,6 +50,16 @@ export const api = {
             body: JSON.stringify({ exerciseId, sets, notes })
         });
         if (!res.ok) throw new Error('Failed to log workout');
+        return res.json();
+    },
+
+    async logRestDay(note = null) {
+        const res = await fetch(`${API_BASE}/workouts/log-rest`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note })
+        });
+        if (!res.ok) throw new Error('Failed to log rest day');
         return res.json();
     },
 

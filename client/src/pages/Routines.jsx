@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Dumbbell, ChevronDown, ChevronRight, Play, Check,
-    Trash2, BarChart2, Plus
+    Trash2, BarChart2, Plus, Pencil
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -269,6 +269,13 @@ function RoutineCard({
                                     Ver estadísticas
                                 </Link>
                             )}
+                            <Link
+                                to={`/routines/${routine.id}/edit`}
+                                className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--primary)] mr-3"
+                            >
+                                <Pencil size={16} />
+                                Editar
+                            </Link>
                         </div>
                         <button
                             onClick={(e) => { e.stopPropagation(); onDelete(routine.id, routine.name); }}
