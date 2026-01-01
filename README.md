@@ -11,7 +11,7 @@
 
 ## 📱 Descripción
 
-**NexLift** es una Progressive Web App (PWA) diseñada para levantadores de pesas serios. Olvida las notas de celular desordenadas; NexLift te ofrece una experiencia nativa para trackear cada serie, repetición y RPE, calculando automáticamente tus récords personales y mostrándote gráficas de evolución.
+**NexLift** es una Progressive Web App  diseñada para levantadores de pesas serios. Olvida las notas de celular desordenadas; NexLift te ofrece una experiencia nativa para trackear cada serie, repetición y RPE, calculando automáticamente tus récords personales y mostrándote gráficas de evolución.
 
 Diseñada con un enfoque **Mobile-First**, funciona perfectamente en tu celular dentro del gimnasio, incluso con mala conexión.
 
