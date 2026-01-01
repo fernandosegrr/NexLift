@@ -70,9 +70,9 @@ export default function RoutineDetail() {
             <div className="space-y-4">
                 {routine.days.map((day) => (
                     <div key={day.id} className="card overflow-hidden">
-                        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+                        <div className="p-4 border-b border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/20 flex items-center justify-center">
+                                <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/20 flex items-center justify-center flex-shrink-0">
                                     <Calendar size={20} className="text-[var(--primary)]" />
                                 </div>
                                 <div>
@@ -83,13 +83,13 @@ export default function RoutineDetail() {
                                 </div>
                             </div>
                             {day.isRestDay ? (
-                                <span className="text-sm font-medium text-[var(--text-secondary)] bg-[var(--bg-dark)] px-3 py-1 rounded-lg border border-[var(--border)]">
+                                <span className="text-sm font-medium text-[var(--text-secondary)] bg-[var(--bg-dark)] px-3 py-1 rounded-lg border border-[var(--border)] self-start sm:self-auto">
                                     ☕ Día de Descanso
                                 </span>
                             ) : (
                                 <Link
                                     to={`/workout/${day.id}`}
-                                    className="btn-primary flex items-center gap-2 text-sm py-2 px-4"
+                                    className="btn-primary flex items-center gap-2 text-sm py-2 px-4 w-full sm:w-auto justify-center"
                                 >
                                     <Play size={16} />
                                     Empezar
@@ -102,10 +102,10 @@ export default function RoutineDetail() {
                             {
                                 day.exercises.map((exercise) => (
                                     <div key={exercise.id} className="p-4 hover:bg-[var(--bg-card-hover)] transition-colors">
-                                        <div className="flex items-start justify-between">
+                                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                                             <div className="flex-1">
                                                 <h4 className="font-medium">{exercise.name}</h4>
-                                                <div className="flex items-center gap-3 mt-1 text-sm text-[var(--text-secondary)]">
+                                                <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-[var(--text-secondary)]">
                                                     <span className="flex items-center gap-1">
                                                         <Dumbbell size={14} />
                                                         {exercise.targetSets} × {exercise.targetReps}
@@ -126,8 +126,8 @@ export default function RoutineDetail() {
 
                                             {/* Last workout indicator */}
                                             {exercise.workoutLogs?.length > 0 && (
-                                                <div className="text-right">
-                                                    <p className="text-xs text-[var(--text-secondary)]">Último</p>
+                                                <div className="flex items-center gap-2 sm:block sm:text-right mt-2 sm:mt-0 bg-[var(--bg-dark)] sm:bg-transparent p-2 sm:p-0 rounded-lg">
+                                                    <p className="text-xs text-[var(--text-secondary)]">Último:</p>
                                                     <p className="text-sm font-medium text-[var(--success)]">
                                                         {exercise.workoutLogs[0].sets[0]?.weight}kg
                                                     </p>

@@ -51,7 +51,6 @@ export default function Routines() {
     }
 
     const activeRoutine = routines.find(r => r.isActive);
-    const otherRoutines = routines.filter(r => !r.isActive);
 
     if (loading) {
         return (
@@ -250,7 +249,7 @@ function RoutineCard({
                         </div>
                     ))}
 
-                    {/* Actions */}
+                    {/* Actions Panel */}
                     <div className="p-3 flex items-center justify-between bg-[var(--bg-dark)]">
                         <div className="flex items-center gap-2">
                             {!isActive && onActivate && (
@@ -270,34 +269,31 @@ function RoutineCard({
                                     <BarChart2 size={16} />
                                     Ver estadísticas
                                 </Link>
-                                    Ver estadísticas
-                        </Link>
                             )}
-                        <Link
-                            to={`/routines/${routine.id}`}
-                            className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-white mr-3"
+                            <Link
+                                to={`/routines/${routine.id}`}
+                                className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-white mr-3 ml-3"
+                            >
+                                <ChevronRight size={16} />
+                                Detalles
+                            </Link>
+                            <Link
+                                to={`/routines/${routine.id}/edit`}
+                                className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--primary)] mr-3"
+                            >
+                                <Pencil size={16} />
+                                Editar
+                            </Link>
+                        </div>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onDelete(routine.id, routine.name); }}
+                            className="text-red-400 hover:text-red-300 transition-colors p-2"
                         >
-                            <ChevronRight size={16} />
-                            Detalles
-                        </Link>
-                        <Link
-                            to={`/routines/${routine.id}/edit`}
-                            className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--primary)] mr-3"
-                        >
-                            <Pencil size={16} />
-                            Editar
-                        </Link>
+                            <Trash2 size={16} />
+                        </button>
                     </div>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onDelete(routine.id, routine.name); }}
-                        className="btn-delete"
-                    >
-                        <Trash2 size={16} />
-                    </button>
                 </div>
-                </div>
-    )
-}
-        </div >
+            )}
+        </div>
     );
 }
