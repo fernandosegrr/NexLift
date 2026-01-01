@@ -28,7 +28,7 @@ export default function EditRoutine() {
         setSaving(true);
         try {
             await api.updateRoutine(id, routine);
-            navigate(`/routines/${id}`); // Redirect back to routine detail
+            navigate('/routines'); // Redirect back to routines list
         } catch (error) {
             console.error('Error updating routine:', error);
             alert('Error al guardar. Intenta de nuevo.');

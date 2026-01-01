@@ -218,13 +218,15 @@ function RoutineCard({
                                         ({day.exercises.length})
                                     </span>
                                 </div>
-                                <Link
-                                    to={`/workout/${day.id}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="w-8 h-8 bg-[var(--primary)] rounded-lg flex items-center justify-center"
-                                >
-                                    <Play size={14} fill="white" className="ml-0.5" />
-                                </Link>
+                                {!day.isRestDay && (
+                                    <Link
+                                        to={`/workout/${day.id}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="w-8 h-8 bg-[var(--primary)] rounded-lg flex items-center justify-center"
+                                    >
+                                        <Play size={14} fill="white" className="ml-0.5" />
+                                    </Link>
+                                )}
                             </button>
 
                             {/* Day Exercises - Collapsed */}
