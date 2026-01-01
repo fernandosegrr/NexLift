@@ -234,14 +234,14 @@ function RoutineCard({
                 onClick={onToggle}
                 className="w-full p-4 flex items-center justify-between hover:bg-[var(--bg-card-hover)] transition-colors text-left"
             >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-[var(--primary)]' : 'bg-[var(--border)]'
                         }`}>
                         <Dumbbell size={18} className={isActive ? 'text-white' : 'text-[var(--text-secondary)]'} />
                     </div>
-                    <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-semibold truncate">{routine.name}</h3>
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                        <div className="flex items-center gap-2">
+                            <h3 className="font-semibold truncate max-w-[200px]">{routine.name}</h3>
                             {isActive && (
                                 <span className="text-[10px] bg-[var(--primary)]/20 text-[var(--primary)] px-2 py-0.5 rounded-full font-medium shrink-0">
                                     ACTIVA

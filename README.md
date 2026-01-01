@@ -5,112 +5,107 @@
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.0.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.1.0-blue?style=flat-square)
 
 ---
 
 ## 📱 Descripción
 
-**NexLift** es una Progressive Web App  diseñada para levantadores de pesas serios. Olvida las notas de celular desordenadas; NexLift te ofrece una experiencia nativa para trackear cada serie, repetición y RPE, calculando automáticamente tus récords personales y mostrándote gráficas de evolución.
+**NexLift** es una Progressive Web App diseñada para levantadores de pesas serios. Olvida las notas de celular desordenadas; NexLift te ofrece una experiencia nativa para trackear cada serie, repetición y RPE, calculando automáticamente tus récords personales y mostrándote gráficas de evolución.
 
-Diseñada con un enfoque **Mobile-First**, funciona perfectamente en tu celular dentro del gimnasio, incluso con mala conexión.
+Diseñada con un enfoque **Mobile-First**, funciona perfectamente en tu celular dentro del gimnasio.
 
 ---
 
 ## ✨ Características Principales
 
 ### 🎯 Gestión de Rutinas
-- **Importación JSON Simplificada:** Carga rutinas complejas (Push/Pull/Legs, Upper/Lower) en segundos copiando y pegando un texto.
-- **Rutina Activa:** Define tu foco actual y organiza tus semanas.
-- **Días de Descanso:** Planifica tu recuperación con días marcados específicamente para descanso.
+- **Importación JSON Simplificada:** Carga rutinas complejas en segundos
+- **Rutina Activa:** Define tu foco actual y organiza tus semanas
+- **Días de Descanso:** Planifica tu recuperación
+- **Edición In-App:** Modifica ejercicios, series y reps directamente
 
 ### 📝 Tracking de Entrenamiento
-- **Registro Preciso:** Peso (kg/lbs), Repeticiones y RIR/RPE.
-- **Ghost Mode 👻:** Visualiza tu mejor desempeño histórico en cada serie para motivarte a superarlo.
-- **Notas por Ejercicio:** Guarda tips técnicos o recordatorios para la próxima sesión.
+- **Registro Preciso:** Peso (kg), Repeticiones y RIR/RPE
+- **Ghost Mode 👻:** Visualiza tu mejor desempeño histórico
+- **Notas por Ejercicio:** Guarda tips técnicos
 
 ### 📊 Análisis y Progreso
-- **Dashboard Interactivo:** Resumen semanal, racha actual y próximos entrenamientos.
-- **Calendario de Asistencia:** Visualización estilo GitHub de tus días de entrenamiento (últimos 30 días).
-- **Métricas de Volumen:** % de Cumplimiento basado en tu constancia real.
-- **Desglose Muscular:** Analiza qué grupos musculares estás priorizando.
-- **Evolución 1RM:** Gráficas de línea estimando tu 1RM teórico a lo largo del tiempo.
+- **Dashboard Interactivo:** Resumen semanal y racha actual
+- **Calendario de Asistencia:** Heatmap estilo GitHub (últimos 30 días)
+- **Métricas de Volumen:** % de Cumplimiento basado en constancia
+- **Desglose Muscular:** Analiza grupos musculares priorizados
+- **Evolución 1RM:** Gráficas estimando tu 1RM teórico
+- **Récords Personales:** Tracking automático de PRs 🏆
 
-### 📱 Experiencia de Usuario (UX)
-- **Modo Oscuro Profundo:** Interfaz OLED-friendly perfecta para gimnasios.
-- **Instalable (PWA):** Añádela a tu pantalla de inicio en iOS y Android.
-- **Sin Distracciones:** UI minimalista enfocada en lo importante: levantar peso.
+### 🎨 Interfaz de Usuario
+- **Modo Oscuro OLED:** Interfaz perfecta para gimnasios
+- **Toast Notifications:** Feedback elegante en cada acción
+- **Animaciones Fluidas:** Transiciones y micro-interacciones premium
+- **Modal de Confirmación:** Prevención de acciones accidentales
+- **Celebración de PRs:** Animaciones especiales al romper récords
 
 ---
 
 ## 🛠️ Stack Tecnológico
 
-Este proyecto utiliza las últimas tecnologías de desarrollo web moderno:
-
 | Área | Tecnología | Descripción |
 |------|------------|-------------|
-| **Frontend** | React 18 | Biblioteca de UI basada en componentes |
-| **Build Tool** | Vite 6 | Entorno de desarrollo ultrarrápido |
-| **Estilos** | Tailwind CSS 4 | Framework de utilidad para diseño responsive |
-| **Gráficos** | Recharts | Visualización de datos y estadísticas |
-| **Backend** | Node.js (Serverless) | API ejecutada en Vercel Functions |
-| **Base de Datos** | PostgreSQL | Base de datos relacional robusta |
-| **ORM** | Prisma | Acceso a datos type-safe y gestión de esquema |
+| **Frontend** | React 18 | UI basada en componentes |
+| **Build Tool** | Vite 6 | Desarrollo ultrarrápido |
+| **Estilos** | Tailwind CSS 4 | Framework utility-first |
+| **Iconos** | Lucide React | Iconografía moderna |
+| **Gráficos** | Recharts | Visualización de datos |
+| **Backend** | Vercel Functions | API Serverless |
+| **Base de Datos** | PostgreSQL | BD relacional robusta |
+| **ORM** | Prisma | Acceso a datos type-safe |
 
 ---
 
-## 🚀 Despliegue (Deploy)
+## 🚀 Despliegue
 
-La aplicación está optimizada para desplegarse en **Vercel** con base de datos PostgreSQL (ej. Supabase, Neon, Railway).
+Optimizado para **Vercel** con PostgreSQL (Neon, Supabase, Railway).
 
 ### Variables de Entorno
-Configura las siguientes variables en tu proyecto de Vercel:
-
 ```env
-DATABASE_URL="postgresql://usuario:password@host:port/database?schema=public"
+DATABASE_URL="postgresql://usuario:password@host:port/database"
 ```
 
-### Estructura de Directorios para Vercel
-Para soportar Vercel Serverless Functions, la estructura del proyecto es:
-
+### Estructura del Proyecto
 ```
 NexLift/
-├── api/                  # Serverless Functions (Backend)
-│   ├── prisma/           # Schema de BD para producción
-│   └── index.js          # Entry point de la API
-├── client/               # SPA React (Frontend)
-│   ├── public/           # Assets estáticos (iconos PWA)
-│   └── src/              # Código fuente React
-├── server/               # Servidor de desarrollo local
-└── vercel.json           # Configuración de rutas y rewrites
+├── api/                  # Serverless Functions
+│   ├── prisma/           # Schema de BD
+│   └── index.js          # Entry point API
+├── client/               # React SPA
+│   ├── src/
+│   │   ├── components/   # Componentes reutilizables
+│   │   │   ├── layout/   # Layout principal
+│   │   │   └── ui/       # Toast, Celebration, etc.
+│   │   ├── pages/        # Páginas de la app
+│   │   └── services/     # API client
+│   └── public/           # Assets estáticos
+└── vercel.json           # Configuración Vercel
 ```
 
 ---
 
-## 📋 Formato de Importación de Rutina
-
-Para importar tu rutina, usa el siguiente formato JSON en la sección "Importar":
+## 📋 Formato de Importación
 
 ```json
 {
-  "name": "Rutina Hipertrofia 4 Días",
-  "description": "Torso Pierna Frecuencia 2",
+  "name": "Mi Rutina",
+  "description": "Descripción opcional",
   "days": [
     {
-      "dayName": "Lunes - Torso Fuerza",
+      "dayName": "Lunes - Torso",
       "exercises": [
-        { "name": "Press Banca", "sets": 3, "reps": "6-8" },
-        { "name": "Remo Pendlay", "sets": 3, "reps": "6-8" }
+        { "name": "Press Banca", "sets": 4, "reps": "8-10" },
+        { "name": "Remo Pendlay", "sets": 4, "reps": "8-10" }
       ]
     },
     {
-      "dayName": "Martes - Pierna Fuerza",
-      "exercises": [
-        { "name": "Sentadilla", "sets": 3, "reps": "5-7" }
-      ]
-    },
-    {
-      "dayName": "Miércoles - Descanso",
+      "dayName": "Martes - Descanso",
       "isRestDay": true,
       "exercises": []
     }
@@ -120,15 +115,33 @@ Para importar tu rutina, usa el siguiente formato JSON en la sección "Importar"
 
 ---
 
+## 🔧 Desarrollo Local
+
+```bash
+# Clonar repositorio
+git clone https://github.com/fernandosegrr/NexLift.git
+cd NexLift
+
+# Instalar dependencias del cliente
+cd client && npm install
+
+# Configurar variables de entorno
+# Crear .env con DATABASE_URL
+
+# Ejecutar en desarrollo
+npm run dev
+```
+
+---
+
 ## 👤 Autor
 
 **Fernando Guerrero**
-
-*   **GitHub**: [@fernandosegrr](https://github.com/fernandosegrr)
+- GitHub: [@fernandosegrr](https://github.com/fernandosegrr)
 
 ---
 
 ## 📄 Licencia
 
-Copyright © 2025 Fernando Guerrero.
+Copyright © 2026 Fernando Guerrero.  
 Este proyecto es software propietario. Todos los derechos reservados.
