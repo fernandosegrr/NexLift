@@ -17,7 +17,11 @@ export default async function handler(req, res) {
     }
 
     const { url, method, body } = req;
-    const path = url.replace('/api', '');
+
+    // Parse URL properly to separate pathname from query string
+    const parsedUrl = new URL(url, `http://${req.headers.host}`);
+    const path = parsedUrl.pathname.replace('/api', '');
+    const searchParams = parsedUrl.searchParams;
 
     try {
         // ==========================================
@@ -337,19 +341,15 @@ export default async function handler(req, res) {
         }
 
         // GET /api/workouts/history
-        if (path === '/workouts/history' || path.startsWith('/workouts/history?')) {
-            if (method === 'GET') {
-                // Parse limit from query string
-                const urlObj = new URL(req.url, `http://${req.headers.host}`);
-                const limit = parseInt(urlObj.searchParams.get('limit')) || 30;
+        if (path === '/workouts/history' && method === 'GET') {
+            const limit = parseInt(searchParams.get('limit')) || 30;
 
-                const logs = await prisma.workoutLog.findMany({
-                    include: { sets: { orderBy: { setNumber: 'asc' } }, exercise: true },
-                    orderBy: { date: 'desc' },
-                    take: Math.min(limit, 1000) // Cap at 1000 for safety
-                });
-                return res.json(logs);
-            }
+            const logs = await prisma.workoutLog.findMany({
+                include: { sets: { orderBy: { setNumber: 'asc' } }, exercise: true },
+                orderBy: { date: 'desc' },
+                take: Math.min(limit, 1000) // Cap at 1000 for safety
+            });
+            return res.json(logs);
         }
 
         // GET /api/workouts/exercise/:id/history
@@ -369,17 +369,14 @@ export default async function handler(req, res) {
         // ==========================================
 
         // GET /api/body/logs
-        if (path === '/body/logs' || path.startsWith('/body/logs?')) {
-            if (method === 'GET') {
-                const urlObj = new URL(req.url, `http://${req.headers.host}`);
-                const limit = parseInt(urlObj.searchParams.get('limit')) || 30;
+        if (path === '/body/logs' && method === 'GET') {
+            const limit = parseInt(searchParams.get('limit')) || 30;
 
-                const logs = await prisma.bodyLog.findMany({
-                    orderBy: { date: 'desc' },
-                    take: Math.min(limit, 500)
-                });
-                return res.json(logs);
-            }
+            const logs = await prisma.bodyLog.findMany({
+                orderBy: { date: 'desc' },
+                take: Math.min(limit, 500)
+            });
+            return res.json(logs);
         }
 
         // POST /api/body/log
