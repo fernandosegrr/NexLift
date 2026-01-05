@@ -84,3 +84,14 @@ model RestLog {
   date      DateTime @default(now())
   note      String?
 }
+
+// Registro de datos corporales (peso y fotos de progreso)
+model BodyLog {
+  id        String   @id @default(cuid())
+  date      DateTime @default(now())
+  weight    Float?   // Peso en kg
+  photo     String?  @db.Text // Foto comprimida en base64
+  note      String?  // Notas del día
+  
+  @@index([date])
+}
