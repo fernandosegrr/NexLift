@@ -337,13 +337,19 @@ export default async function handler(req, res) {
         }
 
         // GET /api/workouts/history
-        if (path === '/workouts/history' && method === 'GET') {
-            const logs = await prisma.workoutLog.findMany({
-                include: { sets: { orderBy: { setNumber: 'asc' } }, exercise: true },
-                orderBy: { date: 'desc' },
-                take: 30
-            });
-            return res.json(logs);
+        if (path === '/workouts/history' || path.startsWith('/workouts/history?')) {
+            if (method === 'GET') {
+                // Parse limit from query string
+                const urlObj = new URL(req.url, `http://${req.headers.host}`);
+                const limit = parseInt(urlObj.searchParams.get('limit')) || 30;
+
+                const logs = await prisma.workoutLog.findMany({
+                    include: { sets: { orderBy: { setNumber: 'asc' } }, exercise: true },
+                    orderBy: { date: 'desc' },
+                    take: Math.min(limit, 1000) // Cap at 1000 for safety
+                });
+                return res.json(logs);
+            }
         }
 
         // GET /api/workouts/exercise/:id/history
@@ -356,6 +362,42 @@ export default async function handler(req, res) {
                 take: 20
             });
             return res.json(logs);
+        }
+
+        // ==========================================
+        // BODY TRACKING
+        // ==========================================
+
+        // GET /api/body/logs
+        if (path === '/body/logs' || path.startsWith('/body/logs?')) {
+            if (method === 'GET') {
+                const urlObj = new URL(req.url, `http://${req.headers.host}`);
+                const limit = parseInt(urlObj.searchParams.get('limit')) || 30;
+
+                const logs = await prisma.bodyLog.findMany({
+                    orderBy: { date: 'desc' },
+                    take: Math.min(limit, 500)
+                });
+                return res.json(logs);
+            }
+        }
+
+        // POST /api/body/log
+        if (path === '/body/log' && method === 'POST') {
+            const { weight, photo, note } = body;
+
+            if (!weight && !photo) {
+                return res.status(400).json({ error: 'Weight or photo required' });
+            }
+
+            const bodyLog = await prisma.bodyLog.create({
+                data: {
+                    weight: weight ? parseFloat(weight) : null,
+                    photo: photo || null,
+                    note: note || null
+                }
+            });
+            return res.json({ message: 'Body log saved!', bodyLog });
         }
 
         // ==========================================
