@@ -122,8 +122,8 @@ export const api = {
         return res.json();
     },
 
-    async getWorkoutHistory() {
-        const res = await fetch(`${API_URL}/workouts/history`);
+    async getWorkoutHistory(limit = 30) {
+        const res = await fetch(`${API_URL}/workouts/history?limit=${limit}`);
         if (!res.ok) throw new Error('Failed to fetch workout history');
         return res.json();
     },
@@ -163,5 +163,37 @@ export const api = {
         } catch (e) {
             return false;
         }
+    },
+
+    // ==========================================
+    // BODY TRACKING
+    // ==========================================
+    async getBodyLogs(limit = 90) {
+        const res = await fetch(`${API_URL}/body?limit=${limit}`);
+        if (!res.ok) throw new Error('Failed to fetch body logs');
+        return res.json();
+    },
+
+    async getBodyPhotos() {
+        const res = await fetch(`${API_URL}/body/photos`);
+        if (!res.ok) throw new Error('Failed to fetch photos');
+        return res.json();
+    },
+
+    async getLatestWeight() {
+        const res = await fetch(`${API_URL}/body/latest`);
+        if (!res.ok) throw new Error('Failed to fetch latest weight');
+        return res.json();
+    },
+
+    async logBodyData(data) {
+        const res = await fetch(`${API_URL}/body`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        if (!res.ok) throw new Error('Failed to save body data');
+        return res.json();
     }
 };
+

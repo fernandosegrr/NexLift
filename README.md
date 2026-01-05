@@ -5,7 +5,7 @@
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.1.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.2.0-blue?style=flat-square)
 
 ---
 
@@ -38,6 +38,25 @@ Diseñada con un enfoque **Mobile-First**, funciona perfectamente en tu celular 
 - **Evolución 1RM:** Gráficas estimando tu 1RM teórico
 - **Récords Personales:** Tracking automático de PRs 🏆
 
+### 🏋️ Body Tracking
+- **Registro de Peso Corporal:** Seguimiento diario/semanal
+- **Fotos de Progreso:** Almacenamiento seguro en base64
+- **Gráficas de Evolución:** Visualiza cambios en el tiempo
+- **Notas Diarias:** Documenta cómo te sientes
+
+### 📄 Exportación de Reportes (PDF)
+- **Reportes Profesionales:** Genera PDFs con todo tu progreso
+- **Períodos Configurables:** Semanal, Mensual, Trimestral, Semestral, Anual
+- **Contenido Incluido:**
+  - Estadísticas del período (días entrenados, sesiones, PRs)
+  - Rutina activa completa
+  - Récords personales del período
+  - Progreso por ejercicio (Delta kg y reps)
+  - Últimas sesiones con RPE
+  - Evolución del peso corporal
+  - Fotos de progreso (si hay 2+)
+- **Optimizado con jspdf-autotable:** Tablas profesionales con saltos de página automáticos
+
 ### 🎨 Interfaz de Usuario
 - **Modo Oscuro OLED:** Interfaz perfecta para gimnasios
 - **Toast Notifications:** Feedback elegante en cada acción
@@ -56,7 +75,8 @@ Diseñada con un enfoque **Mobile-First**, funciona perfectamente en tu celular 
 | **Estilos** | Tailwind CSS 4 | Framework utility-first |
 | **Iconos** | Lucide React | Iconografía moderna |
 | **Gráficos** | Recharts | Visualización de datos |
-| **Backend** | Vercel Functions | API Serverless |
+| **PDF** | jsPDF + autoTable | Generación de reportes |
+| **Backend** | Express.js / Vercel Functions | API REST |
 | **Base de Datos** | PostgreSQL | BD relacional robusta |
 | **ORM** | Prisma | Acceso a datos type-safe |
 
@@ -74,7 +94,7 @@ DATABASE_URL="postgresql://usuario:password@host:port/database"
 ### Estructura del Proyecto
 ```
 NexLift/
-├── api/                  # Serverless Functions
+├── api/                  # Serverless Functions (Vercel)
 │   ├── prisma/           # Schema de BD
 │   └── index.js          # Entry point API
 ├── client/               # React SPA
@@ -83,14 +103,25 @@ NexLift/
 │   │   │   ├── layout/   # Layout principal
 │   │   │   └── ui/       # Toast, Celebration, etc.
 │   │   ├── pages/        # Páginas de la app
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── Progress.jsx
+│   │   │   ├── BodyTracking.jsx
+│   │   │   ├── ExportReport.jsx
+│   │   │   ├── Routines.jsx
+│   │   │   └── RoutineDetail.jsx
 │   │   └── services/     # API client
 │   └── public/           # Assets estáticos
+├── server/               # Servidor local de desarrollo
+│   ├── prisma/           # Schema de BD
+│   └── src/index.js      # API Express
+├── .agent/               # Documentación para IA
+│   └── context.md        # Contexto del proyecto
 └── vercel.json           # Configuración Vercel
 ```
 
 ---
 
-## 📋 Formato de Importación
+## 📋 Formato de Importación de Rutinas
 
 ```json
 {
@@ -122,15 +153,22 @@ NexLift/
 git clone https://github.com/fernandosegrr/NexLift.git
 cd NexLift
 
-# Instalar dependencias del cliente
-cd client && npm install
+# Backend (servidor Express)
+cd server
+npm install
+npx prisma generate
+npx prisma migrate dev
+npm run dev
 
-# Configurar variables de entorno
-# Crear .env con DATABASE_URL
-
-# Ejecutar en desarrollo
+# Frontend (en otra terminal)
+cd client
+npm install
 npm run dev
 ```
+
+**URLs de desarrollo:**
+- Frontend: http://localhost:5173
+- Backend: http://localhost:3001
 
 ---
 

@@ -711,6 +711,98 @@ app.get('/api/stats/prs', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch PRs' });
     }
 });
+// ============================================
+// ROUTES: Body Tracking (Peso & Fotos)
+// ============================================
+
+// GET /api/body - Get body logs history
+app.get('/api/body', async (req, res) => {
+    try {
+        const { limit = 90, includePhotos = false } = req.query;
+
+        const logs = await prisma.bodyLog.findMany({
+            select: {
+                id: true,
+                date: true,
+                weight: true,
+                photo: includePhotos === 'true',
+                note: true
+            },
+            orderBy: { date: 'desc' },
+            take: parseInt(limit)
+        });
+
+        res.json(logs);
+    } catch (error) {
+        console.error('Error fetching body logs:', error);
+        res.status(500).json({ error: 'Failed to fetch body logs' });
+    }
+});
+
+// GET /api/body/photos - Get only photo entries
+app.get('/api/body/photos', async (req, res) => {
+    try {
+        const photos = await prisma.bodyLog.findMany({
+            where: { photo: { not: null } },
+            select: {
+                id: true,
+                date: true,
+                photo: true,
+                note: true
+            },
+            orderBy: { date: 'desc' },
+            take: 12 // Last 12 months
+        });
+
+        res.json(photos);
+    } catch (error) {
+        console.error('Error fetching photos:', error);
+        res.status(500).json({ error: 'Failed to fetch photos' });
+    }
+});
+
+// POST /api/body - Log weight and/or photo
+app.post('/api/body', async (req, res) => {
+    try {
+        const { weight, photo, note } = req.body;
+
+        if (!weight && !photo) {
+            return res.status(400).json({ error: 'Weight or photo required' });
+        }
+
+        const bodyLog = await prisma.bodyLog.create({
+            data: {
+                weight: weight ? parseFloat(weight) : null,
+                photo: photo || null,
+                note: note || null
+            }
+        });
+
+        res.status(201).json({
+            message: 'Body log saved!',
+            bodyLog: { id: bodyLog.id, date: bodyLog.date, weight: bodyLog.weight }
+        });
+    } catch (error) {
+        console.error('Error saving body log:', error);
+        res.status(500).json({ error: 'Failed to save body log' });
+    }
+});
+
+// GET /api/body/latest - Get most recent weight
+app.get('/api/body/latest', async (req, res) => {
+    try {
+        const latest = await prisma.bodyLog.findFirst({
+            where: { weight: { not: null } },
+            orderBy: { date: 'desc' },
+            select: { date: true, weight: true }
+        });
+
+        res.json(latest || { weight: null });
+    } catch (error) {
+        console.error('Error fetching latest weight:', error);
+        res.status(500).json({ error: 'Failed to fetch latest weight' });
+    }
+});
 
 // ============================================
 // Health Check
@@ -718,6 +810,7 @@ app.get('/api/stats/prs', async (req, res) => {
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
 
 // Start server
 app.listen(PORT, () => {

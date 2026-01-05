@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import {
     TrendingUp, Calendar, Trophy, Dumbbell, Target,
-    ChevronDown, ChevronRight, Activity, AlertCircle, CheckCircle, Search
+    ChevronDown, ChevronRight, Activity, AlertCircle, CheckCircle, Search, FileText
 } from 'lucide-react';
+
 
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, CartesianGrid } from 'recharts';
 import { api } from '../services/api';
@@ -221,10 +223,20 @@ export default function Progress() {
     return (
         <div className="space-y-5 animate-fade-in max-w-lg mx-auto pb-20">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold">Progreso</h1>
-                <p className="text-[var(--text-secondary)] text-sm">Tu evolución fitness</p>
+            <div className="flex items-start justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold">Progreso</h1>
+                    <p className="text-[var(--text-secondary)] text-sm">Tu evolución fitness</p>
+                </div>
+                <Link
+                    to="/export"
+                    className="flex items-center gap-1.5 bg-[var(--bg-card)] border border-[var(--border)] px-3 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--primary)] hover:border-[var(--primary)] transition-colors"
+                >
+                    <FileText size={16} />
+                    <span>PDF</span>
+                </Link>
             </div>
+
 
             {/* Tabs */}
             <div className="flex gap-1 bg-[var(--bg-card)] p-1 rounded-xl">
