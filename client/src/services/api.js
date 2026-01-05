@@ -169,25 +169,29 @@ export const api = {
     // BODY TRACKING
     // ==========================================
     async getBodyLogs(limit = 90) {
-        const res = await fetch(`${API_URL}/body?limit=${limit}`);
+        const res = await fetch(`${API_URL}/body/logs?limit=${limit}`);
         if (!res.ok) throw new Error('Failed to fetch body logs');
         return res.json();
     },
 
     async getBodyPhotos() {
-        const res = await fetch(`${API_URL}/body/photos`);
+        // Use the same logs endpoint and filter photos client-side
+        const res = await fetch(`${API_URL}/body/logs?limit=100`);
         if (!res.ok) throw new Error('Failed to fetch photos');
-        return res.json();
+        const logs = await res.json();
+        return logs.filter(log => log.photo);
     },
 
     async getLatestWeight() {
-        const res = await fetch(`${API_URL}/body/latest`);
+        // Get latest log with weight
+        const res = await fetch(`${API_URL}/body/logs?limit=1`);
         if (!res.ok) throw new Error('Failed to fetch latest weight');
-        return res.json();
+        const logs = await res.json();
+        return logs.find(log => log.weight) || null;
     },
 
     async logBodyData(data) {
-        const res = await fetch(`${API_URL}/body`, {
+        const res = await fetch(`${API_URL}/body/log`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
