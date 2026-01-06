@@ -352,6 +352,52 @@ export default async function handler(req, res) {
             return res.json(logs);
         }
 
+        // PUT /api/workouts/:logId - Update a workout session
+        const workoutUpdateMatch = path.match(/^\/workouts\/([^/]+)$/);
+        if (workoutUpdateMatch && method === 'PUT') {
+            const logId = workoutUpdateMatch[1];
+            const { sets } = body;
+
+            if (!sets || !Array.isArray(sets)) {
+                return res.status(400).json({ error: 'Sets array required' });
+            }
+
+            // Transaction: delete old sets and create new ones
+            const updated = await prisma.$transaction(async (tx) => {
+                // Delete existing sets
+                await tx.setLog.deleteMany({ where: { workoutLogId: logId } });
+
+                // Create new sets
+                await tx.setLog.createMany({
+                    data: sets.map((set, i) => ({
+                        workoutLogId: logId,
+                        setNumber: i + 1,
+                        weight: parseFloat(set.weight),
+                        reps: parseInt(set.reps),
+                        rpe: set.rpe ? parseFloat(set.rpe) : null,
+                        completed: true
+                    }))
+                });
+
+                return tx.workoutLog.findUnique({
+                    where: { id: logId },
+                    include: { sets: { orderBy: { setNumber: 'asc' } }, exercise: true }
+                });
+            });
+
+            return res.json({ message: 'Session updated!', workoutLog: updated });
+        }
+
+        // DELETE /api/workouts/:logId - Delete a workout session
+        const workoutDeleteMatch = path.match(/^\/workouts\/([^/]+)$/);
+        if (workoutDeleteMatch && method === 'DELETE') {
+            const logId = workoutDeleteMatch[1];
+
+            await prisma.workoutLog.delete({ where: { id: logId } });
+
+            return res.json({ message: 'Session deleted!' });
+        }
+
         // GET /api/workouts/exercise/:id/history
         const exHistoryMatch = path.match(/^\/workouts\/exercise\/([^/]+)\/history$/);
         if (exHistoryMatch && method === 'GET') {

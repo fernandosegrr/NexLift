@@ -134,6 +134,24 @@ export const api = {
         return res.json();
     },
 
+    async updateWorkoutSession(logId, sets) {
+        const res = await fetch(`${API_URL}/workouts/${logId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sets }),
+        });
+        if (!res.ok) throw new Error('Failed to update session');
+        return res.json();
+    },
+
+    async deleteWorkoutSession(logId) {
+        const res = await fetch(`${API_URL}/workouts/${logId}`, {
+            method: 'DELETE',
+        });
+        if (!res.ok) throw new Error('Failed to delete session');
+        return res.json();
+    },
+
     // ==========================================
     // EXERCISES
     // ==========================================

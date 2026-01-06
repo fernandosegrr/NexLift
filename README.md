@@ -5,7 +5,7 @@
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.2.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.3.0-blue?style=flat-square)
 
 ---
 
@@ -108,7 +108,10 @@ NexLift/
 │   │   │   ├── BodyTracking.jsx
 │   │   │   ├── ExportReport.jsx
 │   │   │   ├── Routines.jsx
-│   │   │   └── RoutineDetail.jsx
+│   │   │   ├── RoutineDetail.jsx
+│   │   │   ├── Workout.jsx
+│   │   │   ├── Settings.jsx
+│   │   │   └── EditSession.jsx
 │   │   └── services/     # API client
 │   └── public/           # Assets estáticos
 ├── server/               # Servidor local de desarrollo

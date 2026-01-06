@@ -8,6 +8,7 @@ import Import from './pages/Import';
 import Progress from './pages/Progress';
 import Settings from './pages/Settings';
 import EditRoutine from './pages/EditRoutine';
+import EditSession from './pages/EditSession';
 import BodyTracking from './pages/BodyTracking';
 import ExportReport from './pages/ExportReport';
 import { ToastProvider } from './components/ui/Toast';
@@ -28,6 +29,7 @@ function App() {
             <Route path="import" element={<Import />} />
             <Route path="progress" element={<Progress />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="session/:logId/edit" element={<EditSession />} />
             <Route path="body" element={<BodyTracking />} />
             <Route path="export" element={<ExportReport />} />
           </Route>

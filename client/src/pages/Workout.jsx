@@ -20,7 +20,7 @@ export default function Workout() {
     const [sets, setSets] = useState([]);
     const [workoutData, setWorkoutData] = useState({});
 
-    // --- NUEVO ESTADO: Lista de ejercicios ya enviados a la API ---
+    // Lista de ejercicios ya enviados a la API
     const [completedExerciseIds, setCompletedExerciseIds] = useState([]);
 
     // Estados de UI
@@ -30,17 +30,44 @@ export default function Workout() {
     const [history, setHistory] = useState([]);
     const [showSuccess, setShowSuccess] = useState(false);
     const [previousBest, setPreviousBest] = useState(null);
-    const [suggestedWeights, setSuggestedWeights] = useState([]); // Pesos sugeridos de la última sesión
+    const [suggestedWeights, setSuggestedWeights] = useState([]);
+
+    // ✅ NUEVO: Ref para evitar race conditions
+    const currentExerciseIdRef = useRef(null);
+
+    // ✅ NUEVO: Cargar datos persistentes de localStorage al montar
+    useEffect(() => {
+        const savedData = localStorage.getItem(`workout_${dayId}`);
+        if (savedData) {
+            try {
+                const parsed = JSON.parse(savedData);
+                setWorkoutData(parsed.workoutData || {});
+                setCompletedExerciseIds(parsed.completedExerciseIds || []);
+            } catch (error) {
+                console.error('Error parsing saved workout:', error);
+            }
+        }
+    }, [dayId]);
+
+    // ✅ NUEVO: Guardar en localStorage cada vez que cambie el workoutData o completedExerciseIds
+    useEffect(() => {
+        if (exercises.length > 0) {
+            localStorage.setItem(`workout_${dayId}`, JSON.stringify({
+                workoutData,
+                completedExerciseIds,
+                timestamp: Date.now()
+            }));
+        }
+    }, [workoutData, completedExerciseIds, dayId, exercises.length]);
 
     useEffect(() => {
         fetchDay();
     }, [dayId]);
 
-    // Sincronizar sets con la memoria global solo si NO está completado
+    // ✅ CORREGIDO: Dependencias completas
     useEffect(() => {
         if (exercises.length > 0 && exercises[currentIndex]) {
             const currentExId = exercises[currentIndex].id;
-            // Solo actualizamos la memoria si no se ha "firmado" ya el ejercicio
             if (!completedExerciseIds.includes(currentExId)) {
                 setWorkoutData(prev => ({
                     ...prev,
@@ -48,7 +75,7 @@ export default function Workout() {
                 }));
             }
         }
-    }, [sets, completedExerciseIds]); // Añadida dependencia para evitar updates post-complete
+    }, [sets, completedExerciseIds, currentIndex, exercises]);
 
     async function fetchDay() {
         try {
@@ -58,8 +85,15 @@ export default function Workout() {
                 if (day) {
                     setExercises(day.exercises);
                     setDayName(day.dayName);
+
+                    // ✅ NUEVO: Verificar qué ejercicios ya tienen logs de HOY
+                    await checkCompletedExercises(day.exercises);
+
                     if (day.exercises.length > 0) {
-                        loadExerciseData(day.exercises[0], 0, {});
+                        // Cargar desde localStorage si existe, sino crear nuevo
+                        const savedData = localStorage.getItem(`workout_${dayId}`);
+                        const initialData = savedData ? JSON.parse(savedData).workoutData : {};
+                        await loadExerciseData(day.exercises[0], 0, initialData);
                     }
                     break;
                 }
@@ -71,22 +105,94 @@ export default function Workout() {
         }
     }
 
-    function loadExerciseData(exercise, index, currentDataState) {
+    // ✅ NUEVO: Verificar ejercicios completados HOY
+    async function checkCompletedExercises(exerciseList) {
+        const today = new Date().toISOString().split('T')[0];
+        const completed = [];
+
+        for (const ex of exerciseList) {
+            try {
+                const history = await api.getExerciseHistory(ex.id);
+                if (history?.length > 0) {
+                    const lastLog = history[0];
+                    const logDate = new Date(lastLog.date).toISOString().split('T')[0];
+                    if (logDate === today) {
+                        completed.push(ex.id);
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking exercise:', error);
+            }
+        }
+
+        setCompletedExerciseIds(prev => {
+            // Merge con los del localStorage
+            const merged = [...new Set([...prev, ...completed])];
+            return merged;
+        });
+    }
+
+    // ✅ CORREGIDO: Cargar datos reales de API para ejercicios completados
+    async function loadExerciseData(exercise, index, currentDataState) {
+        currentExerciseIdRef.current = exercise.id;
+
+        // Si ya está completado, cargar desde API
+        if (completedExerciseIds.includes(exercise.id)) {
+            try {
+                const history = await api.getExerciseHistory(exercise.id);
+
+                // ✅ Verificar que todavía estamos en el mismo ejercicio
+                if (currentExerciseIdRef.current !== exercise.id) return;
+
+                if (history?.length > 0 && history[0].sets) {
+                    const today = new Date().toISOString().split('T')[0];
+                    const logDate = new Date(history[0].date).toISOString().split('T')[0];
+
+                    // Solo cargar si es de hoy
+                    if (logDate === today) {
+                        const apiSets = history[0].sets.map(s => ({
+                            weight: s.weight.toString(),
+                            reps: s.reps.toString(),
+                            rir: s.rpe ? (10 - s.rpe) : null,
+                            completed: true
+                        }));
+                        setSets(apiSets);
+                        loadPreviousBest(exercise.id);
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading completed exercise:', error);
+            }
+        }
+
+        // Si hay datos en memoria local, usarlos
         if (currentDataState[exercise.id]) {
             setSets(currentDataState[exercise.id]);
         } else {
+            // Crear sets vacíos basados en el target
             const newSets = [];
             for (let i = 0; i < exercise.targetSets; i++) {
                 newSets.push({ weight: '', reps: '', rir: null, completed: false });
             }
             setSets(newSets);
         }
+
         loadPreviousBest(exercise.id);
     }
 
+    // ✅ CORREGIDO: Race condition fix
     async function loadPreviousBest(exerciseId) {
+        const requestId = exerciseId; // Capturar el ID del request
+
         try {
             const historyData = await api.getExerciseHistory(exerciseId);
+
+            // ✅ Verificar que todavía estamos en el mismo ejercicio
+            if (currentExerciseIdRef.current !== requestId) {
+                return; // Cancelar si cambiamos de ejercicio
+            }
+
             if (historyData?.length > 0 && historyData[0].sets?.length > 0) {
                 // Obtener el mejor set (mayor volumen)
                 const bestSet = historyData[0].sets.reduce((best, set) => {
@@ -100,25 +206,19 @@ export default function Workout() {
                 const lastSets = historyData[0].sets;
                 const avgWeight = lastSets.reduce((sum, s) => sum + (s.weight || 0), 0) / lastSets.length;
                 const avgRPE = lastSets.filter(s => s.rpe).reduce((sum, s) => sum + s.rpe, 0) / lastSets.filter(s => s.rpe).length || 8;
-                const avgRIR = 10 - avgRPE; // Convertir RPE a RIR
+                const avgRIR = 10 - avgRPE;
 
-                // Lógica de progresión:
-                // RIR >= 3: subir 5% (ej: 40kg -> 42kg)
-                // RIR 2: subir 2.5kg
-                // RIR 0-1: mantener peso
-                // RPE 10 (fallo): bajar 2.5kg
                 let suggestedWeight = avgWeight;
 
                 if (avgRIR >= 3) {
-                    suggestedWeight = Math.round((avgWeight * 1.05) * 2) / 2; // Redondear a 0.5kg
+                    suggestedWeight = Math.round((avgWeight * 1.05) * 2) / 2;
                 } else if (avgRIR >= 2) {
                     suggestedWeight = avgWeight + 2.5;
                 } else if (avgRPE >= 10) {
                     suggestedWeight = Math.max(avgWeight - 2.5, 0);
                 }
-                // Si RIR 0-1, mantener el mismo peso
 
-                setSuggestedWeights([Math.round(suggestedWeight * 2) / 2]); // Redondear a 0.5kg
+                setSuggestedWeights([Math.round(suggestedWeight * 2) / 2]);
             } else {
                 setPreviousBest(null);
                 setSuggestedWeights([]);
@@ -131,7 +231,7 @@ export default function Workout() {
 
     // --- Inputs Handlers ---
     function updateSet(index, field, value) {
-        if (isAlreadyLogged) return; // BLOQUEO DE EDICIÓN
+        if (isAlreadyLogged) return;
         setSets(prev => {
             const updated = [...prev];
             updated[index] = { ...updated[index], [field]: value };
@@ -140,7 +240,7 @@ export default function Workout() {
     }
 
     function toggleComplete(index) {
-        if (isAlreadyLogged) return; // BLOQUEO DE EDICIÓN
+        if (isAlreadyLogged) return;
         setSets(prev => {
             const updated = [...prev];
             updated[index].completed = !updated[index].completed;
@@ -149,21 +249,33 @@ export default function Workout() {
     }
 
     function setRIR(index, rir) {
-        if (isAlreadyLogged) return; // BLOQUEO DE EDICIÓN
+        if (isAlreadyLogged) return;
         updateSet(index, 'rir', rir);
     }
 
     function copyWeightToAll() {
-        if (isAlreadyLogged) return; // BLOQUEO DE EDICIÓN
+        if (isAlreadyLogged) return;
         if (sets[0]?.weight) {
             setSets(prev => prev.map(s => ({ ...s, weight: prev[0].weight })));
         }
     }
 
-    // --- Navigation ---
+    // ✅ CORREGIDO: Navigation con warning
     function goToExercise(newIndex) {
         if (newIndex >= 0 && newIndex < exercises.length) {
             const currentExId = exercises[currentIndex].id;
+
+            // ✅ Verificar si hay datos sin guardar
+            const hasUnsavedData = sets.some(s => s.weight !== '' || s.reps !== '');
+            const isNotSaved = !completedExerciseIds.includes(currentExId);
+
+            if (hasUnsavedData && isNotSaved) {
+                const userConfirmed = window.confirm(
+                    '¿Salir sin guardar? Los datos se mantendrán temporalmente, pero si cierras la app podrías perderlos.'
+                );
+                if (!userConfirmed) return;
+            }
+
             const updatedWorkoutData = { ...workoutData, [currentExId]: sets };
             setWorkoutData(updatedWorkoutData);
             setCurrentIndex(newIndex);
@@ -191,6 +303,8 @@ export default function Workout() {
             if (currentIndex < exercises.length - 1) {
                 goToExercise(currentIndex + 1);
             } else {
+                // ✅ Limpiar localStorage al finalizar
+                localStorage.removeItem(`workout_${dayId}`);
                 setShowSuccess(true);
                 setTimeout(() => navigate('/'), 2000);
             }
@@ -215,16 +329,28 @@ export default function Workout() {
         try {
             await api.logWorkout(exercise.id, validSets);
 
-            // Marcar como completado en el array local
+            // Marcar como completado
             setCompletedExerciseIds(prev => [...prev, exercise.id]);
+
+            // ✅ Limpiar este ejercicio del workoutData
+            setWorkoutData(prev => {
+                const updated = { ...prev };
+                delete updated[exercise.id];
+                return updated;
+            });
+
+            toast.success('Ejercicio guardado!');
 
             if (currentIndex < exercises.length - 1) {
                 goToExercise(currentIndex + 1);
             } else {
+                // ✅ Limpiar localStorage al finalizar
+                localStorage.removeItem(`workout_${dayId}`);
                 setShowSuccess(true);
                 setTimeout(() => navigate('/'), 2000);
             }
         } catch (error) {
+            console.error('Save error:', error);
             toast.error('Error al guardar. Intenta de nuevo.');
         } finally {
             setSaving(false);
@@ -248,13 +374,27 @@ export default function Workout() {
                     <Trophy size={40} className="text-[var(--success)]" />
                 </div>
                 <h2 className="text-2xl font-bold mb-2">¡Completado!</h2>
-                <p className="text-[var(--text-secondary)]">Excelente entrenamiento 💪</p>
+                <p className="text-[var(--text-secondary)] mb-6">Excelente entrenamiento 💪</p>
+
+                <div className="flex gap-3 w-full max-w-xs">
+                    <button
+                        onClick={() => navigate('/')}
+                        className="flex-1 py-3 rounded-xl font-medium bg-[var(--bg-card)] text-[var(--text-primary)] border border-[var(--border)]"
+                    >
+                        Inicio
+                    </button>
+                    <button
+                        onClick={() => navigate('/export?period=daily')}
+                        className="flex-1 py-3 rounded-xl font-medium bg-[var(--primary)] text-white flex items-center justify-center gap-2"
+                    >
+                        Exportar PDF
+                    </button>
+                </div>
             </div>
         );
     }
 
     const currentExercise = exercises[currentIndex];
-    // Variable clave para la UI
     const isAlreadyLogged = currentExercise && completedExerciseIds.includes(currentExercise.id);
 
     return (
@@ -277,7 +417,7 @@ export default function Workout() {
                 {exercises.map((ex, i) => (
                     <div
                         key={i}
-                        className={`h-1 flex-1 rounded-full transition-colors ${completedExerciseIds.includes(ex.id) ? 'bg-[var(--success)]' : // Ya enviado a API
+                        className={`h-1 flex-1 rounded-full transition-colors ${completedExerciseIds.includes(ex.id) ? 'bg-[var(--success)]' :
                             i === currentIndex ? 'bg-[var(--primary)]' :
                                 'bg-[var(--border)]'
                             }`}
@@ -370,7 +510,7 @@ export default function Workout() {
                                     onFocus={handleFocus}
                                     onChange={(e) => updateSet(i, 'weight', e.target.value)}
                                     placeholder="0"
-                                    readOnly={isAlreadyLogged} // Solo lectura
+                                    readOnly={isAlreadyLogged}
                                     className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg py-3 text-center text-lg font-semibold focus:border-[var(--primary)] focus:outline-none"
                                 />
                             </div>
@@ -381,7 +521,7 @@ export default function Workout() {
                                     onFocus={handleFocus}
                                     onChange={(e) => updateSet(i, 'reps', e.target.value)}
                                     placeholder="0"
-                                    readOnly={isAlreadyLogged} // Solo lectura
+                                    readOnly={isAlreadyLogged}
                                     className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg py-3 text-center text-lg font-semibold focus:border-[var(--primary)] focus:outline-none"
                                 />
                             </div>
@@ -405,7 +545,7 @@ export default function Workout() {
                             <div className="col-span-2 flex justify-center">
                                 <button
                                     onClick={() => toggleComplete(i)}
-                                    disabled={isAlreadyLogged} // Deshabilitado
+                                    disabled={isAlreadyLogged}
                                     className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all ${set.completed
                                         ? 'bg-[var(--success)] text-white'
                                         : 'bg-[var(--border)] text-[var(--text-secondary)]'
@@ -455,7 +595,7 @@ export default function Workout() {
                 </button>
             </div>
 
-            {/* History Modal (Se mantiene igual que antes) */}
+            {/* History Modal */}
             {showHistory && (
                 <div className="fixed inset-0 bg-black/80 z-50 flex items-end animate-fade-in" onClick={() => setShowHistory(false)}>
                     <div className="bg-[var(--bg-card)] w-full max-h-[70vh] rounded-t-3xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
@@ -466,17 +606,29 @@ export default function Workout() {
                             </button>
                         </div>
                         <div className="p-4 overflow-y-auto">
-                            {/* ...contenido historial... */}
-                            {history.length === 0 ? <p className="text-center text-[var(--text-secondary)]">Sin datos</p> :
+                            {history.length === 0 ? (
+                                <p className="text-center text-[var(--text-secondary)] py-8">Sin datos anteriores</p>
+                            ) : (
                                 history.map((log, i) => (
-                                    <div key={i} className="mb-2 bg-[var(--bg-dark)] p-2 rounded">
-                                        <div className="text-xs mb-1">{new Date(log.date).toLocaleDateString()}</div>
-                                        <div className="flex gap-2">
-                                            {log.sets.map((s, j) => <span key={j} className="text-sm bg-[var(--bg-card)] px-1 rounded">{s.weight}x{s.reps}</span>)}
+                                    <div key={i} className="mb-3 bg-[var(--bg-dark)] p-3 rounded-lg">
+                                        <div className="text-xs text-[var(--text-secondary)] mb-2">
+                                            {new Date(log.date).toLocaleDateString('es-ES', {
+                                                weekday: 'short',
+                                                day: 'numeric',
+                                                month: 'short'
+                                            })}
+                                        </div>
+                                        <div className="flex gap-2 flex-wrap">
+                                            {log.sets.map((s, j) => (
+                                                <span key={j} className="text-sm bg-[var(--bg-card)] px-2 py-1 rounded border border-[var(--border)]">
+                                                    {s.weight}kg × {s.reps}
+                                                    {s.rpe && <span className="text-[var(--text-secondary)] ml-1">@{s.rpe}</span>}
+                                                </span>
+                                            ))}
                                         </div>
                                     </div>
                                 ))
-                            }
+                            )}
                         </div>
                     </div>
                 </div>

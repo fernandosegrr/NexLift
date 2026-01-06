@@ -548,6 +548,57 @@ app.get('/api/workouts/exercise/:exerciseId/history', async (req, res) => {
     }
 });
 
+// PUT /api/workouts/:logId - Update a workout session
+app.put('/api/workouts/:logId', async (req, res) => {
+    try {
+        const logId = req.params.logId;
+        const { sets } = req.body;
+
+        if (!sets || !Array.isArray(sets)) {
+            return res.status(400).json({ error: 'Sets array required' });
+        }
+
+        // Transaction: delete old sets and create new ones
+        const updated = await prisma.$transaction(async (tx) => {
+            // Delete existing sets
+            await tx.setLog.deleteMany({ where: { workoutLogId: logId } });
+
+            // Create new sets
+            await tx.setLog.createMany({
+                data: sets.map((set, i) => ({
+                    workoutLogId: logId,
+                    setNumber: i + 1,
+                    weight: parseFloat(set.weight),
+                    reps: parseInt(set.reps),
+                    rpe: set.rpe ? parseFloat(set.rpe) : null,
+                    completed: true
+                }))
+            });
+
+            return tx.workoutLog.findUnique({
+                where: { id: logId },
+                include: { sets: { orderBy: { setNumber: 'asc' } }, exercise: true }
+            });
+        });
+
+        res.json({ message: 'Session updated!', workoutLog: updated });
+    } catch (error) {
+        console.error('Error updating workout:', error);
+        res.status(500).json({ error: 'Failed to update session' });
+    }
+});
+
+// DELETE /api/workouts/:logId - Delete a workout session
+app.delete('/api/workouts/:logId', async (req, res) => {
+    try {
+        await prisma.workoutLog.delete({ where: { id: req.params.logId } });
+        res.json({ message: 'Session deleted!' });
+    } catch (error) {
+        console.error('Error deleting workout:', error);
+        res.status(500).json({ error: 'Failed to delete session' });
+    }
+});
+
 // ============================================
 // ROUTES: Statistics & Progress
 // ============================================
@@ -715,7 +766,51 @@ app.get('/api/stats/prs', async (req, res) => {
 // ROUTES: Body Tracking (Peso & Fotos)
 // ============================================
 
-// GET /api/body - Get body logs history
+// GET /api/body/logs - Client-compatible route
+app.get('/api/body/logs', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 90;
+
+        const logs = await prisma.bodyLog.findMany({
+            orderBy: { date: 'desc' },
+            take: Math.min(limit, 500)
+        });
+
+        res.json(logs);
+    } catch (error) {
+        console.error('Error fetching body logs:', error);
+        res.status(500).json({ error: 'Failed to fetch body logs' });
+    }
+});
+
+// POST /api/body/log - Client-compatible route
+app.post('/api/body/log', async (req, res) => {
+    try {
+        const { weight, photo, note } = req.body;
+
+        if (!weight && !photo) {
+            return res.status(400).json({ error: 'Weight or photo required' });
+        }
+
+        const bodyLog = await prisma.bodyLog.create({
+            data: {
+                weight: weight ? parseFloat(weight) : null,
+                photo: photo || null,
+                note: note || null
+            }
+        });
+
+        res.status(201).json({
+            message: 'Body log saved!',
+            bodyLog
+        });
+    } catch (error) {
+        console.error('Error saving body log:', error);
+        res.status(500).json({ error: 'Failed to save body log' });
+    }
+});
+
+// GET /api/body - Get body logs history (legacy)
 app.get('/api/body', async (req, res) => {
     try {
         const { limit = 90, includePhotos = false } = req.query;

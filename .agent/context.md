@@ -216,6 +216,9 @@ El usuario ha indicado que no quiere que la IA ejecute tests automáticos. La ve
 4. **El backend de desarrollo** (server/) tiene más endpoints/features que el de producción (api/)
 5. **Tailwind 4** está configurado con PostCSS, no con tailwind.config.js tradicional
 6. **No eliminar el Ghost Mode** - es feature muy valorada por el usuario
+7. **Comparar fechas con strings ISO** - usar `dateStr >= cutoffDateStr` en lugar de `new Date()`
+8. **Workout.jsx usa localStorage** - datos persisten en `workout_${dayId}` hasta guardar
+9. **Race conditions** - usar refs para cancelar requests obsoletos al cambiar de ejercicio
 
 ---
 
@@ -245,15 +248,20 @@ El usuario ha indicado que no quiere que la IA ejecute tests automáticos. La ve
 
 ---
 
-## 🎯 Roadmap / Ideas Futuras
+## 📋 Changelog Reciente (Enero 2026)
 
-- [ ] Timer de descanso entre sets
-- [ ] Modo social (compartir PRs)
-- [ ] Notificaciones push (recordatorio de entrenar)
-- [ ] Export a Excel además de PDF
-- [ ] Sincronización offline (PWA completa)
-- [ ] Backup/Restore de datos
+### v1.3.0 - Bug Fixes & Improvements
+- ✅ **Workout.jsx:** Sistema de persistencia con localStorage (evita pérdida de datos)
+- ✅ **Workout.jsx:** Detección de ejercicios completados hoy (evita duplicados en BD)
+- ✅ **Workout.jsx:** Fix race condition en `loadPreviousBest` con refs
+- ✅ **Workout.jsx:** Warning al navegar sin guardar
+- ✅ **ExportReport.jsx:** Comparación de fechas timezone-safe (strings ISO)
+- ✅ **ExportReport.jsx:** Período "Diario" normalizado a medianoche
+- ✅ **Progress.jsx:** Selector de años dinámico basado en datos reales
+- ✅ **Progress.jsx:** Gráfico semanal sin desfases de timezone
+- ✅ **Settings.jsx:** Navegación a página dedicada EditSession
+- ✅ **EditSession.jsx:** Nueva página para editar sesiones de entrenamiento
 
 ---
 
-*Última actualización: Enero 2026*
+*Última actualización: 6 Enero 2026*
