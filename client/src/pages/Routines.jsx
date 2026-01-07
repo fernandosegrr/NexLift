@@ -1,212 +1,349 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Dumbbell, ChevronDown, ChevronRight, Play, Check,
-    Trash2, BarChart2, Plus, Pencil, AlertTriangle
+    Trash2, BarChart2, Plus, Pencil, AlertTriangle, Trophy,
+    Calendar, MoreVertical, X
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 
 export default function Routines() {
+    // Estado unificado para evitar re-renders innecesarios
     const [routines, setRoutines] = useState([]);
-    const [activeTab, setActiveTab] = useState('active'); // 'active' | 'all'
-    const [expandedRoutine, setExpandedRoutine] = useState(null);
-    const [expandedDay, setExpandedDay] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [deleteConfirm, setDeleteConfirm] = useState(null); // { id, name } or null
+
+    // Estado UI
+    const [expandedRoutineId, setExpandedRoutineId] = useState(null);
+    const [expandedDayId, setExpandedDayId] = useState(null);
+    const [deleteConfirm, setDeleteConfirm] = useState(null);
     const toast = useToast();
 
+    // Memoizar rutina activa para acceso rápido O(1)
+    const activeRoutine = useMemo(() => routines.find(r => r.isActive), [routines]);
+    const otherRoutines = useMemo(() => routines.filter(r => !r.isActive), [routines]);
+
     useEffect(() => {
-        fetchRoutines();
+        loadRoutines();
     }, []);
 
-    async function fetchRoutines() {
+    const loadRoutines = async () => {
         try {
             const data = await api.getRoutines();
             setRoutines(data);
-            // Auto-expand active routine
+            // Auto-expandir la activa si existe, para ver el próximo entreno rápido
             const active = data.find(r => r.isActive);
-            if (active) setExpandedRoutine(active.id);
+            if (active) {
+                setExpandedRoutineId(active.id);
+            }
         } catch (error) {
-            console.error('Error:', error);
+            console.error(error);
+            toast.error("Error cargando rutinas");
         } finally {
             setLoading(false);
         }
-    }
+    };
 
-    async function handleActivate(id) {
+    // ⚡ LÓGICA OPTIMISTA: Actualiza la UI instantáneamente antes del servidor
+    const handleActivate = async (id) => {
+        const previousRoutines = [...routines];
+
+        // 1. Update Optimista
+        setRoutines(prev => prev.map(r => ({
+            ...r,
+            isActive: r.id === id
+        })));
+
+        setExpandedRoutineId(id); // Abrir la nueva activa automáticamente
+        toast.success('Rutina activada'); // Feedback inmediato
+
         try {
+            // 2. Llamada API en background
             await api.activateRoutine(id);
-            toast.success('Rutina activada');
-            fetchRoutines();
         } catch (error) {
-            toast.error('Error al activar rutina');
-            console.error('Error activating:', error);
-        }
-    }
-
-    async function handleDelete(id, name) {
-        // Usar modal de confirmación en vez de confirm()
-        setDeleteConfirm({ id, name });
-    }
-
-    async function confirmDelete() {
-        if (!deleteConfirm) return;
-        try {
-            await api.deleteRoutine(deleteConfirm.id);
-            setRoutines(prev => prev.filter(r => r.id !== deleteConfirm.id));
-            toast.success(`"${deleteConfirm.name}" eliminada`);
-        } catch (error) {
-            toast.error('Error al eliminar');
-            console.error('Error:', error);
-        } finally {
-            setDeleteConfirm(null);
-        }
-    }
-
-    // Helper para cambiar de rutina y cerrar días abiertos anteriores
-    const toggleRoutine = (id) => {
-        if (expandedRoutine === id) {
-            setExpandedRoutine(null);
-        } else {
-            setExpandedRoutine(id);
-            setExpandedDay(null); // Resetear día expandido al cambiar de rutina
+            // 3. Rollback si falla
+            setRoutines(previousRoutines);
+            toast.error('Error de conexión, cambios revertidos');
         }
     };
 
-    const activeRoutine = routines.find(r => r.isActive);
+    const handleDelete = async () => {
+        if (!deleteConfirm) return;
+
+        const previousRoutines = [...routines];
+        // Optimistic delete visual
+        setRoutines(prev => prev.filter(r => r.id !== deleteConfirm.id));
+        setDeleteConfirm(null);
+
+        try {
+            await api.deleteRoutine(deleteConfirm.id);
+            toast.success('Rutina eliminada');
+        } catch (error) {
+            setRoutines(previousRoutines);
+            toast.error('No se pudo eliminar la rutina');
+        }
+    };
+
+    // Helper para acordeón tipo "Solo uno abierto a la vez"
+    const toggleRoutine = (id) => {
+        if (expandedRoutineId === id) {
+            setExpandedRoutineId(null);
+        } else {
+            setExpandedRoutineId(id);
+            setExpandedDayId(null); // Resetear día interno
+        }
+    };
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-[60vh]">
-                <div className="w-10 h-10 border-3 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+            <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+                <div className="w-12 h-12 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                <p className="text-[var(--text-secondary)] animate-pulse">Cargando entrenamientos...</p>
             </div>
         );
     }
 
     return (
-        <div className="space-y-5 animate-fade-in max-w-lg mx-auto pb-20">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold">Rutinas</h1>
+        <div className="pb-24 space-y-8 animate-fade-in max-w-lg mx-auto">
+            {/* Header Principal */}
+            <div className="flex items-center justify-between pt-2">
+                <div>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-[var(--text-secondary)] bg-clip-text text-transparent">
+                        Mis Rutinas
+                    </h1>
+                    <p className="text-sm text-[var(--text-secondary)]">Gestiona tu plan de entrenamiento</p>
+                </div>
                 <Link
                     to="/import"
-                    className="w-10 h-10 bg-[var(--primary)] rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20 active:scale-95 transition-transform"
+                    className="w-12 h-12 bg-[var(--primary)] rounded-2xl flex items-center justify-center shadow-[0_0_20px_-5px_var(--primary)] active:scale-95 transition-all hover:bg-opacity-90"
                 >
-                    <Plus size={20} />
+                    <Plus size={24} color="white" strokeWidth={2.5} />
                 </Link>
             </div>
 
-            {/* Tabs */}
-            <div className="flex gap-2 bg-[var(--bg-card)] p-1 rounded-xl">
-                <button
-                    onClick={() => setActiveTab('active')}
-                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${activeTab === 'active'
-                        ? 'bg-[var(--primary)] text-white'
-                        : 'text-[var(--text-secondary)] hover:text-white'
-                        }`}
-                >
-                    Activa
-                </button>
-                <button
-                    onClick={() => setActiveTab('all')}
-                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${activeTab === 'all'
-                        ? 'bg-[var(--primary)] text-white'
-                        : 'text-[var(--text-secondary)] hover:text-white'
-                        }`}
-                >
-                    Todas ({routines.length})
-                </button>
-            </div>
+            {/* SECCIÓN HERO: Rutina Activa */}
+            {activeRoutine && (
+                <section className="space-y-3">
+                    <div className="flex items-center gap-2 text-xs font-bold text-[var(--primary)] uppercase tracking-wider pl-1">
+                        <Trophy size={14} />
+                        Plan Actual
+                    </div>
+                    <div className="relative group">
+                        {/* Glow effect background */}
+                        <div className="absolute -inset-0.5 bg-gradient-to-r from-[var(--primary)] to-purple-600 rounded-2xl opacity-30 group-hover:opacity-50 blur transition duration-500"></div>
 
-            {/* Active Tab Content */}
-            {activeTab === 'active' && (
-                <div className="space-y-4">
-                    {activeRoutine ? (
-                        <RoutineCard
-                            routine={activeRoutine}
-                            isExpanded={expandedRoutine === activeRoutine.id}
-                            expandedDay={expandedDay}
-                            onToggle={() => toggleRoutine(activeRoutine.id)}
-                            onDayToggle={(dayId) => setExpandedDay(expandedDay === dayId ? null : dayId)}
-                            onDelete={handleDelete}
-                            isActive
-                        />
-                    ) : (
-                        <div className="bg-[var(--bg-card)] rounded-xl p-8 text-center border border-[var(--border)]">
-                            <Dumbbell size={40} className="mx-auto text-[var(--text-secondary)] mb-3" />
-                            <p className="font-medium mb-1">Sin rutina activa</p>
-                            <p className="text-sm text-[var(--text-secondary)] mb-4">
-                                Selecciona una rutina en la pestaña "Todas"
-                            </p>
+                        <div className="relative">
+                            <RoutineCard
+                                routine={activeRoutine}
+                                isActive={true}
+                                isExpanded={expandedRoutineId === activeRoutine.id}
+                                expandedDayId={expandedDayId}
+                                onToggle={() => toggleRoutine(activeRoutine.id)}
+                                onDayToggle={setExpandedDayId}
+                                onDelete={() => setDeleteConfirm(activeRoutine)}
+                            />
                         </div>
-                    )}
-                </div>
+                    </div>
+                </section>
             )}
 
-            {/* All Tab Content */}
-            {activeTab === 'all' && (
-                <div className="space-y-3">
-                    {routines.length === 0 ? (
-                        <div className="bg-[var(--bg-card)] rounded-xl p-8 text-center border border-[var(--border)]">
-                            <Dumbbell size={40} className="mx-auto text-[var(--text-secondary)] mb-3" />
-                            <p className="font-medium mb-1">No hay rutinas</p>
-                            <p className="text-sm text-[var(--text-secondary)] mb-4">
-                                Importa tu primera rutina
-                            </p>
-                            <Link to="/import" className="btn-primary inline-block text-sm px-6 py-2">
-                                Importar Rutina
-                            </Link>
-                        </div>
-                    ) : (
-                        routines.map(routine => (
+            {/* Lista de Otras Rutinas */}
+            <section className="space-y-4">
+                <div className="flex items-center justify-between pl-1">
+                    <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                        Biblioteca ({otherRoutines.length})
+                    </h2>
+                </div>
+
+                {otherRoutines.length === 0 && !activeRoutine ? (
+                    <EmptyState />
+                ) : (
+                    <div className="grid gap-3">
+                        {otherRoutines.map(routine => (
                             <RoutineCard
                                 key={routine.id}
                                 routine={routine}
-                                isExpanded={expandedRoutine === routine.id}
-                                expandedDay={expandedDay}
+                                isActive={false}
+                                isExpanded={expandedRoutineId === routine.id}
+                                expandedDayId={expandedDayId}
                                 onToggle={() => toggleRoutine(routine.id)}
-                                onDayToggle={(dayId) => setExpandedDay(expandedDay === dayId ? null : dayId)}
+                                onDayToggle={setExpandedDayId}
                                 onActivate={() => handleActivate(routine.id)}
-                                onDelete={handleDelete}
-                                isActive={routine.isActive}
+                                onDelete={() => setDeleteConfirm(routine)}
                             />
-                        ))
-                    )}
-                </div>
-            )}
+                        ))}
+                    </div>
+                )}
+            </section>
 
-            {/* Modal de Confirmación de Eliminación */}
+            {/* Modal de Confirmación */}
             {deleteConfirm && (
-                <div
-                    className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 animate-fade-in"
-                    onClick={() => setDeleteConfirm(null)}
-                >
-                    <div
-                        className="bg-[var(--bg-card)] rounded-2xl p-6 max-w-sm w-full animate-scale-in border border-[var(--border)]"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <AlertTriangle size={24} className="text-red-400" />
+                <DeleteModal
+                    routineName={deleteConfirm.name}
+                    onCancel={() => setDeleteConfirm(null)}
+                    onConfirm={handleDelete}
+                />
+            )}
+        </div>
+    );
+}
+
+// ----------------------------------------------------------------------
+// SUB-COMPONENTES (Diseño Modular)
+// ----------------------------------------------------------------------
+
+function RoutineCard({
+    routine,
+    isActive,
+    isExpanded,
+    expandedDayId,
+    onToggle,
+    onDayToggle,
+    onActivate,
+    onDelete
+}) {
+    // Calculamos stats rápidos
+    const totalExercises = routine.days.reduce((acc, d) => acc + d.exercises.length, 0);
+
+    return (
+        <div className={`
+            bg-[var(--bg-card)] rounded-xl overflow-hidden transition-all duration-300
+            ${isActive ? 'border border-[var(--primary)]/50 bg-gradient-to-b from-[var(--bg-card)] to-[var(--bg-dark)]' : 'border border-[var(--border)] hover:border-[var(--border)]/80'}
+        `}>
+            {/* Card Header (Clicable) */}
+            <div
+                onClick={onToggle}
+                className="p-4 flex items-center gap-4 cursor-pointer hover:bg-white/5 transition-colors"
+            >
+                {/* Icon Box */}
+                <div className={`
+                    w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-colors
+                    ${isActive ? 'bg-[var(--primary)] text-white shadow-lg shadow-purple-900/40' : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] border border-[var(--border)]'}
+                `}>
+                    {isActive ? <Trophy size={20} fill="currentColor" className="text-white/90" /> : <Dumbbell size={20} />}
+                </div>
+
+                {/* Info Text */}
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                        <h3 className={`font-bold text-lg truncate ${isActive ? 'text-white' : 'text-[var(--text-primary)]'}`}>
+                            {routine.name}
+                        </h3>
+                        {isActive && <span className="bg-[var(--primary)]/20 text-[var(--primary)] text-[10px] px-2 py-0.5 rounded-full font-bold tracking-wide">ACTIVA</span>}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-[var(--text-secondary)]">
+                        <span className="flex items-center gap-1"><Calendar size={12} /> {routine.days.length} días</span>
+                        <span className="w-1 h-1 rounded-full bg-[var(--border)]"></span>
+                        <span>{totalExercises} ejercicios</span>
+                    </div>
+                </div>
+
+                {/* Chevron animated */}
+                <ChevronDown
+                    className={`text-[var(--text-secondary)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                />
+            </div>
+
+            {/* Expanded Content (Accordion) */}
+            <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                <div className="overflow-hidden">
+                    <div className="border-t border-[var(--border)] bg-[var(--bg-dark)]/50">
+                        {/* Days List */}
+                        <div className="divide-y divide-[var(--border)]/50">
+                            {routine.days.map((day) => (
+                                <DayRow
+                                    key={day.id}
+                                    day={day}
+                                    isExpanded={expandedDayId === day.id}
+                                    onToggle={() => onDayToggle(expandedDayId === day.id ? null : day.id)}
+                                />
+                            ))}
                         </div>
-                        <h3 className="text-lg font-bold text-center mb-2">¿Eliminar rutina?</h3>
-                        <p className="text-center text-[var(--text-secondary)] text-sm mb-6">
-                            Se eliminará <span className="font-medium text-white">"{deleteConfirm.name}"</span> y todos sus datos.
+
+                        {/* Action Footer */}
+                        <div className="p-3 flex items-center justify-between bg-[var(--bg-card)] border-t border-[var(--border)]">
+                            <div className="flex gap-2">
+                                {!isActive && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onActivate(); }}
+                                        className="btn-ghost text-xs text-[var(--primary)] font-bold flex items-center gap-2 px-3 py-2 bg-[var(--primary)]/10 rounded-lg hover:bg-[var(--primary)]/20"
+                                    >
+                                        <Check size={14} strokeWidth={3} /> ACTIVAR
+                                    </button>
+                                )}
+                                <Link
+                                    to={`/routines/${routine.id}/edit`}
+                                    className="p-2 text-[var(--text-secondary)] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+                                >
+                                    <Pencil size={18} />
+                                </Link>
+                            </div>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                                className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                            >
+                                <Trash2 size={18} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function DayRow({ day, isExpanded, onToggle }) {
+    return (
+        <div className="group">
+            <div
+                onClick={onToggle}
+                className="w-full px-4 py-3.5 flex items-center justify-between cursor-pointer hover:bg-[var(--bg-dark)] active:bg-[var(--bg-card)] transition-colors"
+            >
+                <div className="flex items-center gap-3">
+                    <ChevronRight
+                        size={16}
+                        className={`text-[var(--text-secondary)] transition-transform duration-200 ${isExpanded ? 'rotate-90 text-white' : ''}`}
+                    />
+                    <div>
+                        <p className={`text-sm font-medium ${isExpanded ? 'text-white' : 'text-[var(--text-primary)]'}`}>
+                            {day.dayName}
                         </p>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setDeleteConfirm(null)}
-                                className="flex-1 py-3 px-4 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl font-medium hover:bg-[var(--bg-card-hover)] transition-colors"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={confirmDelete}
-                                className="flex-1 py-3 px-4 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors"
-                            >
-                                Eliminar
-                            </button>
-                        </div>
+                        <p className="text-[10px] text-[var(--text-secondary)]">
+                            {day.exercises.length} Ejercicios
+                        </p>
+                    </div>
+                </div>
+
+                {/* Botón de Acción Principal */}
+                {day.isRestDay ? (
+                    <span className="text-[10px] font-bold text-[var(--text-secondary)] bg-[var(--border)] px-2 py-1 rounded border border-transparent">
+                        DESCANSO
+                    </span>
+                ) : (
+                    <Link
+                        to={`/workout/${day.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-1.5 pl-3 pr-4 py-1.5 bg-[var(--primary)] text-white text-xs font-bold rounded-full shadow-lg shadow-purple-900/20 active:scale-95 transition-transform hover:bg-purple-500"
+                    >
+                        <Play size={12} fill="currentColor" /> INICIAR
+                    </Link>
+                )}
+            </div>
+
+            {/* Ejercicios (Solo visible si expandido) */}
+            {isExpanded && !day.isRestDay && (
+                <div className="bg-[var(--bg-dark)] px-4 pb-4 pt-1 animate-fade-in">
+                    <div className="pl-8 space-y-2 border-l-2 border-[var(--border)] ml-2">
+                        {day.exercises.map((ex, i) => (
+                            <div key={ex.id} className="pl-4 relative">
+                                {/* Bullet point custom */}
+                                <div className="absolute -left-[5px] top-2 w-2 h-2 rounded-full bg-[var(--border)]"></div>
+                                <p className="text-sm text-[var(--text-primary)]">{ex.name}</p>
+                                <p className="text-xs text-[var(--text-secondary)] font-mono mt-0.5">
+                                    {ex.targetSets} series × {ex.targetReps} reps
+                                </p>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
@@ -214,151 +351,54 @@ export default function Routines() {
     );
 }
 
-function RoutineCard({
-    routine,
-    isExpanded,
-    expandedDay,
-    onToggle,
-    onDayToggle,
-    onActivate,
-    onDelete,
-    isActive
-}) {
+function EmptyState() {
     return (
-        <div className={`bg-[var(--bg-card)] rounded-xl overflow-hidden border transition-all ${isActive
-            ? 'border-[var(--primary)] ring-1 ring-[var(--primary)] shadow-[0_0_15px_-3px_rgba(139,92,246,0.3)]'
-            : 'border-[var(--border)]'
-            }`}>
-            {/* Header */}
-            <button
-                onClick={onToggle}
-                className="w-full p-4 flex items-center justify-between hover:bg-[var(--bg-card-hover)] transition-colors text-left"
+        <div className="border border-dashed border-[var(--border)] rounded-2xl p-8 text-center bg-[var(--bg-card)]/50">
+            <div className="w-16 h-16 bg-[var(--bg-dark)] rounded-full flex items-center justify-center mx-auto mb-4">
+                <Dumbbell className="text-[var(--text-secondary)] opacity-50" size={32} />
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">Sin rutinas aún</h3>
+            <p className="text-sm text-[var(--text-secondary)] mb-6 max-w-[200px] mx-auto">
+                Crea tu propia rutina o importa una plantilla para empezar.
+            </p>
+            <Link to="/import" className="inline-flex items-center gap-2 text-sm font-bold text-[var(--primary)] hover:text-white transition-colors">
+                <Plus size={16} /> Crear primera rutina
+            </Link>
+        </div>
+    );
+}
+
+function DeleteModal({ routineName, onCancel, onConfirm }) {
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" onClick={onCancel}>
+            <div
+                className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-scale-in"
+                onClick={e => e.stopPropagation()}
             >
-                <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-[var(--primary)]' : 'bg-[var(--border)]'
-                        }`}>
-                        <Dumbbell size={18} className={isActive ? 'text-white' : 'text-[var(--text-secondary)]'} />
-                    </div>
-                    <div className="flex-1 min-w-0 overflow-hidden">
-                        <div className="flex items-center gap-2">
-                            <h3 className="font-semibold truncate max-w-[200px]">{routine.name}</h3>
-                            {isActive && (
-                                <span className="text-[10px] bg-[var(--primary)]/20 text-[var(--primary)] px-2 py-0.5 rounded-full font-medium shrink-0">
-                                    ACTIVA
-                                </span>
-                            )}
-                        </div>
-                        <p className="text-sm text-[var(--text-secondary)] truncate">
-                            {routine.days.length} días · {routine.days.reduce((acc, d) => acc + d.exercises.length, 0)} ejercicios
-                        </p>
-                    </div>
+                <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4 mx-auto">
+                    <AlertTriangle className="text-red-500" size={24} />
                 </div>
-                <ChevronDown
-                    size={20}
-                    className={`text-[var(--text-secondary)] transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
-                />
-            </button>
 
-            {/* Expanded Content - Days */}
-            {isExpanded && (
-                <div className="border-t border-[var(--border)] animate-fade-in bg-[var(--bg-dark)]/30">
-                    {routine.days.map((day) => (
-                        <div key={day.id} className="border-b border-[var(--border)] last:border-b-0">
-                            {/* Day Header - CORREGIDO: Usar div en lugar de button para evitar nesting inválido */}
-                            <div
-                                onClick={() => onDayToggle(day.id)}
-                                className="w-full px-4 py-3 flex items-center justify-between hover:bg-[var(--bg-dark)] transition-colors cursor-pointer"
-                                role="button"
-                                tabIndex={0}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <ChevronRight
-                                        size={16}
-                                        className={`text-[var(--text-secondary)] transition-transform ${expandedDay === day.id ? 'rotate-90' : ''}`}
-                                    />
-                                    <span className="font-medium text-sm">{day.dayName}</span>
-                                    <span className="text-xs text-[var(--text-secondary)]">
-                                        ({day.exercises.length})
-                                    </span>
-                                </div>
-                                {!day.isRestDay && (
-                                    <Link
-                                        to={`/workout/${day.id}`}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="w-8 h-8 bg-[var(--primary)] rounded-lg flex items-center justify-center hover:bg-[var(--primary)]/90 transition-colors active:scale-95"
-                                    >
-                                        <Play size={14} fill="white" className="ml-0.5" />
-                                    </Link>
-                                )}
-                            </div>
+                <h3 className="text-xl font-bold text-center mb-2">¿Eliminar Rutina?</h3>
+                <p className="text-center text-[var(--text-secondary)] text-sm mb-6">
+                    Estás a punto de borrar <span className="text-white font-medium">"{routineName}"</span>. Esta acción no se puede deshacer.
+                </p>
 
-                            {/* Day Exercises - Collapsed */}
-                            {expandedDay === day.id && (
-                                <div className="px-4 pb-3 space-y-1 animate-fade-in">
-                                    {day.exercises.map((exercise, i) => (
-                                        <div
-                                            key={exercise.id}
-                                            className="pl-8 pr-3 py-2 flex items-center justify-between text-sm bg-[var(--bg-dark)] rounded-lg border border-[var(--border)]/50"
-                                        >
-                                            <span className="text-[var(--text-primary)] truncate mr-2">
-                                                {i + 1}. {exercise.name}
-                                            </span>
-                                            <span className="text-xs text-[var(--text-secondary)] shrink-0 font-mono">
-                                                {exercise.targetSets}×{exercise.targetReps}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    ))}
-
-                    {/* Actions Panel */}
-                    <div className="p-3 flex items-center justify-between bg-[var(--bg-dark)] border-t border-[var(--border)]">
-                        <div className="flex items-center gap-2">
-                            {!isActive && onActivate && (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onActivate(); }}
-                                    className="flex items-center gap-2 text-sm text-[var(--primary)] font-medium bg-[var(--primary)]/10 px-3 py-1.5 rounded-lg border border-[var(--primary)]/20 active:scale-95 transition-transform"
-                                >
-                                    <Check size={16} />
-                                    Activar
-                                </button>
-                            )}
-                            {isActive && (
-                                <Link
-                                    to="/progress"
-                                    className="p-2 text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-card)] rounded-lg transition-colors"
-                                    title="Ver estadísticas"
-                                >
-                                    <BarChart2 size={20} />
-                                </Link>
-                            )}
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                            <Link
-                                to={`/routines/${routine.id}`}
-                                className="p-2 text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-card)] rounded-lg transition-colors"
-                            >
-                                <ChevronRight size={20} />
-                            </Link>
-                            <Link
-                                to={`/routines/${routine.id}/edit`}
-                                className="p-2 text-[var(--text-secondary)] hover:text-[var(--primary)] hover:bg-[var(--bg-card)] rounded-lg transition-colors"
-                            >
-                                <Pencil size={20} />
-                            </Link>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onDelete(routine.id, routine.name); }}
-                                className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
-                            >
-                                <Trash2 size={20} />
-                            </button>
-                        </div>
-                    </div>
+                <div className="grid grid-cols-2 gap-3">
+                    <button
+                        onClick={onCancel}
+                        className="py-3 rounded-xl font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-dark)] transition-colors"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        className="py-3 rounded-xl font-bold bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-900/20 active:scale-95 transition-all"
+                    >
+                        Sí, eliminar
+                    </button>
                 </div>
-            )}
+            </div>
         </div>
     );
 }

@@ -786,7 +786,7 @@ app.get('/api/body/logs', async (req, res) => {
 // POST /api/body/log - Client-compatible route
 app.post('/api/body/log', async (req, res) => {
     try {
-        const { weight, photo, note } = req.body;
+        const { weight, photo, note, bmi, bodyFat, muscleMass, bmr, bodyWater, visceralFat, boneMass, protein } = req.body;
 
         if (!weight && !photo) {
             return res.status(400).json({ error: 'Weight or photo required' });
@@ -796,7 +796,15 @@ app.post('/api/body/log', async (req, res) => {
             data: {
                 weight: weight ? parseFloat(weight) : null,
                 photo: photo || null,
-                note: note || null
+                note: note || null,
+                bmi: bmi ? parseFloat(bmi) : null,
+                bodyFat: bodyFat ? parseFloat(bodyFat) : null,
+                muscleMass: muscleMass ? parseFloat(muscleMass) : null,
+                bmr: bmr ? parseFloat(bmr) : null,
+                bodyWater: bodyWater ? parseFloat(bodyWater) : null,
+                visceralFat: visceralFat ? parseFloat(visceralFat) : null,
+                boneMass: boneMass ? parseFloat(boneMass) : null,
+                protein: protein ? parseFloat(protein) : null
             }
         });
 

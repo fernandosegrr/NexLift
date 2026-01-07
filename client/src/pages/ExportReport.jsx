@@ -1,12 +1,15 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { FileText, Download, Calendar, TrendingUp, Trophy, Dumbbell, Scale, Activity, AlertCircle } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, AreaChart, Area } from 'recharts';
+import {
+    FileText, Download, Calendar, Activity, AlertCircle,
+    TrendingUp
+} from 'lucide-react';
+import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 
 // ==========================================
-// CONSTANTS
+// CONSTANTS & CONFIG
 // ==========================================
 const PERIODS = [
     { id: 'daily', label: 'Diario', days: 1 },
@@ -17,7 +20,6 @@ const PERIODS = [
     { id: 'yearly', label: 'Anual', days: 365 },
 ];
 
-// PDF Color palette
 const COLORS = {
     purple: [139, 92, 246],
     purpleDark: [109, 62, 216],
@@ -30,23 +32,17 @@ const COLORS = {
     white: [255, 255, 255],
     bgLight: [250, 250, 250],
     bgAlt: [248, 248, 248],
+    gridLine: [230, 230, 230]
 };
 
 // ==========================================
 // HELPER FUNCTIONS
 // ==========================================
-
-/**
- * Converts Date to YYYY-MM-DD string safely
- */
 function getLocalDateStr(dateObj) {
     return dateObj.toLocaleDateString('en-CA');
 }
 
-/**
- * Loads logo as base64 with retry
- */
-async function loadLogoBase64(retries = 3) {
+async function loadLogoBase64(retries = 2) {
     for (let i = 0; i < retries; i++) {
         try {
             const response = await fetch('/logo.png');
@@ -59,10 +55,7 @@ async function loadLogoBase64(retries = 3) {
                 reader.readAsDataURL(blob);
             });
         } catch (error) {
-            if (i === retries - 1) {
-                console.warn('Logo loading failed after retries:', error);
-                return null;
-            }
+            if (i === retries - 1) return null;
             await new Promise(resolve => setTimeout(resolve, 500));
         }
     }
@@ -70,9 +63,8 @@ async function loadLogoBase64(retries = 3) {
 }
 
 // ==========================================
-// PDF GENERATION HELPERS
+// PDF BUILDER CLASS
 // ==========================================
-
 class PDFBuilder {
     constructor(doc, pageWidth, pageHeight, margin, footerHeight) {
         this.doc = doc;
@@ -88,22 +80,90 @@ class PDFBuilder {
         if (availableSpace < requiredHeight) {
             this.doc.addPage();
             this.y = this.margin;
+            return true;
         }
+        return false;
     }
 
-    printSectionTitle(title, minTableHeight = 50) {
-        this.ensureSpace(minTableHeight);
-        this.doc.setFontSize(13);
+    printSectionTitle(title, minHeight = 40) {
+        this.ensureSpace(minHeight);
+        this.doc.setFontSize(14);
         this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(...COLORS.textDark);
+        this.doc.setTextColor(...COLORS.purple);
         this.doc.text(title, this.margin, this.y);
-        this.y += 10;
+        this.doc.setLineWidth(0.5);
+        this.doc.setDrawColor(...COLORS.purple);
+        this.doc.line(this.margin, this.y + 2, this.margin + 15, this.y + 2);
+        this.y += 12;
+    }
+
+    drawLineChart(data, width, height) {
+        this.ensureSpace(height + 20);
+
+        const startX = this.margin + 10;
+        const startY = this.y + 5;
+        const endX = this.margin + width;
+        const endY = startY + height;
+        const chartBottomY = endY - 15;
+
+        this.doc.setFillColor(...COLORS.bgAlt);
+        this.doc.roundedRect(this.margin, startY, width, height, 3, 3, 'F');
+
+        if (data.length < 2) {
+            this.doc.text("Datos insuficientes", startX, startY + height / 2);
+            this.y += height + 10;
+            return;
+        }
+
+        const weights = data.map(d => d.weight);
+        const minWeight = Math.min(...weights) - 1;
+        const maxWeight = Math.max(...weights) + 1;
+        const range = maxWeight - minWeight || 1;
+
+        this.doc.setDrawColor(...COLORS.gridLine);
+        this.doc.setLineWidth(0.1);
+
+        for (let i = 0; i <= 4; i++) {
+            const yPos = chartBottomY - (i * (chartBottomY - startY - 10) / 4);
+            const val = minWeight + (i * range / 4);
+            this.doc.line(startX, yPos, endX - 5, yPos);
+            this.doc.setFontSize(7);
+            this.doc.setTextColor(...COLORS.textLight);
+            this.doc.text(val.toFixed(1), startX - 2, yPos + 1, { align: 'right' });
+        }
+
+        const getX = (index) => startX + (index * (endX - startX - 10) / (data.length - 1));
+        const getY = (val) => chartBottomY - ((val - minWeight) / range) * (chartBottomY - startY - 10);
+
+        this.doc.setDrawColor(...COLORS.purple);
+        this.doc.setLineWidth(0.8);
+
+        for (let i = 0; i < data.length - 1; i++) {
+            this.doc.line(getX(i), getY(data[i].weight), getX(i + 1), getY(data[i + 1].weight));
+        }
+
+        data.forEach((d, i) => {
+            const x = getX(i);
+            const y = getY(d.weight);
+            this.doc.setFillColor(...COLORS.white);
+            this.doc.setDrawColor(...COLORS.purple);
+            this.doc.setLineWidth(0.5);
+            this.doc.circle(x, y, 1.5, 'FD');
+
+            const step = Math.ceil(data.length / 6);
+            if (i === 0 || i === data.length - 1 || i % step === 0) {
+                this.doc.setFontSize(7);
+                this.doc.setTextColor(...COLORS.textLight);
+                this.doc.text(d.date, x, chartBottomY + 4, { align: 'center' });
+            }
+        });
+
+        this.y += height + 10;
     }
 
     renderHeader(logoBase64, periodLabel) {
-        // Gradient background
-        for (let i = 0; i < 45; i++) {
-            const ratio = i / 45;
+        for (let i = 0; i < 40; i++) {
+            const ratio = i / 40;
             const r = Math.round(COLORS.purple[0] + (COLORS.purpleDark[0] - COLORS.purple[0]) * ratio);
             const g = Math.round(COLORS.purple[1] + (COLORS.purpleDark[1] - COLORS.purple[1]) * ratio);
             const b = Math.round(COLORS.purple[2] + (COLORS.purpleDark[2] - COLORS.purple[2]) * ratio);
@@ -111,146 +171,79 @@ class PDFBuilder {
             this.doc.rect(0, i, this.pageWidth, 1, 'F');
         }
 
-        // Logo
         if (logoBase64) {
-            this.doc.addImage(logoBase64, 'PNG', this.margin, 8, 28, 28);
+            this.doc.addImage(logoBase64, 'PNG', this.margin, 6, 28, 28);
         }
 
-        // Title
         this.doc.setTextColor(...COLORS.white);
-        this.doc.setFontSize(28);
+        this.doc.setFontSize(26);
         this.doc.setFont('helvetica', 'bold');
-        this.doc.text('NexLift', logoBase64 ? this.margin + 34 : this.margin, 22);
+        this.doc.text('NexLift', logoBase64 ? this.margin + 34 : this.margin, 20);
 
-        this.doc.setFontSize(14);
+        this.doc.setFontSize(12);
         this.doc.setFont('helvetica', 'normal');
-        this.doc.text(`Reporte de Progreso ${periodLabel}`, logoBase64 ? this.margin + 34 : this.margin, 32);
+        this.doc.text(`Reporte de Progreso • ${periodLabel}`, logoBase64 ? this.margin + 34 : this.margin, 29);
 
-        this.doc.setFontSize(11);
+        this.doc.setFontSize(10);
         this.doc.text(
             new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }),
             this.pageWidth - this.margin,
-            22,
+            20,
             { align: 'right' }
         );
 
-        this.y = 55;
+        this.y = 50;
     }
 
-    renderStatsCards(stats) {
-        this.doc.setFontSize(13);
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(...COLORS.textDark);
-        this.doc.text('RESUMEN DEL PERÍODO', this.margin, this.y);
-        this.y += 10;
-
-        const cardWidth = (this.pageWidth - this.margin * 2 - 15) / 4;
-        const cardHeight = 28;
-
-        stats.forEach((card, i) => {
-            const x = this.margin + i * (cardWidth + 5);
-            this.doc.setFillColor(...COLORS.bgLight);
-            this.doc.roundedRect(x, this.y, cardWidth, cardHeight, 4, 4, 'F');
-            this.doc.setFillColor(...card.color);
-            this.doc.roundedRect(x, this.y, 3, cardHeight, 1, 1, 'F');
-
-            this.doc.setFontSize(18);
-            this.doc.setFont('helvetica', 'bold');
-            this.doc.setTextColor(...card.color);
-            this.doc.text(String(card.value), x + cardWidth / 2 + 2, this.y + 12, { align: 'center' });
-
-            this.doc.setFontSize(8);
-            this.doc.setFont('helvetica', 'normal');
-            this.doc.setTextColor(...COLORS.textLight);
-            this.doc.text(card.label, x + cardWidth / 2 + 2, this.y + 21, { align: 'center' });
-        });
-
-        this.y += cardHeight + 15;
-    }
-
-    renderAttendanceStats(attendanceStats) {
-        this.printSectionTitle('ASISTENCIA DEL PERÍODO', 35);
-
-        const attendanceCardWidth = (this.pageWidth - this.margin * 2 - 10) / 3;
-        const attendanceCards = [
-            { value: `${attendanceStats.totalDaysInPeriod}`, label: 'Días del Período', color: COLORS.textMedium },
-            { value: `${attendanceStats.trainingDays}`, label: 'Días Entrenados', color: COLORS.green },
-            {
-                value: `${attendanceStats.attendancePercent}%`,
-                label: 'Asistencia',
-                color: attendanceStats.attendancePercent >= 70 ? COLORS.green : attendanceStats.attendancePercent >= 40 ? COLORS.yellow : COLORS.red
-            }
-        ];
-
-        attendanceCards.forEach((card, i) => {
-            const x = this.margin + i * (attendanceCardWidth + 5);
-            this.doc.setFillColor(...COLORS.bgLight);
-            this.doc.roundedRect(x, this.y, attendanceCardWidth, 22, 3, 3, 'F');
-
-            this.doc.setFontSize(16);
-            this.doc.setFont('helvetica', 'bold');
-            this.doc.setTextColor(...card.color);
-            this.doc.text(card.value, x + attendanceCardWidth / 2, this.y + 10, { align: 'center' });
-
-            this.doc.setFontSize(7);
-            this.doc.setFont('helvetica', 'normal');
-            this.doc.setTextColor(...COLORS.textLight);
-            this.doc.text(card.label, x + attendanceCardWidth / 2, this.y + 17, { align: 'center' });
-        });
-
-        this.y += 30;
-    }
-
-    renderFooters(periodLabel) {
+    renderFooters() {
         const totalPages = this.doc.internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
             this.doc.setPage(i);
-            this.doc.setDrawColor(...COLORS.purple);
-            this.doc.setLineWidth(0.5);
+            this.doc.setDrawColor(220, 220, 220);
+            this.doc.setLineWidth(0.1);
             this.doc.line(this.margin, this.pageHeight - 15, this.pageWidth - this.margin, this.pageHeight - 15);
 
             this.doc.setFontSize(8);
             this.doc.setTextColor(...COLORS.textLight);
             this.doc.text('NexLift - Tu progreso fitness', this.margin, this.pageHeight - 10);
             this.doc.text(`Página ${i} de ${totalPages}`, this.pageWidth / 2, this.pageHeight - 10, { align: 'center' });
-            this.doc.text(new Date().toLocaleString('es-ES'), this.pageWidth - this.margin, this.pageHeight - 10, { align: 'right' });
         }
     }
 }
 
 // ==========================================
-// COMPONENT
+// MAIN COMPONENT
 // ==========================================
 export default function ExportReport() {
     const toast = useToast();
-    const chartRef = useRef(null);
     const [searchParams] = useSearchParams();
 
-    // Data states
-    const [stats, setStats] = useState(null);
-    const [routine, setRoutine] = useState(null);
-    const [prs, setPrs] = useState([]);
-    const [bodyLogs, setBodyLogs] = useState([]);
-    const [consistency, setConsistency] = useState({});
-    const [workoutHistory, setWorkoutHistory] = useState([]);
-    const [logoBase64, setLogoBase64] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [generating, setGenerating] = useState(false);
-    const [generatingProgress, setGeneratingProgress] = useState(0);
-
-    // UI state
-    const [period, setPeriod] = useState(() => {
-        const urlPeriod = searchParams.get('period');
-        return PERIODS.find(p => p.id === urlPeriod) ? urlPeriod : 'monthly';
+    const [data, setData] = useState({
+        stats: {},
+        routine: null,
+        prs: [],
+        bodyLogs: [],
+        consistency: {},
+        history: []
     });
 
-    // Fetch data on mount with cleanup
+    const [loading, setLoading] = useState(true);
+    const [logoBase64, setLogoBase64] = useState(null);
+    const [generating, setGenerating] = useState(false);
+    const [progress, setProgress] = useState(0);
+
+    const [period, setPeriod] = useState(() => {
+        const p = searchParams.get('period');
+        return PERIODS.find(x => x.id === p) ? p : 'monthly';
+    });
+
+    // Data Fetching
     useEffect(() => {
         let isMounted = true;
 
-        async function fetchAllData() {
+        async function loadData() {
             try {
-                const [statsData, routineData, prsData, bodyData, consistencyData, historyData] = await Promise.all([
+                const results = await Promise.allSettled([
                     api.getOverviewStats(),
                     api.getActiveRoutine(),
                     api.getPersonalRecords(),
@@ -261,674 +254,666 @@ export default function ExportReport() {
 
                 if (!isMounted) return;
 
-                setStats(statsData || {});
-                setRoutine(routineData);
-                setPrs(prsData || []);
-                setBodyLogs(bodyData || []);
-                setWorkoutHistory(historyData || []);
+                const getVal = (res) => res.status === 'fulfilled' ? res.value : null;
 
-                const map = {};
-                if (consistencyData?.events) {
-                    consistencyData.events.forEach(dateStr => {
-                        const localDate = getLocalDateStr(new Date(dateStr));
-                        map[localDate] = (map[localDate] || 0) + 1;
+                const consistencyRaw = getVal(results[4]);
+                const consistencyMap = {};
+                if (consistencyRaw?.events) {
+                    consistencyRaw.events.forEach(d => {
+                        const k = getLocalDateStr(new Date(d));
+                        consistencyMap[k] = (consistencyMap[k] || 0) + 1;
                     });
                 }
-                setConsistency(map);
+
+                setData({
+                    stats: getVal(results[0]) || {},
+                    routine: getVal(results[1]),
+                    prs: getVal(results[2]) || [],
+                    bodyLogs: getVal(results[3]) || [],
+                    consistency: consistencyMap,
+                    history: getVal(results[5]) || []
+                });
+
             } catch (error) {
-                if (isMounted) {
-                    console.error('Error:', error);
-                    toast?.error('Error cargando datos');
-                }
+                console.error("Critical load error:", error);
+                toast.error("Error de conexión");
             } finally {
-                if (isMounted) {
-                    setLoading(false);
-                }
+                if (isMounted) setLoading(false);
             }
         }
 
-        fetchAllData();
+        loadData();
+        loadLogoBase64().then(l => isMounted && setLogoBase64(l));
 
-        // Preload logo
-        loadLogoBase64().then(logo => {
-            if (isMounted) setLogoBase64(logo);
-        });
+        return () => { isMounted = false; };
+    }, []);
 
-        return () => {
-            isMounted = false;
-        };
-    }, [toast]);
+    // Computed Data
+    const computed = useMemo(() => {
+        const selectedP = PERIODS.find(p => p.id === period) || PERIODS[2];
 
-    // ==========================================
-    // MEMOIZED CALCULATIONS (CORREGIDO)
-    // ==========================================
-    const selectedPeriod = useMemo(() =>
-        PERIODS.find(p => p.id === period) || PERIODS[2],
-        [period]);
-
-    // Cutoff date normalized to midnight
-    const cutoffDate = useMemo(() => {
         const date = new Date();
-
-        if (selectedPeriod.id === 'daily') {
-            date.setHours(0, 0, 0, 0);
-        } else {
-            date.setDate(date.getDate() - selectedPeriod.days);
+        if (selectedP.id === 'daily') date.setHours(0, 0, 0, 0);
+        else {
+            date.setDate(date.getDate() - selectedP.days);
             date.setHours(0, 0, 0, 0);
         }
+        const cutoffStr = getLocalDateStr(date);
+        const isAfterCutoff = (d) => getLocalDateStr(new Date(d)) >= cutoffStr;
 
-        return date;
-    }, [selectedPeriod]);
+        const filteredPRs = data.prs.filter(pr => isAfterCutoff(pr.date)).slice(0, 15);
+        const filteredLogs = data.bodyLogs.filter(l => l.weight && isAfterCutoff(l.date));
+        const filteredHistory = data.history.filter(h => isAfterCutoff(h.date));
 
-    // ISO string for safe comparisons
-    const cutoffDateStr = useMemo(() =>
-        getLocalDateStr(cutoffDate),
-        [cutoffDate]
-    );
-
-    // All filtered data using string comparison
-    const filteredPRs = useMemo(() =>
-        prs.filter(pr => getLocalDateStr(new Date(pr.date)) >= cutoffDateStr).slice(0, 15),
-        [prs, cutoffDateStr]);
-
-    const filteredBodyLogs = useMemo(() =>
-        bodyLogs.filter(l => l.weight && getLocalDateStr(new Date(l.date)) >= cutoffDateStr),
-        [bodyLogs, cutoffDateStr]);
-
-    const progressPhotos = useMemo(() => {
-        const photos = bodyLogs
-            .filter(l => l.photo && l.photo.trim() && getLocalDateStr(new Date(l.date)) >= cutoffDateStr)
+        const photos = data.bodyLogs
+            .filter(l => l.photo && isAfterCutoff(l.date))
             .sort((a, b) => new Date(a.date) - new Date(b.date));
-        return photos;
-    }, [bodyLogs, cutoffDateStr]);
 
-    const filteredHistory = useMemo(() =>
-        workoutHistory.filter(h => getLocalDateStr(new Date(h.date)) >= cutoffDateStr),
-        [workoutHistory, cutoffDateStr]);
-
-    const attendanceStats = useMemo(() => {
-        const totalDaysInPeriod = selectedPeriod.days;
-        const trainingDays = Object.keys(consistency).filter(d => d >= cutoffDateStr).length;
-        const attendancePercent = totalDaysInPeriod > 0 ? Math.round((trainingDays / totalDaysInPeriod) * 100) : 0;
-        return { totalDaysInPeriod, trainingDays, attendancePercent };
-    }, [consistency, cutoffDateStr, selectedPeriod]);
-
-    const periodDays = useMemo(() =>
-        Object.keys(consistency).filter(d => d >= cutoffDateStr).length,
-        [consistency, cutoffDateStr]);
-
-    const totalSessions = useMemo(() => filteredHistory.length, [filteredHistory]);
-
-    const { weightData, startWeight, endWeight, weightChange, weightChartData } = useMemo(() => {
-        const data = filteredBodyLogs.slice().reverse();
-        const start = data[0]?.weight;
-        const end = data[data.length - 1]?.weight;
-        const change = (end != null && start != null) ? Number((end - start).toFixed(2)) : null;
-        const chartData = data.map(l => ({
+        const weightChart = filteredLogs.slice().reverse().map(l => ({
             date: new Date(l.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
             weight: l.weight
         }));
-        return { weightData: data, startWeight: start, endWeight: end, weightChange: change, weightChartData: chartData };
-    }, [filteredBodyLogs]);
 
-    // Calculate exercise progress with delta
-    const progressData = useMemo(() => {
-        const routineExercises = [];
-        if (routine?.days) {
-            routine.days.forEach(day => {
-                if (!day.isRestDay && day.exercises) {
-                    day.exercises.forEach(ex => {
-                        if (!routineExercises.find(e => e.name === ex.name)) {
-                            routineExercises.push({ name: ex.name, id: ex.id });
-                        }
-                    });
-                }
-            });
+        const trainingDays = Object.keys(data.consistency).filter(d => d >= cutoffStr).length;
+        const totalSessions = filteredHistory.length;
+
+        let weightChange = null;
+        if (filteredLogs.length > 0) {
+            const start = filteredLogs[filteredLogs.length - 1].weight;
+            const end = filteredLogs[0].weight;
+            weightChange = Number((end - start).toFixed(2));
         }
 
-        if (routineExercises.length === 0) return [];
+        // --- CÁLCULO DE DELTAS MEJORADO ---
+        // Agrupa historial por ejercicio, ordena por relevancia y filtra cambios significativos
+        let progressData = [];
+        const exerciseGroups = {};
 
-        const exerciseProgress = {};
         filteredHistory.forEach(session => {
-            const exName = session.exercise?.name;
-            if (!exName || !session.sets || session.sets.length === 0) return;
+            if (!session.exercise?.name || !session.sets?.length) return;
+            const name = session.exercise.name;
 
-            const bestSet = session.sets.reduce((best, s) => {
-                if (!best || (s.weight || 0) > (best.weight || 0)) return s;
-                return best;
-            }, null);
+            // Buscar mejor set de la sesión (mayor peso)
+            const bestSet = session.sets.reduce((prev, current) =>
+                (current.weight > (prev?.weight || 0)) ? current : prev
+                , null);
 
             if (!bestSet) return;
 
-            if (!exerciseProgress[exName]) {
-                exerciseProgress[exName] = { first: null, last: null };
-            }
-
-            const sessionData = {
-                date: session.date,
+            if (!exerciseGroups[name]) exerciseGroups[name] = [];
+            exerciseGroups[name].push({
+                date: new Date(session.date),
                 weight: bestSet.weight || 0,
                 reps: bestSet.reps || 0
-            };
+            });
+        });
 
-            if (!exerciseProgress[exName].first || new Date(session.date) < new Date(exerciseProgress[exName].first.date)) {
-                exerciseProgress[exName].first = sessionData;
-            }
-            if (!exerciseProgress[exName].last || new Date(session.date) > new Date(exerciseProgress[exName].last.date)) {
-                exerciseProgress[exName].last = sessionData;
+        // Calcular diferencias y score de mejora
+        Object.keys(exerciseGroups).forEach(name => {
+            const sessions = exerciseGroups[name].sort((a, b) => a.date - b.date);
+            if (sessions.length >= 2) {
+                const first = sessions[0];
+                const last = sessions[sessions.length - 1];
+                const deltaWeight = Number((last.weight - first.weight).toFixed(2));
+                const deltaReps = last.reps - first.reps;
+
+                // Solo incluir si hubo cambio real
+                if (deltaWeight !== 0 || deltaReps !== 0) {
+                    progressData.push({
+                        name,
+                        firstWeight: first.weight,
+                        firstReps: first.reps,
+                        lastWeight: last.weight,
+                        lastReps: last.reps,
+                        deltaWeight,
+                        deltaReps,
+                        // Score ponderado: prioriza peso, secundario reps
+                        improvementScore: Math.abs(deltaWeight) + (Math.abs(deltaReps) * 0.3)
+                    });
+                }
             }
         });
 
-        return routineExercises.map(ex => {
-            const data = exerciseProgress[ex.name];
-            if (!data || !data.first || !data.last) {
-                return { name: ex.name, hasData: false };
-            }
-            return {
-                name: ex.name,
-                firstWeight: data.first.weight,
-                firstReps: data.first.reps,
-                lastWeight: data.last.weight,
-                lastReps: data.last.reps,
-                deltaWeight: Number((data.last.weight - data.first.weight).toFixed(2)),
-                deltaReps: data.last.reps - data.first.reps,
-                hasData: true
-            };
-        }).filter(ex => ex.hasData);
-    }, [routine, filteredHistory]);
+        // Ordenar por mayor mejora y limitar a top 12
+        progressData.sort((a, b) => b.improvementScore - a.improvementScore);
+        progressData = progressData.slice(0, 12);
 
-    // Data validation
-    const hasEnoughData = useMemo(() => {
-        return periodDays > 0 || totalSessions > 0 || filteredPRs.length > 0;
-    }, [periodDays, totalSessions, filteredPRs]);
+        return {
+            period: selectedP,
+            cutoffStr,
+            filteredPRs,
+            filteredLogs,
+            photos,
+            weightChart,
+            trainingDays,
+            totalSessions,
+            weightChange,
+            progressData, // <--- Nueva propiedad disponible
+            hasData: trainingDays > 0 || totalSessions > 0 || filteredPRs.length > 0 || filteredLogs.length > 0
+        };
+    }, [data, period]);
 
     // ==========================================
-    // PDF GENERATION
+    // PDF GENERATION LOGIC
     // ==========================================
-    async function generatePDF() {
-        if (!hasEnoughData) {
-            toast?.error('No hay datos suficientes para este período');
-            return;
-        }
+    const generatePDF = async () => {
+        if (!computed.hasData) return toast.error('Sin datos en este período');
 
         setGenerating(true);
-        setGeneratingProgress(10);
-        toast?.info('Generando PDF...');
+        setProgress(10);
+        toast.info('Generando reporte completo...');
 
         try {
             const { default: jsPDF } = await import('jspdf');
             const { default: autoTable } = await import('jspdf-autotable');
-            setGeneratingProgress(20);
 
             const doc = new jsPDF('p', 'mm', 'a4');
-            const pageWidth = doc.internal.pageSize.getWidth();
-            const pageHeight = doc.internal.pageSize.getHeight();
+            const w = doc.internal.pageSize.getWidth();
+            const h = doc.internal.pageSize.getHeight();
             const margin = 15;
-            const footerHeight = 20;
 
-            const builder = new PDFBuilder(doc, pageWidth, pageHeight, margin, footerHeight);
-            setGeneratingProgress(30);
+            const builder = new PDFBuilder(doc, w, h, margin, 20);
 
-            // Header
-            builder.renderHeader(logoBase64, selectedPeriod.label);
-            setGeneratingProgress(35);
+            // 1. Header
+            builder.renderHeader(logoBase64, computed.period.label);
+            setProgress(25);
 
-            // Stats Summary
-            const statsCards = [
-                { value: periodDays, label: 'Días Entrenados', color: COLORS.purple },
-                { value: totalSessions, label: 'Sesiones', color: [59, 130, 246] },
-                { value: filteredPRs.length, label: 'PRs Logrados', color: COLORS.yellow },
+            // 2. Resumen Stats
+            builder.printSectionTitle('RESUMEN DEL PERÍODO', 35);
+            const stats = [
+                { val: computed.trainingDays, lbl: 'Días Entrenados', col: COLORS.purple },
+                { val: computed.totalSessions, lbl: 'Sesiones Totales', col: [59, 130, 246] },
+                { val: computed.filteredPRs.length, lbl: 'Nuevos PRs', col: COLORS.yellow },
                 {
-                    value: weightChange !== null ? `${weightChange > 0 ? '+' : ''}${weightChange}kg` : '--',
-                    label: 'Cambio Peso',
-                    color: weightChange > 0 ? COLORS.green : weightChange < 0 ? COLORS.red : COLORS.textLight
+                    val: computed.weightChange !== null ? `${computed.weightChange > 0 ? '+' : ''}${computed.weightChange}kg` : '--',
+                    lbl: 'Cambio Peso',
+                    col: computed.weightChange > 0 ? COLORS.green : computed.weightChange < 0 ? COLORS.red : COLORS.textMedium
                 }
             ];
-            builder.renderStatsCards(statsCards);
-            setGeneratingProgress(40);
 
-            // Attendance
-            builder.renderAttendanceStats(attendanceStats);
-            setGeneratingProgress(45);
+            const cardW = (w - margin * 2 - 15) / 4;
+            stats.forEach((s, i) => {
+                const x = margin + i * (cardW + 5);
+                doc.setFillColor(...COLORS.bgLight);
+                doc.roundedRect(x, builder.y, cardW, 25, 3, 3, 'F');
+                doc.setFontSize(16);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(...s.col);
+                doc.text(String(s.val), x + cardW / 2, builder.y + 10, { align: 'center' });
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(...COLORS.textLight);
+                doc.text(s.lbl, x + cardW / 2, builder.y + 18, { align: 'center' });
+            });
+            builder.y += 35;
 
-            // Active Routine
-            if (routine) {
-                builder.printSectionTitle(`RUTINA ACTIVA: ${routine.name}`, 40);
-
-                routine.days.forEach((day) => {
+            // 3. Rutina Activa
+            if (data.routine) {
+                builder.printSectionTitle(`RUTINA: ${data.routine.name}`, 40);
+                data.routine.days.forEach(day => {
                     builder.ensureSpace(30);
-
-                    const exercises = (!day.isRestDay && day.exercises) ? day.exercises : [];
-                    const tableData = exercises.map(ex => [ex.name, `${ex.targetSets}x${ex.targetReps}`]);
-
+                    const rows = day.exercises?.map(ex => [ex.name, `${ex.targetSets}x${ex.targetReps}`]) || [];
                     autoTable(doc, {
                         startY: builder.y,
                         head: [[`${day.dayName}${day.isRestDay ? ' (Descanso)' : ''}`, '']],
-                        body: tableData.length > 0 ? tableData : [['Día de descanso', '']],
-                        theme: 'plain',
-                        headStyles: {
-                            fillColor: COLORS.purple,
-                            textColor: COLORS.white,
-                            fontStyle: 'bold',
-                            fontSize: 9,
-                            cellPadding: 3,
-                        },
-                        bodyStyles: { fontSize: 8, cellPadding: 2 },
-                        alternateRowStyles: { fillColor: COLORS.bgAlt },
-                        columnStyles: {
-                            0: { cellWidth: 'auto' },
-                            1: { cellWidth: 25, halign: 'right', fontStyle: 'bold', textColor: COLORS.purple }
-                        },
-                        margin: { left: margin, right: margin },
+                        body: rows.length ? rows : [['Día de descanso', '']],
+                        theme: 'grid',
+                        headStyles: { fillColor: COLORS.purpleDark, fontSize: 9 },
+                        columnStyles: { 1: { halign: 'right', fontStyle: 'bold', textColor: COLORS.purple } },
+                        margin: { left: margin, right: margin }
                     });
-                    builder.y = doc.lastAutoTable.finalY + 5;
+                    builder.y = doc.lastAutoTable.finalY + 6;
                 });
                 builder.y += 5;
             }
-            setGeneratingProgress(55);
+            setProgress(40);
 
-            // Personal Records
-            if (filteredPRs.length > 0) {
-                builder.printSectionTitle('RÉCORDS PERSONALES DEL PERÍODO', 60);
-
-                const prTableData = filteredPRs.map(pr => [
-                    pr.exerciseName?.substring(0, 35) || 'Ejercicio',
+            // 4. PRs
+            if (computed.filteredPRs.length > 0) {
+                builder.printSectionTitle('RÉCORDS PERSONALES (PRs)', 50);
+                const rows = computed.filteredPRs.map(pr => [
+                    pr.exerciseName?.substring(0, 30),
                     `${pr.weight}kg`,
                     `x${pr.reps}`,
                     new Date(pr.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })
                 ]);
-
                 autoTable(doc, {
                     startY: builder.y,
                     head: [['Ejercicio', 'Peso', 'Reps', 'Fecha']],
-                    body: prTableData,
-                    theme: 'striped',
-                    headStyles: {
-                        fillColor: COLORS.purple,
-                        textColor: COLORS.white,
-                        fontStyle: 'bold',
-                        fontSize: 8,
-                        cellPadding: 3,
-                    },
-                    bodyStyles: { fontSize: 8, cellPadding: 2.5 },
+                    body: rows,
+                    theme: 'grid',
+                    headStyles: { fillColor: COLORS.purpleDark, fontSize: 9 },
                     columnStyles: {
-                        0: { cellWidth: 'auto' },
-                        1: { cellWidth: 22, fontStyle: 'bold', textColor: COLORS.purple },
-                        2: { cellWidth: 15 },
-                        3: { cellWidth: 20, halign: 'right' }
+                        1: { halign: 'right', fontStyle: 'bold', textColor: COLORS.purple },
+                        2: { halign: 'center' },
+                        3: { halign: 'right', textColor: COLORS.textMedium }
                     },
-                    margin: { left: margin, right: margin },
+                    margin: { left: margin, right: margin }
                 });
                 builder.y = doc.lastAutoTable.finalY + 10;
             }
-            setGeneratingProgress(65);
 
-            // Exercise Progress Delta
-            if (progressData.length > 0) {
-                builder.printSectionTitle('PROGRESO POR EJERCICIO', 70);
+            // 5. PROGRESO POR EJERCICIO (DELTAS) - MEJORADO
+            if (computed.progressData.length > 0) {
+                builder.printSectionTitle('PROGRESO POR EJERCICIO', 60);
 
-                const deltaTableData = progressData.map(ex => [
-                    ex.name.substring(0, 25),
+                const deltaRows = computed.progressData.map(ex => [
+                    ex.name.substring(0, 35),
                     `${ex.firstWeight}kg x ${ex.firstReps}`,
                     `${ex.lastWeight}kg x ${ex.lastReps}`,
-                    ex.deltaWeight > 0 ? `+${ex.deltaWeight}` : `${ex.deltaWeight}`,
-                    ex.deltaReps > 0 ? `+${ex.deltaReps}` : `${ex.deltaReps}`
+                    ex.deltaWeight > 0 ? `+${ex.deltaWeight}kg` : ex.deltaWeight < 0 ? `${ex.deltaWeight}kg` : '0',
+                    ex.deltaReps > 0 ? `+${ex.deltaReps}` : ex.deltaReps < 0 ? `${ex.deltaReps}` : '0'
                 ]);
 
                 autoTable(doc, {
                     startY: builder.y,
-                    head: [['Ejercicio', 'Inicio', 'Actual', 'Δ kg', 'Δ reps']],
-                    body: deltaTableData,
-                    theme: 'striped',
-                    headStyles: {
-                        fillColor: COLORS.purple,
-                        textColor: COLORS.white,
-                        fontStyle: 'bold',
-                        fontSize: 7,
-                        cellPadding: 3,
+                    head: [['Ejercicio', 'Primera Sesión', 'Última Sesión', 'Δ Peso', 'Δ Reps']],
+                    body: deltaRows,
+                    theme: 'grid',
+                    headStyles: { fillColor: COLORS.purpleDark, fontSize: 9 },
+                    bodyStyles: { fontSize: 9 },
+                    columnStyles: {
+                        0: { fontStyle: 'bold' },
+                        1: { halign: 'center', textColor: COLORS.textMedium },
+                        2: { halign: 'center', textColor: COLORS.purple },
+                        3: { halign: 'center', fontStyle: 'bold' },
+                        4: { halign: 'center' }
                     },
-                    bodyStyles: { fontSize: 7, cellPadding: 2.5 },
-                    didParseCell: (data) => {
-                        if (data.section === 'body' && data.column.index >= 3) {
-                            const val = parseFloat(data.cell.text[0]);
-                            if (val > 0) {
-                                data.cell.styles.textColor = COLORS.green;
-                                data.cell.styles.fontStyle = 'bold';
-                            } else if (val < 0) {
-                                data.cell.styles.textColor = COLORS.red;
-                                data.cell.styles.fontStyle = 'bold';
-                            }
+                    didParseCell: (cellData) => {
+                        // Colorear columna Δ Peso (index 3)
+                        if (cellData.section === 'body' && cellData.column.index === 3) {
+                            const text = cellData.cell.text[0];
+                            if (text.startsWith('+')) cellData.cell.styles.textColor = COLORS.green;
+                            else if (text.startsWith('-')) cellData.cell.styles.textColor = COLORS.red;
+                        }
+                        // Colorear columna Δ Reps (index 4)
+                        if (cellData.section === 'body' && cellData.column.index === 4) {
+                            const text = cellData.cell.text[0];
+                            if (text.startsWith('+')) cellData.cell.styles.textColor = COLORS.green;
+                            else if (text.startsWith('-')) cellData.cell.styles.textColor = COLORS.red;
                         }
                     },
-                    columnStyles: {
-                        0: { cellWidth: 55 },
-                        1: { cellWidth: 35 },
-                        2: { cellWidth: 35 },
-                        3: { cellWidth: 20, halign: 'center' },
-                        4: { cellWidth: 20, halign: 'center' }
-                    },
-                    margin: { left: margin, right: margin },
+                    margin: { left: margin, right: margin }
                 });
                 builder.y = doc.lastAutoTable.finalY + 10;
             }
-            setGeneratingProgress(75);
+            setProgress(60);
 
-            // Recent Sessions
-            if (filteredHistory.length > 0) {
-                builder.printSectionTitle('ÚLTIMAS SESIONES', 60);
+            // 6. Body Tracking
+            const showWeight = computed.weightChart.length > 1;
+            const showPhotos = computed.photos.length > 0;
+            // Comprobamos si hay algún dato de composición (bodyFat, bmi, etc)
+            const logsWithComp = computed.filteredLogs.filter(l =>
+                l.bodyFat || l.muscleMass || l.bmi || l.bodyWater || l.boneMass
+            );
+            const showComp = logsWithComp.length > 0;
 
-                const sessionTableData = filteredHistory.slice(0, 15).map(session => {
-                    const date = new Date(session.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-                    const exName = session.exercise?.name?.substring(0, 25) || 'Ejercicio';
-
-                    let bestSet = '--';
-                    let avgRpe = '--';
-                    if (session.sets && session.sets.length > 0) {
-                        const maxWeight = Math.max(...session.sets.map(s => s.weight || 0));
-                        const setWithMax = session.sets.find(s => s.weight === maxWeight);
-                        bestSet = `${setWithMax?.weight || 0}kg x ${setWithMax?.reps || 0}`;
-
-                        const rpeSets = session.sets.filter(s => s.rpe);
-                        if (rpeSets.length > 0) {
-                            avgRpe = (rpeSets.reduce((sum, s) => sum + s.rpe, 0) / rpeSets.length).toFixed(0);
-                        }
-                    }
-                    return [date, exName, bestSet, avgRpe];
-                });
-
-                autoTable(doc, {
-                    startY: builder.y,
-                    head: [['Fecha', 'Ejercicio', 'Mejor Set', 'RPE']],
-                    body: sessionTableData,
-                    theme: 'striped',
-                    headStyles: {
-                        fillColor: COLORS.purple,
-                        textColor: COLORS.white,
-                        fontStyle: 'bold',
-                        fontSize: 7,
-                        cellPadding: 3,
-                    },
-                    bodyStyles: { fontSize: 7, cellPadding: 2.5 },
-                    didParseCell: (data) => {
-                        if (data.section === 'body' && data.column.index === 3) {
-                            const rpe = parseInt(data.cell.text[0]);
-                            if (rpe >= 9) data.cell.styles.textColor = COLORS.red;
-                            else if (rpe >= 7) data.cell.styles.textColor = COLORS.yellow;
-                            else if (rpe > 0) data.cell.styles.textColor = COLORS.green;
-                        }
-                    },
-                    columnStyles: {
-                        0: { cellWidth: 20 },
-                        1: { cellWidth: 'auto' },
-                        2: { cellWidth: 35, fontStyle: 'bold', textColor: COLORS.purple },
-                        3: { cellWidth: 15, halign: 'center' }
-                    },
-                    margin: { left: margin, right: margin },
-                });
-                builder.y = doc.lastAutoTable.finalY + 10;
-            }
-            setGeneratingProgress(85);
-
-            // Body Tracking
-            if (weightChartData.length > 1 || progressPhotos.length > 0) {
+            if (showWeight || showPhotos || showComp) {
                 doc.addPage();
                 builder.y = margin;
 
-                doc.setFontSize(13);
+                doc.setFontSize(14);
                 doc.setFont('helvetica', 'bold');
-                doc.setTextColor(...COLORS.textDark);
+                doc.setTextColor(...COLORS.purple);
                 doc.text('SEGUIMIENTO CORPORAL', margin, builder.y);
-                builder.y += 10;
+                builder.y += 15;
 
-                if (weightChartData.length > 1) {
+                // A. Gráfica Peso
+                if (showWeight) {
                     doc.setFontSize(11);
-                    doc.setFont('helvetica', 'bold');
-                    doc.setTextColor(...COLORS.purple);
+                    doc.setTextColor(...COLORS.textDark);
                     doc.text('Evolución del Peso', margin, builder.y);
-                    builder.y += 8;
-
-                    doc.setFontSize(10);
-                    doc.setFont('helvetica', 'normal');
-                    doc.setTextColor(...COLORS.textMedium);
-                    doc.text(`Peso inicial: ${startWeight}kg  ->  Peso actual: ${endWeight}kg`, margin, builder.y);
-                    if (weightChange !== null) {
-                        doc.setFont('helvetica', 'bold');
-                        doc.setTextColor(...(weightChange > 0 ? COLORS.green : weightChange < 0 ? COLORS.red : COLORS.textMedium));
-                        doc.text(`  (${weightChange > 0 ? '+' : ''}${weightChange}kg)`, margin + 85, builder.y);
-                    }
-                    builder.y += 10;
-
-                    doc.setFillColor(...COLORS.bgLight);
-                    doc.roundedRect(margin, builder.y, pageWidth - margin * 2, 20, 3, 3, 'F');
-
-                    const visibleCount = Math.min(weightChartData.length, selectedPeriod.id === 'yearly' ? 12 : 7);
-                    const visibleWeights = weightChartData.slice(-visibleCount);
-                    const colWidth = (pageWidth - margin * 2) / visibleWeights.length;
-
-                    visibleWeights.forEach((w, i) => {
-                        const x = margin + i * colWidth + colWidth / 2;
-                        doc.setFontSize(8);
-                        doc.setFont('helvetica', 'normal');
-                        doc.setTextColor(...COLORS.textLight);
-                        doc.text(w.date, x, builder.y + 7, { align: 'center' });
-                        doc.setFont('helvetica', 'bold');
-                        doc.setTextColor(...COLORS.purple);
-                        doc.text(`${w.weight}kg`, x, builder.y + 14, { align: 'center' });
-                    });
-                    builder.y += 30;
+                    builder.y += 5;
+                    builder.drawLineChart(computed.weightChart, w - margin * 2, 50);
                 }
 
-                if (progressPhotos.length > 0) {
+                // B. Fotos
+                if (showPhotos) {
+                    builder.ensureSpace(40);
                     doc.setFontSize(11);
                     doc.setFont('helvetica', 'bold');
-                    doc.setTextColor(...COLORS.purple);
-                    doc.text('Fotos de Progreso', margin, builder.y);
-                    builder.y += 8;
+                    doc.setTextColor(...COLORS.textDark);
+                    doc.text('Progreso Visual', margin, builder.y);
+                    builder.y += 10;
 
                     const maxPerRow = 3;
-                    const photoWidth = (pageWidth - margin * 2 - (maxPerRow - 1) * 5) / maxPerRow;
-                    const photoHeight = photoWidth * 1.3;
+                    const gap = 5;
+                    const pW = (w - margin * 2 - (maxPerRow - 1) * gap) / maxPerRow;
+                    const pH = pW * 1.33;
+                    const rowHeight = pH + 15;
 
-                    progressPhotos.forEach((log, i) => {
+                    computed.photos.forEach((photo, i) => {
                         const col = i % maxPerRow;
-                        const row = Math.floor(i / maxPerRow);
-
-                        if (builder.y + row * (photoHeight + 15) + photoHeight > pageHeight - 30) {
+                        if (col === 0 && i > 0) builder.y += rowHeight;
+                        if (col === 0 && builder.y + rowHeight > h - margin) {
                             doc.addPage();
                             builder.y = margin;
                         }
 
-                        const x = margin + col * (photoWidth + 5);
-                        const currentY = builder.y + row * (photoHeight + 15);
-
+                        const x = margin + col * (pW + gap);
                         try {
-                            doc.addImage(log.photo, 'JPEG', x, currentY, photoWidth, photoHeight);
-                            doc.setFillColor(...COLORS.purple);
-                            doc.roundedRect(x, currentY + photoHeight - 6, photoWidth, 8, 0, 0, 'F');
+                            doc.addImage(photo.photo, 'JPEG', x, builder.y, pW, pH);
+                            doc.setFillColor(...COLORS.purpleDark);
+                            doc.rect(x, builder.y + pH - 6, pW, 6, 'F');
+                            doc.setTextColor(255, 255, 255);
                             doc.setFontSize(7);
-                            doc.setFont('helvetica', 'bold');
-                            doc.setTextColor(...COLORS.white);
-                            const dateStr = new Date(log.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: '2-digit' });
-                            doc.text(dateStr, x + photoWidth / 2, currentY + photoHeight, { align: 'center' });
+                            doc.text(
+                                new Date(photo.date).toLocaleDateString('es-ES'),
+                                x + pW / 2, builder.y + pH - 1.5,
+                                { align: 'center' }
+                            );
                         } catch (e) {
-                            doc.setFillColor(...COLORS.bgLight);
-                            doc.rect(x, currentY, photoWidth, photoHeight, 'F');
-                            doc.setFontSize(8);
-                            doc.setTextColor(...COLORS.textLight);
-                            doc.text('Foto no disponible', x + photoWidth / 2, currentY + photoHeight / 2, { align: 'center' });
+                            doc.rect(x, builder.y, pW, pH);
                         }
                     });
+                    builder.y += rowHeight + 10;
+                }
+
+                // C. Composición Corporal con COMPARATIVA
+                if (showComp) {
+                    // Obtener el registro más antiguo y más reciente del período
+                    const oldest = logsWithComp[logsWithComp.length - 1];
+                    const latest = logsWithComp[0];
+                    const hasComparison = logsWithComp.length > 1;
+
+                    builder.ensureSpace(70);
+                    builder.printSectionTitle('COMPOSICIÓN CORPORAL', 30);
+
+                    // Helper para calcular delta
+                    const getDelta = (oldVal, newVal, decimals = 1) => {
+                        if (!oldVal || !newVal) return '-';
+                        const diff = Number((newVal - oldVal).toFixed(decimals));
+                        if (diff === 0) return '0';
+                        return diff > 0 ? `+${diff}` : `${diff}`;
+                    };
+
+                    // Tabla con comparativa
+                    const compRows = [];
+
+                    if (latest.bodyFat !== null || oldest?.bodyFat !== null) {
+                        compRows.push([
+                            'Grasa Corporal',
+                            oldest?.bodyFat ? `${oldest.bodyFat}%` : '-',
+                            latest.bodyFat ? `${latest.bodyFat}%` : '-',
+                            hasComparison ? getDelta(oldest?.bodyFat, latest.bodyFat) + '%' : '-'
+                        ]);
+                    }
+                    if (latest.muscleMass !== null || oldest?.muscleMass !== null) {
+                        compRows.push([
+                            'Masa Muscular',
+                            oldest?.muscleMass ? `${oldest.muscleMass}kg` : '-',
+                            latest.muscleMass ? `${latest.muscleMass}kg` : '-',
+                            hasComparison ? getDelta(oldest?.muscleMass, latest.muscleMass) + 'kg' : '-'
+                        ]);
+                    }
+                    if (latest.bmi !== null || oldest?.bmi !== null) {
+                        compRows.push([
+                            'IMC',
+                            oldest?.bmi ? oldest.bmi.toFixed(1) : '-',
+                            latest.bmi ? latest.bmi.toFixed(1) : '-',
+                            hasComparison ? getDelta(oldest?.bmi, latest.bmi) : '-'
+                        ]);
+                    }
+                    if (latest.bodyWater !== null || oldest?.bodyWater !== null) {
+                        compRows.push([
+                            'Agua Corporal',
+                            oldest?.bodyWater ? `${oldest.bodyWater}%` : '-',
+                            latest.bodyWater ? `${latest.bodyWater}%` : '-',
+                            hasComparison ? getDelta(oldest?.bodyWater, latest.bodyWater) + '%' : '-'
+                        ]);
+                    }
+                    if (latest.bmr !== null || oldest?.bmr !== null) {
+                        compRows.push([
+                            'Metabolismo Basal',
+                            oldest?.bmr ? `${oldest.bmr} kcal` : '-',
+                            latest.bmr ? `${latest.bmr} kcal` : '-',
+                            hasComparison ? getDelta(oldest?.bmr, latest.bmr, 0) + ' kcal' : '-'
+                        ]);
+                    }
+
+                    if (compRows.length > 0) {
+                        autoTable(doc, {
+                            startY: builder.y,
+                            head: [['Métrica', 'Inicio', 'Actual', 'Cambio']],
+                            body: compRows,
+                            theme: 'grid',
+                            headStyles: { fillColor: COLORS.purpleDark, fontSize: 9 },
+                            columnStyles: {
+                                0: { fontStyle: 'bold' },
+                                1: { halign: 'center', textColor: COLORS.textMedium },
+                                2: { halign: 'center', textColor: COLORS.purple },
+                                3: { halign: 'center', fontStyle: 'bold' }
+                            },
+                            didParseCell: (cellData) => {
+                                // Colorear columna Cambio
+                                if (cellData.section === 'body' && cellData.column.index === 3) {
+                                    const text = cellData.cell.text[0];
+                                    // Para grasa: negativo es bueno (verde), positivo es malo (rojo)
+                                    // Para músculo: positivo es bueno (verde), negativo es malo (rojo)
+                                    if (text.startsWith('+')) {
+                                        // Verificar si es grasa (inversión de color)
+                                        const metric = compRows[cellData.row.index]?.[0];
+                                        if (metric === 'Grasa Corporal') {
+                                            cellData.cell.styles.textColor = COLORS.red;
+                                        } else {
+                                            cellData.cell.styles.textColor = COLORS.green;
+                                        }
+                                    } else if (text.startsWith('-')) {
+                                        const metric = compRows[cellData.row.index]?.[0];
+                                        if (metric === 'Grasa Corporal') {
+                                            cellData.cell.styles.textColor = COLORS.green;
+                                        } else {
+                                            cellData.cell.styles.textColor = COLORS.red;
+                                        }
+                                    }
+                                }
+                            },
+                            margin: { left: margin, right: margin }
+                        });
+                        builder.y = doc.lastAutoTable.finalY + 10;
+                    }
+
+                    if (latest.note) {
+                        doc.setFontSize(9);
+                        doc.setTextColor(...COLORS.textMedium);
+                        doc.setFont('helvetica', 'italic');
+                        doc.text(`Nota: "${latest.note}"`, margin, builder.y);
+                        builder.y += 10;
+                    }
                 }
             }
-            setGeneratingProgress(95);
 
-            // Footers
-            builder.renderFooters(selectedPeriod.label);
+            setProgress(100);
+            builder.renderFooters();
 
-            // Save
-            const date = new Date().toISOString().split('T')[0];
-            doc.save(`NexLift_Reporte_${selectedPeriod.label.toLowerCase()}_${date}.pdf`);
+            doc.save(`NexLift_${computed.period.label}_${new Date().toISOString().split('T')[0]}.pdf`);
+            toast.success('Reporte descargado');
 
-            setGeneratingProgress(100);
-            toast?.success('PDF generado exitosamente');
         } catch (error) {
-            console.error('PDF Error:', error);
-            toast?.error('Error generando PDF. Intenta de nuevo.');
+            console.error(error);
+            toast.error('Error generando PDF');
         } finally {
             setGenerating(false);
-            setTimeout(() => setGeneratingProgress(0), 500);
+            setProgress(0);
         }
-    }
+    };
 
-    // ==========================================
-    // RENDER
-    // ==========================================
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-[60vh]">
-                <div className="w-10 h-10 border-3 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
-            </div>
-        );
-    }
+    // UI RENDER
+    if (loading) return (
+        <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+            <div className="w-10 h-10 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-[var(--text-secondary)]">Preparando datos...</p>
+        </div>
+    );
 
     return (
-        <div className="space-y-6 animate-fade-in max-w-lg mx-auto pb-20">
+        <div className="max-w-lg mx-auto space-y-6 pb-24 animate-fade-in">
+            {/* Header */}
             <div>
                 <h1 className="text-2xl font-bold flex items-center gap-2">
                     <FileText className="text-[var(--primary)]" />
                     Exportar Reporte
                 </h1>
-                <p className="text-[var(--text-secondary)] text-sm">Genera un PDF profesional con tu progreso</p>
+                <p className="text-[var(--text-secondary)] text-sm">Resumen de progreso completo</p>
             </div>
 
-            {/* Period Selector */}
-            <div className="bg-[var(--bg-card)] rounded-xl p-4">
-                <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
-                    <Calendar size={18} className="text-[var(--primary)]" />
-                    Período del Reporte
+            {/* 1. Selector de Período */}
+            <section className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)]">
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <Calendar size={16} className="text-[var(--primary)]" /> Período
                 </h3>
-                <div role="radiogroup" aria-label="Seleccionar período" className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2">
                     {PERIODS.map(p => (
                         <button
                             key={p.id}
-                            role="radio"
-                            aria-checked={period === p.id}
                             onClick={() => setPeriod(p.id)}
-                            className={`px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${period === p.id
-                                ? 'bg-[var(--primary)] text-white shadow-lg scale-105'
-                                : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] hover:bg-[var(--border)] hover:text-white'
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${period === p.id
+                                ? 'bg-[var(--primary)] text-white shadow-lg shadow-purple-900/20'
+                                : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] hover:text-white'
                                 }`}
                         >
                             {p.label}
                         </button>
                     ))}
                 </div>
-            </div>
+            </section>
 
-            {/* Data Warning */}
-            {!hasEnoughData && (
-                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex items-start gap-3">
-                    <AlertCircle size={20} className="text-yellow-500 shrink-0 mt-0.5" />
-                    <div>
-                        <p className="font-semibold text-sm text-yellow-200">Datos insuficientes</p>
-                        <p className="text-xs text-yellow-300/80 mt-1">
-                            No hay suficientes datos para este período. Selecciona un período más amplio o entrena más.
-                        </p>
-                    </div>
-                </div>
-            )}
-
-            {/* Preview */}
-            <div className="bg-[var(--bg-card)] rounded-xl p-4">
-                <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
-                    <Activity size={18} className="text-[var(--primary)]" />
-                    Vista Previa del Contenido
-                </h3>
-
-                <div className="grid grid-cols-4 gap-3 mb-4">
-                    <div className="bg-[var(--bg-dark)] rounded-lg p-3 text-center">
-                        <p className="text-xl font-bold text-[var(--primary)]">{periodDays}</p>
-                        <p className="text-xs text-[var(--text-secondary)] mt-1">Días</p>
-                    </div>
-                    <div className="bg-[var(--bg-dark)] rounded-lg p-3 text-center">
-                        <p className="text-xl font-bold text-blue-500">{totalSessions}</p>
-                        <p className="text-xs text-[var(--text-secondary)] mt-1">Sesiones</p>
-                    </div>
-                    <div className="bg-[var(--bg-dark)] rounded-lg p-3 text-center">
-                        <p className="text-xl font-bold text-yellow-500">{filteredPRs.length}</p>
-                        <p className="text-xs text-[var(--text-secondary)] mt-1">PRs</p>
-                    </div>
-                    <div className="bg-[var(--bg-dark)] rounded-lg p-3 text-center">
-                        <p className={`text-xl font-bold ${weightChange !== null ? (weightChange > 0 ? 'text-green-500' : weightChange < 0 ? 'text-red-500' : 'text-[var(--text-secondary)]') : 'text-[var(--text-secondary)]'}`}>
-                            {weightChange !== null ? `${weightChange > 0 ? '+' : ''}${weightChange}` : '--'}
-                        </p>
-                        <p className="text-xs text-[var(--text-secondary)] mt-1">kg</p>
-                    </div>
+            {/* 2. Preview Rápido */}
+            <section className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)]">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold">Vista Previa</h3>
+                    <span className="text-xs text-[var(--text-secondary)]">{computed.period.days} días seleccionados</span>
                 </div>
 
-                {weightChartData.length > 1 && (
-                    <div ref={chartRef} className="h-32 mb-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={weightChartData}>
-                                <defs>
-                                    <linearGradient id="weightGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#a1a1aa' }} />
-                                <YAxis tick={{ fontSize: 9, fill: '#a1a1aa' }} domain={['dataMin - 1', 'dataMax + 1']} width={35} />
-                                <Tooltip
-                                    contentStyle={{ background: '#1a1a1a', border: '1px solid #27272a', borderRadius: '8px', fontSize: '12px' }}
-                                />
-                                <Area type="monotone" dataKey="weight" stroke="#8b5cf6" fill="url(#weightGradient)" strokeWidth={2} />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                {!computed.hasData ? (
+                    <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg flex items-center gap-3">
+                        <AlertCircle className="text-yellow-500 shrink-0" size={20} />
+                        <p className="text-xs text-yellow-200">No hay datos suficientes en este rango de fechas.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {/* Stats Grid - 4 columns */}
+                        <div className="grid grid-cols-4 gap-2">
+                            <StatBox val={computed.trainingDays} label="Días" color="text-purple-400" />
+                            <StatBox val={computed.totalSessions} label="Sesiones" />
+                            <StatBox val={computed.filteredPRs.length} label="PRs" color="text-yellow-400" />
+                            <StatBox val={computed.weightChange} label="Peso" isDelta />
+                        </div>
+
+                        {/* Weight Chart */}
+                        {computed.weightChart.length > 1 && (
+                            <div className="h-24 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={computed.weightChart}>
+                                        <defs>
+                                            <linearGradient id="gcolor" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <YAxis domain={['dataMin - 1', 'dataMax + 1']} hide />
+                                        <Area
+                                            type="monotone"
+                                            dataKey="weight"
+                                            stroke="#8b5cf6"
+                                            fill="url(#gcolor)"
+                                            strokeWidth={2}
+                                            animationDuration={1500}
+                                        />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                        )}
+
+                        {/* Top Mejoras Mini-Preview */}
+                        {computed.progressData.length > 0 && (
+                            <div className="bg-[var(--bg-dark)] rounded-lg p-3 border border-[var(--border)]">
+                                <p className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2 flex items-center gap-1">
+                                    <TrendingUp size={10} className="text-green-400" /> Top Mejoras
+                                </p>
+                                <div className="space-y-1.5">
+                                    {computed.progressData.slice(0, 3).map((ex, i) => (
+                                        <div key={ex.name} className="flex items-center justify-between text-xs">
+                                            <span className="text-[var(--text-secondary)] truncate flex-1 mr-2">
+                                                <span className="text-[var(--text-primary)] font-medium">{i + 1}.</span> {ex.name}
+                                            </span>
+                                            <span className={`font-bold shrink-0 ${ex.deltaWeight > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                {ex.deltaWeight > 0 ? '▲' : '▼'} {Math.abs(ex.deltaWeight)}kg
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Badges */}
+                        <div className="flex flex-wrap gap-2 pt-2 border-t border-[var(--border)]">
+                            {data.routine && (
+                                <span className="text-[10px] bg-[var(--primary)]/10 text-[var(--primary)] px-2 py-1 rounded-full border border-[var(--primary)]/20">
+                                    Rutina: {data.routine.name}
+                                </span>
+                            )}
+                            {computed.progressData.length > 0 && (
+                                <span className="text-[10px] bg-green-500/10 text-green-400 px-2 py-1 rounded-full border border-green-500/20">
+                                    {computed.progressData.length} ejercicios con progreso
+                                </span>
+                            )}
+                            {computed.photos.length > 0 && (
+                                <span className="text-[10px] bg-purple-500/10 text-purple-400 px-2 py-1 rounded-full border border-purple-500/20">
+                                    {computed.photos.length} fotos
+                                </span>
+                            )}
+                        </div>
                     </div>
                 )}
+            </section>
 
-                <div className="text-xs text-[var(--text-secondary)] space-y-1.5 border-t border-[var(--border)] pt-4">
-                    <p className="font-semibold text-white text-sm mb-2">El PDF incluirá:</p>
-                    <p className="flex items-center gap-2">✓ Rutina activa completa</p>
-                    <p className="flex items-center gap-2">✓ Récords personales del período</p>
-                    <p className="flex items-center gap-2">✓ Progreso por ejercicio (Delta)</p>
-                    <p className="flex items-center gap-2">✓ Últimas sesiones con RPE</p>
-                    <p className="flex items-center gap-2">✓ Evolución del peso corporal</p>
-                    {progressPhotos.length > 0 && (
-                        <p className="flex items-center gap-2">✓ {progressPhotos.length} fotos de progreso</p>
-                    )}
-                </div>
-            </div>
-
-            {/* Generate Button */}
+            {/* Action Button */}
             <button
                 onClick={generatePDF}
-                disabled={generating || !hasEnoughData}
-                className="w-full bg-gradient-to-r from-[var(--primary)] to-purple-600 text-white py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-purple-500/30"
+                disabled={generating || !computed.hasData}
+                className="w-full bg-[var(--primary)] text-white py-4 rounded-xl font-bold shadow-lg shadow-purple-500/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
             >
-                {generating ? (
-                    <>
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Generando... {generatingProgress}%</span>
-                    </>
-                ) : (
-                    <>
-                        <Download size={22} />
-                        Descargar PDF
-                    </>
+                <div className="relative z-10 flex items-center justify-center gap-2">
+                    {generating ? (
+                        <>
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <span>Generando... {progress}%</span>
+                        </>
+                    ) : (
+                        <>
+                            <Download size={20} /> Descargar Reporte PDF
+                        </>
+                    )}
+                </div>
+
+                {generating && (
+                    <div
+                        className="absolute left-0 top-0 bottom-0 bg-white/20 transition-all duration-300 ease-out"
+                        style={{ width: `${progress}%` }}
+                    />
                 )}
             </button>
+        </div>
+    );
+}
 
-            {/* Progress Bar */}
-            {generating && generatingProgress > 0 && (
-                <div className="bg-[var(--bg-card)] rounded-xl p-3">
-                    <div className="h-2 bg-[var(--bg-dark)] rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-gradient-to-r from-[var(--primary)] to-purple-500 rounded-full transition-all duration-300"
-                            style={{ width: `${generatingProgress}%` }}
-                        />
-                    </div>
-                </div>
-            )}
+// Small UI Components
+function StatBox({ val, label, color = "text-white", isDelta }) {
+    let displayVal = val;
+    let finalColor = color;
+
+    if (isDelta && val !== null) {
+        displayVal = `${val > 0 ? '+' : ''}${val}`;
+        finalColor = val > 0 ? 'text-green-400' : val < 0 ? 'text-red-400' : 'text-gray-400';
+    } else if (val === null || val === undefined) {
+        displayVal = '--';
+    }
+
+    return (
+        <div className="bg-[var(--bg-dark)] rounded-lg p-2 text-center border border-[var(--border)]">
+            <p className={`text-lg font-bold ${finalColor}`}>{displayVal}</p>
+            <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider">{label}</p>
         </div>
     );
 }

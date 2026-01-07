@@ -58,13 +58,29 @@ model WorkoutLog     # Registro de sesión (fecha + ejercicio)
 model SetLog         # Series individuales (peso, reps, RPE)
 model PersonalRecord # PRs automáticos por ejercicio
 model RestLog        # Días de descanso chequeados
-model BodyLog        # Peso corporal + fotos de progreso
+model BodyLog        # Peso corporal + composición corporal + fotos de progreso
 ```
+
+### Campos de BodyLog (Composición Corporal)
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `weight` | Float? | Peso en kg |
+| `photo` | String? @db.Text | Foto de progreso en base64 |
+| `note` | String? | Notas del día |
+| `bmi` | Float? | IMC (Índice de Masa Corporal) |
+| `bodyFat` | Float? | Grasa corporal % |
+| `muscleMass` | Float? | Masa muscular kg |
+| `bmr` | Float? | Tasa metabólica basal kcal/d |
+| `bodyWater` | Float? | Agua corporal % |
+| `visceralFat` | Float? | Grasa visceral (nivel 1-59) |
+| `boneMass` | Float? | Masa ósea kg |
+| `protein` | Float? | Proteínas % |
 
 ### Relaciones Importantes
 - `Routine → RoutineDay → Exercise → WorkoutLog → SetLog`
 - `Exercise.name` se normaliza para comparar PRs
 - `BodyLog.photo` almacena imágenes en base64 (comprimidas en cliente)
+- Los campos de composición corporal son **opcionales** (báscula inteligente)
 
 ---
 
@@ -76,7 +92,7 @@ model BodyLog        # Peso corporal + fotos de progreso
 |---------|-----------|
 | `pages/Dashboard.jsx` | Vista principal, calendar heatmap, stats rápidos |
 | `pages/Progress.jsx` | Gráficas de evolución por ejercicio, PRs, análisis muscular |
-| `pages/BodyTracking.jsx` | Registro peso corporal + fotos de progreso |
+| `pages/BodyTracking.jsx` | Composición corporal completa (peso, IMC, grasa, músculo, BMR, agua, etc.) + fotos de progreso + gráficas de evolución |
 | `pages/ExportReport.jsx` | Generación de PDF profesional con jspdf + autotable |
 | `pages/Routines.jsx` | Lista de rutinas, importación JSON, activar rutina |
 | `pages/RoutineDetail.jsx` | Vista de día de rutina, registro de sets, ghost mode |
@@ -116,8 +132,9 @@ model BodyLog        # Peso corporal + fotos de progreso
 - `GET /api/stats/exercise/:name/progress` - Evolución de ejercicio
 
 ### Body Tracking
-- `GET /api/body/logs?limit=30` - Registros corporales
-- `POST /api/body/log` - Crear registro (peso + foto opcional)
+- `GET /api/body/logs?limit=30` - Registros corporales (peso + composición corporal)
+- `GET /api/body/photos` - Fotos de progreso (sin foto=null)
+- `POST /api/body/log` - Crear registro (peso + composición corporal + foto opcional)
 
 ---
 
@@ -191,12 +208,16 @@ model BodyLog        # Peso corporal + fotos de progreso
 4. Se genera PDF con jspdf + autotable
 5. Se descarga automáticamente
 
-### Tracking Corporal
+### Tracking Corporal (Composición Corporal)
 1. Usuario va a BodyTracking
-2. Registra peso del día
-3. Opcionalmente sube foto (se comprime)
-4. Datos aparecen en gráfica de evolución
-5. En PDF aparecen si hay 2+ fotos en el período
+2. Ve estadísticas actuales: peso, IMC, grasa corporal, masa muscular
+3. Registra peso del día (campo obligatorio)
+4. Opcionalmente expande "Datos de báscula inteligente" para:
+   - IMC, grasa %, masa muscular, metabolismo basal, agua corporal, grasa visceral, masa ósea, proteína
+5. Opcionalmente sube foto de progreso (se comprime automáticamente)
+6. Datos aparecen en gráficas con tabs (Peso | Grasa | Músculo)
+7. Historial reciente en tabla con todas las métricas
+8. Galería de fotos de progreso accesible
 
 ---
 
@@ -249,6 +270,21 @@ El usuario ha indicado que no quiere que la IA ejecute tests automáticos. La ve
 ---
 
 ## 📋 Changelog Reciente (Enero 2026)
+
+### v1.4.0 - Body Composition System & Export Improvements
+- ✅ **BodyTracking.jsx:** Reescritura completa con sistema de composición corporal
+  - Campos de báscula inteligente: IMC, grasa corporal, masa muscular, BMR, agua corporal, grasa visceral, masa ósea, proteína
+  - UI con tarjetas de estadísticas (4 cards grid: peso, IMC, grasa, músculo)
+  - Sección expandible "Datos de báscula inteligente"
+  - Gráficas con tabs (Peso | Grasa | Músculo)
+  - Tabla de historial reciente con todas las métricas
+  - Galería de fotos de progreso con modal
+  - Helpers: `getBMIRange()`, `calculateChange()`
+- ✅ **Schema Prisma:** Nuevos campos en BodyLog (bmi, bodyFat, muscleMass, bmr, bodyWater, visceralFat, boneMass, protein)
+- ✅ **API:** Nuevo endpoint GET /api/body/photos para fotos de progreso
+- ✅ **ExportReport.jsx:** Integración de datos de composición corporal en PDF
+- ✅ **Dashboard.jsx:** Mejoras de UI/UX y presentación de estadísticas
+- ✅ **Progress.jsx:** Mejoras en gráficas y selector de años dinámico
 
 ### v1.3.0 - Bug Fixes & Improvements
 - ✅ **Workout.jsx:** Sistema de persistencia con localStorage (evita pérdida de datos)

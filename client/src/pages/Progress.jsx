@@ -1,16 +1,17 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    TrendingUp, Calendar, Trophy, Dumbbell,
-    ChevronDown, ChevronRight, Activity, CheckCircle, Search, FileText, Loader2
+    TrendingUp, Calendar, Trophy, Dumbbell, ChevronDown, ChevronRight, Activity,
+    CheckCircle, Search, FileText, Loader2, Flame, X, Clock
 } from 'lucide-react';
-
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, CartesianGrid } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, CartesianGrid, Area, AreaChart } from 'recharts';
 import { api } from '../services/api';
+import { useToast } from '../components/ui/Toast';
 
 // ==========================================
-// MUSCLE CLASSIFICATION CONSTANTS
+// CONSTANTS & UTILITIES
 // ==========================================
+
 const MUSCLE_KEYWORDS = {
     'Pecho': ['press', 'aperturas', 'fondos', 'peck', 'crossover', 'contractor'],
     'Espalda': ['dominadas', 'remo', 'jalon', 'jalón', 'pullover', 'face pull', 't-bar'],
@@ -21,12 +22,17 @@ const MUSCLE_KEYWORDS = {
     'Core': ['plancha', 'crunch', 'abdominales', 'rueda', 'hanging']
 };
 
-/**
- * Determines muscle group based on exercise name or database value
- * @param {string} exerciseName - Name of the exercise
- * @param {string} dbMuscle - Muscle group from database (takes priority)
- * @returns {string} Muscle group classification
- */
+const MUSCLE_COLORS = {
+    'Pecho': { bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/30', hex: '#3b82f6' },
+    'Espalda': { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30', hex: '#10b981' },
+    'Hombros': { bg: 'bg-orange-500/20', text: 'text-orange-400', border: 'border-orange-500/30', hex: '#f59e0b' },
+    'Bíceps': { bg: 'bg-purple-500/20', text: 'text-purple-400', border: 'border-purple-500/30', hex: '#8b5cf6' },
+    'Tríceps': { bg: 'bg-pink-500/20', text: 'text-pink-400', border: 'border-pink-500/30', hex: '#ec4899' },
+    'Piernas': { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30', hex: '#ef4444' },
+    'Core': { bg: 'bg-cyan-500/20', text: 'text-cyan-400', border: 'border-cyan-500/30', hex: '#06b6d4' },
+    'Otros': { bg: 'bg-gray-500/20', text: 'text-gray-400', border: 'border-gray-500/30', hex: '#6b7280' }
+};
+
 function getMuscleGroup(exerciseName, dbMuscle) {
     if (dbMuscle) return dbMuscle;
     const name = exerciseName.toLowerCase();
@@ -36,77 +42,34 @@ function getMuscleGroup(exerciseName, dbMuscle) {
     return 'Otros';
 }
 
-/**
- * Safely converts Date object to YYYY-MM-DD string in local timezone
- * @param {Date} dateObj - Date object to convert
- * @returns {string} ISO date string (YYYY-MM-DD)
- */
 function getLocalDateStr(dateObj) {
     return dateObj.toLocaleDateString('en-CA');
 }
 
+function getRelativeTime(date) {
+    const now = new Date();
+    const diff = Math.floor((now - new Date(date)) / (1000 * 60 * 60 * 24));
+    if (diff === 0) return 'Hoy';
+    if (diff === 1) return 'Ayer';
+    if (diff < 7) return `Hace ${diff} días`;
+    if (diff < 30) return `Hace ${Math.floor(diff / 7)} sem`;
+    if (diff < 365) return `Hace ${Math.floor(diff / 30)} mes${Math.floor(diff / 30) > 1 ? 'es' : ''}`;
+    return `Hace ${Math.floor(diff / 365)} año${Math.floor(diff / 365) > 1 ? 's' : ''}`;
+}
+
 // ==========================================
-// MAIN COMPONENT
+// CUSTOM HOOKS
 // ==========================================
-export default function Progress() {
-    // Data State
-    const [stats, setStats] = useState(null);
-    const [consistency, setConsistency] = useState({});
-    const [prs, setPRs] = useState([]);
-    const [exercises, setExercises] = useState([]);
-    const [exerciseProgress, setExerciseProgress] = useState([]);
 
-    // UI State
-    const [selectedExercise, setSelectedExercise] = useState('');
-    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-    const [loading, setLoading] = useState(true);
-    const [loadingProgress, setLoadingProgress] = useState(false);
-    const [activeTab, setActiveTab] = useState('overview');
-    const [prSearch, setPrSearch] = useState('');
-    const [showAllPRs, setShowAllPRs] = useState(false);
-    const [exerciseSearch, setExerciseSearch] = useState('');
-    const [showMuscleDropdown, setShowMuscleDropdown] = useState(false);
-    const [expandedMuscle, setExpandedMuscle] = useState(null);
+function useProgressData() {
+    const [dataState, setDataState] = useState({
+        stats: null,
+        consistency: {},
+        prs: [],
+        exercises: [],
+        loading: true
+    });
 
-    // Refs
-    const dropdownRef = useRef(null);
-
-    // Dynamic years based on actual data
-    const years = useMemo(() => {
-        if (Object.keys(consistency).length === 0) {
-            return [new Date().getFullYear()];
-        }
-
-        const yearsWithData = Object.keys(consistency)
-            .map(dateStr => parseInt(dateStr.split('-')[0]))
-            .filter((year, index, arr) => arr.indexOf(year) === index)
-            .sort((a, b) => b - a);
-
-        const currentYear = new Date().getFullYear();
-
-        if (!yearsWithData.includes(currentYear)) {
-            yearsWithData.unshift(currentYear);
-        }
-
-        return yearsWithData.slice(0, 5);
-    }, [consistency]);
-
-    // Close dropdown on click outside
-    useEffect(() => {
-        function handleClickOutside(e) {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowMuscleDropdown(false);
-                setExpandedMuscle(null);
-            }
-        }
-
-        if (showMuscleDropdown) {
-            document.addEventListener('mousedown', handleClickOutside);
-            return () => document.removeEventListener('mousedown', handleClickOutside);
-        }
-    }, [showMuscleDropdown]);
-
-    // Fetch all data on mount with cleanup
     useEffect(() => {
         let isMounted = true;
 
@@ -121,22 +84,16 @@ export default function Progress() {
 
                 if (!isMounted) return;
 
-                setStats(statsData);
-
-                // Process consistency events into date map
-                const map = {};
+                const consistencyMap = {};
                 if (consistencyRes.events) {
                     consistencyRes.events.forEach(dateStr => {
                         const localDate = getLocalDateStr(new Date(dateStr));
-                        map[localDate] = (map[localDate] || 0) + 1;
+                        consistencyMap[localDate] = (consistencyMap[localDate] || 0) + 1;
                     });
                 } else {
-                    Object.assign(map, consistencyRes);
+                    Object.assign(consistencyMap, consistencyRes);
                 }
-                setConsistency(map);
-                setPRs(prsData);
 
-                // Extract unique exercises from all routines
                 const allExercises = [];
                 const seen = new Set();
                 routinesData.forEach(r => r.days.forEach(d => {
@@ -147,74 +104,197 @@ export default function Progress() {
                         }
                     });
                 }));
-                setExercises(allExercises);
 
-                // Auto-select first exercise if none selected
-                if (allExercises.length > 0 && !selectedExercise) {
-                    setSelectedExercise(allExercises[0].name);
-                }
+                setDataState({
+                    stats: statsData,
+                    consistency: consistencyMap,
+                    prs: prsData,
+                    exercises: allExercises,
+                    loading: false
+                });
             } catch (error) {
                 if (isMounted) {
                     console.error('Error fetching data:', error);
-                    // TODO: toast.error('Error al cargar datos. Intenta recargar.')
-                }
-            } finally {
-                if (isMounted) {
-                    setLoading(false);
+                    setDataState(prev => ({ ...prev, loading: false }));
                 }
             }
         }
 
         fetchAllData();
-
-        return () => {
-            isMounted = false;
-        };
+        return () => { isMounted = false; };
     }, []);
 
-    // Fetch exercise progress with abort controller
+    return dataState;
+}
+
+function useExerciseProgress(exerciseName) {
+    const [progress, setProgress] = useState([]);
+    const [loading, setLoading] = useState(false);
+
     useEffect(() => {
-        if (!selectedExercise) return;
+        if (!exerciseName) return;
 
         const abortController = new AbortController();
-        setLoadingProgress(true);
+        setLoading(true);
 
         async function fetchProgress() {
             try {
-                const data = await api.getExerciseProgress(selectedExercise);
-
+                const data = await api.getExerciseProgress(exerciseName);
                 if (abortController.signal.aborted) return;
 
-                setExerciseProgress(data.map(d => ({
+                setProgress(data.map(d => ({
                     ...d,
                     displayDate: new Date(d.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
                     fullDate: new Date(d.date).toLocaleDateString('es-ES')
                 })));
             } catch (error) {
-                if (error.name === 'AbortError') return;
-                console.error('Error fetching exercise progress:', error);
-                // TODO: toast.error('Error al cargar progreso del ejercicio')
+                if (error.name !== 'AbortError') {
+                    console.error('Error fetching progress:', error);
+                }
             } finally {
                 if (!abortController.signal.aborted) {
-                    setLoadingProgress(false);
+                    setLoading(false);
                 }
             }
         }
 
         fetchProgress();
+        return () => abortController.abort();
+    }, [exerciseName]);
 
-        return () => {
-            abortController.abort();
-        };
-    }, [selectedExercise]);
+    return { progress, loading };
+}
 
-    // ==========================================
-    // MEMOIZED CALCULATIONS
-    // ==========================================
+// ==========================================
+// UI COMPONENTS
+// ==========================================
 
-    /**
-     * Groups exercises by muscle group for organized display
-     */
+function SkeletonCard() {
+    return (
+        <div className="bg-[var(--bg-card)] rounded-xl p-4 animate-pulse">
+            <div className="h-5 bg-[var(--bg-dark)] rounded w-3/4 mb-3" />
+            <div className="h-8 bg-[var(--bg-dark)] rounded w-1/2" />
+        </div>
+    );
+}
+
+function StatCard({ icon: Icon, value, label, color, trend }) {
+    return (
+        <div className="bg-[var(--bg-card)]/80 backdrop-blur-md rounded-xl p-4 text-center border border-[var(--border)] hover:border-[var(--primary)]/30 transition-all">
+            <div
+                className="w-11 h-11 mx-auto rounded-full flex items-center justify-center mb-2"
+                style={{ backgroundColor: `${color}20`, boxShadow: `0 0 15px ${color}25` }}
+            >
+                <Icon size={22} style={{ color }} />
+            </div>
+            <p className="text-2xl font-bold">{value}</p>
+            <p className="text-[10px] uppercase tracking-wide text-[var(--text-secondary)]">{label}</p>
+        </div>
+    );
+}
+
+function ProgressBar({ compliance }) {
+    const percentage = compliance.complianceRate;
+
+    return (
+        <div className="space-y-3">
+            {/* Stats Row */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="text-center">
+                        <p className="text-2xl font-bold text-green-400">{compliance.daysWithWorkout}</p>
+                        <p className="text-[10px] text-[var(--text-secondary)] uppercase">Días activos</p>
+                    </div>
+                    <div className="w-px h-10 bg-[var(--border)]" />
+                    <div className="text-center">
+                        <p className="text-2xl font-bold text-[var(--text-secondary)]">{30 - compliance.daysWithWorkout}</p>
+                        <p className="text-[10px] text-[var(--text-secondary)] uppercase">INACTIVOS</p>
+                    </div>
+                </div>
+                <div className="text-right">
+                    <p className="text-3xl font-bold">{percentage}%</p>
+                    <p className="text-[10px] text-[var(--text-secondary)] uppercase">Cumplimiento</p>
+                </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="relative h-4 bg-[var(--bg-dark)] rounded-full overflow-hidden">
+                <div
+                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-[var(--primary)] to-green-500 rounded-full transition-all duration-1000"
+                    style={{ width: `${percentage}%` }}
+                />
+                {/* Goal marker at 80% */}
+                <div
+                    className="absolute inset-y-0 w-0.5 bg-white/30"
+                    style={{ left: '80%' }}
+                    title="Meta: 80%"
+                />
+            </div>
+
+            {/* Labels */}
+            <div className="flex justify-between text-[9px] text-[var(--text-secondary)]">
+                <span>0%</span>
+                <span className="text-[var(--primary)]">Meta 80%</span>
+                <span>100%</span>
+            </div>
+        </div>
+    );
+}
+
+function HeatmapCalendar({ days }) {
+    // Reorganizar en semanas (7 columnas)
+    const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+    // Agrupar días en filas de 7 (como semanas)
+    const weeks = [];
+    for (let i = 0; i < days.length; i += 7) {
+        weeks.push(days.slice(i, i + 7));
+    }
+
+    // Función para obtener el color basado en intensidad
+    const getIntensityClass = (hasWorkout, count = 1) => {
+        if (!hasWorkout) return 'bg-[var(--bg-dark)]';
+        if (count >= 3) return 'bg-green-500 shadow-md shadow-green-500/40';
+        if (count >= 2) return 'bg-green-500/80';
+        return 'bg-green-500/60';
+    };
+
+    return (
+        <div className="space-y-1">
+            {/* Etiquetas de días */}
+            <div className="grid grid-cols-7 gap-1 mb-1">
+                {DAY_LABELS.map(label => (
+                    <span key={label} className="text-[9px] text-center text-[var(--text-secondary)] font-medium">
+                        {label}
+                    </span>
+                ))}
+            </div>
+
+            {/* Grid de semanas */}
+            {weeks.map((week, weekIdx) => (
+                <div key={weekIdx} className="grid grid-cols-7 gap-1">
+                    {week.map((day, dayIdx) => (
+                        <div
+                            key={dayIdx}
+                            title={`${day.date}${day.hasWorkout ? ' ✓' : ''}`}
+                            className={`aspect-square rounded-md min-h-[32px] transition-all cursor-default ${getIntensityClass(day.hasWorkout)}`}
+                        />
+                    ))}
+                    {/* Rellenar celdas vacías si la última semana está incompleta */}
+                    {week.length < 7 && Array.from({ length: 7 - week.length }).map((_, i) => (
+                        <div key={`empty-${i}`} className="aspect-square rounded-md min-h-[32px] opacity-0" />
+                    ))}
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function ExerciseSelector({ exercises, selected, onSelect, loading }) {
+    const [showModal, setShowModal] = useState(false);
+    const [search, setSearch] = useState('');
+    const [expandedMuscle, setExpandedMuscle] = useState(null);
+
     const exercisesByMuscle = useMemo(() => {
         return exercises.reduce((acc, ex) => {
             const muscle = getMuscleGroup(ex.name, ex.muscleGroup);
@@ -224,47 +304,228 @@ export default function Progress() {
         }, {});
     }, [exercises]);
 
-    /**
-     * Filters exercises by search query
-     */
-    const filteredExercisesByMuscle = useMemo(() => {
-        if (!exerciseSearch) return exercisesByMuscle;
-
+    const filteredByMuscle = useMemo(() => {
+        if (!search) return exercisesByMuscle;
         return Object.entries(exercisesByMuscle).reduce((acc, [muscle, exs]) => {
-            const filtered = exs.filter(e =>
-                e.name.toLowerCase().includes(exerciseSearch.toLowerCase())
-            );
+            const filtered = exs.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
             if (filtered.length > 0) acc[muscle] = filtered;
             return acc;
         }, {});
-    }, [exercisesByMuscle, exerciseSearch]);
+    }, [exercisesByMuscle, search]);
 
-    /**
-     * Groups personal records by muscle group
-     */
-    const prsByMuscle = useMemo(() => {
-        return prs.reduce((acc, pr) => {
-            const muscle = getMuscleGroup(pr.exerciseName, null);
-            if (!acc[muscle]) acc[muscle] = [];
-            acc[muscle].push(pr);
-            return acc;
-        }, {});
-    }, [prs]);
+    function handleSelect(name) {
+        onSelect(name);
+        // Save to localStorage
+        localStorage.setItem('nexlift_lastExercise', name);
+        setShowModal(false);
+        setSearch('');
+        setExpandedMuscle(null);
+    }
 
-    /**
-     * Filters PRs based on search query or shows configurable amount
-     */
-    const displayedPRs = useMemo(() => {
-        const filtered = prSearch
-            ? prs.filter(pr => pr.exerciseName.toLowerCase().includes(prSearch.toLowerCase()))
-            : prs;
+    return (
+        <>
+            <button
+                onClick={() => setShowModal(true)}
+                className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl px-4 py-3.5 flex items-center justify-between hover:border-[var(--primary)]/50 transition-all"
+            >
+                <span className="font-medium truncate pr-2 text-sm">{selected || 'Seleccionar ejercicio'}</span>
+                {loading ? (
+                    <Loader2 size={18} className="text-[var(--primary)] animate-spin" />
+                ) : (
+                    <ChevronDown size={18} className="text-[var(--text-secondary)]" />
+                )}
+            </button>
 
-        return showAllPRs ? filtered : filtered.slice(0, 5);
-    }, [prs, prSearch, showAllPRs]);
+            {showModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end animate-fade-in" onClick={() => setShowModal(false)}>
+                    <div className="bg-[var(--bg-card)] w-full max-h-[80vh] rounded-t-3xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b border-[var(--border)] sticky top-0 bg-[var(--bg-card)] z-10">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-bold text-lg">Seleccionar Ejercicio</h3>
+                                <button onClick={() => setShowModal(false)} className="w-9 h-9 flex items-center justify-center hover:bg-[var(--bg-dark)] rounded-lg">
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <div className="relative">
+                                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+                                <input
+                                    type="text"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    placeholder="Buscar ejercicio..."
+                                    autoFocus
+                                    className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl pl-10 pr-4 py-3 focus:border-[var(--primary)] outline-none"
+                                />
+                            </div>
+                        </div>
 
-    /**
-     * Calculates compliance statistics for last 30 days
-     */
+                        <div className="overflow-y-auto p-4 space-y-2">
+                            {Object.entries(filteredByMuscle).map(([muscle, muscleExercises]) => {
+                                const colors = MUSCLE_COLORS[muscle] || MUSCLE_COLORS['Otros'];
+                                return (
+                                    <div key={muscle} className="bg-[var(--bg-dark)] rounded-xl overflow-hidden">
+                                        <button
+                                            onClick={() => setExpandedMuscle(expandedMuscle === muscle ? null : muscle)}
+                                            className="w-full p-4 flex items-center justify-between hover:bg-[var(--border)]/50 transition-colors min-h-[56px]"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${colors.bg}`}>
+                                                    <Dumbbell size={18} className={colors.text} />
+                                                </div>
+                                                <div className="text-left">
+                                                    <p className="font-semibold">{muscle}</p>
+                                                    <p className="text-xs text-[var(--text-secondary)]">{muscleExercises.length} ejercicios</p>
+                                                </div>
+                                            </div>
+                                            <ChevronDown size={18} className={`transition-transform ${expandedMuscle === muscle ? 'rotate-180' : ''}`} />
+                                        </button>
+
+                                        {expandedMuscle === muscle && (
+                                            <div className="px-4 pb-4 space-y-1 animate-fade-in">
+                                                {muscleExercises.map(ex => (
+                                                    <button
+                                                        key={ex.name}
+                                                        onClick={() => handleSelect(ex.name)}
+                                                        className={`w-full text-left px-4 py-3 rounded-lg transition-all min-h-[44px] ${selected === ex.name
+                                                            ? 'bg-[var(--primary)] text-white font-medium'
+                                                            : 'hover:bg-[var(--border)] text-[var(--text-secondary)]'
+                                                            }`}
+                                                    >
+                                                        {ex.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                            {Object.keys(filteredByMuscle).length === 0 && (
+                                <div className="text-center py-12">
+                                    <Search size={48} className="mx-auto text-[var(--text-secondary)] opacity-30 mb-4" />
+                                    <p className="text-[var(--text-secondary)]">No se encontraron ejercicios</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+}
+
+function PRCard({ pr, rank }) {
+    const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+    const isTop3 = rank <= 3;
+    const muscle = getMuscleGroup(pr.exerciseName, null);
+    const colors = MUSCLE_COLORS[muscle] || MUSCLE_COLORS['Otros'];
+
+    return (
+        <div className={`relative bg-[var(--bg-card)] rounded-xl p-4 border transition-all hover:border-[var(--primary)]/30 ${isTop3
+            ? 'border-yellow-500/30 shadow-lg shadow-yellow-500/10'
+            : 'border-[var(--border)]'
+            }`}>
+            {/* Medal Badge */}
+            {isTop3 && (
+                <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-sm shadow-lg">
+                    {medals[rank]}
+                </div>
+            )}
+
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                    {/* Exercise Name + Muscle Chip */}
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <p className="font-semibold text-sm truncate">{pr.exerciseName}</p>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded border ${colors.bg} ${colors.text} ${colors.border}`}>
+                            {muscle}
+                        </span>
+                    </div>
+                    {/* Relative Time */}
+                    <div className="flex items-center gap-1 text-[var(--text-secondary)]">
+                        <Clock size={12} />
+                        <span className="text-xs">{getRelativeTime(pr.date)}</span>
+                    </div>
+                </div>
+
+                {/* Weight & Reps */}
+                <div className="text-right shrink-0">
+                    <p className="text-xl font-bold text-[var(--primary)]">{pr.weight}kg</p>
+                    <p className="text-xs text-[var(--text-secondary)] font-mono">× {pr.reps} reps</p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Custom Chart Tooltip
+function CustomTooltip({ active, payload, label }) {
+    if (!active || !payload?.[0]) return null;
+    const data = payload[0].payload;
+    return (
+        <div className="bg-[var(--bg-card)] border-2 border-[var(--primary)] rounded-xl p-3 shadow-2xl">
+            <p className="text-xs text-[var(--text-secondary)] mb-1">{data.fullDate || label}</p>
+            <p className="font-bold text-[var(--primary)] text-lg">{data.maxWeight || data.sessions} {data.maxWeight ? 'kg' : 'sesiones'}</p>
+            {data.totalSets && (
+                <p className="text-xs text-[var(--text-secondary)] mt-1">
+                    {data.totalSets} series • {data.totalReps} reps
+                </p>
+            )}
+        </div>
+    );
+}
+
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
+
+export default function Progress() {
+    const toast = useToast();
+    const { stats, consistency, prs, exercises, loading } = useProgressData();
+
+    const [uiState, setUIState] = useState({
+        activeTab: 'overview',
+        showAllPRs: false,
+        expandedMuscle: null
+    });
+
+    const [filtersState, setFiltersState] = useState({
+        selectedExercise: localStorage.getItem('nexlift_lastExercise') || '',
+        selectedYear: new Date().getFullYear(),
+        prSearch: ''
+    });
+
+    const { progress: exerciseProgress, loading: loadingProgress } = useExerciseProgress(filtersState.selectedExercise);
+
+    // Auto-select first exercise if none saved
+    useEffect(() => {
+        if (exercises.length > 0 && !filtersState.selectedExercise) {
+            const saved = localStorage.getItem('nexlift_lastExercise');
+            const validExercise = saved && exercises.find(e => e.name === saved);
+            setFiltersState(prev => ({
+                ...prev,
+                selectedExercise: validExercise ? saved : exercises[0].name
+            }));
+        }
+    }, [exercises, filtersState.selectedExercise]);
+
+    // Dynamic years
+    const years = useMemo(() => {
+        if (Object.keys(consistency).length === 0) {
+            return [new Date().getFullYear()];
+        }
+        const yearsWithData = Object.keys(consistency)
+            .map(dateStr => parseInt(dateStr.split('-')[0]))
+            .filter((year, index, arr) => arr.indexOf(year) === index)
+            .sort((a, b) => b - a);
+
+        const currentYear = new Date().getFullYear();
+        if (!yearsWithData.includes(currentYear)) {
+            yearsWithData.unshift(currentYear);
+        }
+        return yearsWithData.slice(0, 5);
+    }, [consistency]);
+
+    // Compliance calculation with robust streak
     const compliance = useMemo(() => {
         const today = new Date();
         const last30Days = Array.from({ length: 30 }, (_, i) => {
@@ -274,27 +535,36 @@ export default function Progress() {
             return { date: dateStr, hasWorkout: (consistency[dateStr] || 0) > 0 };
         });
 
-        const daysWithWorkout = last30Days.reduce(
-            (sum, d) => sum + (d.hasWorkout ? 1 : 0),
-            0
-        );
+        const daysWithWorkout = last30Days.reduce((sum, d) => sum + (d.hasWorkout ? 1 : 0), 0);
+
+        // Robust streak calculation (consecutive days from today or yesterday)
+        let streak = 0;
+        for (let i = last30Days.length - 1; i >= 0; i--) {
+            if (last30Days[i].hasWorkout) {
+                streak++;
+            } else if (i === last30Days.length - 1) {
+                // Today has no workout, check if streak continues from yesterday
+                continue;
+            } else {
+                break;
+            }
+        }
 
         return {
             daysWithWorkout,
             complianceRate: Math.round((daysWithWorkout / 30) * 100),
-            last30Days
+            last30Days,
+            currentStreak: streak
         };
     }, [consistency]);
 
-    /**
-     * Weekly data calculation with timezone-safe date comparisons
-     */
+    // Weekly data (memoized)
     const weeklyData = useMemo(() => {
         const weeks = [];
-        const yearStart = new Date(selectedYear, 0, 1);
+        const yearStart = new Date(filtersState.selectedYear, 0, 1);
         const today = new Date();
 
-        if (selectedYear > today.getFullYear()) return [];
+        if (filtersState.selectedYear > today.getFullYear()) return [];
 
         for (let w = 0; w < 52; w++) {
             const weekStart = new Date(yearStart);
@@ -302,7 +572,7 @@ export default function Progress() {
             const weekEnd = new Date(weekStart);
             weekEnd.setDate(weekEnd.getDate() + 6);
 
-            if (selectedYear === today.getFullYear() && weekStart > today) break;
+            if (filtersState.selectedYear === today.getFullYear() && weekStart > today) break;
 
             const weekStartStr = getLocalDateStr(weekStart);
             const weekEndStr = getLocalDateStr(weekEnd);
@@ -317,29 +587,52 @@ export default function Progress() {
             weeks.push({ week: `S${w + 1}`, sessions: count });
         }
         return weeks;
-    }, [consistency, selectedYear]);
+    }, [consistency, filtersState.selectedYear]);
 
-    /**
-     * Handles exercise selection from dropdown
-     * @param {string} name - Exercise name
-     */
-    function selectExercise(name) {
-        setSelectedExercise(name);
-        setShowMuscleDropdown(false);
-        setExpandedMuscle(null);
-        setExerciseSearch('');
-    }
+    // PRs by muscle (memoized)
+    const prsByMuscle = useMemo(() => {
+        return prs.reduce((acc, pr) => {
+            const muscle = getMuscleGroup(pr.exerciseName, null);
+            if (!acc[muscle]) acc[muscle] = [];
+            acc[muscle].push(pr);
+            return acc;
+        }, {});
+    }, [prs]);
+
+    // Filtered PRs
+    const displayedPRs = useMemo(() => {
+        const filtered = filtersState.prSearch
+            ? prs.filter(pr => pr.exerciseName.toLowerCase().includes(filtersState.prSearch.toLowerCase()))
+            : prs;
+        return uiState.showAllPRs ? filtered : filtered.slice(0, 5);
+    }, [prs, filtersState.prSearch, uiState.showAllPRs]);
+
+    // Chart Y-axis domain (critical for small variations)
+    const chartDomain = useMemo(() => {
+        if (exerciseProgress.length === 0) return ['auto', 'auto'];
+        const weights = exerciseProgress.map(d => d.maxWeight);
+        const min = Math.min(...weights);
+        const max = Math.max(...weights);
+        const padding = Math.max((max - min) * 0.15, 2);
+        return [Math.floor(min - padding), Math.ceil(max + padding)];
+    }, [exerciseProgress]);
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-[60vh]">
-                <div className="w-10 h-10 border-3 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+            <div className="space-y-6 max-w-lg mx-auto pb-20 px-4">
+                <div className="h-16 bg-[var(--bg-card)] rounded-xl animate-pulse" />
+                <div className="grid grid-cols-3 gap-3">
+                    <SkeletonCard />
+                    <SkeletonCard />
+                    <SkeletonCard />
+                </div>
+                <SkeletonCard />
             </div>
         );
     }
 
     return (
-        <div className="space-y-6 animate-fade-in max-w-lg mx-auto pb-20">
+        <div className="space-y-5 animate-fade-in max-w-lg mx-auto pb-24">
             {/* Header */}
             <div className="flex items-start justify-between">
                 <div>
@@ -348,285 +641,166 @@ export default function Progress() {
                 </div>
                 <Link
                     to="/export"
-                    className="flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border)] px-4 py-2 rounded-lg text-sm hover:text-[var(--primary)] hover:border-[var(--primary)] transition-all active:scale-95"
+                    className="flex items-center gap-2 bg-[var(--primary)] px-4 py-2.5 rounded-xl text-sm font-medium text-white shadow-lg shadow-purple-900/30 active:scale-95 transition-all"
                 >
                     <FileText size={16} />
-                    <span>PDF</span>
+                    PDF
                 </Link>
             </div>
 
             {/* Tabs */}
-            <div role="tablist" className="flex gap-1 bg-[var(--bg-card)] p-1 rounded-xl">
-                {[
-                    { id: 'overview', label: 'General', icon: Activity },
-                    { id: 'muscles', label: 'Músculos', icon: Dumbbell },
-                    { id: 'yearly', label: 'Anual', icon: Calendar }
-                ].map(tab => (
-                    <button
-                        key={tab.id}
-                        role="tab"
-                        aria-selected={activeTab === tab.id}
-                        aria-controls={`${tab.id}-panel`}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`flex-1 py-2.5 px-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${activeTab === tab.id
-                            ? 'bg-[var(--primary)] text-white shadow-lg'
-                            : 'text-[var(--text-secondary)] hover:text-white'
-                            }`}
-                    >
-                        <tab.icon size={16} />
-                        {tab.label}
-                    </button>
-                ))}
+            <div className="bg-[var(--bg-dark)] p-1 rounded-xl">
+                <div className="flex gap-1">
+                    {[
+                        { id: 'overview', label: 'General', icon: Activity },
+                        { id: 'muscles', label: 'Músculos', icon: Dumbbell },
+                        { id: 'yearly', label: 'Anual', icon: Calendar }
+                    ].map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setUIState(prev => ({ ...prev, activeTab: tab.id }))}
+                            className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${uiState.activeTab === tab.id
+                                ? 'bg-[var(--primary)] text-white shadow-lg shadow-purple-900/30'
+                                : 'text-[var(--text-secondary)] hover:text-white'
+                                }`}
+                        >
+                            <tab.icon size={14} />
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* Overview Tab */}
-            {activeTab === 'overview' && (
-                <div id="overview-panel" role="tabpanel" className="space-y-5 animate-fade-in">
+            {uiState.activeTab === 'overview' && (
+                <div className="space-y-5 animate-fade-in">
                     {/* Quick Stats */}
-                    <div className="grid grid-cols-3 gap-3">
-                        <div className="bg-[var(--bg-card)] rounded-xl p-4 text-center hover:bg-[var(--bg-card-hover)] transition-colors">
-                            <TrendingUp size={20} className="mx-auto text-[var(--primary)] mb-2" />
-                            <p className="text-xl font-bold">{stats?.totalWorkouts || 0}</p>
-                            <p className="text-xs text-[var(--text-secondary)] mt-1">Sesiones</p>
-                        </div>
-                        <div className="bg-[var(--bg-card)] rounded-xl p-4 text-center hover:bg-[var(--bg-card-hover)] transition-colors">
-                            <Trophy size={20} className="mx-auto text-yellow-500 mb-2" />
-                            <p className="text-xl font-bold">{prs.length}</p>
-                            <p className="text-xs text-[var(--text-secondary)] mt-1">PRs</p>
-                        </div>
-                        <div className="bg-[var(--bg-card)] rounded-xl p-4 text-center hover:bg-[var(--bg-card-hover)] transition-colors">
-                            <CheckCircle size={20} className="mx-auto text-green-500 mb-2" />
-                            <p className="text-xl font-bold">{compliance.complianceRate}%</p>
-                            <p className="text-xs text-[var(--text-secondary)] mt-1">Cumplimiento</p>
-                        </div>
+                    <div className="grid grid-cols-3 gap-2">
+                        <StatCard icon={TrendingUp} value={stats?.totalWorkouts || 0} label="Sesiones" color="#8b5cf6" />
+                        <StatCard icon={Trophy} value={prs.length} label="PRs" color="#eab308" />
+                        <StatCard icon={CheckCircle} value={`${compliance.complianceRate}%`} label="Cumplimiento" color="#10b981" />
                     </div>
 
                     {/* Compliance Card */}
-                    <div className="bg-[var(--bg-card)] rounded-xl p-4">
-                        <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
-                            <Calendar size={18} className="text-[var(--primary)]" />
-                            Asistencia (últimos 30 días)
-                        </h3>
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="flex-1">
-                                <div className="flex justify-between text-xs mb-2">
-                                    <span className="text-[var(--text-secondary)]">Días entrenados</span>
-                                    <span className="font-bold">{compliance.daysWithWorkout}/30</span>
-                                </div>
-                                <div className="h-2.5 bg-[var(--bg-dark)] rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full bg-gradient-to-r from-[var(--primary)] to-green-500 rounded-full transition-all duration-500"
-                                        style={{ width: `${compliance.complianceRate}%` }}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                        {/* Mini calendar */}
-                        <div className="grid grid-cols-10 gap-1.5">
-                            {compliance.last30Days.map((day, i) => (
-                                <div
-                                    key={i}
-                                    role="gridcell"
-                                    aria-label={`${day.date}: ${day.hasWorkout ? 'Entrenado' : 'Sin entrenar'}`}
-                                    title={day.date}
-                                    className={`w-full aspect-square rounded-sm transition-all hover:scale-110 cursor-pointer ${day.hasWorkout
-                                        ? 'bg-green-500'
-                                        : 'bg-[var(--bg-dark)]'
-                                        }`}
-                                />
-                            ))}
-                        </div>
-                        <div className="flex justify-between text-[10px] text-[var(--text-secondary)] mt-2">
-                            <span>Hace 30 días</span>
-                            <span>Hoy</span>
-                        </div>
-                    </div>
-
-                    {/* Exercise Progress with Muscle Dropdown */}
-                    <div className="bg-[var(--bg-card)] rounded-xl p-4">
+                    <div className="bg-[var(--bg-card)]/80 backdrop-blur-md rounded-2xl p-5 border border-[var(--border)]">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-semibold text-sm flex items-center gap-2">
-                                <TrendingUp size={18} className="text-[var(--primary)]" />
-                                Progreso por Ejercicio
+                            <h3 className="font-bold flex items-center gap-2">
+                                <Calendar size={18} className="text-[var(--primary)]" />
+                                Asistencia (30 días)
                             </h3>
-                        </div>
-
-                        {/* Muscle Dropdown Button */}
-                        <div ref={dropdownRef}>
-                            <button
-                                onClick={() => setShowMuscleDropdown(!showMuscleDropdown)}
-                                aria-expanded={showMuscleDropdown}
-                                aria-haspopup="listbox"
-                                className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg px-4 py-3 mb-3 flex items-center justify-between text-left hover:border-[var(--primary)]/50 transition-all"
-                            >
-                                <span className="text-sm font-medium truncate pr-2">
-                                    {selectedExercise || 'Seleccionar ejercicio'}
-                                </span>
-                                <ChevronDown size={18} className={`text-[var(--text-secondary)] shrink-0 transition-transform ${showMuscleDropdown ? 'rotate-180' : ''}`} />
-                            </button>
-
-                            {/* Dropdown Content */}
-                            {showMuscleDropdown && (
-                                <div className="bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg mb-3 max-h-80 overflow-hidden animate-fade-in z-10 relative">
-                                    {/* Search Input */}
-                                    <div className="sticky top-0 bg-[var(--bg-dark)] border-b border-[var(--border)] p-2">
-                                        <div className="relative">
-                                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
-                                            <input
-                                                type="text"
-                                                placeholder="Buscar ejercicio..."
-                                                value={exerciseSearch}
-                                                onChange={(e) => setExerciseSearch(e.target.value)}
-                                                className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg pl-9 pr-3 py-2 text-sm focus:border-[var(--primary)] outline-none transition-colors"
-                                                onClick={(e) => e.stopPropagation()}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Scrollable content */}
-                                    <div className="overflow-y-auto max-h-60">
-                                        {Object.entries(filteredExercisesByMuscle).map(([muscle, muscleExercises]) => (
-                                            <div key={muscle}>
-                                                <button
-                                                    onClick={() => setExpandedMuscle(expandedMuscle === muscle ? null : muscle)}
-                                                    className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-[var(--border)] transition-colors border-b border-[var(--border)]"
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        <Dumbbell size={16} className="text-[var(--primary)]" />
-                                                        <span className="text-sm font-semibold">{muscle}</span>
-                                                        <span className="text-xs text-[var(--text-secondary)]">({muscleExercises.length})</span>
-                                                    </div>
-                                                    {expandedMuscle === muscle ? (
-                                                        <ChevronDown size={16} className="text-[var(--text-secondary)]" />
-                                                    ) : (
-                                                        <ChevronRight size={16} className="text-[var(--text-secondary)]" />
-                                                    )}
-                                                </button>
-
-                                                {expandedMuscle === muscle && (
-                                                    <div className="bg-[var(--bg-card)]/50">
-                                                        {muscleExercises.map(ex => (
-                                                            <button
-                                                                key={ex.name}
-                                                                onClick={() => selectExercise(ex.name)}
-                                                                className={`w-full text-left px-8 py-2.5 text-sm transition-all border-b border-[var(--border)] ${selectedExercise === ex.name
-                                                                    ? 'bg-[var(--primary)]/20 text-[var(--primary)] font-medium'
-                                                                    : 'text-[var(--text-secondary)] hover:bg-[var(--border)] hover:text-white'
-                                                                    }`}
-                                                            >
-                                                                {ex.name}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                        {Object.keys(filteredExercisesByMuscle).length === 0 && (
-                                            <p className="text-center text-[var(--text-secondary)] text-sm py-8">
-                                                No se encontraron ejercicios
-                                            </p>
-                                        )}
-                                    </div>
+                            {compliance.currentStreak > 0 && (
+                                <div className="flex items-center gap-1 bg-orange-500/20 px-2.5 py-1 rounded-full border border-orange-500/30">
+                                    <Flame size={14} className="text-orange-500" />
+                                    <span className="text-xs font-bold text-orange-500">{compliance.currentStreak} días</span>
                                 </div>
                             )}
                         </div>
 
-                        {/* Chart */}
-                        {loadingProgress ? (
-                            <div className="h-48 flex items-center justify-center bg-[var(--bg-dark)] rounded-lg">
-                                <Loader2 size={24} className="text-[var(--primary)] animate-spin" />
+                        <ProgressBar compliance={compliance} />
+
+                        <div className="mt-5">
+                            <HeatmapCalendar days={compliance.last30Days} />
+                            <div className="flex justify-between text-[10px] text-[var(--text-secondary)] mt-2 px-1">
+                                <span>Hace 30 días</span>
+                                <span>Hoy</span>
                             </div>
-                        ) : exerciseProgress.length > 0 ? (
-                            <div className="h-48 mt-2">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={exerciseProgress}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                                        <XAxis dataKey="displayDate" tick={{ fontSize: 10, fill: '#a1a1aa' }} />
-                                        <YAxis tick={{ fontSize: 10, fill: '#a1a1aa' }} domain={['auto', 'auto']} width={35} />
-                                        <Tooltip
-                                            content={({ active, payload }) => {
-                                                if (!active || !payload?.[0]) return null;
-                                                const data = payload[0].payload;
-                                                return (
-                                                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-3 shadow-xl">
-                                                        <p className="text-xs text-[var(--text-secondary)] mb-1">{data.fullDate}</p>
-                                                        <p className="font-bold text-[var(--primary)] text-base">{data.maxWeight} kg</p>
-                                                        {data.totalSets && (
-                                                            <p className="text-xs text-[var(--text-secondary)] mt-1">
-                                                                {data.totalSets} series • {data.totalReps} reps
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                );
-                                            }}
-                                        />
-                                        <Line
-                                            type="monotone"
-                                            dataKey="maxWeight"
-                                            stroke="#8b5cf6"
-                                            strokeWidth={3}
-                                            dot={{ fill: '#8b5cf6', r: 4 }}
-                                            name="Peso Máx"
-                                            activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }}
-                                        />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </div>
-                        ) : (
-                            <p className="text-center text-[var(--text-secondary)] py-12 text-sm bg-[var(--bg-dark)] rounded-lg">
-                                {selectedExercise ? 'Sin datos suficientes para gráfica' : 'Selecciona un ejercicio'}
-                            </p>
-                        )}
+                        </div>
                     </div>
 
-                    {/* Recent PRs / Search PRs */}
-                    <div className="bg-[var(--bg-card)] rounded-xl p-4">
-                        <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
+                    {/* Exercise Progress Chart */}
+                    <div className="bg-[var(--bg-card)]/80 backdrop-blur-md rounded-2xl p-5 border border-[var(--border)]">
+                        <h3 className="font-bold mb-4 flex items-center gap-2">
+                            <TrendingUp size={18} className="text-[var(--primary)]" />
+                            Progreso por Ejercicio
+                        </h3>
+
+                        <ExerciseSelector
+                            exercises={exercises}
+                            selected={filtersState.selectedExercise}
+                            onSelect={(name) => setFiltersState(prev => ({ ...prev, selectedExercise: name }))}
+                            loading={loadingProgress}
+                        />
+
+                        <div className="mt-4">
+                            {loadingProgress ? (
+                                <div className="h-48 flex items-center justify-center bg-[var(--bg-dark)] rounded-xl">
+                                    <Loader2 size={32} className="text-[var(--primary)] animate-spin" />
+                                </div>
+                            ) : exerciseProgress.length > 0 ? (
+                                <div className="h-48">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={exerciseProgress}>
+                                            <defs>
+                                                <linearGradient id="colorWeight" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                                                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                                            <XAxis dataKey="displayDate" tick={{ fontSize: 10, fill: '#71717a' }} tickLine={false} axisLine={false} />
+                                            <YAxis domain={chartDomain} tick={{ fontSize: 10, fill: '#71717a' }} width={35} tickLine={false} axisLine={false} />
+                                            <Tooltip content={<CustomTooltip />} />
+                                            <Area
+                                                type="monotone"
+                                                dataKey="maxWeight"
+                                                stroke="#8b5cf6"
+                                                strokeWidth={2.5}
+                                                fill="url(#colorWeight)"
+                                                dot={{ fill: '#8b5cf6', r: 4, strokeWidth: 2, stroke: '#1a1a1a' }}
+                                                activeDot={{ r: 6, strokeWidth: 2 }}
+                                            />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            ) : (
+                                <div className="h-48 flex flex-col items-center justify-center bg-[var(--bg-dark)] rounded-xl">
+                                    <TrendingUp size={36} className="text-[var(--text-secondary)] opacity-30 mb-2" />
+                                    <p className="text-sm text-[var(--text-secondary)]">
+                                        {filtersState.selectedExercise ? 'Sin datos suficientes' : 'Selecciona un ejercicio'}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Recent PRs */}
+                    <div className="bg-[var(--bg-card)]/80 backdrop-blur-md rounded-2xl p-5 border border-[var(--border)]">
+                        <h3 className="font-bold mb-4 flex items-center gap-2">
                             <Trophy size={18} className="text-yellow-500" />
                             Récords Personales
                         </h3>
 
-                        {/* PR Search Input */}
-                        <div className="relative mb-3">
-                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+                        <div className="relative mb-4">
+                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
                             <input
                                 type="text"
                                 placeholder="Buscar ejercicio..."
-                                value={prSearch}
-                                onChange={(e) => setPrSearch(e.target.value)}
-                                className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg pl-9 pr-3 py-2.5 text-sm focus:border-[var(--primary)] outline-none transition-colors"
+                                value={filtersState.prSearch}
+                                onChange={(e) => setFiltersState(prev => ({ ...prev, prSearch: e.target.value }))}
+                                className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl pl-10 pr-4 py-3 focus:border-[var(--primary)] outline-none text-sm"
                             />
                         </div>
 
-                        <div className="space-y-2 max-h-80 overflow-y-auto">
+                        <div className="space-y-2.5">
                             {displayedPRs.map((pr, i) => (
-                                <div
-                                    key={i}
-                                    className="flex items-center justify-between bg-[var(--bg-dark)] rounded-lg p-3 border border-[var(--border)] hover:border-[var(--primary)]/50 transition-all"
-                                >
-                                    <span className="text-sm font-medium text-white truncate pr-3">{pr.exerciseName}</span>
-                                    <div className="text-right shrink-0">
-                                        <span className="text-sm font-bold block text-[var(--primary)]">{pr.weight}kg × {pr.reps}</span>
-                                        <span className="text-xs text-[var(--text-secondary)]">
-                                            {new Date(pr.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-                                        </span>
-                                    </div>
-                                </div>
+                                <PRCard key={`${pr.exerciseName}-${i}`} pr={pr} rank={i + 1} />
                             ))}
                             {displayedPRs.length === 0 && (
-                                <p className="text-center text-[var(--text-secondary)] text-sm py-8">
-                                    {prSearch ? 'No se encontraron ejercicios' : 'Aún no hay PRs'}
-                                </p>
+                                <div className="text-center py-10 bg-[var(--bg-dark)] rounded-xl">
+                                    <Trophy size={40} className="mx-auto text-[var(--text-secondary)] opacity-30 mb-3" />
+                                    <p className="text-[var(--text-secondary)] text-sm">
+                                        {filtersState.prSearch ? 'Sin resultados' : 'Aún no hay PRs'}
+                                    </p>
+                                </div>
                             )}
                         </div>
 
-                        {/* Show All Button */}
-                        {!prSearch && prs.length > 5 && (
+                        {!filtersState.prSearch && prs.length > 5 && (
                             <button
-                                onClick={() => setShowAllPRs(!showAllPRs)}
-                                className="w-full mt-3 py-2 text-xs text-[var(--primary)] hover:text-[var(--primary)]/80 font-medium transition-colors"
+                                onClick={() => setUIState(prev => ({ ...prev, showAllPRs: !prev.showAllPRs }))}
+                                className="w-full mt-4 py-3 text-sm text-[var(--primary)] hover:bg-[var(--bg-dark)] rounded-lg font-medium transition-all"
                             >
-                                {showAllPRs ? 'Ver menos' : `Ver todos (${prs.length})`}
+                                {uiState.showAllPRs ? 'Ver menos' : `Ver todos (${prs.length})`}
                             </button>
                         )}
                     </div>
@@ -634,41 +808,78 @@ export default function Progress() {
             )}
 
             {/* Muscles Tab */}
-            {activeTab === 'muscles' && (
-                <div id="muscles-panel" role="tabpanel" className="space-y-3 animate-fade-in">
-                    {Object.entries(prsByMuscle).map(([muscle, musclePs]) => (
-                        <MuscleAccordion
-                            key={muscle}
-                            muscle={muscle}
-                            exercises={musclePs}
-                            onSelectExercise={(name) => {
-                                setSelectedExercise(name);
-                                setActiveTab('overview');
-                            }}
-                        />
-                    ))}
+            {uiState.activeTab === 'muscles' && (
+                <div className="space-y-2 animate-fade-in">
+                    {Object.entries(prsByMuscle).map(([muscle, musclePs]) => {
+                        const colors = MUSCLE_COLORS[muscle] || MUSCLE_COLORS['Otros'];
+                        return (
+                            <div key={muscle} className="bg-[var(--bg-card)] rounded-xl overflow-hidden border border-[var(--border)]">
+                                <button
+                                    onClick={() => setUIState(prev => ({ ...prev, expandedMuscle: prev.expandedMuscle === muscle ? null : muscle }))}
+                                    className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-[var(--bg-card-hover)] transition-colors min-h-[56px]"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colors.bg}`}>
+                                            <Dumbbell size={20} className={colors.text} />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="font-bold">{muscle}</p>
+                                            <p className="text-xs text-[var(--text-secondary)]">{musclePs.length} ejercicios</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-sm font-bold ${colors.text}`}>
+                                            {Math.max(...musclePs.map(p => p.weight))}kg max
+                                        </span>
+                                        <ChevronDown size={18} className={`transition-transform ${uiState.expandedMuscle === muscle ? 'rotate-180' : ''}`} />
+                                    </div>
+                                </button>
+
+                                {uiState.expandedMuscle === muscle && (
+                                    <div className="px-4 pb-4 space-y-2 animate-fade-in bg-[var(--bg-dark)]/30 pt-2">
+                                        {musclePs.map((pr, i) => (
+                                            <button
+                                                key={i}
+                                                onClick={() => {
+                                                    setFiltersState(prev => ({ ...prev, selectedExercise: pr.exerciseName }));
+                                                    setUIState(prev => ({ ...prev, activeTab: 'overview' }));
+                                                }}
+                                                className="w-full flex items-center justify-between bg-[var(--bg-dark)] hover:bg-[var(--border)] rounded-lg p-3 transition-all active:scale-98 min-h-[44px]"
+                                            >
+                                                <span className="text-sm truncate pr-3">{pr.exerciseName}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-sm font-mono" style={{ color: colors.hex }}>
+                                                        {pr.weight}kg × {pr.reps}
+                                                    </span>
+                                                    <ChevronRight size={14} className="text-[var(--text-secondary)]" />
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                     {Object.keys(prsByMuscle).length === 0 && (
-                        <div className="bg-[var(--bg-card)] rounded-xl p-12 text-center">
-                            <Dumbbell size={40} className="mx-auto text-[var(--text-secondary)] mb-3 opacity-50" />
-                            <p className="text-sm text-[var(--text-secondary)]">
-                                Entrena para ver tu progreso por músculo
-                            </p>
+                        <div className="bg-[var(--bg-card)] rounded-2xl p-12 text-center border border-[var(--border)]">
+                            <Dumbbell size={48} className="mx-auto text-[var(--text-secondary)] mb-4 opacity-30" />
+                            <p className="text-[var(--text-secondary)]">Entrena para ver tu progreso por músculo</p>
                         </div>
                     )}
                 </div>
             )}
 
             {/* Yearly Tab */}
-            {activeTab === 'yearly' && (
-                <div id="yearly-panel" role="tabpanel" className="animate-fade-in space-y-5">
+            {uiState.activeTab === 'yearly' && (
+                <div className="space-y-5 animate-fade-in">
                     {/* Year Selector */}
-                    <div className="flex gap-2 justify-center bg-[var(--bg-card)] p-2 rounded-xl">
+                    <div className="flex gap-2 justify-center bg-[var(--bg-card)] p-1.5 rounded-xl border border-[var(--border)]">
                         {years.map(year => (
                             <button
                                 key={year}
-                                onClick={() => setSelectedYear(year)}
-                                className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${selectedYear === year
-                                    ? 'bg-[var(--primary)] text-white shadow-lg scale-105'
+                                onClick={() => setFiltersState(prev => ({ ...prev, selectedYear: year }))}
+                                className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${filtersState.selectedYear === year
+                                    ? 'bg-[var(--primary)] text-white shadow-lg'
                                     : 'text-[var(--text-secondary)] hover:bg-[var(--bg-dark)] hover:text-white'
                                     }`}
                             >
@@ -678,53 +889,58 @@ export default function Progress() {
                     </div>
 
                     {/* Year Stats */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-[var(--bg-card)] rounded-xl p-5 text-center hover:bg-[var(--bg-card-hover)] transition-colors">
-                            <Calendar size={24} className="mx-auto text-[var(--primary)] mb-3" />
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-[var(--bg-card)]/80 backdrop-blur-md rounded-xl p-5 text-center border border-[var(--border)]">
+                            <Calendar size={28} className="mx-auto text-[var(--primary)] mb-2" />
                             <p className="text-3xl font-bold">
-                                {Object.keys(consistency).filter(d => d.startsWith(String(selectedYear))).length}
+                                {Object.keys(consistency).filter(d => d.startsWith(String(filtersState.selectedYear))).length}
                             </p>
-                            <p className="text-xs text-[var(--text-secondary)] mt-2">Días entrenados</p>
+                            <p className="text-[10px] text-[var(--text-secondary)] uppercase">Días entrenados</p>
                         </div>
-                        <div className="bg-[var(--bg-card)] rounded-xl p-5 text-center hover:bg-[var(--bg-card-hover)] transition-colors">
-                            <Activity size={24} className="mx-auto text-green-500 mb-3" />
+                        <div className="bg-[var(--bg-card)]/80 backdrop-blur-md rounded-xl p-5 text-center border border-[var(--border)]">
+                            <Activity size={28} className="mx-auto text-green-500 mb-2" />
                             <p className="text-3xl font-bold">
                                 {Object.entries(consistency)
-                                    .filter(([d]) => d.startsWith(String(selectedYear)))
+                                    .filter(([d]) => d.startsWith(String(filtersState.selectedYear)))
                                     .reduce((sum, [, count]) => sum + count, 0)}
                             </p>
-                            <p className="text-xs text-[var(--text-secondary)] mt-2">Ejercicios totales</p>
+                            <p className="text-[10px] text-[var(--text-secondary)] uppercase">Ejercicios totales</p>
                         </div>
                     </div>
 
                     {/* Weekly Chart */}
-                    <div className="bg-[var(--bg-card)] rounded-xl p-4">
-                        <h3 className="font-semibold text-sm mb-4">Sesiones por Semana - {selectedYear}</h3>
+                    <div className="bg-[var(--bg-card)]/80 backdrop-blur-md rounded-2xl p-5 border border-[var(--border)]">
+                        <h3 className="font-bold mb-4">Sesiones por Semana - {filtersState.selectedYear}</h3>
                         <div className="h-48">
                             {weeklyData.length > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={weeklyData}>
-                                        <XAxis dataKey="week" tick={{ fontSize: 9, fill: '#a1a1aa' }} interval={3} />
-                                        <YAxis tick={{ fontSize: 10, fill: '#a1a1aa' }} width={30} />
-                                        <Tooltip
-                                            contentStyle={{ background: '#1a1a1a', border: '1px solid #27272a', borderRadius: '8px', fontSize: '12px' }}
-                                            cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
-                                        />
-                                        <Bar dataKey="sessions" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Sesiones" />
+                                        <defs>
+                                            <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor="#8b5cf6" stopOpacity={1} />
+                                                <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.5} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                                        <XAxis dataKey="week" tick={{ fontSize: 9, fill: '#71717a' }} interval={4} tickLine={false} axisLine={false} />
+                                        <YAxis tick={{ fontSize: 10, fill: '#71717a' }} width={30} tickLine={false} axisLine={false} />
+                                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }} />
+                                        <Bar dataKey="sessions" fill="url(#barGradient)" radius={[6, 6, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             ) : (
-                                <div className="h-full flex items-center justify-center text-[var(--text-secondary)] text-sm">
-                                    Aún no hay datos para este año
+                                <div className="h-full flex flex-col items-center justify-center text-[var(--text-secondary)]">
+                                    <Calendar size={40} className="opacity-30 mb-3" />
+                                    <p className="text-sm">Sin datos para este año</p>
                                 </div>
                             )}
                         </div>
                     </div>
 
                     {/* Year Comparison */}
-                    <div className="bg-[var(--bg-card)] rounded-xl p-4">
-                        <h3 className="font-semibold text-sm mb-4">Comparativa Anual</h3>
-                        <div className="space-y-4">
+                    <div className="bg-[var(--bg-card)]/80 backdrop-blur-md rounded-2xl p-5 border border-[var(--border)]">
+                        <h3 className="font-bold mb-4">Comparativa Anual</h3>
+                        <div className="space-y-3">
                             {years.map(year => {
                                 const yearDays = Object.keys(consistency).filter(d => d.startsWith(String(year))).length;
                                 const maxDays = Math.max(...years.map(y =>
@@ -735,77 +951,19 @@ export default function Progress() {
 
                                 return (
                                     <div key={year} className="flex items-center gap-3">
-                                        <span className="text-sm w-14 font-mono font-semibold">{year}</span>
+                                        <span className="text-sm w-12 font-bold font-mono">{year}</span>
                                         <div className="flex-1 bg-[var(--bg-dark)] rounded-full h-4 overflow-hidden">
                                             <div
-                                                className="h-full bg-gradient-to-r from-[var(--primary)] to-purple-400 rounded-full transition-all duration-500"
+                                                className="h-full bg-gradient-to-r from-[var(--primary)] to-purple-400 rounded-full transition-all duration-1000"
                                                 style={{ width: `${(yearDays / maxDays) * 100}%` }}
                                             />
                                         </div>
-                                        <span className="text-sm font-bold w-10 text-right">{yearDays}</span>
+                                        <span className="text-sm font-bold w-10 text-right font-mono">{yearDays}</span>
                                     </div>
                                 );
                             })}
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
-    );
-}
-
-// ==========================================
-// MUSCLE ACCORDION COMPONENT
-// ==========================================
-/**
- * Expandable accordion for displaying exercises grouped by muscle
- * @param {string} muscle - Muscle group name
- * @param {Array} exercises - Array of exercise PRs for this muscle
- * @param {Function} onSelectExercise - Callback when exercise is selected
- */
-function MuscleAccordion({ muscle, exercises, onSelectExercise }) {
-    const [expanded, setExpanded] = useState(false);
-
-    return (
-        <div className="bg-[var(--bg-card)] rounded-xl overflow-hidden border border-[var(--border)]">
-            <button
-                onClick={() => setExpanded(!expanded)}
-                aria-expanded={expanded}
-                aria-controls={`muscle-${muscle}`}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-[var(--bg-card-hover)] transition-colors"
-            >
-                <div className="flex items-center gap-2">
-                    <Dumbbell size={18} className="text-[var(--primary)]" />
-                    <span className="font-semibold">{muscle}</span>
-                    <span className="text-xs text-[var(--text-secondary)] bg-[var(--bg-dark)] px-2 py-1 rounded-full border border-[var(--border)]">
-                        {exercises.length}
-                    </span>
-                </div>
-                {expanded ? (
-                    <ChevronDown size={18} className="text-[var(--text-secondary)]" />
-                ) : (
-                    <ChevronRight size={18} className="text-[var(--text-secondary)]" />
-                )}
-            </button>
-
-            {expanded && (
-                <div
-                    id={`muscle-${muscle}`}
-                    className="px-4 pb-4 space-y-2 animate-fade-in bg-[var(--bg-dark)]/30 border-t border-[var(--border)] pt-4"
-                >
-                    {exercises.map((pr, i) => (
-                        <button
-                            key={i}
-                            onClick={() => onSelectExercise(pr.exerciseName)}
-                            className="w-full flex items-center justify-between bg-[var(--bg-dark)] rounded-lg p-3 hover:border-[var(--primary)]/50 border border-transparent transition-all active:scale-95"
-                        >
-                            <span className="text-sm truncate pr-3">{pr.exerciseName}</span>
-                            <div className="flex items-center gap-2 shrink-0">
-                                <span className="font-bold text-sm text-[var(--primary)]">{pr.weight}kg × {pr.reps}</span>
-                                <TrendingUp size={14} className="text-[var(--text-secondary)]" />
-                            </div>
-                        </button>
-                    ))}
                 </div>
             )}
         </div>
