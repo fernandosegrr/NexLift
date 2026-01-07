@@ -93,5 +93,17 @@ model BodyLog {
   photo     String?  @db.Text // Foto comprimida en base64
   note      String?  // Notas del día
   
+  // Composición corporal avanzada (báscula inteligente)
+  bmi         Float?   // IMC (Índice de Masa Corporal)
+  bodyFat     Float?   // Grasa corporal %
+  muscleMass  Float?   // Masa muscular kg
+  bmr         Float?   // Tasa metabólica basal kcal/d
+  bodyWater   Float?   // Agua corporal %
+  visceralFat Float?   // Grasa visceral (nivel 1-59)
+  boneMass    Float?   // Masa ósea kg
+  protein     Float?   // Proteínas %
+  
+  createdAt DateTime @default(now())
+  
   @@index([date])
 }

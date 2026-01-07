@@ -427,17 +427,30 @@ export default async function handler(req, res) {
 
         // POST /api/body/log
         if (path === '/body/log' && method === 'POST') {
-            const { weight, photo, note } = body;
+            const {
+                weight, photo, note,
+                bmi, bodyFat, muscleMass, bmr, bodyWater, visceralFat, boneMass, protein
+            } = body;
 
-            if (!weight && !photo) {
-                return res.status(400).json({ error: 'Weight or photo required' });
+            // At least weight, photo, or any body composition data required
+            const hasBodyData = weight || photo || bmi || bodyFat || muscleMass;
+            if (!hasBodyData) {
+                return res.status(400).json({ error: 'Weight, photo, or body composition data required' });
             }
 
             const bodyLog = await prisma.bodyLog.create({
                 data: {
                     weight: weight ? parseFloat(weight) : null,
                     photo: photo || null,
-                    note: note || null
+                    note: note || null,
+                    bmi: bmi ? parseFloat(bmi) : null,
+                    bodyFat: bodyFat ? parseFloat(bodyFat) : null,
+                    muscleMass: muscleMass ? parseFloat(muscleMass) : null,
+                    bmr: bmr ? parseFloat(bmr) : null,
+                    bodyWater: bodyWater ? parseFloat(bodyWater) : null,
+                    visceralFat: visceralFat ? parseFloat(visceralFat) : null,
+                    boneMass: boneMass ? parseFloat(boneMass) : null,
+                    protein: protein ? parseFloat(protein) : null
                 }
             });
             return res.json({ message: 'Body log saved!', bodyLog });
