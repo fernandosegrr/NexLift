@@ -122,7 +122,16 @@ NexLift/
 └── vercel.json           # Configuración Vercel
 ```
 
----
+### ⚠️ Nota Importante: Sincronización de Schemas
+
+Este proyecto tiene **dos schemas de Prisma** que deben mantenerse sincronizados:
+
+| Archivo | Uso |
+|---------|-----|
+| `server/prisma/schema.prisma` | Desarrollo local |
+| `api/prisma/schema.prisma` | Producción (Vercel) |
+
+**Si agregas o modificas modelos/campos, actualiza AMBOS archivos.** De lo contrario, Vercel dará errores en producción.
 
 ## 📋 Formato de Importación de Rutinas
 

@@ -232,7 +232,11 @@ El usuario ha indicado que no quiere que la IA ejecute tests automáticos. La ve
 ## 📝 Notas para IAs Futuras
 
 1. **Siempre verificar el período seleccionado** al depurar problemas de datos faltantes
-2. **El schema de Prisma está en server/prisma/**, no en api/prisma/ (aunque api también lo referencia)
+2. **⚠️ IMPORTANTE: Hay DOS schemas de Prisma que DEBEN estar sincronizados:**
+   - `server/prisma/schema.prisma` - Para desarrollo local
+   - `api/prisma/schema.prisma` - Para producción en Vercel
+   - **Si agregas/modificas modelos o campos, actualiza AMBOS archivos**
+   - Si no están sincronizados, Vercel dará errores tipo `Cannot read properties of undefined`
 3. **Los componentes UI personalizados** (Toast, Modal) usan Context API
 4. **El backend de desarrollo** (server/) tiene más endpoints/features que el de producción (api/)
 5. **Tailwind 4** está configurado con PostCSS, no con tailwind.config.js tradicional
