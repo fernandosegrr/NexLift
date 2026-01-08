@@ -49,7 +49,7 @@ model WorkoutLog {
   id          String    @id @default(cuid())
   date        DateTime  @default(now())
   exerciseId  String
-  exercise    Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  exercise    Exercise  @relation(fields: [exerciseId], references: [id])
   sets        SetLog[]
   notes       String?   // Notas de la sesión
 }

@@ -266,11 +266,16 @@ app.put('/api/routines/:id', async (req, res) => {
                         });
 
                         // SMART PR RENAMING:
-                        // If name changed, update associated PRs to keep history linked
+                        // If name changed, update associated PRs to keep history linked (Case Insensitive)
                         if (currentExercise && currentExercise.name.trim().toLowerCase() !== ex.name.trim().toLowerCase()) {
                             console.log(`Renaming PRs for: ${currentExercise.name} -> ${ex.name}`);
                             await prisma.personalRecord.updateMany({
-                                where: { exerciseName: currentExercise.name.toLowerCase() },
+                                where: {
+                                    exerciseName: {
+                                        equals: currentExercise.name,
+                                        mode: 'insensitive' // Catch 'Bench Press', 'bench press', 'BENCH PRESS'
+                                    }
+                                },
                                 data: { exerciseName: ex.name.toLowerCase() }
                             });
                         }

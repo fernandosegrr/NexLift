@@ -224,7 +224,12 @@ export default async function handler(req, res) {
                                 if (currentExercise && currentExercise.name.trim().toLowerCase() !== ex.name.trim().toLowerCase()) {
                                     console.log(`Renaming PRs (Vercel): ${currentExercise.name} -> ${ex.name}`);
                                     await tx.personalRecord.updateMany({
-                                        where: { exerciseName: currentExercise.name.toLowerCase() },
+                                        where: {
+                                            exerciseName: {
+                                                equals: currentExercise.name,
+                                                mode: 'insensitive' // Catch 'Bench Press', 'bench press', 'BENCH PRESS'
+                                            }
+                                        },
                                         data: { exerciseName: ex.name.toLowerCase() }
                                     });
                                 }
