@@ -5,6 +5,21 @@ const globalForPrisma = globalThis;
 const prisma = globalForPrisma.prisma || new PrismaClient();
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
+/**
+ * Normaliza nombre de ejercicio para consistencia en PRs
+ * - Quita prefijos de numeración (a1., b.2, etc.)
+ * - Convierte a minúsculas
+ * - Limpia espacios extras
+ */
+function normalizeExerciseName(name) {
+    if (!name) return '';
+    return name
+        .replace(/^[a-z]\.?\d+\.?\s*/i, '')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, ' ');
+}
+
 export default async function handler(req, res) {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -46,7 +61,7 @@ export default async function handler(req, res) {
                             order: dayIndex,
                             exercises: {
                                 create: (day.exercises || []).map((ex, exIndex) => ({
-                                    name: ex.name,
+                                    name: normalizeExerciseName(ex.name),
                                     targetSets: ex.sets || 3,
                                     targetReps: ex.reps || '8-12',
                                     restSeconds: ex.rest || null,
@@ -197,7 +212,7 @@ export default async function handler(req, res) {
                         for (let j = 0; j < day.exercises.length; j++) {
                             const ex = day.exercises[j];
                             const exData = {
-                                name: ex.name,
+                                name: normalizeExerciseName(ex.name),
                                 targetSets: parseInt(ex.targetSets || 3),
                                 targetReps: String(ex.targetReps || '8-12'),
                                 restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
@@ -221,16 +236,16 @@ export default async function handler(req, res) {
                                 });
 
                                 // SMART PR RENAMING:
-                                if (currentExercise && currentExercise.name.trim().toLowerCase() !== ex.name.trim().toLowerCase()) {
-                                    console.log(`Renaming PRs (Vercel): ${currentExercise.name} -> ${ex.name}`);
+                                if (currentExercise && normalizeExerciseName(currentExercise.name) !== normalizeExerciseName(ex.name)) {
+                                    console.log(`Renaming PRs (Vercel): "${currentExercise.name}" -> "${normalizeExerciseName(ex.name)}"`);
                                     await tx.personalRecord.updateMany({
                                         where: {
                                             exerciseName: {
                                                 equals: currentExercise.name,
-                                                mode: 'insensitive' // Catch 'Bench Press', 'bench press', 'BENCH PRESS'
+                                                mode: 'insensitive'
                                             }
                                         },
-                                        data: { exerciseName: ex.name.toLowerCase() }
+                                        data: { exerciseName: normalizeExerciseName(ex.name) }
                                     });
                                 }
                             } else {

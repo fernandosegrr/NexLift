@@ -9,19 +9,26 @@ export default function EditRoutine() {
     const [routine, setRoutine] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [knownExercises, setKnownExercises] = useState([]); // For autocomplete
 
     useEffect(() => {
-        async function fetchRoutine() {
+        async function fetchData() {
             try {
-                const data = await api.getRoutine(id);
-                setRoutine(data);
+                const [routineData, exercisesData] = await Promise.all([
+                    api.getRoutine(id),
+                    api.getExercises()
+                ]);
+                setRoutine(routineData);
+                // Extract unique names for autocomplete
+                const uniqueNames = [...new Set(exercisesData.map(e => e.name.toLowerCase()))];
+                setKnownExercises(uniqueNames.sort());
             } catch (error) {
                 console.error('Error:', error);
             } finally {
                 setLoading(false);
             }
         }
-        fetchRoutine();
+        fetchData();
     }, [id]);
 
     const handleSave = async () => {
@@ -244,6 +251,7 @@ export default function EditRoutine() {
                                         <div className="flex-1 space-y-3">
                                             <input
                                                 type="text"
+                                                list="exercise-suggestions"
                                                 value={ex.name}
                                                 onChange={(e) => updateExercise(dayIndex, exIndex, 'name', e.target.value)}
                                                 className="w-full bg-transparent border-b border-[var(--border)] focus:border-[var(--primary)] outline-none text-sm font-semibold pb-1 placeholder:text-[var(--text-secondary)]/50"
@@ -317,6 +325,13 @@ export default function EditRoutine() {
                     <Plus size={20} /> Agregar Nuevo Día
                 </button>
             </div>
+
+            {/* Datalist for exercise autocomplete */}
+            <datalist id="exercise-suggestions">
+                {knownExercises.map(name => (
+                    <option key={name} value={name} />
+                ))}
+            </datalist>
         </div>
     );
 }

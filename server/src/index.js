@@ -22,6 +22,25 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../../client/dist')));
 
 // ============================================
+// HELPERS
+// ============================================
+
+/**
+ * Normaliza nombre de ejercicio para consistencia en PRs
+ * - Quita prefijos de numeración (a1., b.2, etc.)
+ * - Convierte a minúsculas
+ * - Limpia espacios extras
+ */
+function normalizeExerciseName(name) {
+    if (!name) return '';
+    return name
+        .replace(/^[a-z]\.?\d+\.?\s*/i, '') // Quita prefijos "a1.", "b.2", "A1 ", etc.
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, ' '); // Normaliza espacios múltiples
+}
+
+// ============================================
 // ROUTES: Routine Import
 // ============================================
 
@@ -49,7 +68,7 @@ app.post('/api/routines/import', async (req, res) => {
                         order: dayIndex,
                         exercises: {
                             create: (day.exercises || []).map((exercise, exIndex) => ({
-                                name: exercise.name,
+                                name: normalizeExerciseName(exercise.name),
                                 targetSets: exercise.sets || 3,
                                 targetReps: exercise.reps || '8-12',
                                 restSeconds: exercise.rest || null,
@@ -253,10 +272,11 @@ app.put('/api/routines/:id', async (req, res) => {
                             select: { name: true }
                         });
 
+                        const normalizedName = normalizeExerciseName(ex.name);
                         await prisma.exercise.update({
                             where: { id: ex.id },
                             data: {
-                                name: ex.name,
+                                name: normalizedName,
                                 targetSets: parseInt(ex.targetSets),
                                 targetReps: ex.targetReps,
                                 restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
@@ -266,24 +286,24 @@ app.put('/api/routines/:id', async (req, res) => {
                         });
 
                         // SMART PR RENAMING:
-                        // If name changed, update associated PRs to keep history linked (Case Insensitive)
-                        if (currentExercise && currentExercise.name.trim().toLowerCase() !== ex.name.trim().toLowerCase()) {
-                            console.log(`Renaming PRs for: ${currentExercise.name} -> ${ex.name}`);
+                        // If name changed, update associated PRs to keep history linked
+                        if (currentExercise && normalizeExerciseName(currentExercise.name) !== normalizedName) {
+                            console.log(`Renaming PRs: "${currentExercise.name}" -> "${normalizedName}"`);
                             await prisma.personalRecord.updateMany({
                                 where: {
                                     exerciseName: {
                                         equals: currentExercise.name,
-                                        mode: 'insensitive' // Catch 'Bench Press', 'bench press', 'BENCH PRESS'
+                                        mode: 'insensitive'
                                     }
                                 },
-                                data: { exerciseName: ex.name.toLowerCase() }
+                                data: { exerciseName: normalizedName }
                             });
                         }
                     } else {
                         await prisma.exercise.create({
                             data: {
                                 routineDayId: dayId,
-                                name: ex.name,
+                                name: normalizeExerciseName(ex.name),
                                 targetSets: parseInt(ex.targetSets || 3),
                                 targetReps: ex.targetReps || '8-12',
                                 restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
@@ -957,7 +977,22 @@ app.get('*', (req, res) => {
 });
 
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`🏋️ NexLift API running on http://localhost:${PORT}`);
-});
+// Start server with DB connection test
+async function startServer() {
+    try {
+        // Test database connection before starting
+        console.log('🔄 Testing database connection...');
+        await prisma.$connect();
+        console.log('✅ Database connected successfully');
+
+        app.listen(PORT, () => {
+            console.log(`🏋️ NexLift API running on http://localhost:${PORT}`);
+        });
+    } catch (error) {
+        console.error('❌ Failed to start server:', error.message);
+        console.error('📋 Check DATABASE_URL environment variable');
+        process.exit(1);
+    }
+}
+
+startServer();

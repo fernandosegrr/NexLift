@@ -10,32 +10,28 @@ RUN cd client && npm install
 COPY client/ ./client/
 RUN cd client && npm run build
 
-# Copy server files
+# Copy server files and generate Prisma
 COPY server/package*.json ./server/
 RUN cd server && npm install
 
 COPY server/ ./server/
 
-# Copy API for Prisma schema
-COPY api/ ./api/
-RUN cd api && npm install && npx prisma generate
+# Generate Prisma client in server directory
+RUN cd server && npx prisma generate
 
 # Production stage
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy built client to the location expected by server (../../client/dist from server/src)
+# Copy built client
 COPY --from=builder /app/client/dist ./client/dist
 
-# Copy server
+# Copy server with generated Prisma client
 COPY --from=builder /app/server ./server
 
-# Copy node_modules from api (includes prisma client)
-COPY --from=builder /app/api/node_modules/.prisma ./server/node_modules/.prisma
-COPY --from=builder /app/api/node_modules/@prisma ./server/node_modules/@prisma
-
-EXPOSE 3001
+# Expose port (Easypanel will set PORT env var)
+EXPOSE 80
 
 WORKDIR /app/server
 

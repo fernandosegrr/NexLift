@@ -5,7 +5,7 @@
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.6.2-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.7.0-blue?style=flat-square)
 
 ---
 
@@ -159,8 +159,8 @@ Este proyecto tiene **dos schemas de Prisma** que deben mantenerse sincronizados
     {
       "dayName": "Lunes - Torso",
       "exercises": [
-        { "name": "Press Banca", "sets": 4, "reps": "8-10" },
-        { "name": "Remo Pendlay", "sets": 4, "reps": "8-10" }
+        { "name": "press banca", "sets": 4, "reps": "8-10" },
+        { "name": "remo pendlay", "sets": 4, "reps": "8-10" }
       ]
     },
     {
@@ -171,6 +171,8 @@ Este proyecto tiene **dos schemas de Prisma** que deben mantenerse sincronizados
   ]
 }
 ```
+
+> 💡 **Tip:** Pídele a ChatGPT que genere tu rutina en este formato JSON. Los nombres se normalizan automáticamente (sin prefijos "a1.", todo minúsculas).
 
 ---
 

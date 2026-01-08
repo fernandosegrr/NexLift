@@ -4,18 +4,28 @@ import { Upload, CheckCircle, AlertCircle, FileJson, Copy } from 'lucide-react';
 import { api } from '../services/api';
 
 const exampleJson = `{
-  "name": "Rutina de Ejemplo",
-  "description": "Adaptación anatómica",
+  "name": "Push Pull Legs",
+  "description": "Rutina clásica de 6 días",
   "days": [
     {
-      "dayName": "Día 1: Torso",
+      "dayName": "Día 1: Push (Pecho/Hombros/Tríceps)",
       "exercises": [
-        { "name": "Press Banca", "sets": 4, "reps": "8-10", "rest": 90 },
-        { "name": "Remo con Barra", "sets": 4, "reps": "10-12", "note": "Codos pegados" }
+        { "name": "press de banca plano", "sets": 4, "reps": "6-8", "rest": 180 },
+        { "name": "press inclinado mancuernas", "sets": 3, "reps": "8-10", "rest": 120 },
+        { "name": "elevaciones laterales", "sets": 4, "reps": "12-15", "note": "Peso ligero, controlar" },
+        { "name": "extensión tríceps polea", "sets": 3, "reps": "10-12" }
       ]
     },
     {
-      "dayName": "Día 2: Descanso",
+      "dayName": "Día 2: Pull (Espalda/Bíceps)",
+      "exercises": [
+        { "name": "jalón al pecho", "sets": 4, "reps": "8-10", "rest": 120 },
+        { "name": "remo con barra", "sets": 4, "reps": "6-8", "rest": 180 },
+        { "name": "curl predicador", "sets": 3, "reps": "10-12" }
+      ]
+    },
+    {
+      "dayName": "Día 3: Descanso",
       "isRestDay": true,
       "exercises": []
     }
@@ -148,23 +158,35 @@ export default function Import() {
         {status === 'loading' ? 'Importando...' : 'Importar Rutina'}
       </button>
 
-      {/* Structure Hint */}
-      <div className="bg-[var(--bg-dark)] rounded-xl p-4 text-[10px] text-[var(--text-secondary)]">
-        <p className="font-bold mb-2 uppercase tracking-wider text-[var(--text-primary)]">Estructura Mínima Requerida:</p>
-        <pre className="overflow-x-auto whitespace-pre-wrap font-mono">
-          {`{
-  "name": "Nombre Obligatorio",
-  "days": [
-    {
-      "dayName": "Día 1",
-      "exercises": [
-        { "name": "Press", "sets": 3, "reps": "10" } 
-      ]
-    }
-  ]
+      {/* Structure Hint + ChatGPT Tip */}
+      <div className="bg-[var(--bg-dark)] rounded-xl p-4 text-[11px] text-[var(--text-secondary)] space-y-4">
+        <div>
+          <p className="font-bold mb-2 uppercase tracking-wider text-[var(--primary)] flex items-center gap-2">
+            💡 Tip: Usa ChatGPT
+          </p>
+          <p className="leading-relaxed">
+            Pídele a ChatGPT que genere tu rutina en JSON con este formato. Solo copia y pega el resultado aquí.
+          </p>
+        </div>
+
+        <div className="border-t border-[var(--border)] pt-3">
+          <p className="font-bold mb-2 uppercase tracking-wider text-[var(--text-primary)]">Estructura Mínima:</p>
+          <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-[10px] bg-black/20 p-2 rounded">
+            {`{
+  "name": "Mi Rutina",
+  "days": [{
+    "dayName": "Día 1: Push",
+    "exercises": [
+      { "name": "press de banca", "sets": 4, "reps": "6-8" }
+    ]
+  }]
 }`}
-        </pre>
-        <p className="mt-2 italic opacity-70">* Puedes usar "sets" o "targetSets", el sistema lo detectará automáticamente.</p>
+          </pre>
+        </div>
+
+        <p className="text-[10px] opacity-70">
+          * Los nombres se normalizan automáticamente (sin prefijos "a1.", todo minúsculas)
+        </p>
       </div>
     </div>
   );

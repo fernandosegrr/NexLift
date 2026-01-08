@@ -278,6 +278,17 @@ El usuario ha indicado que no quiere que la IA ejecute tests automáticos. La ve
 
 ## 📋 Changelog Reciente (Enero 2026)
 
+### v1.7.0 - Exercise Normalization & Improved Imports
+- ✅ **Normalización Automática de Ejercicios:** Nuevo helper `normalizeExerciseName()` que limpia prefijos (a1., b.2) y convierte a minúsculas
+- ✅ **Import.jsx Mejorado:** Nuevo ejemplo JSON (Push Pull Legs), tip de ChatGPT, nota de normalización automática
+- ✅ **Autocomplete en EditRoutine:** Datalist con sugerencias de ejercicios existentes
+- ✅ **Dockerfile Arreglado:** Prisma se genera correctamente en el servidor
+- ✅ **Mejor Startup de Servidor:** Test de conexión a DB antes de iniciar, logs claros de errores
+
+### v1.6.2 - Robust Data Integrity
+- ✅ **Case Insensitive PR Renaming:** La lógica de re-nombrado ahora es insensible a mayúsculas/minúsculas
+- ✅ **Database Locking:** Implementada restricción `onDelete: Restrict` en el schema
+
 ### v1.6.0 - Unified 1RM Formula & UX Improvements
 - ✅ **Fórmula 1RM Unificada:** Todas las implementaciones (frontend y backend) ahora usan Epley (`peso × (1 + reps/30)`)
 - ✅ **Streak sin límite:** Cálculo de racha extendido de 30 a 365 días
@@ -323,7 +334,3 @@ El usuario ha indicado que no quiere que la IA ejecute tests automáticos. La ve
 ---
 
 *Última actualización: 8 Enero 2026*
-
-### v1.6.2 - Robust Data Integrity
-- ✅ **Case Insensitive PR Renaming:** La lógica de re-nombrado ahora es insensible a mayúsculas/minúsculas para detectar y migrar correctamente datos históricos antiguos que no estaban normalizados.
-- ✅ **Database Locking:** Implementada restricción `onDelete: Restrict` en el schema para prevenir borrados accidentales de historial.
