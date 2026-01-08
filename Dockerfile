@@ -25,7 +25,7 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy built client
+# Copy built client to the location expected by server (../../client/dist from server/src)
 COPY --from=builder /app/client/dist ./client/dist
 
 # Copy server
