@@ -65,10 +65,10 @@ export default function Layout() {
                                 key={item.path}
                                 to={item.path}
                                 className={({ isActive }) => `
-                                    flex flex-col items-center gap-1 p-2 rounded-xl w-full
+                                    flex flex-col items-center gap-1 p-2 rounded-xl w-full relative
                                     transition-all duration-300
                                     ${isActive
-                                        ? 'text-[var(--primary)] scale-105'
+                                        ? 'text-[var(--primary)]'
                                         : 'text-[var(--text-secondary)] hover:text-white'
                                     }
                                 `}
@@ -78,9 +78,12 @@ export default function Layout() {
                                         <item.icon
                                             size={24}
                                             strokeWidth={isActive ? 2.5 : 2}
-                                            className={isActive ? 'drop-shadow-[0_0_8px_rgba(139,92,246,0.5)]' : ''}
+                                            className={isActive ? 'drop-shadow-[0_0_8px_rgba(139,92,246,0.6)]' : ''}
                                         />
                                         <span className="text-[10px] font-medium">{item.label}</span>
+                                        {isActive && (
+                                            <div className="absolute -bottom-0.5 w-1 h-1 bg-[var(--primary)] rounded-full" />
+                                        )}
                                     </>
                                 )}
                             </NavLink>

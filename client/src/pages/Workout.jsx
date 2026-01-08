@@ -59,25 +59,40 @@ function useExerciseHistory(exerciseId) {
             if (currentRequestRef.current !== requestId) return;
 
             if (historyData?.length > 0 && historyData[0].sets?.length > 0) {
+                // Fórmula de Epley: Score = Peso × (1 + Reps/30)
+                const calculate1RM = (weight, reps) => weight * (1 + reps / 30);
+
                 const bestSet = historyData[0].sets.reduce((best, set) => {
-                    const volume = (Number(set.weight) || 0) * (Number(set.reps) || 0);
-                    const bestVolume = (Number(best.weight) || 0) * (Number(best.reps) || 0);
-                    return volume > bestVolume ? set : best;
+                    const score = calculate1RM(Number(set.weight) || 0, Number(set.reps) || 0);
+                    const bestScore = calculate1RM(Number(best.weight) || 0, Number(best.reps) || 0);
+
+                    // Desempate por menor RIR si scores son similares (<1%)
+                    if (bestScore > 0 && Math.abs(score - bestScore) / bestScore < 0.01) {
+                        const setRIR = set.rpe ? (10 - set.rpe) : 3;
+                        const bestRIR = best.rpe ? (10 - best.rpe) : 3;
+                        return setRIR < bestRIR ? set : best;
+                    }
+                    return score > bestScore ? set : best;
                 }, historyData[0].sets[0]);
 
                 setPreviousBest(bestSet);
 
-                const lastSets = historyData[0].sets;
-                const avgWeight = lastSets.reduce((sum, s) => sum + (s.weight || 0), 0) / lastSets.length;
-                const avgRPE = lastSets.filter(s => s.rpe).reduce((sum, s) => sum + s.rpe, 0) / lastSets.filter(s => s.rpe).length || 8;
-                const avgRIR = 10 - avgRPE;
+                // Fórmula de Epley Invertida para objetivo de 10 reps
+                // Peso_Sugerido = 1RM_estimado / 1.3333
+                const bestWeight = Number(bestSet.weight) || 0;
+                const bestReps = Number(bestSet.reps) || 0;
+                const bestRIR = bestSet.rpe ? (10 - bestSet.rpe) : 2; // Default RIR=2 si no hay RPE
 
-                let suggested = avgWeight;
-                if (avgRIR >= 3) suggested = Math.round((avgWeight * 1.05) * 2) / 2;
-                else if (avgRIR >= 2) suggested = avgWeight + 2.5;
-                else if (avgRPE >= 10) suggested = Math.max(avgWeight - 2.5, 0);
+                // 1RM = Peso × (1 + (Reps + RIR) / 30)
+                const estimated1RM = bestWeight * (1 + (bestReps + bestRIR) / 30);
 
-                setSuggestedWeight(Math.round(suggested * 2) / 2);
+                // Peso óptimo para 10 reps: dividir por (1 + 10/30) = 1.3333
+                const optimalWeight = estimated1RM / 1.3333;
+
+                // Redondear a incrementos de 2.5kg
+                const suggested = Math.round(optimalWeight / 2.5) * 2.5;
+
+                setSuggestedWeight(suggested > 0 ? suggested : null);
             } else {
                 setPreviousBest(null);
                 setSuggestedWeight(null);
@@ -110,26 +125,32 @@ function SkeletonLoader() {
 function SetCard({ set, index, onUpdate, onToggle, onSetRIR, onAdjustWeight, isLocked, previousBest }) {
     const handleFocus = (e) => e.target.select();
 
+    // No mostrar "Posible PR" si ya está guardado/bloqueado
     const isPR = useMemo(() => {
-        if (!previousBest) return false;
-        const currentVolume = (Number(set.weight) || 0) * (Number(set.reps) || 0);
-        const bestVolume = (Number(previousBest.weight) || 0) * (Number(previousBest.reps) || 0);
-        return currentVolume > bestVolume && set.completed;
-    }, [set, previousBest]);
+        if (!previousBest || isLocked) return false;
+        const calculate1RM = (w, r) => w * (1 + r / 30);
+        const currentScore = calculate1RM(Number(set.weight) || 0, Number(set.reps) || 0);
+        const bestScore = calculate1RM(Number(previousBest.weight) || 0, Number(previousBest.reps) || 0);
+        return currentScore > bestScore && set.completed;
+    }, [set, previousBest, isLocked]);
 
     return (
-        <div className={`bg-[var(--bg-card)] rounded-xl p-4 transition-all duration-300 ${set.completed ? 'ring-2 ring-[var(--success)] shadow-lg shadow-[var(--success)]/20 scale-[1.02]' :
-                isPR ? 'ring-2 ring-[var(--warning)] shadow-lg shadow-[var(--warning)]/20' :
-                    'hover:shadow-lg'
+        <div className={`rounded-xl p-3 transition-all duration-200 ${set.completed
+            ? 'bg-gradient-to-r from-[var(--success)]/15 to-[var(--bg-card)] ring-2 ring-[var(--success)] shadow-lg shadow-[var(--success)]/20'
+            : isPR
+                ? 'bg-gradient-to-r from-[var(--warning)]/15 to-[var(--bg-card)] ring-2 ring-[var(--warning)]'
+                : 'bg-[var(--bg-card)] border border-[var(--border)]'
             }`}>
-            <div className="grid grid-cols-12 gap-3 items-center mb-3">
+            <div className="grid grid-cols-12 gap-2 items-center">
+                {/* Set Number - Larger */}
                 <div className="col-span-1 text-center">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${set.completed ? 'bg-[var(--success)] text-white' : 'bg-[var(--bg-dark)] text-[var(--text-secondary)]'
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-base ${set.completed ? 'bg-[var(--success)] text-white shadow-lg shadow-[var(--success)]/40' : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] border border-[var(--border)]'
                         }`}>
                         {index + 1}
                     </div>
                 </div>
 
+                {/* Weight Input */}
                 <div className="col-span-3">
                     <div className="relative">
                         <input
@@ -138,31 +159,31 @@ function SetCard({ set, index, onUpdate, onToggle, onSetRIR, onAdjustWeight, isL
                             value={set.weight}
                             onFocus={handleFocus}
                             onChange={(e) => onUpdate(index, 'weight', e.target.value)}
-                            placeholder="0"
+                            placeholder="kg"
                             readOnly={isLocked}
-                            className={`w-full bg-[var(--bg-dark)] border rounded-lg py-4 text-center text-lg font-semibold focus:outline-none transition-all ${set.weight ? 'border-[var(--primary)]' : 'border-[var(--border)]'
-                                } ${isLocked ? 'opacity-60' : 'focus:ring-2 focus:ring-[var(--primary)]/30'}`}
+                            className={`w-full bg-[var(--bg-dark)] border-2 rounded-lg py-3 text-center text-lg font-bold focus:outline-none transition-all ${set.weight ? 'border-[var(--primary)] text-white' : 'border-[var(--border)] text-[var(--text-secondary)]'
+                                } ${isLocked ? 'opacity-60' : 'focus:ring-2 focus:ring-[var(--primary)]/40'}`}
                         />
                         {!isLocked && (
                             <div className="absolute -right-1 top-1/2 -translate-y-1/2 flex flex-col gap-0.5">
                                 <button
                                     onClick={() => onAdjustWeight(index, 2.5)}
-                                    className="w-5 h-5 bg-[var(--primary)] rounded text-white flex items-center justify-center hover:brightness-110 active:scale-95"
+                                    className="w-5 h-5 bg-[var(--primary)] rounded text-white flex items-center justify-center active:scale-90"
                                 >
                                     <Plus size={12} strokeWidth={3} />
                                 </button>
                                 <button
                                     onClick={() => onAdjustWeight(index, -2.5)}
-                                    className="w-5 h-5 bg-[var(--bg-dark)] border border-[var(--border)] rounded text-[var(--text-secondary)] flex items-center justify-center hover:bg-[var(--border)] active:scale-95"
+                                    className="w-5 h-5 bg-[var(--bg-dark)] border border-[var(--border)] rounded text-[var(--text-secondary)] flex items-center justify-center active:scale-90"
                                 >
                                     <Minus size={12} strokeWidth={3} />
                                 </button>
                             </div>
                         )}
                     </div>
-                    <p className="text-[10px] text-[var(--text-secondary)] text-center mt-1">kg</p>
                 </div>
 
+                {/* Reps Input */}
                 <div className="col-span-3">
                     <input
                         type="number"
@@ -170,14 +191,14 @@ function SetCard({ set, index, onUpdate, onToggle, onSetRIR, onAdjustWeight, isL
                         value={set.reps}
                         onFocus={handleFocus}
                         onChange={(e) => onUpdate(index, 'reps', e.target.value)}
-                        placeholder="0"
+                        placeholder="reps"
                         readOnly={isLocked}
-                        className={`w-full bg-[var(--bg-dark)] border rounded-lg py-4 text-center text-lg font-semibold focus:outline-none transition-all ${set.reps ? 'border-[var(--primary)]' : 'border-[var(--border)]'
-                            } ${isLocked ? 'opacity-60' : 'focus:ring-2 focus:ring-[var(--primary)]/30'}`}
+                        className={`w-full bg-[var(--bg-dark)] border-2 rounded-lg py-3 text-center text-lg font-bold focus:outline-none transition-all ${set.reps ? 'border-[var(--primary)] text-white' : 'border-[var(--border)] text-[var(--text-secondary)]'
+                            } ${isLocked ? 'opacity-60' : 'focus:ring-2 focus:ring-[var(--primary)]/40'}`}
                     />
-                    <p className="text-[10px] text-[var(--text-secondary)] text-center mt-1">reps</p>
                 </div>
 
+                {/* RIR Buttons */}
                 <div className="col-span-3">
                     <div className="flex gap-0.5 justify-center">
                         {[0, 1, 2, 3].map(rir => (
@@ -185,36 +206,36 @@ function SetCard({ set, index, onUpdate, onToggle, onSetRIR, onAdjustWeight, isL
                                 key={rir}
                                 onClick={() => onSetRIR(index, set.rir === rir ? null : rir)}
                                 disabled={isLocked}
-                                className={`w-6 h-7 rounded text-xs font-medium transition-all active:scale-95 ${set.rir === rir
-                                        ? 'bg-[var(--primary)] text-white shadow-sm'
-                                        : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] border border-[var(--border)]'
+                                className={`w-9 h-10 rounded-lg text-sm font-bold transition-all active:scale-90 ${set.rir === rir
+                                    ? 'bg-[var(--primary)] text-white'
+                                    : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] border border-[var(--border)]'
                                     }`}
                             >
                                 {rir}
                             </button>
                         ))}
                     </div>
-                    <p className="text-[10px] text-[var(--text-secondary)] text-center mt-1">RIR</p>
                 </div>
 
+                {/* Check Button */}
                 <div className="col-span-2 flex justify-center">
                     <button
                         onClick={() => onToggle(index)}
                         disabled={isLocked}
-                        className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all active:scale-95 ${set.completed
-                                ? 'bg-[var(--success)] text-white shadow-lg shadow-[var(--success)]/30'
-                                : 'bg-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--border)]/70'
+                        className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all active:scale-90 ${set.completed
+                            ? 'bg-[var(--success)] text-white shadow-lg shadow-[var(--success)]/30'
+                            : 'bg-[var(--bg-dark)] border-2 border-[var(--border)] text-[var(--text-secondary)]'
                             }`}
                     >
-                        <Check size={20} strokeWidth={3} className={set.completed ? 'animate-bounce' : ''} />
+                        <Check size={20} strokeWidth={3} />
                     </button>
                 </div>
             </div>
 
             {isPR && (
-                <div className="flex items-center gap-2 text-xs text-[var(--warning)] bg-[var(--warning)]/10 px-3 py-2 rounded-lg animate-fade-in mb-2">
-                    <Sparkles size={14} />
-                    <span className="font-medium">¡Posible PR! Completa para confirmar</span>
+                <div className="flex items-center gap-2 text-sm text-[var(--warning)] bg-gradient-to-r from-[var(--warning)]/15 to-transparent px-4 py-2.5 rounded-xl animate-fade-in border border-[var(--warning)]/20">
+                    <Sparkles size={16} />
+                    <span className="font-semibold">¡Posible PR! Completa para confirmar</span>
                 </div>
             )}
         </div>
@@ -335,30 +356,34 @@ export default function Workout() {
     async function loadExerciseData(exercise, index) {
         currentExerciseIdRef.current = exercise.id;
 
-        if (completedExerciseIds.includes(exercise.id)) {
-            try {
-                const history = await api.getExerciseHistory(exercise.id);
-                if (currentExerciseIdRef.current !== exercise.id) return;
+        // Siempre verificar si hay datos de hoy en la API
+        try {
+            const history = await api.getExerciseHistory(exercise.id);
+            if (currentExerciseIdRef.current !== exercise.id) return;
 
-                if (history?.length > 0 && history[0].sets) {
-                    const today = new Date().toISOString().split('T')[0];
-                    const logDate = new Date(history[0].date).toISOString().split('T')[0];
+            if (history?.length > 0 && history[0].sets) {
+                const today = new Date().toISOString().split('T')[0];
+                const logDate = new Date(history[0].date).toISOString().split('T')[0];
 
-                    if (logDate === today) {
-                        const apiSets = history[0].sets.map(s => ({
-                            weight: s.weight.toString(),
-                            reps: s.reps.toString(),
-                            rir: s.rpe ? (10 - s.rpe) : null,
-                            completed: true
-                        }));
-                        setSets(apiSets);
-                        loadHistory();
-                        return;
+                // Si hay datos de hoy, cargarlos y marcar como completado
+                if (logDate === today) {
+                    const apiSets = history[0].sets.map(s => ({
+                        weight: s.weight.toString(),
+                        reps: s.reps.toString(),
+                        rir: s.rpe ? (10 - s.rpe) : null,
+                        completed: true
+                    }));
+                    setSets(apiSets);
+                    // Agregar a completedExerciseIds si no está
+                    if (!completedExerciseIds.includes(exercise.id)) {
+                        setCompletedExerciseIds(prev => [...prev, exercise.id]);
                     }
+                    loadHistory();
+                    return;
                 }
-            } catch (error) {
-                console.error('Error loading completed exercise:', error);
             }
+        } catch (error) {
+            console.error('Error loading exercise data:', error);
         }
 
         if (workoutData[exercise.id]) {
@@ -433,7 +458,9 @@ export default function Workout() {
         const hasUnsavedData = sets.some(s => s.weight !== '' || s.reps !== '');
         const isNotSaved = !completedExerciseIds.includes(currentExId);
 
-        if (hasUnsavedData && isNotSaved) {
+        // Solo mostrar alerta si hay datos sin guardar Y el ejercicio NO está guardado
+        // isAlreadyLogged indica que ya se guardó hoy (detectado en checkCompletedExercises)
+        if (hasUnsavedData && isNotSaved && !isAlreadyLogged) {
             const userConfirmed = window.confirm(
                 '¿Salir sin guardar? Los datos se mantendrán temporalmente.'
             );
@@ -577,23 +604,23 @@ export default function Workout() {
             </div>
 
             <div className="px-4 flex-1 flex flex-col">
-                {/* Progress Bar */}
+                {/* Progress Bar - Enhanced visibility */}
                 <div className="flex gap-1.5 my-4">
                     {workoutState.exercises.map((ex, i) => (
                         <div
                             key={i}
-                            className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${completedExerciseIds.includes(ex.id)
-                                    ? 'bg-gradient-to-r from-[var(--success)] to-[var(--success)]/70' :
-                                    i === workoutState.currentIndex
-                                        ? 'bg-gradient-to-r from-[var(--primary)] to-[var(--primary)]/70' :
-                                        'bg-[var(--border)]'
+                            className={`h-2 flex-1 rounded-full transition-all duration-500 ${completedExerciseIds.includes(ex.id)
+                                ? 'bg-[var(--success)]' :
+                                i === workoutState.currentIndex
+                                    ? 'bg-[var(--primary)]' :
+                                    'bg-[var(--border)]'
                                 }`}
                         />
                     ))}
                 </div>
 
-                {/* Exercise Header */}
-                <div className="flex items-start justify-between mb-4 gap-3">
+                {/* Exercise Header - Sticky */}
+                <div className="flex items-start justify-between mb-4 gap-3 sticky top-[52px] bg-[var(--bg-dark)]/95 backdrop-blur-sm z-10 -mx-4 px-4 py-2">
                     <button
                         onClick={() => goToExercise(workoutState.currentIndex - 1)}
                         disabled={workoutState.currentIndex === 0}
@@ -683,8 +710,8 @@ export default function Workout() {
                     </div>
                 )}
 
-                {/* Sets */}
-                <div className="flex-1 space-y-3 mb-4">
+                {/* Sets - Extra padding for sticky button */}
+                <div className="flex-1 space-y-3 mb-4 pb-2">
                     {sets.map((set, i) => (
                         <SetCard
                             key={i}
@@ -716,12 +743,12 @@ export default function Workout() {
                     onClick={handlePrimaryAction}
                     disabled={uiState.saving || (!isAlreadyLogged && !hasValidSets)}
                     className={`w-full py-4 text-lg font-bold flex items-center justify-center gap-3 rounded-xl transition-all active:scale-95 shadow-2xl relative overflow-hidden ${isAlreadyLogged
-                            ? 'bg-gradient-to-r from-[var(--bg-card)] to-[var(--bg-card)]/80 text-[var(--text-primary)] border-2 border-[var(--border)]'
-                            : uiState.saving
-                                ? 'bg-[var(--primary)]/50 text-white cursor-wait'
-                                : !hasValidSets
-                                    ? 'bg-[var(--border)] text-[var(--text-secondary)] cursor-not-allowed opacity-50'
-                                    : 'bg-gradient-to-r from-[var(--primary)] to-[var(--primary)]/80 text-white hover:brightness-110 shadow-[var(--primary)]/30'
+                        ? 'bg-gradient-to-r from-[var(--bg-card)] to-[var(--bg-card)]/80 text-[var(--text-primary)] border-2 border-[var(--border)]'
+                        : uiState.saving
+                            ? 'bg-[var(--primary)]/50 text-white cursor-wait'
+                            : !hasValidSets
+                                ? 'bg-[var(--border)] text-[var(--text-secondary)] cursor-not-allowed opacity-50'
+                                : 'bg-gradient-to-r from-[var(--primary)] to-[var(--primary)]/80 text-white hover:brightness-110 shadow-[var(--primary)]/30'
                         }`}
                 >
                     {uiState.saving ? (

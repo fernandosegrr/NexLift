@@ -277,12 +277,12 @@ function HeatmapCalendar({ days }) {
                         <div
                             key={dayIdx}
                             title={`${day.date}${day.hasWorkout ? ' ✓' : ''}`}
-                            className={`aspect-square rounded-md min-h-[32px] transition-all cursor-default ${getIntensityClass(day.hasWorkout)}`}
+                            className={`aspect-square rounded-md min-h-[36px] transition-all cursor-default ${getIntensityClass(day.hasWorkout)}`}
                         />
                     ))}
                     {/* Rellenar celdas vacías si la última semana está incompleta */}
                     {week.length < 7 && Array.from({ length: 7 - week.length }).map((_, i) => (
-                        <div key={`empty-${i}`} className="aspect-square rounded-md min-h-[32px] opacity-0" />
+                        <div key={`empty-${i}`} className="aspect-square rounded-md min-h-[36px] opacity-0" />
                     ))}
                 </div>
             ))}
@@ -419,6 +419,9 @@ function PRCard({ pr, rank }) {
     const muscle = getMuscleGroup(pr.exerciseName, null);
     const colors = MUSCLE_COLORS[muscle] || MUSCLE_COLORS['Otros'];
 
+    // Mostrar 1RM estimado si existe
+    const estimated1RM = pr.estimated1RM ? Math.round(pr.estimated1RM) : null;
+
     return (
         <div className={`relative bg-[var(--bg-card)] rounded-xl p-4 border transition-all hover:border-[var(--primary)]/30 ${isTop3
             ? 'border-yellow-500/30 shadow-lg shadow-yellow-500/10'
@@ -447,10 +450,15 @@ function PRCard({ pr, rank }) {
                     </div>
                 </div>
 
-                {/* Weight & Reps */}
+                {/* Weight, Reps & 1RM */}
                 <div className="text-right shrink-0">
                     <p className="text-xl font-bold text-[var(--primary)]">{pr.weight}kg</p>
                     <p className="text-xs text-[var(--text-secondary)] font-mono">× {pr.reps} reps</p>
+                    {estimated1RM && (
+                        <p className="text-[10px] text-[var(--warning)] font-medium mt-0.5">
+                            ~{estimated1RM}kg 1RM
+                        </p>
+                    )}
                 </div>
             </div>
         </div>
@@ -537,15 +545,22 @@ export default function Progress() {
 
         const daysWithWorkout = last30Days.reduce((sum, d) => sum + (d.hasWorkout ? 1 : 0), 0);
 
-        // Robust streak calculation (consecutive days from today or yesterday)
+        // Robust streak calculation (consecutive days from today backwards)
         let streak = 0;
-        for (let i = last30Days.length - 1; i >= 0; i--) {
-            if (last30Days[i].hasWorkout) {
+        let startedCounting = false;
+        for (let i = 0; i < 365; i++) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - i);
+            const dateStr = getLocalDateStr(date);
+            const hasWorkout = (consistency[dateStr] || 0) > 0;
+
+            if (hasWorkout) {
                 streak++;
-            } else if (i === last30Days.length - 1) {
-                // Today has no workout, check if streak continues from yesterday
+                startedCounting = true;
+            } else if (i === 0) {
+                // Today has no workout, continue checking from yesterday
                 continue;
-            } else {
+            } else if (startedCounting) {
                 break;
             }
         }

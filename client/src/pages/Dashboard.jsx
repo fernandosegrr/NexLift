@@ -110,7 +110,7 @@ export default function Dashboard() {
 
         let streak = 0;
         const checkFrom = todayLogged ? 0 : 1;
-        for (let i = checkFrom; i < 30; i++) {
+        for (let i = checkFrom; i < 365; i++) {
             const date = new Date();
             date.setDate(date.getDate() - i);
             const dateStr = getLocalDateStr(date);
@@ -183,10 +183,10 @@ export default function Dashboard() {
     }
 
     const statsCards = [
-        { icon: Flame, value: localStreak, label: 'Racha', color: 'orange-500', delay: 0 },
-        { icon: Target, value: stats?.totalWorkouts || 0, label: 'Sesiones', color: 'cyan-500', delay: 50 },
-        { icon: Trophy, value: stats?.totalPRs || 0, label: 'PRs', color: 'yellow-500', delay: 100 },
-        { icon: Calendar, value: stats?.trainingDaysLast30 || 0, label: 'Mes', color: 'green-500', delay: 150 }
+        { icon: Flame, value: localStreak, label: 'Racha', colorClass: 'text-orange-500', delay: 0 },
+        { icon: Target, value: stats?.totalWorkouts || 0, label: 'Sesiones', colorClass: 'text-cyan-400', delay: 50 },
+        { icon: Trophy, value: stats?.totalPRs || 0, label: 'PRs', colorClass: 'text-yellow-500', delay: 100 },
+        { icon: Calendar, value: stats?.trainingDaysLast30 || 0, label: 'Mes', colorClass: 'text-green-500', delay: 150 }
     ];
 
     return (
@@ -304,13 +304,13 @@ export default function Dashboard() {
 
             {/* Stats Grid - Con animación stagger */}
             <div className="grid grid-cols-4 gap-3">
-                {statsCards.map(({ icon: Icon, value, label, color, delay }, i) => (
+                {statsCards.map(({ icon: Icon, value, label, colorClass, delay }, i) => (
                     <div
                         key={i}
-                        className="bg-[var(--bg-card)] rounded-xl p-3 text-center hover:bg-[var(--bg-card-hover)] transition-all animate-fade-in"
+                        className="bg-[var(--bg-card)] rounded-xl p-3 text-center hover:bg-[var(--bg-card-hover)] transition-all animate-fade-in border border-[var(--border)]"
                         style={{ animationDelay: `${delay}ms` }}
                     >
-                        <Icon size={20} className={`mx-auto text-${color} mb-1.5`} />
+                        <Icon size={20} className={`mx-auto ${colorClass} mb-1.5`} />
                         <p className="text-xl font-bold">{value}</p>
                         <p className="text-xs text-[var(--text-secondary)] mt-0.5">{label}</p>
                     </div>

@@ -468,8 +468,11 @@ app.post('/api/workouts/log', async (req, res) => {
 
         if (exercise) {
             for (const set of sets) {
-                // Calculate estimated 1RM using Brzycki formula
-                const estimated1RM = set.weight * (36 / (37 - set.reps));
+                // Calculate estimated 1RM using Epley formula (consistent with frontend)
+                let estimated1RM = set.weight;
+                if (set.reps > 1 && set.reps < 37) {
+                    estimated1RM = set.weight * (1 + set.reps / 30);
+                }
 
                 // Check if this is a new PR
                 const existingPR = await prisma.personalRecord.findFirst({
@@ -637,10 +640,10 @@ app.get('/api/stats/overview', async (req, res) => {
             ...recentRestLogs.map(r => r.date.toISOString().split('T')[0])
         ]);
 
-        // Calculate current streak
+        // Calculate current streak (up to 365 days)
         let streak = 0;
         const today = new Date();
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 365; i++) {
             const checkDate = new Date(today);
             checkDate.setDate(checkDate.getDate() - i);
             const dateStr = checkDate.toISOString().split('T')[0];
@@ -728,7 +731,11 @@ app.get('/api/stats/progress/:exerciseName', async (req, res) => {
         // Calculate max weight and estimated 1RM per session
         const progressData = logs.map(log => {
             const maxSet = log.sets.reduce((max, set) => {
-                const est1RM = set.weight * (36 / (37 - set.reps));
+                // Epley formula with safety check
+                let est1RM = set.weight;
+                if (set.reps > 1 && set.reps < 37) {
+                    est1RM = set.weight * (1 + set.reps / 30);
+                }
                 return est1RM > max.est1RM ? { ...set, est1RM } : max;
             }, { est1RM: 0 });
 
@@ -764,7 +771,7 @@ app.get('/api/stats/prs', async (req, res) => {
             }
         });
 
-        res.json(Object.values(prsByExercise));
+        res.json(Object.values(prsByExercise).sort((a, b) => b.weight - a.weight));
     } catch (error) {
         console.error('Error fetching PRs:', error);
         res.status(500).json({ error: 'Failed to fetch PRs' });

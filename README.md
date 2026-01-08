@@ -5,7 +5,7 @@
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.3.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.6.0-blue?style=flat-square)
 
 ---
 
@@ -84,12 +84,28 @@ Diseñada con un enfoque **Mobile-First**, funciona perfectamente en tu celular 
 
 ## 🚀 Despliegue
 
+### Opción 1: Vercel (Serverless)
 Optimizado para **Vercel** con PostgreSQL (Neon, Supabase, Railway).
 
-### Variables de Entorno
 ```env
 DATABASE_URL="postgresql://usuario:password@host:port/database"
 ```
+
+### Opción 2: Easypanel / VPS (Docker)
+También soporta despliegue en **VPS con Easypanel** usando Docker.
+
+1. Conecta tu repositorio de GitHub en Easypanel
+2. Selecciona **Dockerfile** como método de build
+3. Configura la variable de entorno:
+   ```env
+   DATABASE_URL="postgresql://usuario:password@host:port/database"
+   ```
+4. Deploy
+
+**Ventajas de VPS:**
+- Sin cold starts
+- Base de datos local = menor latencia
+- Control total sobre recursos
 
 ### Estructura del Proyecto
 ```

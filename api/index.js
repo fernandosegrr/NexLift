@@ -302,12 +302,10 @@ export default async function handler(req, res) {
                     const weight = parseFloat(set.weight);
                     const reps = parseInt(set.reps);
 
-                    // Safety: Avoid division by zero if reps >= 37
+                    // Safety: Avoid edge cases with Epley formula
                     let est1RM = weight;
                     if (reps > 1 && reps < 37) {
-                        est1RM = weight * (36 / (37 - reps));
-                    } else if (reps >= 37) {
-                        est1RM = weight; // Fallback seguro
+                        est1RM = weight * (1 + reps / 30); // Epley formula
                     }
 
                     const existingPR = await prisma.personalRecord.findFirst({
@@ -483,9 +481,10 @@ export default async function handler(req, res) {
                 ...recentRestLogs.map(r => r.date.toISOString().split('T')[0])
             ]);
 
+            // Calculate streak (up to 365 days)
             let streak = 0;
             const today = new Date();
-            for (let i = 0; i < 30; i++) {
+            for (let i = 0; i < 365; i++) {
                 const checkDate = new Date(today);
                 checkDate.setDate(checkDate.getDate() - i);
                 const dateStr = checkDate.toISOString().split('T')[0];
@@ -541,7 +540,9 @@ export default async function handler(req, res) {
                     byEx[pr.exerciseName] = pr;
                 }
             });
-            return res.json(Object.values(byEx));
+            // Ordenar por peso absoluto (mayor primero)
+            const sortedPRs = Object.values(byEx).sort((a, b) => b.weight - a.weight);
+            return res.json(sortedPRs);
         }
 
         // GET /api/stats/progress/:name
@@ -557,9 +558,11 @@ export default async function handler(req, res) {
 
             const data = logs.map(log => {
                 const maxSet = log.sets.reduce((max, s) => {
+                    // Epley formula with safety check
                     let e = s.weight;
-                    if (s.reps > 1 && s.reps < 37) e = s.weight * (36 / (37 - s.reps));
-
+                    if (s.reps > 1 && s.reps < 37) {
+                        e = s.weight * (1 + s.reps / 30);
+                    }
                     return e > max.e ? { ...s, e } : max;
                 }, { e: 0 });
                 return {

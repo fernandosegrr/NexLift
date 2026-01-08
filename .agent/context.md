@@ -33,14 +33,16 @@ NexLift/
 
 ### Decisiones Arquitectónicas Clave
 
-1. **Dos backends paralelos:**
+1. **Tres opciones de backend:**
    - `server/` para desarrollo local con Express + Prisma
    - `api/` para producción en Vercel (serverless)
-   - Ambos comparten la misma lógica pero `api/` está optimizado para cold starts
+   - `Dockerfile` para producción en VPS/Easypanel (containerizado)
+   - Todos comparten la misma lógica de negocio
 
 2. **Base de datos PostgreSQL:**
-   - Desarrollo: PostgreSQL local o Neon/Supabase
-   - Producción: Neon/Supabase/Railway conectado via `DATABASE_URL`
+   - Desarrollo: PostgreSQL local
+   - Producción Vercel: Neon/Supabase/Railway
+   - Producción VPS: PostgreSQL en el mismo servidor (menor latencia)
 
 3. **Mobile-First + OLED Dark Mode:**
    - Diseño optimizado para uso en gimnasio
@@ -187,7 +189,8 @@ model BodyLog        # Peso corporal + composición corporal + fotos de progreso
 - Se actualiza cada vez que se guarda un workout
 
 ### 5. PRs Automáticos
-- Se calculan usando fórmula Brzycki para 1RM estimado
+- Se calculan usando fórmula **Epley** para 1RM estimado: `peso × (1 + reps/30)`
+- Safety checks: solo para `reps > 1 && reps < 37`
 - Se guardan solo si superan el PR anterior
 
 ---
@@ -275,6 +278,21 @@ El usuario ha indicado que no quiere que la IA ejecute tests automáticos. La ve
 
 ## 📋 Changelog Reciente (Enero 2026)
 
+### v1.6.0 - Unified 1RM Formula & UX Improvements
+- ✅ **Fórmula 1RM Unificada:** Todas las implementaciones (frontend y backend) ahora usan Epley (`peso × (1 + reps/30)`)
+- ✅ **Streak sin límite:** Cálculo de racha extendido de 30 a 365 días
+- ✅ **Workout.jsx:** Header sticky, progress bar más visible, botones RIR más grandes, padding extra
+- ✅ **Dashboard.jsx:** Colores de iconos de stats con clases seguras (evita Tailwind purge)
+- ✅ **Progress.jsx:** Heatmap cells más grandes (36px)
+- ✅ **Layout.jsx:** Indicador de punto activo en navegación inferior
+- ✅ **Nuevo Logo:** Hexágono con mancuerna (favicon actualizado)
+
+### v1.5.0 - Easypanel/VPS Deployment Support
+- ✅ **Dockerfile:** Nuevo archivo para despliegue containerizado en VPS
+- ✅ **server/src/index.js:** Agregado middleware para servir archivos estáticos del frontend
+- ✅ **server/src/index.js:** Agregada ruta catch-all para SPA (React Router)
+- ✅ **Documentación:** README.md y context.md actualizados con opciones de despliegue
+
 ### v1.4.0 - Body Composition System & Export Improvements
 - ✅ **BodyTracking.jsx:** Reescritura completa con sistema de composición corporal
   - Campos de báscula inteligente: IMC, grasa corporal, masa muscular, BMR, agua corporal, grasa visceral, masa ósea, proteína
@@ -304,4 +322,4 @@ El usuario ha indicado que no quiere que la IA ejecute tests automáticos. La ve
 
 ---
 
-*Última actualización: 6 Enero 2026*
+*Última actualización: 8 Enero 2026*
