@@ -207,12 +207,27 @@ export default async function handler(req, res) {
                             };
 
                             if (ex.id) {
+                                // Fetch current name for smart renaming
+                                const currentExercise = await tx.exercise.findUnique({
+                                    where: { id: ex.id },
+                                    select: { name: true }
+                                });
+
                                 // Remove routineDayId for update as it doesn't change
                                 const { routineDayId, ...updateData } = exData;
                                 await tx.exercise.update({
                                     where: { id: ex.id },
                                     data: updateData
                                 });
+
+                                // SMART PR RENAMING:
+                                if (currentExercise && currentExercise.name.trim().toLowerCase() !== ex.name.trim().toLowerCase()) {
+                                    console.log(`Renaming PRs (Vercel): ${currentExercise.name} -> ${ex.name}`);
+                                    await tx.personalRecord.updateMany({
+                                        where: { exerciseName: currentExercise.name.toLowerCase() },
+                                        data: { exerciseName: ex.name.toLowerCase() }
+                                    });
+                                }
                             } else {
                                 await tx.exercise.create({
                                     data: exData

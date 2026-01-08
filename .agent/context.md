@@ -323,3 +323,6 @@ El usuario ha indicado que no quiere que la IA ejecute tests automáticos. La ve
 ---
 
 *Última actualización: 8 Enero 2026*
+
+### v1.6.1 - Data Integrity Fixes
+- ✅ **Smart PR Renaming:** Al renombrar un ejercicio en una rutina, se actualizan automáticamente todos los PRs históricos asociados para evitar registros huérfanos. Implementado en servidor local y API Vercel.

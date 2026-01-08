@@ -5,7 +5,7 @@
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.6.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.6.1-blue?style=flat-square)
 
 ---
 

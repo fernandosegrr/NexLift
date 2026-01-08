@@ -248,6 +248,11 @@ app.put('/api/routines/:id', async (req, res) => {
                 for (let j = 0; j < day.exercises.length; j++) {
                     const ex = day.exercises[j];
                     if (ex.id) {
+                        const currentExercise = await prisma.exercise.findUnique({
+                            where: { id: ex.id },
+                            select: { name: true }
+                        });
+
                         await prisma.exercise.update({
                             where: { id: ex.id },
                             data: {
@@ -259,6 +264,16 @@ app.put('/api/routines/:id', async (req, res) => {
                                 order: j
                             }
                         });
+
+                        // SMART PR RENAMING:
+                        // If name changed, update associated PRs to keep history linked
+                        if (currentExercise && currentExercise.name.trim().toLowerCase() !== ex.name.trim().toLowerCase()) {
+                            console.log(`Renaming PRs for: ${currentExercise.name} -> ${ex.name}`);
+                            await prisma.personalRecord.updateMany({
+                                where: { exerciseName: currentExercise.name.toLowerCase() },
+                                data: { exerciseName: ex.name.toLowerCase() }
+                            });
+                        }
                     } else {
                         await prisma.exercise.create({
                             data: {
