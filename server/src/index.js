@@ -582,10 +582,29 @@ app.get('/api/workouts/history', async (req, res) => {
 });
 
 // GET /api/workouts/exercise/:exerciseId/history - Get history for specific exercise
+// Search by exercise NAME to include history from all routines with the same exercise
 app.get('/api/workouts/exercise/:exerciseId/history', async (req, res) => {
     try {
+        // First, get the exercise to find its name
+        const exercise = await prisma.exercise.findUnique({
+            where: { id: req.params.exerciseId },
+            select: { name: true }
+        });
+
+        if (!exercise) {
+            return res.json([]);
+        }
+
+        // Find all workout logs for exercises with the same name (case-insensitive)
         const logs = await prisma.workoutLog.findMany({
-            where: { exerciseId: req.params.exerciseId },
+            where: {
+                exercise: {
+                    name: {
+                        equals: exercise.name,
+                        mode: 'insensitive'
+                    }
+                }
+            },
             include: {
                 sets: { orderBy: { setNumber: 'asc' } }
             },

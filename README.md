@@ -4,8 +4,8 @@
 > Gestiona tus rutinas, registra tu progreso y supera tus límites.
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
-![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.7.0-blue?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.7.1-blue?style=flat-square)
 
 ---
 
@@ -211,5 +211,6 @@ npm run dev
 
 ## 📄 Licencia
 
-Copyright © 2026 Fernando Guerrero.  
-Este proyecto es software propietario. Todos los derechos reservados.
+Este proyecto está licenciado bajo la [Licencia MIT](LICENSE).
+
+Copyright © 2026 Fernando Guerrero

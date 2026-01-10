@@ -1,336 +1,380 @@
-# NexLift - AI Context & Project Documentation
+# NexLift v1.7.1 - AI Context & Project Documentation
 
-> **Este documento proporciona contexto completo para IAs que trabajen en este proyecto.**
+> **Documentación completa para IAs y desarrolladores que trabajen en este proyecto.**
 
 ---
 
 ## 🎯 Resumen del Proyecto
 
-**NexLift** es una Progressive Web App (PWA) de tracking de gimnasio con arquitectura cliente-servidor separada. El proyecto está optimizado para Vercel pero también funciona con servidor Express local.
+**NexLift** es una Progressive Web App (PWA) de tracking de gimnasio diseñada mobile-first con tema OLED oscuro. Permite registrar entrenamientos, trackear progreso, gestionar composición corporal, y generar reportes PDF profesionales.
 
-### Objetivo Principal
-Permitir a usuarios de gimnasio registrar sus entrenamientos, trackear progreso de peso/reps por ejercicio, y visualizar su evolución a través de estadísticas, gráficas y reportes PDF profesionales.
+### Stack Tecnológico
+- **Frontend:** React 18 + Vite + Tailwind 4 + Recharts
+- **Backend:** Express + Prisma + PostgreSQL  
+- **Deployment:** Vercel (serverless) / VPS Docker / Local
 
 ---
 
-## 🏗️ Arquitectura
+## 🏗️ Arquitectura del Proyecto
 
 ```
 NexLift/
-├── client/              # Frontend React (Vite)
+├── client/                    # Frontend React (Vite)
 │   ├── src/
-│   │   ├── components/  # UI reutilizable
-│   │   ├── pages/       # Páginas principales
-│   │   └── services/    # Cliente API
+│   │   ├── components/
+│   │   │   ├── layout/
+│   │   │   │   └── Layout.jsx       # Navbar inferior + estructura
+│   │   │   └── ui/
+│   │   │       ├── Toast.jsx        # Sistema de notificaciones
+│   │   │       └── Celebration.jsx  # Animación confeti para PRs
+│   │   ├── pages/                   # 11 páginas principales
+│   │   │   ├── Dashboard.jsx        # Inicio, heatmap, stats (463 líneas)
+│   │   │   ├── Progress.jsx         # Gráficas, PRs, análisis (986 líneas)
+│   │   │   ├── BodyTracking.jsx     # Composición corporal (693 líneas)
+│   │   │   ├── Workout.jsx          # Registro de ejercicios (850 líneas)
+│   │   │   ├── Routines.jsx         # Lista de rutinas (404 líneas)
+│   │   │   ├── RoutineDetail.jsx    # Detalle de día (273 líneas)
+│   │   │   ├── EditRoutine.jsx      # Editar rutina (528 líneas)
+│   │   │   ├── EditSession.jsx      # Editar sesión pasada (287 líneas)
+│   │   │   ├── ExportReport.jsx     # Generador PDF (919 líneas)
+│   │   │   ├── Settings.jsx         # Configuración (447 líneas)
+│   │   │   └── Import.jsx           # Importar rutinas JSON (198 líneas)
+│   │   ├── services/
+│   │   │   └── api.js               # Cliente HTTP (~25 métodos)
+│   │   └── index.css                # Variables CSS tema OLED
 │   └── public/
-├── server/              # Backend desarrollo local (Express)
-│   ├── prisma/          # Schema BD
-│   └── src/index.js     # Rutas API
-├── api/                 # Backend Vercel (Serverless)
-│   └── index.js
-└── .agent/              # Documentación IA
+│       └── manifest.json            # PWA config
+├── server/                          # Backend desarrollo local
+│   ├── prisma/
+│   │   └── schema.prisma            # Modelos de BD
+│   └── src/
+│       └── index.js                 # API Express (~700 líneas)
+├── api/                             # Backend Vercel (serverless)
+│   ├── prisma/
+│   │   └── schema.prisma            # ⚠️ DEBE estar sincronizado
+│   └── index.js                     # Handler serverless (~673 líneas)
+├── Dockerfile                       # Deploy VPS/Easypanel
+└── .agent/
+    └── context.md                   # Este archivo
 ```
 
-### Decisiones Arquitectónicas Clave
+### Decisiones Arquitectónicas
 
-1. **Tres opciones de backend:**
-   - `server/` para desarrollo local con Express + Prisma
-   - `api/` para producción en Vercel (serverless)
-   - `Dockerfile` para producción en VPS/Easypanel (containerizado)
-   - Todos comparten la misma lógica de negocio
-
-2. **Base de datos PostgreSQL:**
-   - Desarrollo: PostgreSQL local
-   - Producción Vercel: Neon/Supabase/Railway
-   - Producción VPS: PostgreSQL en el mismo servidor (menor latencia)
-
-3. **Mobile-First + OLED Dark Mode:**
-   - Diseño optimizado para uso en gimnasio
-   - Variables CSS en `:root` para temas
+| Decisión | Razón |
+|----------|-------|
+| **Dos backends (server/ y api/)** | `server/` para dev local con hot reload, `api/` para serverless Vercel |
+| **Dos schemas Prisma** | Vercel usa su propio directorio; AMBOS deben estar sincronizados |
+| **localStorage en Workout** | Evita pérdida de datos si el usuario cierra la app antes de guardar |
+| **Base64 para fotos** | Simplicidad: no requiere storage externo (S3, Cloudinary) |
+| **Fórmula Epley unificada** | `peso × (1 + reps/30)` consistente en frontend y backend |
 
 ---
 
-## 📊 Modelo de Datos (Prisma Schema)
+## 📊 Modelo de Datos
 
 ```prisma
-model Routine        # Rutinas de entrenamiento
-model RoutineDay     # Días de la rutina (Lunes, Martes, etc.)
-model Exercise       # Ejercicios configurados por día
-model WorkoutLog     # Registro de sesión (fecha + ejercicio)
-model SetLog         # Series individuales (peso, reps, RPE)
-model PersonalRecord # PRs automáticos por ejercicio
-model RestLog        # Días de descanso chequeados
-model BodyLog        # Peso corporal + composición corporal + fotos de progreso
+model Routine {
+  id        String       @id @default(cuid())
+  name      String
+  isActive  Boolean      @default(false)
+  days      RoutineDay[]
+  createdAt DateTime     @default(now())
+}
+
+model RoutineDay {
+  id        String     @id @default(cuid())
+  dayName   String     // "Lunes", "Martes", etc.
+  routine   Routine    @relation(...)
+  exercises Exercise[]
+}
+
+model Exercise {
+  id          String       @id @default(cuid())
+  name        String
+  targetSets  Int          @default(3)
+  targetReps  String       @default("8-12")
+  muscleGroup String?      // Clasificación opcional
+  workoutLogs WorkoutLog[]
+}
+
+model WorkoutLog {
+  id         String   @id @default(cuid())
+  date       DateTime @default(now())
+  exercise   Exercise @relation(onDelete: Restrict)
+  sets       SetLog[]
+}
+
+model SetLog {
+  id        String     @id @default(cuid())
+  setNumber Int
+  weight    Float
+  reps      Int
+  rpe       Int?       // Rating of Perceived Exertion (1-10)
+}
+
+model PersonalRecord {
+  id           String   @id @default(cuid())
+  exerciseName String   // Normalizado (minúsculas, sin prefijos)
+  weight       Float
+  reps         Int
+  estimated1RM Float
+  date         DateTime @default(now())
+}
+
+model RestLog {
+  id   String   @id @default(cuid())
+  date DateTime @default(now())
+}
+
+model BodyLog {
+  id          String   @id @default(cuid())
+  date        DateTime @default(now())
+  weight      Float?   // kg
+  photo       String?  @db.Text  // Base64
+  note        String?
+  // Campos de báscula inteligente (todos opcionales)
+  bmi         Float?   // Índice de Masa Corporal
+  bodyFat     Float?   // Grasa corporal %
+  muscleMass  Float?   // Masa muscular kg
+  bmr         Float?   // Metabolismo basal kcal/día
+  bodyWater   Float?   // Agua corporal %
+  visceralFat Float?   // Grasa visceral (nivel 1-59)
+  boneMass    Float?   // Masa ósea kg
+  protein     Float?   // Proteínas %
+}
 ```
 
-### Campos de BodyLog (Composición Corporal)
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| `weight` | Float? | Peso en kg |
-| `photo` | String? @db.Text | Foto de progreso en base64 |
-| `note` | String? | Notas del día |
-| `bmi` | Float? | IMC (Índice de Masa Corporal) |
-| `bodyFat` | Float? | Grasa corporal % |
-| `muscleMass` | Float? | Masa muscular kg |
-| `bmr` | Float? | Tasa metabólica basal kcal/d |
-| `bodyWater` | Float? | Agua corporal % |
-| `visceralFat` | Float? | Grasa visceral (nivel 1-59) |
-| `boneMass` | Float? | Masa ósea kg |
-| `protein` | Float? | Proteínas % |
-
-### Relaciones Importantes
-- `Routine → RoutineDay → Exercise → WorkoutLog → SetLog`
-- `Exercise.name` se normaliza para comparar PRs
-- `BodyLog.photo` almacena imágenes en base64 (comprimidas en cliente)
-- Los campos de composición corporal son **opcionales** (báscula inteligente)
+### Relaciones Clave
+```
+Routine → RoutineDay → Exercise → WorkoutLog → SetLog
+                                      ↓
+                              PersonalRecord (automático)
+```
 
 ---
 
-## 📁 Archivos Clave por Funcionalidad
-
-### Frontend (client/src/)
-
-| Archivo | Propósito |
-|---------|-----------|
-| `pages/Dashboard.jsx` | Vista principal, calendar heatmap, stats rápidos |
-| `pages/Progress.jsx` | Gráficas de evolución por ejercicio, PRs, análisis muscular |
-| `pages/BodyTracking.jsx` | Composición corporal completa (peso, IMC, grasa, músculo, BMR, agua, etc.) + fotos de progreso + gráficas de evolución |
-| `pages/ExportReport.jsx` | Generación de PDF profesional con jspdf + autotable |
-| `pages/Routines.jsx` | Lista de rutinas, importación JSON, activar rutina |
-| `pages/RoutineDetail.jsx` | Vista de día de rutina, registro de sets, ghost mode |
-| `services/api.js` | Cliente HTTP para todas las llamadas al backend |
-| `components/ui/Toast.jsx` | Sistema de notificaciones toast |
-| `components/ui/Celebration.jsx` | Animación de confeti para PRs |
-| `components/layout/Layout.jsx` | Navbar inferior + estructura general |
-
-### Backend (server/src/)
-
-| Archivo | Propósito |
-|---------|-----------|
-| `index.js` | Todas las rutas API REST (Express) |
-| `prisma/schema.prisma` | Definición de modelos de BD |
-
----
-
-## 🔌 API Endpoints Principales
+## 🔌 API Endpoints
 
 ### Rutinas
-- `GET /api/routines` - Lista todas
-- `GET /api/routines/:id` - Detalle con días y ejercicios
-- `POST /api/routines` - Crear nueva
-- `POST /api/routines/import` - Importar desde JSON
-- `PUT /api/routines/:id/activate` - Activar rutina
-- `GET /api/routines/active` - Obtener rutina activa
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/routines` | Lista todas las rutinas con días y ejercicios |
+| GET | `/api/routines/:id` | Detalle de rutina específica |
+| POST | `/api/routines` | Crear nueva rutina |
+| PUT | `/api/routines/:id` | Actualizar rutina (incluyendo renombrar ejercicios) |
+| DELETE | `/api/routines/:id` | Eliminar rutina (protegido si hay logs) |
+| POST | `/api/routines/import` | Importar rutina desde JSON |
+| PUT | `/api/routines/:id/activate` | Activar rutina (desactiva otras) |
+| GET | `/api/routines/active` | Obtener rutina activa actual |
 
-### Workouts
-- `POST /api/workouts/log` - Registrar sesión completa
-- `GET /api/workouts/history?limit=30` - Historial de sesiones
-- `GET /api/workouts/exercise/:id/history` - Historial por ejercicio
+### Entrenamientos
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/api/workouts/log` | Registrar sesión (crea WorkoutLog + SetLogs + PR si aplica) |
+| GET | `/api/workouts/history?limit=N` | Historial de sesiones (default 30) |
+| GET | `/api/workouts/exercise/:id/history` | Historial por ejercicio (busca por nombre) |
+| DELETE | `/api/workouts/:id` | Eliminar sesión específica |
 
-### Stats
-- `GET /api/stats/overview` - Estadísticas generales
-- `GET /api/stats/consistency` - Eventos para calendar heatmap
-- `GET /api/stats/prs` - Personal Records
-- `GET /api/stats/exercise/:name/progress` - Evolución de ejercicio
+### Estadísticas
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/stats/overview` | Total workouts, ejercicios, streak actual |
+| GET | `/api/stats/consistency` | Eventos para calendar heatmap (365 días) |
+| GET | `/api/stats/prs` | Todos los Personal Records |
+| GET | `/api/stats/exercise/:name/progress` | Evolución de ejercicio específico |
 
 ### Body Tracking
-- `GET /api/body/logs?limit=30` - Registros corporales (peso + composición corporal)
-- `GET /api/body/photos` - Fotos de progreso (sin foto=null)
-- `POST /api/body/log` - Crear registro (peso + composición corporal + foto opcional)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/body/logs?limit=N` | Registros corporales con composición |
+| GET | `/api/body/photos` | Solo registros con fotos |
+| POST | `/api/body/log` | Crear registro (peso + composición + foto) |
+
+### Otros
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/api/rest/log` | Registrar día de descanso |
+| GET | `/api/rest/logs` | Historial de descansos |
+| PUT | `/api/exercises/:id` | Actualizar muscleGroup de ejercicio |
 
 ---
 
-## 🎨 Convenciones de Código
+## 🎨 Custom Hooks Importantes
 
-### CSS Variables (client/src/index.css)
+### `useWorkoutPersistence(dayId)` - Workout.jsx
+```javascript
+// Maneja localStorage con expiración de 24h
+const { workoutData, setWorkoutData, completedExerciseIds, 
+        setCompletedExerciseIds, saveToStorage, clearStorage } = useWorkoutPersistence(dayId);
+```
+
+### `useExerciseHistory(exerciseId)` - Workout.jsx
+```javascript
+// Auto-carga historial al cambiar ejercicio, busca mejor set en TODAS las sesiones
+const { previousBest, suggestedWeight, loading, loadHistory } = useExerciseHistory(exerciseId);
+```
+
+### `useProgressData()` - Progress.jsx
+```javascript
+// Carga todos los datos de progreso: stats, PRs, events, workouts
+const { stats, prs, events, workouts, exercises, loading } = useProgressData();
+```
+
+### `useExerciseProgress(exerciseName)` - Progress.jsx
+```javascript
+// Datos de evolución para gráfica de ejercicio específico
+const { data, loading } = useExerciseProgress(exerciseName);
+```
+
+---
+
+## 🎨 Patrones de UI
+
+### Variables CSS (index.css)
 ```css
 :root {
-  --bg-dark: #0a0a0a;
-  --bg-card: #141414;
-  --primary: #8b5cf6;      /* Purple principal */
+  --bg-dark: #0a0a0a;      /* Fondo principal OLED */
+  --bg-card: #141414;      /* Tarjetas */
+  --bg-main: #0a0a0a;      /* Alias */
+  --primary: #8b5cf6;      /* Púrpura principal */
+  --success: #22c55e;      /* Verde éxito */
+  --warning: #eab308;      /* Amarillo warning */
+  --error: #ef4444;        /* Rojo error */
   --text-primary: #ffffff;
   --text-secondary: #a1a1aa;
   --border: #27272a;
 }
 ```
 
-### Patrones React Usados
-1. **useMemo** para cálculos costosos (filtrados, estadísticas)
-2. **useEffect** con cleanup para subscripciones
-3. **Estados con defaults seguros** (`[]`, `{}`, `null`)
-4. **Componentes funcionales** exclusivamente
-5. **Toast context** para notificaciones globales
+### Componentes Reutilizables
+- **Toast:** Context API para notificaciones globales (`useToast()`)
+- **Celebration:** Confeti animado cuando se logra un PR
+- **SkeletonLoader:** Placeholders durante carga
 
-### Patrones PDF (ExportReport.jsx)
-1. **jspdf-autotable** para tablas profesionales
-2. **ensureSpace(height)** helper para evitar títulos huérfanos
-3. **printSectionTitle(title, minHeight)** helper para consistencia
-4. **COLORS constant** fuera del componente
-5. **Logo precargado** en useEffect al montar
+### PDFBuilder Class (ExportReport.jsx)
+```javascript
+class PDFBuilder {
+  ensureSpace(height)           // Evita títulos huérfanos
+  printSectionTitle(title)      // Títulos consistentes
+  drawLineChart(data, w, h)     // Gráficas nativas en PDF
+  renderHeader(logo, period)    // Header con logo
+  renderFooters()               // Numeración de páginas
+}
+```
 
 ---
 
 ## ⚠️ Gotchas y Problemas Conocidos
 
-### 1. Límite de Workout History
-- `GET /api/workouts/history` tiene limit=30 por defecto
-- Para reportes anuales, pasar `?limit=500`
+### 1. Dos Schemas Prisma
+```
+⚠️ server/prisma/schema.prisma  ← Desarrollo local
+⚠️ api/prisma/schema.prisma     ← Producción Vercel
+```
+**AMBOS deben estar sincronizados.** Si agregas campos, actualiza los dos.
 
-### 2. Emojis en PDF
-- jsPDF no renderiza emojis correctamente
-- Todos los títulos usan texto plano sin emojis
+### 2. Historial de Ejercicios por Nombre
+La API `/api/workouts/exercise/:id/history` ahora busca por **nombre del ejercicio** (case-insensitive) para incluir datos de ejercicios con el mismo nombre en diferentes rutinas.
 
-### 3. Fotos en Base64
-- Las fotos se comprimen en cliente antes de guardar
-- El campo `BodyLog.photo` usa `@db.Text` para strings largos
+### 3. Comparación de Fechas
+Usar `toLocaleDateString('sv')` en lugar de `toISOString().split('T')[0]` para evitar problemas de timezone.
 
-### 4. Ghost Mode
-- Compara con el último mejor set histórico del mismo ejercicio
-- Se actualiza cada vez que se guarda un workout
+### 4. localStorage Expira en 24h
+Los datos parciales de workout expiran automáticamente para evitar confusión con datos viejos.
 
 ### 5. PRs Automáticos
-- Se calculan usando fórmula **Epley** para 1RM estimado: `peso × (1 + reps/30)`
-- Safety checks: solo para `reps > 1 && reps < 37`
-- Se guardan solo si superan el PR anterior
+- Fórmula Epley: `peso × (1 + reps/30)`
+- Safety: solo para `reps > 1 && reps < 37`
+- Solo se guardan si superan el PR anterior
+
+### 6. Fotos Comprimidas
+`compressImage()` en BodyTracking.jsx reduce fotos a max 1200px y 85% quality antes de guardar en base64.
+
+### 7. jsPDF no soporta emojis
+Los títulos de PDF usan texto plano sin emojis.
 
 ---
 
 ## 🔄 Flujos de Usuario Críticos
 
-### Registrar Entrenamiento
-1. Usuario va a RoutineDetail del día actual
-2. Ve ejercicios configurados + ghost de última sesión
-3. Registra peso/reps/RPE por cada set
-4. Al guardar: se crea WorkoutLog + SetLogs
-5. Se verifica si es PR → si es, se guarda + animación
+### Flujo de Entrenamiento (Workout.jsx)
+```
+1. Usuario entra a Workout desde RoutineDetail
+2. Se cargan ejercicios del día + se verifica cuáles ya se completaron hoy
+3. Por cada ejercicio:
+   a. Se muestra "Mejor anterior" (mejor set de TODO el historial)
+   b. Se muestra peso sugerido (basado en fórmula inversa de Epley)
+   c. Usuario registra peso/reps/RIR por cada serie
+   d. Al guardar: API crea WorkoutLog + SetLogs
+   e. Se verifica si es PR → animación si es nuevo récord
+4. Al terminar: se limpia localStorage, pantalla de éxito
+```
 
-### Exportar Reporte PDF
-1. Usuario elige período (semanal, mensual, etc.)
-2. Se cargan datos: stats, PRs, historial, body logs
+### Flujo de PDF (ExportReport.jsx)
+```
+1. Usuario selecciona período (diario/semanal/mensual/trimestral/anual)
+2. Se cargan en paralelo: stats, PRs, workouts, bodyLogs
 3. Se filtran por fecha de corte
-4. Se genera PDF con jspdf + autotable
-5. Se descarga automáticamente
-
-### Tracking Corporal (Composición Corporal)
-1. Usuario va a BodyTracking
-2. Ve estadísticas actuales: peso, IMC, grasa corporal, masa muscular
-3. Registra peso del día (campo obligatorio)
-4. Opcionalmente expande "Datos de báscula inteligente" para:
-   - IMC, grasa %, masa muscular, metabolismo basal, agua corporal, grasa visceral, masa ósea, proteína
-5. Opcionalmente sube foto de progreso (se comprime automáticamente)
-6. Datos aparecen en gráficas con tabs (Peso | Grasa | Músculo)
-7. Historial reciente en tabla con todas las métricas
-8. Galería de fotos de progreso accesible
+4. PDFBuilder genera documento con:
+   - Header con logo y período
+   - Resumen de estadísticas
+   - Tabla de sesiones
+   - PRs del período
+   - Datos de composición corporal
+   - Fotos de progreso (si hay)
+5. Descarga automática
+```
 
 ---
 
-## 🧪 Testing
+## 📋 Changelog
 
-**No hay testing automatizado implementado.**
+### v1.7.1 - Workout Bug Fixes & UI Cleanup (9 Ene 2026)
+- ✅ "Mejor anterior" corregido: busca en TODAS las sesiones
+- ✅ API busca historial por nombre de ejercicio
+- ✅ Requests paralelas con Promise.all
+- ✅ localStorage expira después de 24h
+- ✅ Fix timezone con toLocaleDateString('sv')
+- ✅ Auto-load de historial al cambiar ejercicio
+- ✅ Fix aviso "salir sin guardar" después de guardar
+- ✅ UI simplificada: eliminados botones +/- y números de serie
+- ✅ Texto de botón correcto en último ejercicio
 
-El usuario ha indicado que no quiere que la IA ejecute tests automáticos. La verificación se hace manualmente probando la app en el navegador.
+### v1.7.0 - Exercise Normalization (8 Ene 2026)
+- ✅ Normalización de ejercicios: `normalizeExerciseName()`
+- ✅ Autocomplete en EditRoutine
+- ✅ Dockerfile arreglado para Prisma
+
+### v1.6.x - Data Integrity & 1RM Formula
+- ✅ Fórmula Epley unificada
+- ✅ Case-insensitive PR renaming
+- ✅ onDelete: Restrict en schema
+
+### v1.5.0 - VPS Deployment
+- ✅ Dockerfile para Docker/Easypanel
+- ✅ Middleware para servir frontend estático
+
+### v1.4.0 - Body Composition System
+- ✅ Campos de báscula inteligente (8 métricas)
+- ✅ Galería de fotos de progreso
+- ✅ Integración en PDF
+
+### v1.3.0 - Persistence & Sessions
+- ✅ localStorage para evitar pérdida de datos
+- ✅ Detección de ejercicios completados hoy
+- ✅ EditSession para editar sesiones pasadas
 
 ---
 
 ## 📝 Notas para IAs Futuras
 
-1. **Siempre verificar el período seleccionado** al depurar problemas de datos faltantes
-2. **⚠️ IMPORTANTE: Hay DOS schemas de Prisma que DEBEN estar sincronizados:**
-   - `server/prisma/schema.prisma` - Para desarrollo local
-   - `api/prisma/schema.prisma` - Para producción en Vercel
-   - **Si agregas/modificas modelos o campos, actualiza AMBOS archivos**
-   - Si no están sincronizados, Vercel dará errores tipo `Cannot read properties of undefined`
-3. **Los componentes UI personalizados** (Toast, Modal) usan Context API
-4. **El backend de desarrollo** (server/) tiene más endpoints/features que el de producción (api/)
-5. **Tailwind 4** está configurado con PostCSS, no con tailwind.config.js tradicional
-6. **No eliminar el Ghost Mode** - es feature muy valorada por el usuario
-7. **Comparar fechas con strings ISO** - usar `dateStr >= cutoffDateStr` en lugar de `new Date()`
-8. **Workout.jsx usa localStorage** - datos persisten en `workout_${dayId}` hasta guardar
-9. **Race conditions** - usar refs para cancelar requests obsoletos al cambiar de ejercicio
+1. **Verifica el período** al depurar datos faltantes en reportes
+2. **Sincroniza ambos schemas** al modificar modelos
+3. **No elimines Ghost Mode** - feature valorada
+4. **Usa refs** para cancelar requests obsoletos
+5. **Tailwind 4** usa PostCSS, no tailwind.config.js
+6. **Testing manual** - no hay tests automatizados
 
 ---
 
-## 🔗 Dependencias Principales
-
-### Frontend
-```json
-{
-  "react": "^18.x",
-  "react-router-dom": "^6.x",
-  "recharts": "^2.x",
-  "lucide-react": "latest",
-  "jspdf": "^2.x",
-  "jspdf-autotable": "^3.x"
-}
-```
-
-### Backend
-```json
-{
-  "express": "^4.x",
-  "prisma": "^6.x",
-  "@prisma/client": "^6.x",
-  "cors": "^2.x"
-}
-```
-
----
-
-## 📋 Changelog Reciente (Enero 2026)
-
-### v1.7.0 - Exercise Normalization & Improved Imports
-- ✅ **Normalización Automática de Ejercicios:** Nuevo helper `normalizeExerciseName()` que limpia prefijos (a1., b.2) y convierte a minúsculas
-- ✅ **Import.jsx Mejorado:** Nuevo ejemplo JSON (Push Pull Legs), tip de ChatGPT, nota de normalización automática
-- ✅ **Autocomplete en EditRoutine:** Datalist con sugerencias de ejercicios existentes
-- ✅ **Dockerfile Arreglado:** Prisma se genera correctamente en el servidor
-- ✅ **Mejor Startup de Servidor:** Test de conexión a DB antes de iniciar, logs claros de errores
-
-### v1.6.2 - Robust Data Integrity
-- ✅ **Case Insensitive PR Renaming:** La lógica de re-nombrado ahora es insensible a mayúsculas/minúsculas
-- ✅ **Database Locking:** Implementada restricción `onDelete: Restrict` en el schema
-
-### v1.6.0 - Unified 1RM Formula & UX Improvements
-- ✅ **Fórmula 1RM Unificada:** Todas las implementaciones (frontend y backend) ahora usan Epley (`peso × (1 + reps/30)`)
-- ✅ **Streak sin límite:** Cálculo de racha extendido de 30 a 365 días
-- ✅ **Workout.jsx:** Header sticky, progress bar más visible, botones RIR más grandes, padding extra
-- ✅ **Dashboard.jsx:** Colores de iconos de stats con clases seguras (evita Tailwind purge)
-- ✅ **Progress.jsx:** Heatmap cells más grandes (36px)
-- ✅ **Layout.jsx:** Indicador de punto activo en navegación inferior
-- ✅ **Nuevo Logo:** Hexágono con mancuerna (favicon actualizado)
-
-### v1.5.0 - Easypanel/VPS Deployment Support
-- ✅ **Dockerfile:** Nuevo archivo para despliegue containerizado en VPS
-- ✅ **server/src/index.js:** Agregado middleware para servir archivos estáticos del frontend
-- ✅ **server/src/index.js:** Agregada ruta catch-all para SPA (React Router)
-- ✅ **Documentación:** README.md y context.md actualizados con opciones de despliegue
-
-### v1.4.0 - Body Composition System & Export Improvements
-- ✅ **BodyTracking.jsx:** Reescritura completa con sistema de composición corporal
-  - Campos de báscula inteligente: IMC, grasa corporal, masa muscular, BMR, agua corporal, grasa visceral, masa ósea, proteína
-  - UI con tarjetas de estadísticas (4 cards grid: peso, IMC, grasa, músculo)
-  - Sección expandible "Datos de báscula inteligente"
-  - Gráficas con tabs (Peso | Grasa | Músculo)
-  - Tabla de historial reciente con todas las métricas
-  - Galería de fotos de progreso con modal
-  - Helpers: `getBMIRange()`, `calculateChange()`
-- ✅ **Schema Prisma:** Nuevos campos en BodyLog (bmi, bodyFat, muscleMass, bmr, bodyWater, visceralFat, boneMass, protein)
-- ✅ **API:** Nuevo endpoint GET /api/body/photos para fotos de progreso
-- ✅ **ExportReport.jsx:** Integración de datos de composición corporal en PDF
-- ✅ **Dashboard.jsx:** Mejoras de UI/UX y presentación de estadísticas
-- ✅ **Progress.jsx:** Mejoras en gráficas y selector de años dinámico
-
-### v1.3.0 - Bug Fixes & Improvements
-- ✅ **Workout.jsx:** Sistema de persistencia con localStorage (evita pérdida de datos)
-- ✅ **Workout.jsx:** Detección de ejercicios completados hoy (evita duplicados en BD)
-- ✅ **Workout.jsx:** Fix race condition en `loadPreviousBest` con refs
-- ✅ **Workout.jsx:** Warning al navegar sin guardar
-- ✅ **ExportReport.jsx:** Comparación de fechas timezone-safe (strings ISO)
-- ✅ **ExportReport.jsx:** Período "Diario" normalizado a medianoche
-- ✅ **Progress.jsx:** Selector de años dinámico basado en datos reales
-- ✅ **Progress.jsx:** Gráfico semanal sin desfases de timezone
-- ✅ **Settings.jsx:** Navegación a página dedicada EditSession
-- ✅ **EditSession.jsx:** Nueva página para editar sesiones de entrenamiento
-
----
-
-*Última actualización: 8 Enero 2026*
+*Última actualización: 9 Enero 2026 - v1.7.1*

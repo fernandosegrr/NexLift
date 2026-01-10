@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Save, Trophy, History, X, ChevronLeft, ChevronRight, Target, Lock, ArrowRight, TrendingUp, Plus, Minus, Sparkles } from 'lucide-react';
+import { ArrowLeft, Check, Save, Trophy, History, X, ChevronLeft, ChevronRight, Target, Lock, ArrowRight, TrendingUp, Sparkles } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 
@@ -16,6 +16,12 @@ function useWorkoutPersistence(dayId) {
         if (savedData) {
             try {
                 const parsed = JSON.parse(savedData);
+                // Expirar datos después de 24 horas para evitar datos viejos
+                const isExpired = parsed.timestamp && (Date.now() - parsed.timestamp > 24 * 60 * 60 * 1000);
+                if (isExpired) {
+                    localStorage.removeItem(`workout_${dayId}`);
+                    return;
+                }
                 setWorkoutData(parsed.workoutData || {});
                 setCompletedExerciseIds(parsed.completedExerciseIds || []);
             } catch (error) {
@@ -46,7 +52,8 @@ function useExerciseHistory(exerciseId) {
     const [loading, setLoading] = useState(false);
     const currentRequestRef = useRef(null);
 
-    const loadHistory = useCallback(async () => {
+    // Función para cargar historial
+    const loadHistoryInternal = useCallback(async () => {
         if (!exerciseId) return;
 
         const requestId = exerciseId;
@@ -58,11 +65,14 @@ function useExerciseHistory(exerciseId) {
 
             if (currentRequestRef.current !== requestId) return;
 
-            if (historyData?.length > 0 && historyData[0].sets?.length > 0) {
+            // Buscar en TODAS las sesiones, no solo la última
+            const allSets = historyData?.flatMap(session => session.sets || []) || [];
+
+            if (allSets.length > 0) {
                 // Fórmula de Epley: Score = Peso × (1 + Reps/30)
                 const calculate1RM = (weight, reps) => weight * (1 + reps / 30);
 
-                const bestSet = historyData[0].sets.reduce((best, set) => {
+                const bestSet = allSets.reduce((best, set) => {
                     const score = calculate1RM(Number(set.weight) || 0, Number(set.reps) || 0);
                     const bestScore = calculate1RM(Number(best.weight) || 0, Number(best.reps) || 0);
 
@@ -73,7 +83,7 @@ function useExerciseHistory(exerciseId) {
                         return setRIR < bestRIR ? set : best;
                     }
                     return score > bestScore ? set : best;
-                }, historyData[0].sets[0]);
+                }, allSets[0]);
 
                 setPreviousBest(bestSet);
 
@@ -105,6 +115,19 @@ function useExerciseHistory(exerciseId) {
         }
     }, [exerciseId]);
 
+    // Resetear estado y cargar automáticamente cuando cambia el ejercicio
+    useEffect(() => {
+        setPreviousBest(null);
+        setSuggestedWeight(null);
+        // Auto-cargar historial cuando cambia el ejercicio
+        if (exerciseId) {
+            loadHistoryInternal();
+        }
+    }, [exerciseId, loadHistoryInternal]);
+
+    // Exponer loadHistory para llamadas manuales (ej: modal)
+    const loadHistory = loadHistoryInternal;
+
     return { previousBest, suggestedWeight, loading, loadHistory };
 }
 
@@ -122,7 +145,7 @@ function SkeletonLoader() {
     );
 }
 
-function SetCard({ set, index, onUpdate, onToggle, onSetRIR, onAdjustWeight, isLocked, previousBest }) {
+function SetCard({ set, index, onUpdate, onToggle, onSetRIR, isLocked, previousBest }) {
     const handleFocus = (e) => e.target.select();
 
     // No mostrar "Posible PR" si ya está guardado/bloqueado
@@ -142,16 +165,8 @@ function SetCard({ set, index, onUpdate, onToggle, onSetRIR, onAdjustWeight, isL
                 : 'bg-[var(--bg-card)] border border-[var(--border)]'
             }`}>
             <div className="grid grid-cols-12 gap-2 items-center">
-                {/* Set Number - Larger */}
-                <div className="col-span-1 text-center">
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-base ${set.completed ? 'bg-[var(--success)] text-white shadow-lg shadow-[var(--success)]/40' : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] border border-[var(--border)]'
-                        }`}>
-                        {index + 1}
-                    </div>
-                </div>
-
                 {/* Weight Input */}
-                <div className="col-span-3">
+                <div className="col-span-4">
                     <div className="relative">
                         <input
                             type="number"
@@ -164,22 +179,7 @@ function SetCard({ set, index, onUpdate, onToggle, onSetRIR, onAdjustWeight, isL
                             className={`w-full bg-[var(--bg-dark)] border-2 rounded-lg py-3 text-center text-lg font-bold focus:outline-none transition-all ${set.weight ? 'border-[var(--primary)] text-white' : 'border-[var(--border)] text-[var(--text-secondary)]'
                                 } ${isLocked ? 'opacity-60' : 'focus:ring-2 focus:ring-[var(--primary)]/40'}`}
                         />
-                        {!isLocked && (
-                            <div className="absolute -right-1 top-1/2 -translate-y-1/2 flex flex-col gap-0.5">
-                                <button
-                                    onClick={() => onAdjustWeight(index, 2.5)}
-                                    className="w-5 h-5 bg-[var(--primary)] rounded text-white flex items-center justify-center active:scale-90"
-                                >
-                                    <Plus size={12} strokeWidth={3} />
-                                </button>
-                                <button
-                                    onClick={() => onAdjustWeight(index, -2.5)}
-                                    className="w-5 h-5 bg-[var(--bg-dark)] border border-[var(--border)] rounded text-[var(--text-secondary)] flex items-center justify-center active:scale-90"
-                                >
-                                    <Minus size={12} strokeWidth={3} />
-                                </button>
-                            </div>
-                        )}
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[var(--text-secondary)]">kg</span>
                     </div>
                 </div>
 
@@ -206,7 +206,7 @@ function SetCard({ set, index, onUpdate, onToggle, onSetRIR, onAdjustWeight, isL
                                 key={rir}
                                 onClick={() => onSetRIR(index, set.rir === rir ? null : rir)}
                                 disabled={isLocked}
-                                className={`w-9 h-10 rounded-lg text-sm font-bold transition-all active:scale-90 ${set.rir === rir
+                                className={`w-8 h-10 rounded-lg text-sm font-bold transition-all active:scale-90 ${set.rir === rir
                                     ? 'bg-[var(--primary)] text-white'
                                     : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] border border-[var(--border)]'
                                     }`}
@@ -233,9 +233,9 @@ function SetCard({ set, index, onUpdate, onToggle, onSetRIR, onAdjustWeight, isL
             </div>
 
             {isPR && (
-                <div className="flex items-center gap-2 text-sm text-[var(--warning)] bg-gradient-to-r from-[var(--warning)]/15 to-transparent px-4 py-2.5 rounded-xl animate-fade-in border border-[var(--warning)]/20">
+                <div className="flex items-center gap-2 text-sm text-[var(--warning)] bg-gradient-to-r from-[var(--warning)]/15 to-transparent px-4 py-2.5 rounded-xl animate-fade-in border border-[var(--warning)]/20 mt-2">
                     <Sparkles size={16} />
-                    <span className="font-semibold">¡Posible PR! Completa para confirmar</span>
+                    <span className="font-semibold">¡Posible PR!</span>
                 </div>
             )}
         </div>
@@ -335,20 +335,25 @@ export default function Workout() {
     }
 
     async function checkCompletedExercises(exerciseList) {
-        const today = new Date().toISOString().split('T')[0];
-        const completed = [];
+        // Usar fecha local para evitar problemas de timezone
+        const today = new Date().toLocaleDateString('sv'); // formato YYYY-MM-DD
 
-        for (const ex of exerciseList) {
-            try {
-                const history = await api.getExerciseHistory(ex.id);
-                if (history?.length > 0) {
-                    const logDate = new Date(history[0].date).toISOString().split('T')[0];
-                    if (logDate === today) completed.push(ex.id);
+        // Paralelizar requests para mayor velocidad
+        const results = await Promise.all(
+            exerciseList.map(async (ex) => {
+                try {
+                    const history = await api.getExerciseHistory(ex.id);
+                    if (history?.length > 0) {
+                        const logDate = new Date(history[0].date).toLocaleDateString('sv');
+                        if (logDate === today) return ex.id;
+                    }
+                } catch (error) {
+                    console.error('Error checking exercise:', error);
                 }
-            } catch (error) {
-                console.error('Error checking exercise:', error);
-            }
-        }
+                return null;
+            })
+        );
+        const completed = results.filter(Boolean);
 
         setCompletedExerciseIds(prev => [...new Set([...prev, ...completed])]);
     }
@@ -362,8 +367,9 @@ export default function Workout() {
             if (currentExerciseIdRef.current !== exercise.id) return;
 
             if (history?.length > 0 && history[0].sets) {
-                const today = new Date().toISOString().split('T')[0];
-                const logDate = new Date(history[0].date).toISOString().split('T')[0];
+                // Usar fecha local para evitar problemas de timezone
+                const today = new Date().toLocaleDateString('sv');
+                const logDate = new Date(history[0].date).toLocaleDateString('sv');
 
                 // Si hay datos de hoy, cargarlos y marcar como completado
                 if (logDate === today) {
@@ -378,7 +384,7 @@ export default function Workout() {
                     if (!completedExerciseIds.includes(exercise.id)) {
                         setCompletedExerciseIds(prev => [...prev, exercise.id]);
                     }
-                    loadHistory();
+                    // loadHistory ya se ejecuta automáticamente por el useEffect
                     return;
                 }
             }
@@ -397,8 +403,7 @@ export default function Workout() {
             }));
             setSets(newSets);
         }
-
-        loadHistory();
+        // loadHistory ya se ejecuta automáticamente por el useEffect cuando cambia currentExercise
     }
 
     // Handlers
@@ -428,17 +433,6 @@ export default function Workout() {
         updateSet(index, 'rir', rir);
     }, [isAlreadyLogged, updateSet]);
 
-    const adjustWeight = useCallback((index, delta) => {
-        if (isAlreadyLogged) return;
-        setSets(prev => {
-            const updated = [...prev];
-            const currentWeight = parseFloat(updated[index].weight) || 0;
-            const newWeight = Math.max(0, currentWeight + delta);
-            updated[index].weight = (Math.round(newWeight * 2) / 2).toString();
-            return updated;
-        });
-    }, [isAlreadyLogged]);
-
     const copyWeightToAll = useCallback(() => {
         if (isAlreadyLogged || !sets[0]?.weight) return;
         setSets(prev => prev.map(s => ({ ...s, weight: prev[0].weight })));
@@ -451,7 +445,7 @@ export default function Workout() {
         toast.success('Peso sugerido aplicado');
     }, [isAlreadyLogged, suggestedWeight, toast]);
 
-    function goToExercise(newIndex) {
+    function goToExercise(newIndex, skipWarning = false) {
         if (newIndex < 0 || newIndex >= workoutState.exercises.length) return;
 
         const currentExId = currentExercise.id;
@@ -460,7 +454,8 @@ export default function Workout() {
 
         // Solo mostrar alerta si hay datos sin guardar Y el ejercicio NO está guardado
         // isAlreadyLogged indica que ya se guardó hoy (detectado en checkCompletedExercises)
-        if (hasUnsavedData && isNotSaved && !isAlreadyLogged) {
+        // skipWarning se usa cuando venimos de "Guardar y Continuar" para evitar el warning
+        if (!skipWarning && hasUnsavedData && isNotSaved && !isAlreadyLogged) {
             const userConfirmed = window.confirm(
                 '¿Salir sin guardar? Los datos se mantendrán temporalmente.'
             );
@@ -533,7 +528,7 @@ export default function Workout() {
             if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
 
             if (workoutState.currentIndex < workoutState.exercises.length - 1) {
-                setTimeout(() => goToExercise(workoutState.currentIndex + 1), 300);
+                setTimeout(() => goToExercise(workoutState.currentIndex + 1, true), 300);
             } else {
                 clearStorage();
                 setUIState(prev => ({ ...prev, showSuccess: true }));
@@ -720,7 +715,6 @@ export default function Workout() {
                             onUpdate={updateSet}
                             onToggle={toggleComplete}
                             onSetRIR={setRIR}
-                            onAdjustWeight={adjustWeight}
                             isLocked={isAlreadyLogged}
                             previousBest={previousBest}
                         />
@@ -757,10 +751,17 @@ export default function Workout() {
                             <span>Guardando...</span>
                         </>
                     ) : isAlreadyLogged ? (
-                        <>
-                            <span>Siguiente ejercicio</span>
-                            <ArrowRight size={22} />
-                        </>
+                        workoutState.currentIndex < workoutState.exercises.length - 1 ? (
+                            <>
+                                <span>Siguiente ejercicio</span>
+                                <ArrowRight size={22} />
+                            </>
+                        ) : (
+                            <>
+                                <Trophy size={22} />
+                                <span>Finalizar</span>
+                            </>
+                        )
                     ) : (
                         <>
                             <Save size={22} />

@@ -432,10 +432,29 @@ export default async function handler(req, res) {
         }
 
         // GET /api/workouts/exercise/:id/history
+        // Search by exercise NAME to include history from all routines with the same exercise
         const exHistoryMatch = path.match(/^\/workouts\/exercise\/([^/]+)\/history$/);
         if (exHistoryMatch && method === 'GET') {
+            // First, get the exercise to find its name
+            const exercise = await prisma.exercise.findUnique({
+                where: { id: exHistoryMatch[1] },
+                select: { name: true }
+            });
+
+            if (!exercise) {
+                return res.json([]);
+            }
+
+            // Find all workout logs for exercises with the same name (case-insensitive)
             const logs = await prisma.workoutLog.findMany({
-                where: { exerciseId: exHistoryMatch[1] },
+                where: {
+                    exercise: {
+                        name: {
+                            equals: exercise.name,
+                            mode: 'insensitive'
+                        }
+                    }
+                },
                 include: { sets: { orderBy: { setNumber: 'asc' } } },
                 orderBy: { date: 'desc' },
                 take: 20
