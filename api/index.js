@@ -1,9 +1,26 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { uploadBase64ToCatbox } from '../shared/utils/catbox.js';
 
 // Singleton pattern for Prisma in serverless
 const globalForPrisma = globalThis;
 const prisma = globalForPrisma.prisma || new PrismaClient();
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+
+const JWT_SECRET = process.env.JWT_SECRET || 'nexlift-secret-key-change-in-production';
+
+function getUserId(req) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+    const token = authHeader.substring(7);
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        return decoded.userId;
+    } catch {
+        return null;
+    }
+}
 
 /**
  * Normaliza nombre de ejercicio para consistencia en PRs
@@ -25,7 +42,7 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
@@ -40,11 +57,172 @@ export default async function handler(req, res) {
 
     try {
         // ==========================================
+        // AUTH ROUTES
+        // ==========================================
+
+        // POST /api/auth/register
+        if (path === '/auth/register' && method === 'POST') {
+            const { username, email, password, firstName, lastName, phone, birthDate, securityQuestion, securityAnswer } = body;
+            if (!username || !email || !password || !firstName || !lastName) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
+
+            const existing = await prisma.user.findFirst({
+                where: { OR: [{ username: username.toLowerCase() }, { email: email.toLowerCase() }] }
+            });
+
+            if (existing) {
+                return res.status(409).json({ error: existing.username === username.toLowerCase() ? 'Username exists' : 'Email exists' });
+            }
+
+            const passwordHash = await bcrypt.hash(password, 10);
+            const securityAnswerHash = securityAnswer ? await bcrypt.hash(securityAnswer.toLowerCase().trim(), 10) : null;
+
+            const user = await prisma.user.create({
+                data: {
+                    username: username.toLowerCase(),
+                    email: email.toLowerCase(),
+                    passwordHash,
+                    firstName,
+                    lastName,
+                    phone: phone || null,
+                    birthDate: birthDate ? new Date(birthDate) : null,
+                    securityQuestion: securityQuestion || null,
+                    securityAnswerHash
+                },
+                select: { id: true, username: true, email: true, firstName: true, lastName: true, createdAt: true }
+            });
+
+            const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '365d' });
+            return res.status(201).json({ user, token });
+        }
+
+        // POST /api/auth/login
+        if (path === '/auth/login' && method === 'POST') {
+            const { username, password } = body;
+            if (!username || !password) return res.status(400).json({ error: 'Missing credentials' });
+
+            const user = await prisma.user.findFirst({
+                where: { OR: [{ username: username.toLowerCase() }, { email: username.toLowerCase() }] }
+            });
+
+            if (!user || !user.isActive) return res.status(401).json({ error: 'Invalid credentials' });
+
+            const valid = await bcrypt.compare(password, user.passwordHash);
+            if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+
+            await prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } });
+
+            const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '365d' });
+            return res.json({
+                user: { id: user.id, username: user.username, email: user.email, firstName: user.firstName, lastName: user.lastName, avatarUrl: user.avatarUrl },
+                token
+            });
+        }
+
+        // GET /api/auth/me
+        if (path === '/auth/me' && method === 'GET') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: {
+                    id: true, username: true, email: true, firstName: true, lastName: true,
+                    phone: true, birthDate: true, avatarUrl: true, securityQuestion: true,
+                    createdAt: true, lastLogin: true,
+                    _count: { select: { routines: true, bodyLogs: true, personalRecords: true } }
+                }
+            });
+            if (!user) return res.status(404).json({ error: 'User not found' });
+            return res.json(user);
+        }
+
+        // PUT /api/auth/profile
+        if (path === '/auth/profile' && method === 'PUT') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const { firstName, lastName, phone, birthDate } = body;
+            const user = await prisma.user.update({
+                where: { id: userId },
+                data: {
+                    firstName: firstName || undefined,
+                    lastName: lastName || undefined,
+                    phone: phone || undefined,
+                    birthDate: birthDate ? new Date(birthDate) : undefined
+                },
+                select: { id: true, username: true, email: true, firstName: true, lastName: true, phone: true, birthDate: true, avatarUrl: true }
+            });
+            return res.json(user);
+        }
+
+        // PUT /api/auth/password
+        if (path === '/auth/password' && method === 'PUT') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const { currentPassword, newPassword } = body;
+            const user = await prisma.user.findUnique({ where: { id: userId } });
+
+            const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+            if (!valid) return res.status(401).json({ error: 'Incorrect password' });
+
+            const passwordHash = await bcrypt.hash(newPassword, 10);
+            await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+            return res.json({ message: 'Password updated' });
+        }
+
+        // POST /api/auth/recover/question
+        if (path === '/auth/recover/question' && method === 'POST') {
+            const { username } = body;
+            const user = await prisma.user.findFirst({
+                where: { OR: [{ username: username?.toLowerCase() }, { email: username?.toLowerCase() }] },
+                select: { securityQuestion: true }
+            });
+            if (!user || !user.securityQuestion) return res.status(404).json({ error: 'Not found or no question' });
+            return res.json({ question: user.securityQuestion });
+        }
+
+        // POST /api/auth/recover/verify
+        if (path === '/auth/recover/verify' && method === 'POST') {
+            const { username, answer, newPassword } = body;
+            const user = await prisma.user.findFirst({
+                where: { OR: [{ username: username?.toLowerCase() }, { email: username?.toLowerCase() }] }
+            });
+            if (!user || !user.securityAnswerHash) return res.status(404).json({ error: 'User not found' });
+
+            const valid = await bcrypt.compare(answer.toLowerCase().trim(), user.securityAnswerHash);
+            if (!valid) return res.status(401).json({ error: 'Incorrect answer' });
+
+            const passwordHash = await bcrypt.hash(newPassword, 10);
+            await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+            return res.json({ message: 'Password reset successful' });
+        }
+
+        // PUT /api/auth/security-question
+        if (path === '/auth/security-question' && method === 'PUT') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const { question, answer } = body;
+            const securityAnswerHash = await bcrypt.hash(answer.toLowerCase().trim(), 10);
+            await prisma.user.update({
+                where: { id: userId },
+                data: { securityQuestion: question, securityAnswerHash }
+            });
+            return res.json({ message: 'Security question updated' });
+        }
+
+        // ==========================================
         // ROUTINES
         // ==========================================
 
         // POST /api/routines/import
         if (path === '/routines/import' && method === 'POST') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             const { name, description, days } = body;
             if (!name || !days || !Array.isArray(days)) {
                 return res.status(400).json({ error: 'Invalid JSON structure' });
@@ -52,6 +230,7 @@ export default async function handler(req, res) {
 
             const routine = await prisma.routine.create({
                 data: {
+                    userId,
                     name,
                     description: description || null,
                     days: {
@@ -66,7 +245,7 @@ export default async function handler(req, res) {
                                     targetReps: ex.reps || '8-12',
                                     restSeconds: ex.rest || null,
                                     note: ex.note || null,
-                                    order: exIndex
+                                    order: ex.order !== undefined ? ex.order : exIndex
                                 }))
                             }
                         }))
@@ -79,8 +258,11 @@ export default async function handler(req, res) {
 
         // GET /api/routines/active
         if (path === '/routines/active' && method === 'GET') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             const routine = await prisma.routine.findFirst({
-                where: { isActive: true },
+                where: { isActive: true, userId },
                 include: {
                     days: {
                         include: {
@@ -100,7 +282,11 @@ export default async function handler(req, res) {
 
         // GET /api/routines
         if (path === '/routines' && method === 'GET') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             const routines = await prisma.routine.findMany({
+                where: { userId },
                 include: {
                     days: { include: { exercises: { orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
                 },
@@ -112,8 +298,11 @@ export default async function handler(req, res) {
         // GET /api/routines/:id
         const routineMatch = path.match(/^\/routines\/([^/]+)$/);
         if (routineMatch && method === 'GET') {
-            const routine = await prisma.routine.findUnique({
-                where: { id: routineMatch[1] },
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const routine = await prisma.routine.findFirst({
+                where: { id: routineMatch[1], userId },
                 include: {
                     days: {
                         include: {
@@ -135,7 +324,16 @@ export default async function handler(req, res) {
         // PUT /api/routines/:id/activate
         const activateMatch = path.match(/^\/routines\/([^/]+)\/activate$/);
         if (activateMatch && method === 'PUT') {
-            await prisma.routine.updateMany({ where: { isActive: true }, data: { isActive: false } });
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const routineToActivate = await prisma.routine.findFirst({
+                where: { id: activateMatch[1], userId }
+            });
+            if (!routineToActivate) return res.status(404).json({ error: 'Routine not found' });
+
+            await prisma.routine.updateMany({ where: { isActive: true, userId }, data: { isActive: false } });
+
             const routine = await prisma.routine.update({
                 where: { id: activateMatch[1] },
                 data: { isActive: true },
@@ -147,7 +345,14 @@ export default async function handler(req, res) {
         // PUT /api/routines/:id - Update routine structure
         const updateMatch = path.match(/^\/routines\/([^/]+)$/);
         if (updateMatch && method === 'PUT') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             const routineId = updateMatch[1];
+
+            const owned = await prisma.routine.findFirst({ where: { id: routineId, userId } });
+            if (!owned) return res.status(404).json({ error: 'Routine not found' });
+
             const { name, description, days } = body;
 
             // Transacción para evitar corrupción de datos
@@ -240,6 +445,7 @@ export default async function handler(req, res) {
                                     console.log(`Renaming PRs (Vercel): "${currentExercise.name}" -> "${normalizeExerciseName(ex.name)}"`);
                                     await tx.personalRecord.updateMany({
                                         where: {
+                                            userId, // Only user's PRs
                                             exerciseName: {
                                                 equals: currentExercise.name,
                                                 mode: 'insensitive'
@@ -269,6 +475,12 @@ export default async function handler(req, res) {
 
         // DELETE /api/routines/:id
         if (routineMatch && method === 'DELETE') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const owned = await prisma.routine.findFirst({ where: { id: routineMatch[1], userId } });
+            if (!owned) return res.status(404).json({ error: 'Routine not found' });
+
             await prisma.routine.delete({ where: { id: routineMatch[1] } });
             return res.json({ message: 'Deleted' });
         }
@@ -279,7 +491,13 @@ export default async function handler(req, res) {
 
         // GET /api/exercises
         if (path === '/exercises' && method === 'GET') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             const exercises = await prisma.exercise.findMany({
+                where: {
+                    routineDay: { routine: { userId } }
+                },
                 select: { id: true, name: true, muscleGroup: true },
                 distinct: ['name'],
                 orderBy: { name: 'asc' }
@@ -290,16 +508,34 @@ export default async function handler(req, res) {
         // PUT /api/exercises/:id/muscle
         const exMuscleMatch = path.match(/^\/exercises\/([^/]+)\/muscle$/);
         if (exMuscleMatch && method === 'PUT') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             const { muscleGroup } = body;
-            const exercise = await prisma.exercise.update({
+
+            // Verify ownership
+            const exercise = await prisma.exercise.findFirst({
+                where: {
+                    id: exMuscleMatch[1],
+                    routineDay: { routine: { userId } }
+                }
+            });
+
+            if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+
+            await prisma.exercise.update({
                 where: { id: exMuscleMatch[1] },
                 data: { muscleGroup }
             });
+
             await prisma.exercise.updateMany({
-                where: { name: exercise.name },
+                where: {
+                    name: exercise.name,
+                    routineDay: { routine: { userId } }
+                },
                 data: { muscleGroup }
             });
-            return res.json({ message: 'Updated', exercise });
+            return res.json({ message: 'Updated', exercise: { ...exercise, muscleGroup } });
         }
 
         // ==========================================
@@ -308,10 +544,23 @@ export default async function handler(req, res) {
 
         // POST /api/workouts/log
         if (path === '/workouts/log' && method === 'POST') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             const { exerciseId, sets, notes } = body;
             if (!exerciseId || !sets) {
                 return res.status(400).json({ error: 'Missing data' });
             }
+
+            // Verify exercise belongs to user
+            const exercise = await prisma.exercise.findFirst({
+                where: {
+                    id: exerciseId,
+                    routineDay: { routine: { userId } }
+                }
+            });
+
+            if (!exercise) return res.status(404).json({ error: 'Exercise not found or unauthorized' });
 
             const workoutLog = await prisma.workoutLog.create({
                 data: {
@@ -331,7 +580,6 @@ export default async function handler(req, res) {
             });
 
             // Update PR with safety check
-            const exercise = await prisma.exercise.findUnique({ where: { id: exerciseId } });
             if (exercise) {
                 for (const set of sets) {
                     const weight = parseFloat(set.weight);
@@ -344,13 +592,17 @@ export default async function handler(req, res) {
                     }
 
                     const existingPR = await prisma.personalRecord.findFirst({
-                        where: { exerciseName: exercise.name.toLowerCase() },
+                        where: {
+                            exerciseName: exercise.name.toLowerCase(),
+                            userId
+                        },
                         orderBy: { estimated1RM: 'desc' }
                     });
 
                     if (!existingPR || est1RM > (existingPR.estimated1RM || 0)) {
                         await prisma.personalRecord.create({
                             data: {
+                                userId,
                                 exerciseName: exercise.name.toLowerCase(),
                                 weight: weight,
                                 reps: reps,
@@ -366,21 +618,32 @@ export default async function handler(req, res) {
 
         // POST /api/workouts/log-rest
         if (path === '/workouts/log-rest' && method === 'POST') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             const { note } = body;
             const restLog = await prisma.restLog.create({
-                data: { note: note || 'Día de descanso' }
+                data: { userId, note: note || 'Día de descanso' }
             });
             return res.status(201).json({ message: 'Rest logged!', restLog });
         }
 
         // GET /api/workouts/history
         if (path === '/workouts/history' && method === 'GET') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             const limit = parseInt(searchParams.get('limit')) || 30;
 
             const logs = await prisma.workoutLog.findMany({
+                where: {
+                    exercise: {
+                        routineDay: { routine: { userId } }
+                    }
+                },
                 include: { sets: { orderBy: { setNumber: 'asc' } }, exercise: true },
                 orderBy: { date: 'desc' },
-                take: Math.min(limit, 1000) // Cap at 1000 for safety
+                take: Math.min(limit, 1000)
             });
             return res.json(logs);
         }
@@ -388,12 +651,25 @@ export default async function handler(req, res) {
         // PUT /api/workouts/:logId - Update a workout session
         const workoutUpdateMatch = path.match(/^\/workouts\/([^/]+)$/);
         if (workoutUpdateMatch && method === 'PUT') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             const logId = workoutUpdateMatch[1];
             const { sets } = body;
 
             if (!sets || !Array.isArray(sets)) {
                 return res.status(400).json({ error: 'Sets array required' });
             }
+
+            // Verify ownership
+            const existingLog = await prisma.workoutLog.findFirst({
+                where: {
+                    id: logId,
+                    exercise: { routineDay: { routine: { userId } } }
+                }
+            });
+
+            if (!existingLog) return res.status(404).json({ error: 'Log not found' });
 
             // Transaction: delete old sets and create new ones
             const updated = await prisma.$transaction(async (tx) => {
@@ -424,7 +700,20 @@ export default async function handler(req, res) {
         // DELETE /api/workouts/:logId - Delete a workout session
         const workoutDeleteMatch = path.match(/^\/workouts\/([^/]+)$/);
         if (workoutDeleteMatch && method === 'DELETE') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             const logId = workoutDeleteMatch[1];
+
+            // Verify ownership
+            const existingLog = await prisma.workoutLog.findFirst({
+                where: {
+                    id: logId,
+                    exercise: { routineDay: { routine: { userId } } }
+                }
+            });
+
+            if (!existingLog) return res.status(404).json({ error: 'Log not found' });
 
             await prisma.workoutLog.delete({ where: { id: logId } });
 
@@ -435,9 +724,15 @@ export default async function handler(req, res) {
         // Search by exercise NAME to include history from all routines with the same exercise
         const exHistoryMatch = path.match(/^\/workouts\/exercise\/([^/]+)\/history$/);
         if (exHistoryMatch && method === 'GET') {
-            // First, get the exercise to find its name
-            const exercise = await prisma.exercise.findUnique({
-                where: { id: exHistoryMatch[1] },
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            // First, get the exercise to find its name AND verify ownership
+            const exercise = await prisma.exercise.findFirst({
+                where: {
+                    id: exHistoryMatch[1],
+                    routineDay: { routine: { userId } }
+                },
                 select: { name: true }
             });
 
@@ -445,14 +740,15 @@ export default async function handler(req, res) {
                 return res.json([]);
             }
 
-            // Find all workout logs for exercises with the same name (case-insensitive)
+            // Find all workout logs for exercises with the same name (case-insensitive) AND belonging to user
             const logs = await prisma.workoutLog.findMany({
                 where: {
                     exercise: {
                         name: {
                             equals: exercise.name,
                             mode: 'insensitive'
-                        }
+                        },
+                        routineDay: { routine: { userId } }
                     }
                 },
                 include: { sets: { orderBy: { setNumber: 'asc' } } },
@@ -466,19 +762,37 @@ export default async function handler(req, res) {
         // BODY TRACKING
         // ==========================================
 
+        // ==========================================
+        // BODY TRACKING
+        // ==========================================
+
         // GET /api/body/logs
         if (path === '/body/logs' && method === 'GET') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             const limit = parseInt(searchParams.get('limit')) || 30;
 
             const logs = await prisma.bodyLog.findMany({
+                where: { userId },
                 orderBy: { date: 'desc' },
                 take: Math.min(limit, 500)
             });
-            return res.json(logs);
+
+            // Map photoUrl to photo for frontend compatibility
+            const mappedLogs = logs.map(log => ({
+                ...log,
+                photo: log.photoUrl || null
+            }));
+
+            return res.json(mappedLogs);
         }
 
-        // POST /api/body/log
+        // POST /api/body/log (with Catbox upload)
         if (path === '/body/log' && method === 'POST') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             const {
                 weight, photo, note,
                 bmi, bodyFat, muscleMass, bmr, bodyWater, visceralFat, boneMass, protein
@@ -490,10 +804,28 @@ export default async function handler(req, res) {
                 return res.status(400).json({ error: 'Weight, photo, or body composition data required' });
             }
 
+            // Upload photo to Catbox if it's base64
+            let photoUrl = null;
+            if (photo) {
+                if (photo.startsWith('data:image') || photo.length > 500) {
+                    try {
+                        console.log('📸 [Vercel] Uploading photo to Catbox...');
+                        photoUrl = await uploadBase64ToCatbox(photo, 'jpg');
+                        console.log('✅ [Vercel] Photo uploaded:', photoUrl);
+                    } catch (uploadError) {
+                        console.error('❌ [Vercel] Catbox upload failed:', uploadError.message);
+                        photoUrl = null;
+                    }
+                } else {
+                    photoUrl = photo;
+                }
+            }
+
             const bodyLog = await prisma.bodyLog.create({
                 data: {
+                    userId,
                     weight: weight ? parseFloat(weight) : null,
-                    photo: photo || null,
+                    photoUrl,
                     note: note || null,
                     bmi: bmi ? parseFloat(bmi) : null,
                     bodyFat: bodyFat ? parseFloat(bodyFat) : null,
@@ -505,7 +837,128 @@ export default async function handler(req, res) {
                     protein: protein ? parseFloat(protein) : null
                 }
             });
-            return res.json({ message: 'Body log saved!', bodyLog });
+            return res.json({ message: 'Body log saved!', bodyLog: { ...bodyLog, photo: bodyLog.photoUrl } });
+        }
+
+        // GET /api/body (Legacy/History)
+        if (path === '/body' && method === 'GET') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const limit = parseInt(searchParams.get('limit')) || 90;
+            const includePhotos = searchParams.get('includePhotos') === 'true';
+
+            const logs = await prisma.bodyLog.findMany({
+                where: { userId },
+                select: {
+                    id: true,
+                    date: true,
+                    weight: true,
+                    photoUrl: includePhotos,
+                    note: true
+                },
+                orderBy: { date: 'desc' },
+                take: parseInt(limit)
+            });
+
+            const mappedLogs = logs.map(log => ({
+                id: log.id,
+                date: log.date,
+                weight: log.weight,
+                photo: log.photoUrl || null,
+                note: log.note
+            }));
+
+            return res.json(mappedLogs);
+        }
+
+        // GET /api/body/photos
+        if (path === '/body/photos' && method === 'GET') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const photos = await prisma.bodyLog.findMany({
+                where: {
+                    userId,
+                    photoUrl: { not: null }
+                },
+                select: {
+                    id: true,
+                    date: true,
+                    photoUrl: true,
+                    note: true
+                },
+                orderBy: { date: 'desc' },
+                take: 12
+            });
+
+            const mappedPhotos = photos.map(p => ({
+                id: p.id,
+                date: p.date,
+                photo: p.photoUrl,
+                note: p.note
+            }));
+
+            return res.json(mappedPhotos);
+        }
+
+        // POST /api/body (Legacy with Catbox upload)
+        if (path === '/body' && method === 'POST') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const { weight, photo, note } = body;
+
+            if (!weight && !photo) {
+                return res.status(400).json({ error: 'Weight or photo required' });
+            }
+
+            // Upload photo to Catbox if it's base64
+            let photoUrl = null;
+            if (photo) {
+                if (photo.startsWith('data:image') || photo.length > 500) {
+                    try {
+                        console.log('📸 [Vercel Legacy] Uploading photo to Catbox...');
+                        photoUrl = await uploadBase64ToCatbox(photo, 'jpg');
+                        console.log('✅ [Vercel Legacy] Photo uploaded:', photoUrl);
+                    } catch (uploadError) {
+                        console.error('❌ [Vercel Legacy] Catbox upload failed:', uploadError.message);
+                        photoUrl = null;
+                    }
+                } else {
+                    photoUrl = photo;
+                }
+            }
+
+            const bodyLog = await prisma.bodyLog.create({
+                data: {
+                    userId,
+                    weight: weight ? parseFloat(weight) : null,
+                    photoUrl,
+                    note: note || null
+                }
+            });
+
+            return res.json({
+                message: 'Body log saved!',
+                bodyLog: { id: bodyLog.id, date: bodyLog.date, weight: bodyLog.weight, photo: bodyLog.photoUrl }
+            });
+        }
+
+        // GET /api/body/latest
+        if (path === '/body/latest' && method === 'GET') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const latest = await prisma.bodyLog.findFirst({
+                where: {
+                    userId,
+                    weight: { not: null }
+                },
+                orderBy: { date: 'desc' },
+                select: { date: true, weight: true }
+            });
+            return res.json(latest || { weight: null });
         }
 
         // ==========================================
@@ -514,19 +967,34 @@ export default async function handler(req, res) {
 
         // GET /api/stats/overview
         if (path === '/stats/overview' && method === 'GET') {
-            const totalWorkouts = await prisma.workoutLog.count();
-            const totalRoutines = await prisma.routine.count();
-            const totalPRs = await prisma.personalRecord.count();
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const totalWorkouts = await prisma.workoutLog.count({
+                where: { exercise: { routineDay: { routine: { userId } } } }
+            });
+            const totalRoutines = await prisma.routine.count({
+                where: { userId }
+            });
+            const totalPRs = await prisma.personalRecord.count({
+                where: { userId }
+            });
 
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
             const recentWorkouts = await prisma.workoutLog.findMany({
-                where: { date: { gte: thirtyDaysAgo } },
+                where: {
+                    date: { gte: thirtyDaysAgo },
+                    exercise: { routineDay: { routine: { userId } } }
+                },
                 select: { date: true }
             });
             const recentRestLogs = await prisma.restLog.findMany({
-                where: { date: { gte: thirtyDaysAgo } },
+                where: {
+                    date: { gte: thirtyDaysAgo },
+                    userId
+                },
                 select: { date: true }
             });
 
@@ -549,7 +1017,12 @@ export default async function handler(req, res) {
             const weekAgo = new Date();
             weekAgo.setDate(weekAgo.getDate() - 7);
             const weekSets = await prisma.setLog.findMany({
-                where: { workoutLog: { date: { gte: weekAgo } } },
+                where: {
+                    workoutLog: {
+                        date: { gte: weekAgo },
+                        exercise: { routineDay: { routine: { userId } } }
+                    }
+                },
                 select: { weight: true, reps: true }
             });
             const weeklyVolume = weekSets.reduce((acc, s) => acc + (s.weight * s.reps), 0);
@@ -564,15 +1037,24 @@ export default async function handler(req, res) {
 
         // GET /api/stats/consistency
         if (path === '/stats/consistency' && method === 'GET') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             const ninetyDaysAgo = new Date();
             ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
             const workouts = await prisma.workoutLog.findMany({
-                where: { date: { gte: ninetyDaysAgo } },
+                where: {
+                    date: { gte: ninetyDaysAgo },
+                    exercise: { routineDay: { routine: { userId } } }
+                },
                 select: { date: true }
             });
             const restLogs = await prisma.restLog.findMany({
-                where: { date: { gte: ninetyDaysAgo } },
+                where: {
+                    date: { gte: ninetyDaysAgo },
+                    userId
+                },
                 select: { date: true }
             });
 
@@ -587,7 +1069,13 @@ export default async function handler(req, res) {
 
         // GET /api/stats/prs
         if (path === '/stats/prs' && method === 'GET') {
-            const allPRs = await prisma.personalRecord.findMany({ orderBy: { date: 'desc' } });
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const allPRs = await prisma.personalRecord.findMany({
+                where: { userId },
+                orderBy: { date: 'desc' }
+            });
             const byEx = {};
             allPRs.forEach(pr => {
                 if (!byEx[pr.exerciseName] || (pr.estimated1RM || 0) > (byEx[pr.exerciseName].estimated1RM || 0)) {
@@ -602,9 +1090,17 @@ export default async function handler(req, res) {
         // GET /api/stats/progress/:name
         const progressMatch = path.match(/^\/stats\/progress\/(.+)$/);
         if (progressMatch && method === 'GET') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
             const name = decodeURIComponent(progressMatch[1]);
             const logs = await prisma.workoutLog.findMany({
-                where: { exercise: { name: { contains: name, mode: 'insensitive' } } },
+                where: {
+                    exercise: {
+                        name: { contains: name, mode: 'insensitive' },
+                        routineDay: { routine: { userId } }
+                    }
+                },
                 include: { sets: { orderBy: { setNumber: 'asc' } } },
                 orderBy: { date: 'asc' },
                 take: 50
@@ -632,8 +1128,11 @@ export default async function handler(req, res) {
         // GET /api/stats/routine/:id
         const routineStatsMatch = path.match(/^\/stats\/routine\/([^/]+)$/);
         if (routineStatsMatch && method === 'GET') {
-            const routine = await prisma.routine.findUnique({
-                where: { id: routineStatsMatch[1] },
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const routine = await prisma.routine.findFirst({
+                where: { id: routineStatsMatch[1], userId },
                 include: {
                     days: {
                         include: {

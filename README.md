@@ -5,7 +5,7 @@
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.7.1-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.8.0-blue?style=flat-square)
 
 ---
 
@@ -18,6 +18,12 @@ Diseñada con un enfoque **Mobile-First**, funciona perfectamente en tu celular 
 ---
 
 ## ✨ Características Principales
+
+### 🔐 Sistema de Autenticación (v1.8)
+- **Registro completo:** Nombre, email, usuario, contraseña
+- **Login persistente:** Sin expiraciones molestas
+- **Recuperación de cuenta:** Pregunta de seguridad
+- **Perfil personalizado:** Avatar, datos personales
 
 ### 🎯 Gestión de Rutinas
 - **Importación JSON Simplificada:** Carga rutinas complejas en segundos
@@ -40,28 +46,25 @@ Diseñada con un enfoque **Mobile-First**, funciona perfectamente en tu celular 
 
 ### 🏋️ Body Tracking
 - **Registro de Peso Corporal:** Seguimiento diario/semanal
-- **Fotos de Progreso:** Almacenamiento seguro en base64
+- **Composición Corporal:** 8 métricas de báscula inteligente
+- **Fotos de Progreso:** Almacenamiento en Catbox.moe (v1.8)
 - **Gráficas de Evolución:** Visualiza cambios en el tiempo
-- **Notas Diarias:** Documenta cómo te sientes
 
 ### 📄 Exportación de Reportes (PDF)
 - **Reportes Profesionales:** Genera PDFs con todo tu progreso
-- **Períodos Configurables:** Semanal, Mensual, Trimestral, Semestral, Anual
+- **Períodos Configurables:** Semanal, Mensual, Trimestral, Anual
 - **Contenido Incluido:**
-  - Estadísticas del período (días entrenados, sesiones, PRs)
+  - Estadísticas del período
   - Rutina activa completa
   - Récords personales del período
-  - Progreso por ejercicio (Delta kg y reps)
-  - Últimas sesiones con RPE
+  - Progreso por ejercicio
   - Evolución del peso corporal
-  - Fotos de progreso (si hay 2+)
-- **Optimizado con jspdf-autotable:** Tablas profesionales con saltos de página automáticos
+  - Fotos de progreso
 
 ### 🎨 Interfaz de Usuario
 - **Modo Oscuro OLED:** Interfaz perfecta para gimnasios
 - **Toast Notifications:** Feedback elegante en cada acción
 - **Animaciones Fluidas:** Transiciones y micro-interacciones premium
-- **Modal de Confirmación:** Prevención de acciones accidentales
 - **Celebración de PRs:** Animaciones especiales al romper récords
 
 ---
@@ -71,7 +74,7 @@ Diseñada con un enfoque **Mobile-First**, funciona perfectamente en tu celular 
 | Área | Tecnología | Descripción |
 |------|------------|-------------|
 | **Frontend** | React 18 | UI basada en componentes |
-| **Build Tool** | Vite 6 | Desarrollo ultrarrápido |
+| **Build Tool** | Vite 7 | Desarrollo ultrarrápido |
 | **Estilos** | Tailwind CSS 4 | Framework utility-first |
 | **Iconos** | Lucide React | Iconografía moderna |
 | **Gráficos** | Recharts | Visualización de datos |
@@ -79,6 +82,8 @@ Diseñada con un enfoque **Mobile-First**, funciona perfectamente en tu celular 
 | **Backend** | Express.js / Vercel Functions | API REST |
 | **Base de Datos** | PostgreSQL | BD relacional robusta |
 | **ORM** | Prisma | Acceso a datos type-safe |
+| **Auth** | JWT + bcrypt | Autenticación segura |
+| **Storage** | Catbox.moe | Hosting de fotos |
 
 ---
 
@@ -89,6 +94,7 @@ Optimizado para **Vercel** con PostgreSQL (Neon, Supabase, Railway).
 
 ```env
 DATABASE_URL="postgresql://usuario:password@host:port/database"
+JWT_SECRET="tu-clave-secreta-muy-larga-y-segura"
 ```
 
 ### Opción 2: Easypanel / VPS (Docker)
@@ -96,16 +102,8 @@ También soporta despliegue en **VPS con Easypanel** usando Docker.
 
 1. Conecta tu repositorio de GitHub en Easypanel
 2. Selecciona **Dockerfile** como método de build
-3. Configura la variable de entorno:
-   ```env
-   DATABASE_URL="postgresql://usuario:password@host:port/database"
-   ```
+3. Configura las variables de entorno
 4. Deploy
-
-**Ventajas de VPS:**
-- Sin cold starts
-- Base de datos local = menor latencia
-- Control total sobre recursos
 
 ### Estructura del Proyecto
 ```
@@ -116,25 +114,20 @@ NexLift/
 ├── client/               # React SPA
 │   ├── src/
 │   │   ├── components/   # Componentes reutilizables
-│   │   │   ├── layout/   # Layout principal
-│   │   │   └── ui/       # Toast, Celebration, etc.
-│   │   ├── pages/        # Páginas de la app
-│   │   │   ├── Dashboard.jsx
-│   │   │   ├── Progress.jsx
-│   │   │   ├── BodyTracking.jsx
-│   │   │   ├── ExportReport.jsx
-│   │   │   ├── Routines.jsx
-│   │   │   ├── RoutineDetail.jsx
-│   │   │   ├── Workout.jsx
-│   │   │   ├── Settings.jsx
-│   │   │   └── EditSession.jsx
-│   │   └── services/     # API client
+│   │   ├── contexts/     # AuthContext (v1.8)
+│   │   ├── pages/        # 15 páginas
+│   │   └── services/     # API client con auth
 │   └── public/           # Assets estáticos
 ├── server/               # Servidor local de desarrollo
 │   ├── prisma/           # Schema de BD
+│   ├── scripts/          # Scripts de mantenimiento
 │   └── src/index.js      # API Express
+├── shared/               # Código compartido (v1.8)
+│   ├── middleware/       # Auth middleware
+│   ├── utils/            # Password, Catbox
+│   └── routes/           # Rutas modulares
 ├── .agent/               # Documentación para IA
-│   └── context.md        # Contexto del proyecto
+│   └── context.md        # Contexto completo del proyecto
 └── vercel.json           # Configuración Vercel
 ```
 
@@ -147,7 +140,9 @@ Este proyecto tiene **dos schemas de Prisma** que deben mantenerse sincronizados
 | `server/prisma/schema.prisma` | Desarrollo local |
 | `api/prisma/schema.prisma` | Producción (Vercel) |
 
-**Si agregas o modificas modelos/campos, actualiza AMBOS archivos.** De lo contrario, Vercel dará errores en producción.
+**Si agregas o modificas modelos/campos, actualiza AMBOS archivos.**
+
+---
 
 ## 📋 Formato de Importación de Rutinas
 
@@ -172,7 +167,7 @@ Este proyecto tiene **dos schemas de Prisma** que deben mantenerse sincronizados
 }
 ```
 
-> 💡 **Tip:** Pídele a ChatGPT que genere tu rutina en este formato JSON. Los nombres se normalizan automáticamente (sin prefijos "a1.", todo minúsculas).
+> 💡 **Tip:** Pídele a ChatGPT que genere tu rutina en este formato JSON.
 
 ---
 
@@ -199,6 +194,44 @@ npm run dev
 **URLs de desarrollo:**
 - Frontend: http://localhost:5173
 - Backend: http://localhost:3001
+
+---
+
+## 📜 Changelog
+
+### v1.8.0 - Multi-User Auth System (9 Ene 2026)
+**El cambio más grande en la historia del proyecto**
+
+#### 🔐 Autenticación Completa
+- Sistema JWT con tokens persistentes
+- Login, Register, Forgot Password
+- Pregunta de seguridad para recuperación
+- Perfil de usuario editable
+- AuthContext + ProtectedRoute
+
+#### 🏗️ Arquitectura Multi-Tenant
+- Modelo `User` en Prisma
+- userId en todas las tablas
+- Filtrado por usuario en TODAS las queries
+- Ownership verification en UPDATE/DELETE
+
+#### 📸 Sistema de Fotos Catbox
+- Upload automático a catbox.moe
+- Eliminación de base64 en DB
+- Script de migración incluido
+
+#### 📁 Código Compartido
+- `shared/` con routes, middleware, utils
+- Schema centralizado
+
+### v1.7.x - Bug Fixes & Normalization
+- Corrección de "Mejor anterior"
+- Normalización de ejercicios
+- Fix timezone
+
+### v1.6.x - Data Integrity
+- Fórmula Epley unificada
+- onDelete: Restrict
 
 ---
 

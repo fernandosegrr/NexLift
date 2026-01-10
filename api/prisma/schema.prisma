@@ -7,7 +7,47 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Rutina general (ej: "Golden Split", "Push Pull Legs")
+// ==================== USUARIO ====================
+
+model User {
+  id            String    @id @default(cuid())
+  
+  // Credenciales
+  username      String    @unique
+  email         String    @unique
+  passwordHash  String
+  
+  // Perfil
+  firstName     String
+  lastName      String
+  phone         String?
+  birthDate     DateTime?
+  avatarUrl     String?   // Foto de perfil en Catbox
+  
+  // Recuperación (pregunta de seguridad)
+  securityQuestion  String?
+  securityAnswerHash String?
+  
+  // Estado
+  isActive      Boolean   @default(true)
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLogin     DateTime?
+  
+  // Relaciones
+  routines        Routine[]
+  bodyLogs        BodyLog[]
+  restLogs        RestLog[]
+  personalRecords PersonalRecord[]
+  
+  @@index([email])
+  @@index([username])
+}
+
+// ==================== RUTINAS ====================
+
 model Routine {
   id          String       @id @default(cuid())
   name        String
@@ -16,94 +56,117 @@ model Routine {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   days        RoutineDay[]
+  
+  // Relación con usuario (opcional para migración)
+  userId      String?
+  user        User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
 }
 
-// Días de la rutina (ej: "Domingo: Torso", "Lunes: Pierna")
 model RoutineDay {
   id          String     @id @default(cuid())
   dayName     String
-  isRestDay   Boolean    @default(false)  // Si es día de descanso
+  isRestDay   Boolean    @default(false)
   order       Int        @default(0)
   routineId   String
   routine     Routine    @relation(fields: [routineId], references: [id], onDelete: Cascade)
   exercises   Exercise[]
 }
 
-// Ejercicios configurados en cada día
 model Exercise {
   id           String       @id @default(cuid())
   name         String
-  muscleGroup  String?      // Grupo muscular (pecho, espalda, piernas, etc.)
-  targetSets   Int          // Series objetivo
-  targetReps   String       // "8-10", "12-15", etc.
-  restSeconds  Int?         // Descanso entre series (opcional)
-  note         String?      // Notas adicionales
+  muscleGroup  String?
+  targetSets   Int
+  targetReps   String
+  restSeconds  Int?
+  note         String?
   order        Int          @default(0)
   routineDayId String
   routineDay   RoutineDay   @relation(fields: [routineDayId], references: [id], onDelete: Cascade)
   workoutLogs  WorkoutLog[]
 }
 
-// Registro de sesión de entrenamiento
+// ==================== WORKOUTS ====================
+
 model WorkoutLog {
   id          String    @id @default(cuid())
   date        DateTime  @default(now())
   exerciseId  String
   exercise    Exercise  @relation(fields: [exerciseId], references: [id])
   sets        SetLog[]
-  notes       String?   // Notas de la sesión
+  notes       String?
 }
 
-// Registro individual de cada serie
 model SetLog {
   id           String     @id @default(cuid())
-  setNumber    Int        // Número de serie (1, 2, 3...)
-  weight       Float      // Peso en kg
-  reps         Int        // Repeticiones realizadas
-  rpe          Int?       // Rate of Perceived Exertion (1-10)
+  setNumber    Int
+  weight       Float
+  reps         Int
+  rpe          Int?
   completed    Boolean    @default(true)
   workoutLogId String
   workoutLog   WorkoutLog @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
 }
 
-// Personal Records - Récords personales por ejercicio
+// ==================== PERSONAL RECORDS ====================
+
 model PersonalRecord {
   id           String   @id @default(cuid())
-  exerciseName String   // Nombre del ejercicio (normalizado)
-  weight       Float    // Peso del PR
-  reps         Int      // Reps con las que se logró
-  estimated1RM Float?   // 1RM estimado
+  exerciseName String
+  weight       Float
+  reps         Int
+  estimated1RM Float?
   date         DateTime @default(now())
-
+  
+  // Relación con usuario (opcional para migración)
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
   @@index([exerciseName])
+  @@index([userId])
 }
 
-// Registro de días de descanso chequeados (para mantener la racha)
+// ==================== DESCANSO ====================
+
 model RestLog {
   id        String   @id @default(cuid())
   date      DateTime @default(now())
   note      String?
+  
+  // Relación con usuario (opcional para migración)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
 }
 
-// Registro de datos corporales (peso y fotos de progreso)
+// ==================== BODY TRACKING ====================
+
 model BodyLog {
   id        String   @id @default(cuid())
   date      DateTime @default(now())
-  weight    Float?   // Peso en kg
-  photo     String?  @db.Text // Foto comprimida en base64
-  note      String?  // Notas del día
+  weight    Float?
+  photoUrl  String?  // URL de Catbox (antes era base64)
+  note      String?
   
-  // Composición corporal avanzada (báscula inteligente)
-  bmi         Float?   // IMC (Índice de Masa Corporal)
-  bodyFat     Float?   // Grasa corporal %
-  muscleMass  Float?   // Masa muscular kg
-  bmr         Float?   // Tasa metabólica basal kcal/d
-  bodyWater   Float?   // Agua corporal %
-  visceralFat Float?   // Grasa visceral (nivel 1-59)
-  boneMass    Float?   // Masa ósea kg
-  protein     Float?   // Proteínas %
+  // Composición corporal (báscula inteligente)
+  bmi         Float?
+  bodyFat     Float?
+  muscleMass  Float?
+  bmr         Float?
+  bodyWater   Float?
+  visceralFat Float?
+  boneMass    Float?
+  protein     Float?
   
   createdAt DateTime @default(now())
   
+  // Relación con usuario (opcional para migración)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
   @@index([date])
+  @@index([userId])
 }

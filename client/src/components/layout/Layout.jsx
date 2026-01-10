@@ -1,12 +1,12 @@
 import { Outlet, NavLink } from 'react-router-dom';
-import { Home, Dumbbell, TrendingUp, Settings, Scale } from 'lucide-react';
+import { Home, Dumbbell, TrendingUp, User, Scale } from 'lucide-react';
 
 const navItems = [
     { path: '/', icon: Home, label: 'Inicio' },
     { path: '/routines', icon: Dumbbell, label: 'Rutinas' },
     { path: '/body', icon: Scale, label: 'Cuerpo' },
     { path: '/progress', icon: TrendingUp, label: 'Progreso' },
-    { path: '/settings', icon: Settings, label: 'Ajustes' },
+    { path: '/profile', icon: User, label: 'Perfil' },
 ];
 
 

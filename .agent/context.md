@@ -1,6 +1,7 @@
-# NexLift v1.7.1 - AI Context & Project Documentation
+# NexLift v1.8 - AI Context & Project Documentation
 
 > **Documentación completa para IAs y desarrolladores que trabajen en este proyecto.**
+> **Última actualización: 9 Enero 2026 - v1.8.0**
 
 ---
 
@@ -27,63 +28,118 @@ NexLift/
 │   │   │   └── ui/
 │   │   │       ├── Toast.jsx        # Sistema de notificaciones
 │   │   │       └── Celebration.jsx  # Animación confeti para PRs
-│   │   ├── pages/                   # 11 páginas principales
-│   │   │   ├── Dashboard.jsx        # Inicio, heatmap, stats (463 líneas)
-│   │   │   ├── Progress.jsx         # Gráficas, PRs, análisis (986 líneas)
-│   │   │   ├── BodyTracking.jsx     # Composición corporal (693 líneas)
-│   │   │   ├── Workout.jsx          # Registro de ejercicios (850 líneas)
-│   │   │   ├── Routines.jsx         # Lista de rutinas (404 líneas)
-│   │   │   ├── RoutineDetail.jsx    # Detalle de día (273 líneas)
-│   │   │   ├── EditRoutine.jsx      # Editar rutina (528 líneas)
-│   │   │   ├── EditSession.jsx      # Editar sesión pasada (287 líneas)
-│   │   │   ├── ExportReport.jsx     # Generador PDF (919 líneas)
-│   │   │   ├── Settings.jsx         # Configuración (447 líneas)
-│   │   │   └── Import.jsx           # Importar rutinas JSON (198 líneas)
+│   │   ├── contexts/
+│   │   │   └── AuthContext.jsx      # 🆕 v1.8 - Estado de autenticación global
+│   │   ├── pages/                   # 15 páginas principales
+│   │   │   ├── Dashboard.jsx        # Inicio, heatmap, stats
+│   │   │   ├── Progress.jsx         # Gráficas, PRs, análisis
+│   │   │   ├── BodyTracking.jsx     # Composición corporal + fotos
+│   │   │   ├── Workout.jsx          # Registro de ejercicios
+│   │   │   ├── Routines.jsx         # Lista de rutinas
+│   │   │   ├── RoutineDetail.jsx    # Detalle de día
+│   │   │   ├── EditRoutine.jsx      # Editar rutina
+│   │   │   ├── EditSession.jsx      # Editar sesión pasada
+│   │   │   ├── ExportReport.jsx     # Generador PDF
+│   │   │   ├── Settings.jsx         # Configuración
+│   │   │   ├── Import.jsx           # Importar rutinas JSON
+│   │   │   ├── Login.jsx            # 🆕 v1.8 - Inicio de sesión
+│   │   │   ├── Register.jsx         # 🆕 v1.8 - Registro
+│   │   │   ├── ForgotPassword.jsx   # 🆕 v1.8 - Recuperación
+│   │   │   └── Profile.jsx          # 🆕 v1.8 - Perfil de usuario
 │   │   ├── services/
-│   │   │   └── api.js               # Cliente HTTP (~25 métodos)
+│   │   │   └── api.js               # Cliente HTTP con auth automático
 │   │   └── index.css                # Variables CSS tema OLED
 │   └── public/
 │       └── manifest.json            # PWA config
 ├── server/                          # Backend desarrollo local
 │   ├── prisma/
-│   │   └── schema.prisma            # Modelos de BD
+│   │   └── schema.prisma            # Symlink → shared/prisma/schema.prisma
+│   ├── scripts/
+│   │   └── migrate-photos.js        # 🆕 v1.8 - Migración base64→Catbox
 │   └── src/
-│       └── index.js                 # API Express (~700 líneas)
+│       └── index.js                 # API Express (~1500 líneas)
 ├── api/                             # Backend Vercel (serverless)
 │   ├── prisma/
 │   │   └── schema.prisma            # ⚠️ DEBE estar sincronizado
-│   └── index.js                     # Handler serverless (~673 líneas)
+│   └── index.js                     # Handler serverless (~1200 líneas)
+├── shared/                          # 🆕 v1.8 - Código compartido
+│   ├── prisma/
+│   │   └── schema.prisma            # Schema centralizado
+│   ├── middleware/
+│   │   └── auth.js                  # Middleware JWT
+│   ├── utils/
+│   │   ├── password.js              # Hash bcrypt
+│   │   └── catbox.js                # Upload a Catbox.moe
+│   └── routes/                      # Rutas modulares
+│       ├── index.js                 # Barrel export
+│       ├── auth.js                  # Autenticación
+│       ├── routines.js              # CRUD rutinas
+│       ├── workouts.js              # Log workouts
+│       ├── exercises.js             # Ejercicios
+│       ├── body.js                  # Body tracking
+│       └── stats.js                 # Estadísticas
+├── scripts/
+│   └── sync-schema.js               # Sincroniza schemas
 ├── Dockerfile                       # Deploy VPS/Easypanel
 └── .agent/
     └── context.md                   # Este archivo
 ```
 
-### Decisiones Arquitectónicas
+### Decisiones Arquitectónicas v1.8
 
 | Decisión | Razón |
 |----------|-------|
-| **Dos backends (server/ y api/)** | `server/` para dev local con hot reload, `api/` para serverless Vercel |
-| **Dos schemas Prisma** | Vercel usa su propio directorio; AMBOS deben estar sincronizados |
-| **localStorage en Workout** | Evita pérdida de datos si el usuario cierra la app antes de guardar |
-| **Base64 para fotos** | Simplicidad: no requiere storage externo (S3, Cloudinary) |
-| **Fórmula Epley unificada** | `peso × (1 + reps/30)` consistente en frontend y backend |
+| **Autenticación JWT sin expiración** | UX móvil: usuarios no quieren re-login cada sesión |
+| **Catbox para fotos en vez de base64** | Base64 sobrecargaba la DB; Catbox es gratuito e ilimitado |
+| **authFetch() centralizado** | Evita olvidar tokens en llamadas individuales |
+| **userId en todas las tablas** | Multi-tenant: cada usuario solo ve sus datos |
+| **Rutas en shared/ pero inline en index.js** | Evita problemas de resolución de módulos ES en serverless |
 
 ---
 
-## 📊 Modelo de Datos
+## 📊 Modelo de Datos (v1.8)
 
 ```prisma
+// ==================== USUARIO ====================
+model User {
+  id            String    @id @default(cuid())
+  username      String    @unique
+  email         String    @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  phone         String?
+  birthDate     DateTime?
+  avatarUrl     String?   // Foto perfil Catbox
+  securityQuestion  String?
+  securityAnswerHash String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLogin     DateTime?
+  
+  routines        Routine[]
+  bodyLogs        BodyLog[]
+  restLogs        RestLog[]
+  personalRecords PersonalRecord[]
+}
+
+// ==================== RUTINAS ====================
 model Routine {
-  id        String       @id @default(cuid())
-  name      String
-  isActive  Boolean      @default(false)
-  days      RoutineDay[]
-  createdAt DateTime     @default(now())
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean      @default(false)
+  userId      String?      // 🆕 v1.8
+  user        User?        @relation(...)
+  days        RoutineDay[]
 }
 
 model RoutineDay {
   id        String     @id @default(cuid())
-  dayName   String     // "Lunes", "Martes", etc.
+  dayName   String
+  isRestDay Boolean    @default(false)
+  order     Int        @default(0)
   routine   Routine    @relation(...)
   exercises Exercise[]
 }
@@ -91,17 +147,23 @@ model RoutineDay {
 model Exercise {
   id          String       @id @default(cuid())
   name        String
-  targetSets  Int          @default(3)
-  targetReps  String       @default("8-12")
-  muscleGroup String?      // Clasificación opcional
+  muscleGroup String?
+  targetSets  Int
+  targetReps  String
+  restSeconds Int?
+  note        String?
+  order       Int          @default(0)
+  routineDay  RoutineDay   @relation(...)
   workoutLogs WorkoutLog[]
 }
 
+// ==================== WORKOUTS ====================
 model WorkoutLog {
-  id         String   @id @default(cuid())
-  date       DateTime @default(now())
-  exercise   Exercise @relation(onDelete: Restrict)
+  id         String    @id @default(cuid())
+  date       DateTime  @default(now())
+  exercise   Exercise  @relation(...)
   sets       SetLog[]
+  notes      String?
 }
 
 model SetLog {
@@ -109,121 +171,197 @@ model SetLog {
   setNumber Int
   weight    Float
   reps      Int
-  rpe       Int?       // Rating of Perceived Exertion (1-10)
+  rpe       Int?
+  completed Boolean    @default(true)
+  workoutLog WorkoutLog @relation(...)
 }
 
+// ==================== PERSONAL RECORDS ====================
 model PersonalRecord {
   id           String   @id @default(cuid())
-  exerciseName String   // Normalizado (minúsculas, sin prefijos)
+  exerciseName String   // Normalizado (minúsculas)
   weight       Float
   reps         Int
-  estimated1RM Float
+  estimated1RM Float?
   date         DateTime @default(now())
+  userId       String?  // 🆕 v1.8
+  user         User?    @relation(...)
 }
 
+// ==================== DESCANSO ====================
 model RestLog {
-  id   String   @id @default(cuid())
-  date DateTime @default(now())
+  id     String   @id @default(cuid())
+  date   DateTime @default(now())
+  note   String?
+  userId String?  // 🆕 v1.8
+  user   User?    @relation(...)
 }
 
+// ==================== BODY TRACKING ====================
 model BodyLog {
   id          String   @id @default(cuid())
   date        DateTime @default(now())
-  weight      Float?   // kg
-  photo       String?  @db.Text  // Base64
+  weight      Float?
+  photoUrl    String?  // 🆕 v1.8: URL Catbox (antes era base64)
   note        String?
-  // Campos de báscula inteligente (todos opcionales)
-  bmi         Float?   // Índice de Masa Corporal
-  bodyFat     Float?   // Grasa corporal %
-  muscleMass  Float?   // Masa muscular kg
-  bmr         Float?   // Metabolismo basal kcal/día
-  bodyWater   Float?   // Agua corporal %
-  visceralFat Float?   // Grasa visceral (nivel 1-59)
-  boneMass    Float?   // Masa ósea kg
-  protein     Float?   // Proteínas %
+  bmi         Float?
+  bodyFat     Float?
+  muscleMass  Float?
+  bmr         Float?
+  bodyWater   Float?
+  visceralFat Float?
+  boneMass    Float?
+  protein     Float?
+  userId      String?  // 🆕 v1.8
+  user        User?    @relation(...)
 }
-```
-
-### Relaciones Clave
-```
-Routine → RoutineDay → Exercise → WorkoutLog → SetLog
-                                      ↓
-                              PersonalRecord (automático)
 ```
 
 ---
 
-## 🔌 API Endpoints
+## 🔐 Sistema de Autenticación (v1.8)
+
+### Flujo de Auth
+
+```
+┌─────────────┐         ┌─────────────┐         ┌─────────────┐
+│   Login     │         │   Server    │         │  Database   │
+│   Page      │────────>│  /auth/login│────────>│   Users     │
+└─────────────┘         └─────────────┘         └─────────────┘
+      │                        │                       │
+      │   { token, user }      │     bcrypt.compare    │
+      │<───────────────────────│<──────────────────────│
+      │                        │                       │
+      ▼                        │                       │
+┌─────────────┐                │                       │
+│ localStorage│                │                       │
+│ nexlift_token                │                       │
+└─────────────┘                │                       │
+      │                        │                       │
+      ▼                        │                       │
+┌─────────────┐         ┌─────────────┐               │
+│ AuthContext │         │authMiddleware               │
+│ (isAuth)    │────────>│jwt.verify() │               │
+└─────────────┘         └─────────────┘               │
+      │                        │                       │
+      ▼                        ▼                       │
+┌─────────────┐         ┌─────────────┐               │
+│api.js       │         │ req.userId  │───────────────│
+│authFetch()  │─────────│ attached    │               │
+└─────────────┘         └─────────────┘               │
+```
+
+### Endpoints de Auth
+
+| Método | Endpoint | Auth | Descripción |
+|--------|----------|------|-------------|
+| POST | `/api/auth/register` | ❌ | Crear cuenta |
+| POST | `/api/auth/login` | ❌ | Iniciar sesión |
+| GET | `/api/auth/me` | ✅ | Obtener perfil |
+| PUT | `/api/auth/profile` | ✅ | Actualizar perfil |
+| PUT | `/api/auth/password` | ✅ | Cambiar contraseña |
+| POST | `/api/auth/recover/question` | ❌ | Obtener pregunta seguridad |
+| POST | `/api/auth/recover/verify` | ❌ | Verificar respuesta y resetear |
+| PUT | `/api/auth/security-question` | ✅ | Actualizar pregunta |
+
+### Almacenamiento del Token
+
+```javascript
+// Al login exitoso:
+localStorage.setItem('nexlift_token', token);
+
+// Helper en api.js:
+function getAuthHeaders() {
+    const token = localStorage.getItem('nexlift_token');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+```
+
+---
+
+## 🔌 API Endpoints (v1.8)
+
+> ⚠️ **TODOS los endpoints (excepto auth login/register/recover) requieren autenticación**
 
 ### Rutinas
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| GET | `/api/routines` | Lista todas las rutinas con días y ejercicios |
-| GET | `/api/routines/:id` | Detalle de rutina específica |
-| POST | `/api/routines` | Crear nueva rutina |
-| PUT | `/api/routines/:id` | Actualizar rutina (incluyendo renombrar ejercicios) |
-| DELETE | `/api/routines/:id` | Eliminar rutina (protegido si hay logs) |
-| POST | `/api/routines/import` | Importar rutina desde JSON |
-| PUT | `/api/routines/:id/activate` | Activar rutina (desactiva otras) |
-| GET | `/api/routines/active` | Obtener rutina activa actual |
+| GET | `/api/routines` | Lista rutinas del usuario |
+| GET | `/api/routines/:id` | Detalle de rutina |
+| GET | `/api/routines/active` | Rutina activa actual |
+| POST | `/api/routines` | Crear rutina |
+| POST | `/api/routines/import` | Importar JSON |
+| PUT | `/api/routines/:id` | Actualizar (con smart PR rename) |
+| PUT | `/api/routines/:id/activate` | Activar |
+| DELETE | `/api/routines/:id` | Eliminar |
 
 ### Entrenamientos
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| POST | `/api/workouts/log` | Registrar sesión (crea WorkoutLog + SetLogs + PR si aplica) |
-| GET | `/api/workouts/history?limit=N` | Historial de sesiones (default 30) |
-| GET | `/api/workouts/exercise/:id/history` | Historial por ejercicio (busca por nombre) |
-| DELETE | `/api/workouts/:id` | Eliminar sesión específica |
+| POST | `/api/workouts/log` | Registrar sesión |
+| POST | `/api/workouts/log-rest` | Registrar descanso |
+| GET | `/api/workouts/history` | Historial |
+| GET | `/api/workouts/exercise/:id/history` | Por ejercicio |
+| PUT | `/api/workouts/:logId` | Editar sesión |
+| DELETE | `/api/workouts/:logId` | Eliminar |
 
 ### Estadísticas
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| GET | `/api/stats/overview` | Total workouts, ejercicios, streak actual |
-| GET | `/api/stats/consistency` | Eventos para calendar heatmap (365 días) |
-| GET | `/api/stats/prs` | Todos los Personal Records |
-| GET | `/api/stats/exercise/:name/progress` | Evolución de ejercicio específico |
+| GET | `/api/stats/overview` | Resumen general |
+| GET | `/api/stats/consistency` | Heatmap datos |
+| GET | `/api/stats/prs` | Personal Records |
+| GET | `/api/stats/progress/:name` | Evolución ejercicio |
+| GET | `/api/stats/routine/:id` | Stats de rutina |
 
 ### Body Tracking
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| GET | `/api/body/logs?limit=N` | Registros corporales con composición |
-| GET | `/api/body/photos` | Solo registros con fotos |
-| POST | `/api/body/log` | Crear registro (peso + composición + foto) |
-
-### Otros
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| POST | `/api/rest/log` | Registrar día de descanso |
-| GET | `/api/rest/logs` | Historial de descansos |
-| PUT | `/api/exercises/:id` | Actualizar muscleGroup de ejercicio |
+| GET | `/api/body/logs` | Registros corporales |
+| GET | `/api/body/photos` | Solo fotos |
+| GET | `/api/body/latest` | Último peso |
+| POST | `/api/body/log` | Crear registro (auto-upload Catbox) |
 
 ---
 
-## 🎨 Custom Hooks Importantes
+## 📸 Sistema de Fotos Catbox (v1.8)
 
-### `useWorkoutPersistence(dayId)` - Workout.jsx
-```javascript
-// Maneja localStorage con expiración de 24h
-const { workoutData, setWorkoutData, completedExerciseIds, 
-        setCompletedExerciseIds, saveToStorage, clearStorage } = useWorkoutPersistence(dayId);
+### Flujo de Upload
+
+```
+Frontend                    Backend                    Catbox
+   │                           │                          │
+   │ base64 image              │                          │
+   │──────────────────────────>│                          │
+   │                           │ POST multipart/form-data │
+   │                           │─────────────────────────>│
+   │                           │                          │
+   │                           │   https://files.catbox.moe/abc.jpg
+   │                           │<─────────────────────────│
+   │                           │                          │
+   │   { photoUrl: "https://..." }                        │
+   │<──────────────────────────│                          │
 ```
 
-### `useExerciseHistory(exerciseId)` - Workout.jsx
+### Detección Automática
+
 ```javascript
-// Auto-carga historial al cambiar ejercicio, busca mejor set en TODAS las sesiones
-const { previousBest, suggestedWeight, loading, loadHistory } = useExerciseHistory(exerciseId);
+// En server/src/index.js
+if (photo.startsWith('data:image') || photo.length > 500) {
+    // Es base64 → subir a Catbox
+    photoUrl = await uploadBase64ToCatbox(photo, 'jpg');
+} else {
+    // Ya es URL
+    photoUrl = photo;
+}
 ```
 
-### `useProgressData()` - Progress.jsx
-```javascript
-// Carga todos los datos de progreso: stats, PRs, events, workouts
-const { stats, prs, events, workouts, exercises, loading } = useProgressData();
-```
+### Script de Migración
 
-### `useExerciseProgress(exerciseName)` - Progress.jsx
-```javascript
-// Datos de evolución para gráfica de ejercicio específico
-const { data, loading } = useExerciseProgress(exerciseName);
+```bash
+# Migrar fotos antiguas base64 → Catbox
+cd server
+node scripts/migrate-photos.js
 ```
 
 ---
@@ -235,7 +373,6 @@ const { data, loading } = useExerciseProgress(exerciseName);
 :root {
   --bg-dark: #0a0a0a;      /* Fondo principal OLED */
   --bg-card: #141414;      /* Tarjetas */
-  --bg-main: #0a0a0a;      /* Alias */
   --primary: #8b5cf6;      /* Púrpura principal */
   --success: #22c55e;      /* Verde éxito */
   --warning: #eab308;      /* Amarillo warning */
@@ -246,135 +383,103 @@ const { data, loading } = useExerciseProgress(exerciseName);
 }
 ```
 
-### Componentes Reutilizables
-- **Toast:** Context API para notificaciones globales (`useToast()`)
-- **Celebration:** Confeti animado cuando se logra un PR
-- **SkeletonLoader:** Placeholders durante carga
-
-### PDFBuilder Class (ExportReport.jsx)
-```javascript
-class PDFBuilder {
-  ensureSpace(height)           // Evita títulos huérfanos
-  printSectionTitle(title)      // Títulos consistentes
-  drawLineChart(data, w, h)     // Gráficas nativas en PDF
-  renderHeader(logo, period)    // Header con logo
-  renderFooters()               // Numeración de páginas
-}
-```
+### Componentes Clave
+- **AuthContext:** Estado global de autenticación
+- **ProtectedRoute:** HOC para rutas que requieren login
+- **Toast:** Notificaciones globales (`useToast()`)
+- **Celebration:** Confeti para PRs
 
 ---
 
 ## ⚠️ Gotchas y Problemas Conocidos
 
-### 1. Dos Schemas Prisma
-```
-⚠️ server/prisma/schema.prisma  ← Desarrollo local
-⚠️ api/prisma/schema.prisma     ← Producción Vercel
-```
-**AMBOS deben estar sincronizados.** Si agregas campos, actualiza los dos.
-
-### 2. Historial de Ejercicios por Nombre
-La API `/api/workouts/exercise/:id/history` ahora busca por **nombre del ejercicio** (case-insensitive) para incluir datos de ejercicios con el mismo nombre en diferentes rutinas.
-
-### 3. Comparación de Fechas
-Usar `toLocaleDateString('sv')` en lugar de `toISOString().split('T')[0]` para evitar problemas de timezone.
-
-### 4. localStorage Expira en 24h
-Los datos parciales de workout expiran automáticamente para evitar confusión con datos viejos.
-
-### 5. PRs Automáticos
-- Fórmula Epley: `peso × (1 + reps/30)`
-- Safety: solo para `reps > 1 && reps < 37`
-- Solo se guardan si superan el PR anterior
-
-### 6. Fotos Comprimidas
-`compressImage()` en BodyTracking.jsx reduce fotos a max 1200px y 85% quality antes de guardar en base64.
-
-### 7. jsPDF no soporta emojis
-Los títulos de PDF usan texto plano sin emojis.
-
----
-
-## 🔄 Flujos de Usuario Críticos
-
-### Flujo de Entrenamiento (Workout.jsx)
-```
-1. Usuario entra a Workout desde RoutineDetail
-2. Se cargan ejercicios del día + se verifica cuáles ya se completaron hoy
-3. Por cada ejercicio:
-   a. Se muestra "Mejor anterior" (mejor set de TODO el historial)
-   b. Se muestra peso sugerido (basado en fórmula inversa de Epley)
-   c. Usuario registra peso/reps/RIR por cada serie
-   d. Al guardar: API crea WorkoutLog + SetLogs
-   e. Se verifica si es PR → animación si es nuevo récord
-4. Al terminar: se limpia localStorage, pantalla de éxito
+### 1. Token en localStorage
+```javascript
+// ⚠️ Todas las llamadas protegidas DEBEN usar authFetch()
+const res = await authFetch(`${API_URL}/routines`);
+// ❌ NO usar fetch() directamente para rutas protegidas
 ```
 
-### Flujo de PDF (ExportReport.jsx)
+### 2. Dos Schemas Prisma
 ```
-1. Usuario selecciona período (diario/semanal/mensual/trimestral/anual)
-2. Se cargan en paralelo: stats, PRs, workouts, bodyLogs
-3. Se filtran por fecha de corte
-4. PDFBuilder genera documento con:
-   - Header con logo y período
-   - Resumen de estadísticas
-   - Tabla de sesiones
-   - PRs del período
-   - Datos de composición corporal
-   - Fotos de progreso (si hay)
-5. Descarga automática
+⚠️ shared/prisma/schema.prisma  ← Fuente de verdad
+⚠️ api/prisma/schema.prisma     ← Sincronizar manualmente para Vercel
 ```
+
+### 3. Campo photoUrl vs photo
+- **Base de datos:** `photoUrl` (campo real)
+- **API response:** `photo` (mapeado para compatibilidad frontend)
+
+### 4. userId Opcional
+Los campos `userId` son opcionales (`String?`) para permitir migración de datos antiguos sin usuario.
 
 ---
 
 ## 📋 Changelog
 
-### v1.7.1 - Workout Bug Fixes & UI Cleanup (9 Ene 2026)
-- ✅ "Mejor anterior" corregido: busca en TODAS las sesiones
-- ✅ API busca historial por nombre de ejercicio
-- ✅ Requests paralelas con Promise.all
-- ✅ localStorage expira después de 24h
-- ✅ Fix timezone con toLocaleDateString('sv')
-- ✅ Auto-load de historial al cambiar ejercicio
-- ✅ Fix aviso "salir sin guardar" después de guardar
-- ✅ UI simplificada: eliminados botones +/- y números de serie
-- ✅ Texto de botón correcto en último ejercicio
+### v1.8.0 - Multi-User Auth System (9 Ene 2026)
+**Cambio más grande en la historia del proyecto**
+
+#### 🔐 Autenticación Completa
+- ✅ Sistema JWT con tokens persistentes
+- ✅ Login, Register, Forgot Password
+- ✅ Pregunta de seguridad para recuperación
+- ✅ Perfil de usuario editable
+- ✅ AuthContext + ProtectedRoute
+
+#### 🏗️ Arquitectura Multi-Tenant
+- ✅ Modelo `User` en Prisma
+- ✅ `userId` en todas las tablas relevantes
+- ✅ Filtrado por usuario en TODAS las queries
+- ✅ Ownership verification en UPDATE/DELETE
+
+#### 📸 Sistema de Fotos Catbox
+- ✅ Upload automático a catbox.moe
+- ✅ Eliminación de base64 en DB
+- ✅ Script de migración incluido
+
+#### 📁 Código Compartido
+- ✅ `shared/` con routes, middleware, utils
+- ✅ Schema centralizado
+- ✅ Rutas modulares reutilizables
+
+#### 🔧 Fixes Críticos
+- ✅ api.js con authFetch() para tokens automáticos
+- ✅ photoUrl vs photo mapeado correctamente
+- ✅ Funciones inline para evitar problemas de módulos
+
+### v1.7.1 - Workout Bug Fixes (9 Ene 2026)
+- ✅ "Mejor anterior" corregido
+- ✅ localStorage expira 24h
+- ✅ Fix timezone
 
 ### v1.7.0 - Exercise Normalization (8 Ene 2026)
-- ✅ Normalización de ejercicios: `normalizeExerciseName()`
+- ✅ `normalizeExerciseName()`
 - ✅ Autocomplete en EditRoutine
-- ✅ Dockerfile arreglado para Prisma
 
-### v1.6.x - Data Integrity & 1RM Formula
+### v1.6.x - Data Integrity
 - ✅ Fórmula Epley unificada
-- ✅ Case-insensitive PR renaming
-- ✅ onDelete: Restrict en schema
+- ✅ onDelete: Restrict
 
 ### v1.5.0 - VPS Deployment
 - ✅ Dockerfile para Docker/Easypanel
-- ✅ Middleware para servir frontend estático
 
-### v1.4.0 - Body Composition System
-- ✅ Campos de báscula inteligente (8 métricas)
-- ✅ Galería de fotos de progreso
-- ✅ Integración en PDF
-
-### v1.3.0 - Persistence & Sessions
-- ✅ localStorage para evitar pérdida de datos
-- ✅ Detección de ejercicios completados hoy
-- ✅ EditSession para editar sesiones pasadas
+### v1.4.0 - Body Composition
+- ✅ 8 métricas de báscula inteligente
+- ✅ Galería de fotos
 
 ---
 
 ## 📝 Notas para IAs Futuras
 
-1. **Verifica el período** al depurar datos faltantes en reportes
-2. **Sincroniza ambos schemas** al modificar modelos
-3. **No elimines Ghost Mode** - feature valorada
-4. **Usa refs** para cancelar requests obsoletos
-5. **Tailwind 4** usa PostCSS, no tailwind.config.js
-6. **Testing manual** - no hay tests automatizados
+1. **SIEMPRE usa authFetch()** para llamadas protegidas
+2. **Sincroniza schemas** al modificar modelos
+3. **Token en localStorage** como `nexlift_token`
+4. **Catbox para fotos** - no guardar base64 en DB
+5. **userId en queries** - SIEMPRE filtrar por usuario
+6. **Tailwind 4** usa PostCSS, no tailwind.config.js
+7. **No hay tests automatizados** - testing manual
 
 ---
 
-*Última actualización: 9 Enero 2026 - v1.7.1*
+*Última actualización: 9 Enero 2026 - v1.8.0*

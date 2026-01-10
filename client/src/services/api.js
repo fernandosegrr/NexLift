@@ -1,30 +1,45 @@
 // En producción (Vercel), usa ruta relativa. En desarrollo, usa localhost
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
 
+// Helper: Get auth headers from localStorage
+function getAuthHeaders() {
+    const token = localStorage.getItem('nexlift_token');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
+// Helper: Fetch with auth
+async function authFetch(url, options = {}) {
+    const headers = {
+        ...getAuthHeaders(),
+        ...(options.headers || {})
+    };
+    return fetch(url, { ...options, headers });
+}
+
 export const api = {
     // ==========================================
     // STATS
     // ==========================================
     async getOverviewStats() {
-        const res = await fetch(`${API_URL}/stats/overview`);
+        const res = await authFetch(`${API_URL}/stats/overview`);
         if (!res.ok) throw new Error('Failed to fetch stats');
         return res.json();
     },
 
     async getConsistency() {
-        const res = await fetch(`${API_URL}/stats/consistency`);
+        const res = await authFetch(`${API_URL}/stats/consistency`);
         if (!res.ok) throw new Error('Failed to fetch consistency');
         return res.json();
     },
 
     async getPersonalRecords() {
-        const res = await fetch(`${API_URL}/stats/prs`);
+        const res = await authFetch(`${API_URL}/stats/prs`);
         if (!res.ok) throw new Error('Failed to fetch PRs');
         return res.json();
     },
 
     async getExerciseProgress(exerciseName) {
-        const res = await fetch(`${API_URL}/stats/progress/${encodeURIComponent(exerciseName)}`);
+        const res = await authFetch(`${API_URL}/stats/progress/${encodeURIComponent(exerciseName)}`);
         if (!res.ok) throw new Error('Failed to fetch exercise progress');
         return res.json();
     },
@@ -33,19 +48,19 @@ export const api = {
     // ROUTINES
     // ==========================================
     async getRoutines() {
-        const res = await fetch(`${API_URL}/routines`);
+        const res = await authFetch(`${API_URL}/routines`);
         if (!res.ok) throw new Error('Failed to fetch routines');
         return res.json();
     },
 
     async getRoutine(id) {
-        const res = await fetch(`${API_URL}/routines/${id}`);
+        const res = await authFetch(`${API_URL}/routines/${id}`);
         if (!res.ok) throw new Error('Failed to fetch routine');
         return res.json();
     },
 
     async getActiveRoutine() {
-        const res = await fetch(`${API_URL}/routines/active`);
+        const res = await authFetch(`${API_URL}/routines/active`);
         if (!res.ok) {
             if (res.status === 404) return null;
             throw new Error('Failed to fetch active routine');
@@ -54,7 +69,7 @@ export const api = {
     },
 
     async createRoutine(routine) {
-        const res = await fetch(`${API_URL}/routines`, {
+        const res = await authFetch(`${API_URL}/routines`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(routine),
@@ -64,7 +79,7 @@ export const api = {
     },
 
     async importRoutine(routine) {
-        const res = await fetch(`${API_URL}/routines/import`, {
+        const res = await authFetch(`${API_URL}/routines/import`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(routine),
@@ -74,7 +89,7 @@ export const api = {
     },
 
     async updateRoutine(id, routine) {
-        const res = await fetch(`${API_URL}/routines/${id}`, {
+        const res = await authFetch(`${API_URL}/routines/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(routine),
@@ -84,7 +99,7 @@ export const api = {
     },
 
     async deleteRoutine(id) {
-        const res = await fetch(`${API_URL}/routines/${id}`, {
+        const res = await authFetch(`${API_URL}/routines/${id}`, {
             method: 'DELETE',
         });
         if (!res.ok) throw new Error('Failed to delete routine');
@@ -92,7 +107,7 @@ export const api = {
     },
 
     async activateRoutine(id) {
-        const res = await fetch(`${API_URL}/routines/${id}/activate`, {
+        const res = await authFetch(`${API_URL}/routines/${id}/activate`, {
             method: 'PUT',
         });
         if (!res.ok) throw new Error('Failed to activate routine');
@@ -103,7 +118,7 @@ export const api = {
     // WORKOUTS
     // ==========================================
     async logWorkout(exerciseId, sets, notes = null) {
-        const res = await fetch(`${API_URL}/workouts/log`, {
+        const res = await authFetch(`${API_URL}/workouts/log`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ exerciseId, sets, notes }),
@@ -113,7 +128,7 @@ export const api = {
     },
 
     async logRestDay(note = null) {
-        const res = await fetch(`${API_URL}/workouts/log-rest`, {
+        const res = await authFetch(`${API_URL}/workouts/log-rest`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ note }),
@@ -123,19 +138,19 @@ export const api = {
     },
 
     async getWorkoutHistory(limit = 30) {
-        const res = await fetch(`${API_URL}/workouts/history?limit=${limit}`);
+        const res = await authFetch(`${API_URL}/workouts/history?limit=${limit}`);
         if (!res.ok) throw new Error('Failed to fetch workout history');
         return res.json();
     },
 
     async getExerciseHistory(exerciseId) {
-        const res = await fetch(`${API_URL}/workouts/exercise/${exerciseId}/history`);
+        const res = await authFetch(`${API_URL}/workouts/exercise/${exerciseId}/history`);
         if (!res.ok) throw new Error('Failed to fetch exercise history');
         return res.json();
     },
 
     async updateWorkoutSession(logId, sets) {
-        const res = await fetch(`${API_URL}/workouts/${logId}`, {
+        const res = await authFetch(`${API_URL}/workouts/${logId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sets }),
@@ -145,7 +160,7 @@ export const api = {
     },
 
     async deleteWorkoutSession(logId) {
-        const res = await fetch(`${API_URL}/workouts/${logId}`, {
+        const res = await authFetch(`${API_URL}/workouts/${logId}`, {
             method: 'DELETE',
         });
         if (!res.ok) throw new Error('Failed to delete session');
@@ -156,13 +171,13 @@ export const api = {
     // EXERCISES
     // ==========================================
     async getExercises() {
-        const res = await fetch(`${API_URL}/exercises`);
+        const res = await authFetch(`${API_URL}/exercises`);
         if (!res.ok) throw new Error('Failed to fetch exercises');
         return res.json();
     },
 
     async updateExerciseMuscle(exerciseId, muscleGroup) {
-        const res = await fetch(`${API_URL}/exercises/${exerciseId}/muscle`, {
+        const res = await authFetch(`${API_URL}/exercises/${exerciseId}/muscle`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ muscleGroup }),
@@ -187,35 +202,129 @@ export const api = {
     // BODY TRACKING
     // ==========================================
     async getBodyLogs(limit = 90) {
-        const res = await fetch(`${API_URL}/body/logs?limit=${limit}`);
+        const res = await authFetch(`${API_URL}/body/logs?limit=${limit}`);
         if (!res.ok) throw new Error('Failed to fetch body logs');
         return res.json();
     },
 
     async getBodyPhotos() {
-        // Use the same logs endpoint and filter photos client-side
-        const res = await fetch(`${API_URL}/body/logs?limit=100`);
+        const res = await authFetch(`${API_URL}/body/logs?limit=100`);
         if (!res.ok) throw new Error('Failed to fetch photos');
         const logs = await res.json();
         return logs.filter(log => log.photo);
     },
 
     async getLatestWeight() {
-        // Get latest log with weight
-        const res = await fetch(`${API_URL}/body/logs?limit=1`);
+        const res = await authFetch(`${API_URL}/body/logs?limit=1`);
         if (!res.ok) throw new Error('Failed to fetch latest weight');
         const logs = await res.json();
         return logs.find(log => log.weight) || null;
     },
 
     async logBodyData(data) {
-        const res = await fetch(`${API_URL}/body/log`, {
+        const res = await authFetch(`${API_URL}/body/log`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
         });
         if (!res.ok) throw new Error('Failed to save body data');
         return res.json();
+    },
+
+    // ==========================================
+    // AUTH
+    // ==========================================
+
+    async login(username, password) {
+        const res = await fetch(`${API_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Login failed');
+        return data;
+    },
+
+    async register(userData) {
+        const res = await fetch(`${API_URL}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Registration failed');
+        return data;
+    },
+
+    async getProfile(token) {
+        const res = await fetch(`${API_URL}/auth/me`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error('Failed to fetch profile');
+        return res.json();
+    },
+
+    async updateProfile(token, data) {
+        const res = await fetch(`${API_URL}/auth/profile`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data),
+        });
+        if (!res.ok) throw new Error('Failed to update profile');
+        return res.json();
+    },
+
+    async changePassword(token, currentPassword, newPassword) {
+        const res = await fetch(`${API_URL}/auth/password`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ currentPassword, newPassword }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to change password');
+        return data;
+    },
+
+    async getSecurityQuestion(username) {
+        const res = await fetch(`${API_URL}/auth/recover/question`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'User not found');
+        return data;
+    },
+
+    async recoverPassword(username, answer, newPassword) {
+        const res = await fetch(`${API_URL}/auth/recover/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, answer, newPassword }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Recovery failed');
+        return data;
+    },
+
+    async updateSecurityQuestion(token, question, answer) {
+        const res = await fetch(`${API_URL}/auth/security-question`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ question, answer }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to update security question');
+        return data;
     }
 };
-
