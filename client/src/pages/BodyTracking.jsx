@@ -67,6 +67,17 @@ function calculateChange(logs, field, days = 30) {
     return (latest - oldest[field]).toFixed(1);
 }
 
+// Fix timezone: parse date string as local, not UTC
+function formatLocalDate(dateStr, options = { day: 'numeric', month: 'short' }) {
+    if (!dateStr) return '';
+    // Extract just the date part (YYYY-MM-DD) and parse as local
+    const dateOnly = dateStr.split('T')[0];
+    const [year, month, day] = dateOnly.split('-').map(Number);
+    // Create date using local timezone (month is 0-indexed)
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString('es-ES', options);
+}
+
 export default function BodyTracking() {
     const toast = useToast();
     const fileInputRef = useRef(null);
@@ -191,7 +202,7 @@ export default function BodyTracking() {
             .slice(0, 30)
             .reverse()
             .map(l => ({
-                date: new Date(l.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
+                date: formatLocalDate(l.date, { day: 'numeric', month: 'short' }),
                 weight: l.weight,
                 bodyFat: l.bodyFat,
                 muscleMass: l.muscleMass
@@ -607,7 +618,7 @@ export default function BodyTracking() {
                                         className={`border-b border-[var(--border)]/50 ${idx % 2 === 0 ? 'bg-[var(--bg-dark)]/30' : ''}`}
                                     >
                                         <td className="py-2 text-[var(--text-secondary)]">
-                                            {new Date(log.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                                            {formatLocalDate(log.date, { day: 'numeric', month: 'short' })}
                                         </td>
                                         <td className="py-2 text-right font-medium">
                                             {log.weight ? `${log.weight.toFixed(1)}` : '--'}
@@ -646,7 +657,7 @@ export default function BodyTracking() {
                                 <img src={photo.photo} alt="Progreso" className="w-full h-full object-cover" />
                                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1">
                                     <p className="text-[10px] text-white text-center">
-                                        {new Date(photo.date).toLocaleDateString('es-ES', { month: 'short', year: '2-digit' })}
+                                        {formatLocalDate(photo.date, { day: 'numeric', month: 'short' })}
                                     </p>
                                 </div>
                             </button>
@@ -669,7 +680,7 @@ export default function BodyTracking() {
                         />
                         <div className="text-center mt-3">
                             <p className="text-white font-medium">
-                                {new Date(selectedPhoto.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                {formatLocalDate(selectedPhoto.date, { day: 'numeric', month: 'long', year: 'numeric' })}
                             </p>
                             {selectedPhoto.weight && (
                                 <p className="text-[var(--primary)] text-lg font-bold mt-1">{selectedPhoto.weight.toFixed(1)} kg</p>

@@ -413,6 +413,24 @@ const res = await authFetch(`${API_URL}/routines`);
 ### 4. userId Opcional
 Los campos `userId` son opcionales (`String?`) para permitir migración de datos antiguos sin usuario.
 
+### 5. Fechas y Timezone ⚠️ CRÍTICO
+```javascript
+// ❌ INCORRECTO - interpreta como UTC, muestra fecha incorrecta
+new Date("2026-01-05").toLocaleDateString() // Muestra "4 ene" en CST!
+
+// ✅ CORRECTO - forzar parseo local
+function formatLocalDate(dateStr, options) {
+    const dateOnly = dateStr.split('T')[0];
+    const [year, month, day] = dateOnly.split('-').map(Number);
+    const date = new Date(year, month - 1, day); // Local timezone
+    return date.toLocaleDateString('es-ES', options);
+}
+```
+**Ubicaciones con este fix:**
+- `BodyTracking.jsx` → `formatLocalDate()`
+- `Profile.jsx` → `formatDate()`
+- `Dashboard.jsx`, `Progress.jsx` → verificar si aplica
+
 ---
 
 ## 📋 Changelog
