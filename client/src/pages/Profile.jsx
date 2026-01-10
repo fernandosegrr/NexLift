@@ -141,13 +141,71 @@ export default function Profile() {
         fileInputRef.current?.click();
     };
 
+    // Compress image for avatar
+    const compressImage = (file, maxSize = 400) => {
+        return new Promise((resolve) => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+
+            img.onload = () => {
+                let { width, height } = img;
+                const ratio = Math.min(maxSize / width, maxSize / height);
+                if (ratio < 1) {
+                    width *= ratio;
+                    height *= ratio;
+                }
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.85));
+            };
+            img.src = URL.createObjectURL(file);
+        });
+    };
+
     const handleAvatarChange = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // TODO: Implement avatar upload to Catbox
-        setError('Función de avatar próximamente disponible');
-        setTimeout(() => setError(''), 3000);
+        if (!file.type.startsWith('image/')) {
+            setError('Por favor selecciona una imagen');
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+
+        try {
+            // Compress image
+            const compressedBase64 = await compressImage(file, 400);
+
+            // Upload to backend (which uploads to Catbox)
+            const res = await fetch(
+                import.meta.env.PROD ? '/api/auth/avatar' : 'http://localhost:3001/api/auth/avatar',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ avatar: compressedBase64 })
+                }
+            );
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || 'Failed to upload avatar');
+            }
+
+            await refreshProfile();
+            setSuccess('Avatar actualizado');
+            setTimeout(() => setSuccess(''), 3000);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleLogout = () => {
@@ -344,7 +402,7 @@ export default function Profile() {
 
                             {editMode ? (
                                 <>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-xs text-[var(--text-secondary)] mb-1">Nombre(s)</label>
                                             <input

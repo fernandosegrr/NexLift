@@ -306,6 +306,44 @@ app.put('/api/auth/security-question', authMiddleware, async (req, res) => {
     }
 });
 
+// POST /api/auth/avatar - Upload avatar to Catbox
+app.post('/api/auth/avatar', authMiddleware, async (req, res) => {
+    try {
+        const { avatar } = req.body;
+
+        if (!avatar) {
+            return res.status(400).json({ error: 'Avatar requerido' });
+        }
+
+        // Upload to Catbox
+        let avatarUrl = null;
+        if (avatar.startsWith('data:image') || avatar.length > 500) {
+            try {
+                console.log('📸 Uploading avatar to Catbox...');
+                avatarUrl = await uploadBase64ToCatbox(avatar, 'jpg');
+                console.log('✅ Avatar uploaded:', avatarUrl);
+            } catch (uploadError) {
+                console.error('❌ Catbox upload failed:', uploadError.message);
+                return res.status(500).json({ error: 'Error al subir imagen' });
+            }
+        } else {
+            avatarUrl = avatar;
+        }
+
+        // Update user
+        const user = await prisma.user.update({
+            where: { id: req.userId },
+            data: { avatarUrl },
+            select: { id: true, avatarUrl: true }
+        });
+
+        res.json({ message: 'Avatar actualizado', avatarUrl: user.avatarUrl });
+    } catch (error) {
+        console.error('Avatar upload error:', error);
+        res.status(500).json({ error: 'Error al actualizar avatar' });
+    }
+});
+
 // ============================================
 // ROUTES: Routine Import
 // ============================================

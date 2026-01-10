@@ -214,6 +214,36 @@ export default async function handler(req, res) {
             return res.json({ message: 'Security question updated' });
         }
 
+        // POST /api/auth/avatar
+        if (path === '/auth/avatar' && method === 'POST') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const { avatar } = body;
+            if (!avatar) return res.status(400).json({ error: 'Avatar required' });
+
+            let avatarUrl = null;
+            if (avatar.startsWith('data:image') || avatar.length > 500) {
+                try {
+                    console.log('📸 [Vercel] Uploading avatar to Catbox...');
+                    avatarUrl = await uploadBase64ToCatbox(avatar, 'jpg');
+                    console.log('✅ [Vercel] Avatar uploaded:', avatarUrl);
+                } catch (uploadError) {
+                    console.error('❌ [Vercel] Catbox upload failed:', uploadError.message);
+                    return res.status(500).json({ error: 'Failed to upload image' });
+                }
+            } else {
+                avatarUrl = avatar;
+            }
+
+            const user = await prisma.user.update({
+                where: { id: userId },
+                data: { avatarUrl },
+                select: { id: true, avatarUrl: true }
+            });
+            return res.json({ message: 'Avatar updated', avatarUrl: user.avatarUrl });
+        }
+
         // ==========================================
         // ROUTINES
         // ==========================================
