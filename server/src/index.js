@@ -138,7 +138,7 @@ app.post('/api/auth/register', async (req, res) => {
                 securityQuestion: securityQuestion || null,
                 securityAnswerHash
             },
-            select: { id: true, username: true, email: true, firstName: true, lastName: true, createdAt: true }
+            select: { id: true, username: true, email: true, firstName: true, lastName: true, phone: true, birthDate: true, avatarUrl: true, createdAt: true }
         });
 
         const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '365d' });
@@ -175,7 +175,7 @@ app.post('/api/auth/login', async (req, res) => {
 
         const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '365d' });
         res.json({
-            user: { id: user.id, username: user.username, email: user.email, firstName: user.firstName, lastName: user.lastName, avatarUrl: user.avatarUrl, createdAt: user.createdAt },
+            user: { id: user.id, username: user.username, email: user.email, firstName: user.firstName, lastName: user.lastName, phone: user.phone, birthDate: user.birthDate, avatarUrl: user.avatarUrl, createdAt: user.createdAt },
             token
         });
     } catch (error) {

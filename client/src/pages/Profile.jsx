@@ -277,7 +277,8 @@ export default function Profile() {
 
                 {/* Avatar Floating */}
                 <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
-                    <div className="relative group">
+                    <div className="relative">
+                        {/* Avatar image - click to view large */}
                         {user.avatarUrl ? (
                             <img
                                 src={user.avatarUrl}
@@ -288,19 +289,18 @@ export default function Profile() {
                             />
                         ) : (
                             <div
-                                onClick={() => user.avatarUrl && setShowAvatarModal(true)}
                                 className="w-24 h-24 rounded-full border-4 border-[var(--bg-dark)] bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center text-3xl font-bold text-white shadow-xl"
                             >
                                 {getInitials()}
                             </div>
                         )}
 
-                        {/* Camera overlay - only visible on hover */}
+                        {/* Camera button - separate from avatar */}
                         <button
-                            onClick={(e) => { e.stopPropagation(); handleAvatarClick(); }}
-                            className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                            onClick={handleAvatarClick}
+                            className="absolute -bottom-1 -right-1 w-8 h-8 bg-[var(--primary)] rounded-full border-2 border-[var(--bg-dark)] flex items-center justify-center shadow-lg hover:bg-purple-600 transition-colors"
                         >
-                            <Camera className="w-6 h-6 text-white" />
+                            <Camera className="w-4 h-4 text-white" />
                         </button>
                         <input
                             type="file"
@@ -311,7 +311,7 @@ export default function Profile() {
                         />
 
                         {/* Online indicator */}
-                        <div className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 rounded-full border-2 border-[var(--bg-dark)]" />
+                        <div className="absolute bottom-1 left-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[var(--bg-dark)]" />
                     </div>
                 </div>
             </div>

@@ -1,208 +1,553 @@
-# NexLift v1.8 - AI Context & Project Documentation
+# NexLift - Documentación Completa del Proyecto
 
-> **Documentación completa para IAs y desarrolladores que trabajen en este proyecto.**
-> **Última actualización: 9 Enero 2026 - v1.8.0**
+> **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
+> **Versión: 1.8.0 | Última actualización: 10 Enero 2026**
 
 ---
 
-## 🎯 Resumen del Proyecto
+## 🎯 ¿Qué es NexLift?
 
-**NexLift** es una Progressive Web App (PWA) de tracking de gimnasio diseñada mobile-first con tema OLED oscuro. Permite registrar entrenamientos, trackear progreso, gestionar composición corporal, y generar reportes PDF profesionales.
+**NexLift** es una Progressive Web App (PWA) completa de tracking de gimnasio. Está diseñada mobile-first con tema OLED oscuro para ahorro de batería en móviles con pantalla AMOLED.
+
+### Funcionalidades Principales
+
+| Característica | Descripción |
+|----------------|-------------|
+| 🏋️ **Registro de Entrenamientos** | Log de ejercicios con series, repeticiones, peso y notas |
+| 📈 **Progreso Visual** | Gráficas de evolución, heatmaps de consistencia, PRs |
+| 📊 **Composición Corporal** | Peso, grasa, músculo, BMI, fotos de progreso |
+| 📋 **Gestión de Rutinas** | Crear, editar, importar rutinas de entrenamiento |
+| 📄 **Reportes PDF** | Exportar informes profesionales con estadísticas |
+| 👤 **Sistema Multi-Usuario** | Cuentas individuales con autenticación JWT |
+| 📱 **PWA Instalable** | Funciona offline, instalable como app nativa |
 
 ### Stack Tecnológico
-- **Frontend:** React 18 + Vite + Tailwind 4 + Recharts
-- **Backend:** Express + Prisma + PostgreSQL  
-- **Deployment:** Vercel (serverless) / VPS Docker / Local
+
+```
+Frontend:  React 18 + Vite + Tailwind CSS 4 + Recharts
+Backend:   Express.js + Prisma ORM + PostgreSQL
+Fotos:     Catbox.moe (almacenamiento gratuito ilimitado)
+Deploy:    Vercel (serverless) | VPS Docker | Local
+```
 
 ---
 
-## 🏗️ Arquitectura del Proyecto
+## 📱 Páginas y Componentes
 
-```
-NexLift/
-├── client/                    # Frontend React (Vite)
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── layout/
-│   │   │   │   └── Layout.jsx       # Navbar inferior + estructura
-│   │   │   └── ui/
-│   │   │       ├── Toast.jsx        # Sistema de notificaciones
-│   │   │       └── Celebration.jsx  # Animación confeti para PRs
-│   │   ├── contexts/
-│   │   │   └── AuthContext.jsx      # 🆕 v1.8 - Estado de autenticación global
-│   │   ├── pages/                   # 15 páginas principales
-│   │   │   ├── Dashboard.jsx        # Inicio, heatmap, stats
-│   │   │   ├── Progress.jsx         # Gráficas, PRs, análisis
-│   │   │   ├── BodyTracking.jsx     # Composición corporal + fotos
-│   │   │   ├── Workout.jsx          # Registro de ejercicios
-│   │   │   ├── Routines.jsx         # Lista de rutinas
-│   │   │   ├── RoutineDetail.jsx    # Detalle de día
-│   │   │   ├── EditRoutine.jsx      # Editar rutina
-│   │   │   ├── EditSession.jsx      # Editar sesión pasada
-│   │   │   ├── ExportReport.jsx     # Generador PDF
-│   │   │   ├── Settings.jsx         # Configuración
-│   │   │   ├── Import.jsx           # Importar rutinas JSON
-│   │   │   ├── Login.jsx            # 🆕 v1.8 - Inicio de sesión
-│   │   │   ├── Register.jsx         # 🆕 v1.8 - Registro
-│   │   │   ├── ForgotPassword.jsx   # 🆕 v1.8 - Recuperación
-│   │   │   └── Profile.jsx          # 🆕 v1.8 - Perfil de usuario
-│   │   ├── services/
-│   │   │   └── api.js               # Cliente HTTP con auth automático
-│   │   └── index.css                # Variables CSS tema OLED
-│   └── public/
-│       └── manifest.json            # PWA config
-├── server/                          # Backend desarrollo local
-│   ├── prisma/
-│   │   └── schema.prisma            # Symlink → shared/prisma/schema.prisma
-│   ├── scripts/
-│   │   └── migrate-photos.js        # 🆕 v1.8 - Migración base64→Catbox
-│   └── src/
-│       └── index.js                 # API Express (~1500 líneas)
-├── api/                             # Backend Vercel (serverless)
-│   ├── prisma/
-│   │   └── schema.prisma            # ⚠️ DEBE estar sincronizado
-│   └── index.js                     # Handler serverless (~1200 líneas)
-├── shared/                          # 🆕 v1.8 - Código compartido
-│   ├── prisma/
-│   │   └── schema.prisma            # Schema centralizado
-│   ├── middleware/
-│   │   └── auth.js                  # Middleware JWT
-│   ├── utils/
-│   │   ├── password.js              # Hash bcrypt
-│   │   └── catbox.js                # Upload a Catbox.moe
-│   └── routes/                      # Rutas modulares
-│       ├── index.js                 # Barrel export
-│       ├── auth.js                  # Autenticación
-│       ├── routines.js              # CRUD rutinas
-│       ├── workouts.js              # Log workouts
-│       ├── exercises.js             # Ejercicios
-│       ├── body.js                  # Body tracking
-│       └── stats.js                 # Estadísticas
-├── scripts/
-│   └── sync-schema.js               # Sincroniza schemas
-├── Dockerfile                       # Deploy VPS/Easypanel
-└── .agent/
-    └── context.md                   # Este archivo
-```
+### 1. Dashboard (`Dashboard.jsx`)
+**Ruta:** `/` (Home)
 
-### Decisiones Arquitectónicas v1.8
+La página principal muestra un resumen del progreso del usuario:
 
-| Decisión | Razón |
-|----------|-------|
-| **Autenticación JWT sin expiración** | UX móvil: usuarios no quieren re-login cada sesión |
-| **Catbox para fotos en vez de base64** | Base64 sobrecargaba la DB; Catbox es gratuito e ilimitado |
-| **authFetch() centralizado** | Evita olvidar tokens en llamadas individuales |
-| **userId en todas las tablas** | Multi-tenant: cada usuario solo ve sus datos |
-| **Rutas en shared/ pero inline en index.js** | Evita problemas de resolución de módulos ES en serverless |
+- **Header personalizado:** Saludo con nombre y hora del día
+- **Tarjetas de estadísticas rápidas:**
+  - Racha actual de entrenamientos (streak)
+  - Total de workouts del mes
+  - Personal Records del mes
+  - Días restantes en el mes
+- **Heatmap de actividad:** Calendario visual estilo GitHub mostrando días de entrenamiento
+- **Última sesión:** Resumen del último workout con ejercicios y PRs logrados
+- **Acceso rápido:** Botón para ir al workout activo
+
+**API usada:**
+- `GET /api/stats/overview` - Estadísticas generales
+- `GET /api/stats/consistency` - Datos del heatmap
+- `GET /api/workouts/history?limit=1` - Última sesión
 
 ---
 
-## 📊 Modelo de Datos (v1.8)
+### 2. Workout (`Workout.jsx`)
+**Ruta:** `/workout`
+
+Página principal para registrar el entrenamiento del día:
+
+- **Carga la rutina activa:** Muestra los ejercicios del día correspondiente
+- **Cards de ejercicio:**
+  - Nombre del ejercicio con grupo muscular
+  - Input para peso (kg) y repeticiones
+  - Botón para agregar series adicionales
+  - Historial de la última sesión del mismo ejercicio
+  - Notas opcionales por ejercicio
+- **Detección automática de PRs:** Si se supera el mejor peso, muestra celebración con confeti
+- **Guardado por ejercicio:** Cada ejercicio se guarda individualmente
+- **Día de descanso:** Opción de registrar día de descanso
+
+**API usada:**
+- `GET /api/routines/active` - Rutina activa con ejercicios
+- `POST /api/workouts/log` - Registrar workout
+- `POST /api/workouts/log-rest` - Registrar día de descanso
+- `GET /api/workouts/exercise/:id/history` - Historial de ejercicio
+
+---
+
+### 3. Routines (`Routines.jsx`)
+**Ruta:** `/routines`
+
+Gestión de rutinas de entrenamiento:
+
+- **Lista de rutinas:** Muestra todas las rutinas del usuario
+- **Indicador de rutina activa:** Badge visual en la rutina en uso
+- **Acciones por rutina:**
+  - Ver detalle
+  - Editar
+  - Activar/Desactivar
+  - Eliminar con confirmación
+- **Botón importar:** Permite importar rutinas desde archivo JSON
+
+**API usada:**
+- `GET /api/routines` - Listar rutinas
+- `PUT /api/routines/:id/activate` - Activar rutina
+- `DELETE /api/routines/:id` - Eliminar rutina
+
+---
+
+### 4. Routine Detail (`RoutineDetail.jsx`)
+**Ruta:** `/routines/:id`
+
+Vista detallada de una rutina específica:
+
+- **Información general:** Nombre, descripción, días de la semana
+- **Lista de días:** Cada día con sus ejercicios
+- **Por cada día:**
+  - Nombre del día (ej: "Lunes - Pecho y Tríceps")
+  - Indicador si es día de descanso
+  - Lista de ejercicios con:
+    - Nombre del ejercicio
+    - Series objetivo × Reps objetivo
+    - Grupo muscular
+    - Notas del ejercicio
+
+---
+
+### 5. Edit Routine (`EditRoutine.jsx`)
+**Ruta:** `/routines/:id/edit`
+
+Editor completo de rutinas:
+
+- **Información básica:** Nombre y descripción editable
+- **Gestión de días:**
+  - Agregar/eliminar días
+  - Marcar día como descanso
+  - Reordenar días (drag & drop o flechas)
+- **Gestión de ejercicios:**
+  - Agregar ejercicios a cada día
+  - Editar nombre, series, reps, descanso, notas
+  - Seleccionar grupo muscular
+  - Reordenar ejercicios
+  - Eliminar ejercicios
+- **Renombrado inteligente de PRs:** Al cambiar nombre de ejercicio, actualiza PRs históricos
+
+**API usada:**
+- `GET /api/routines/:id` - Obtener rutina
+- `PUT /api/routines/:id` - Guardar cambios
+
+---
+
+### 6. Body Tracking (`BodyTracking.jsx`)
+**Ruta:** `/body`
+
+Seguimiento de composición corporal completo:
+
+- **Tarjetas de estadísticas:**
+  - Peso actual con cambio vs 30 días
+  - BMI con categorización (bajo/normal/sobrepeso/obesidad)
+  - Grasa corporal %
+  - Masa muscular kg
+- **Formulario de registro:**
+  - Campos básicos: Peso, foto de progreso
+  - Campos avanzados (expandible):
+    - BMI, Grasa %, Músculo %, BMR
+    - Agua corporal, Grasa visceral
+    - Masa ósea, Proteína %
+  - Notas opcionales
+- **Gráficas con tabs:** Peso / Grasa / Músculo a lo largo del tiempo
+- **Tabla de historial:** Últimos 10 registros
+- **Galería de fotos:** Grid de fotos de progreso con modal ampliar
+
+**API usada:**
+- `GET /api/body/logs?days=90` - Historial de registros
+- `GET /api/body/photos` - Fotos de progreso
+- `POST /api/body/log` - Nuevo registro (auto-upload a Catbox)
+
+---
+
+### 7. Progress (`Progress.jsx`)
+**Ruta:** `/progress`
+
+Análisis detallado del progreso:
+
+- **Selector de ejercicio:** Dropdown con búsqueda
+- **Gráfica de evolución:** Peso máximo por sesión a lo largo del tiempo
+- **Personal Records:**
+  - Lista de todos los PRs del usuario
+  - Cards con medalla (🥇🥈🥉) para top 3
+  - Fecha relativa (hace X días)
+  - Peso y reps del PR
+- **Heatmap de consistencia:** Calendario de entrenamientos del año
+- **Estadísticas de rutina actual:**
+  - Ejercicios completados vs totales
+  - Porcentaje de cumplimiento
+  - PRs logrados en esta rutina
+
+**API usada:**
+- `GET /api/stats/prs` - Personal Records
+- `GET /api/stats/progress/:name` - Evolución de ejercicio específico
+- `GET /api/stats/consistency` - Datos del heatmap
+- `GET /api/stats/routine/:id` - Stats de rutina
+
+---
+
+### 8. Export Report (`ExportReport.jsx`)
+**Ruta:** `/export`
+
+Generador de reportes PDF profesionales:
+
+- **Selector de período:** 7, 14, 30, 60, 90 días
+- **Secciones del reporte:**
+  - Encabezado con logo y nombre de usuario
+  - Resumen ejecutivo (workouts, PRs, racha)
+  - Tabla de Personal Records
+  - Gráfica de peso corporal
+  - Tabla de composición corporal
+  - Fotos de progreso (si hay ≥2)
+  - Detalle de entrenamientos
+- **Exporta a PDF:** Usa jsPDF + html2canvas
+
+**API usada:**
+- `GET /api/workouts/history?days=X` - Historial de workouts
+- `GET /api/body/logs?days=X` - Historial corporal
+- `GET /api/stats/prs` - Personal Records
+
+---
+
+### 9. Profile (`Profile.jsx`)
+**Ruta:** `/profile`
+
+Gestión del perfil de usuario:
+
+- **Header con avatar:**
+  - Foto de perfil (click para ampliar)
+  - Botón para cambiar foto (upload a Catbox)
+  - Iniciales si no hay foto
+  - Indicador online
+- **Información personal:**
+  - Nombre completo
+  - Email
+  - Teléfono
+  - Fecha de nacimiento
+- **Estadísticas de cuenta:**
+  - Días como miembro
+  - Total de rutinas
+  - Total de PRs
+- **Tabs de configuración:**
+  - **Perfil:** Editar datos personales
+  - **Seguridad:** Cambiar contraseña
+  - **Protección:** Pregunta de seguridad para recuperación
+- **Logout button**
+
+**API usada:**
+- `GET /api/auth/me` - Perfil actual
+- `PUT /api/auth/profile` - Actualizar datos
+- `PUT /api/auth/password` - Cambiar contraseña
+- `PUT /api/auth/security-question` - Pregunta de seguridad
+- `POST /api/auth/avatar` - Subir avatar
+
+---
+
+### 10. Login (`Login.jsx`)
+**Ruta:** `/login`
+
+Página de inicio de sesión:
+
+- Input de username o email
+- Input de contraseña con toggle mostrar/ocultar
+- Botón "Olvidé mi contraseña"
+- Link a registro
+- Manejo de errores
+
+**API usada:**
+- `POST /api/auth/login` - Iniciar sesión
+
+---
+
+### 11. Register (`Register.jsx`)
+**Ruta:** `/register`
+
+Formulario de registro completo:
+
+- **Campos requeridos:**
+  - Nombre y apellidos
+  - Username
+  - Email
+  - Contraseña (min 8 chars)
+- **Campos opcionales:**
+  - Teléfono
+  - Fecha de nacimiento
+  - Pregunta de seguridad
+
+**API usada:**
+- `POST /api/auth/register` - Crear cuenta
+
+---
+
+### 12. Forgot Password (`ForgotPassword.jsx`)
+**Ruta:** `/forgot-password`
+
+Recuperación de cuenta por pregunta de seguridad:
+
+- **Paso 1:** Ingresar username o email
+- **Paso 2:** Responder pregunta de seguridad
+- **Paso 3:** Establecer nueva contraseña
+- Flujo sin email (no requiere servidor de correo)
+
+**API usada:**
+- `POST /api/auth/recover/question` - Obtener pregunta
+- `POST /api/auth/recover/verify` - Verificar y cambiar password
+
+---
+
+### 13. Import (`Import.jsx`)
+**Ruta:** `/import`
+
+Importador de rutinas desde JSON:
+
+- Textarea para pegar JSON
+- Validación de estructura
+- Preview antes de importar
+- Ejemplo de formato
+
+**API usada:**
+- `POST /api/routines/import` - Importar rutina
+
+---
+
+### 14. Settings (`Settings.jsx`)
+**Ruta:** `/settings`
+
+Configuración general (legacy, la mayoría movido a Profile):
+
+- Unidades de peso (kg/lb)
+- Tema (siempre oscuro por ahora)
+- Notificaciones
+
+---
+
+### 15. Edit Session (`EditSession.jsx`)
+**Ruta:** `/workouts/:id/edit`
+
+Editor de sesiones pasadas:
+
+- Cargar workout histórico
+- Modificar series/reps/peso por ejercicio
+- Guardar cambios
+
+**API usada:**
+- `GET /api/workouts/:id` - Obtener sesión
+- `PUT /api/workouts/:id` - Actualizar sesión
+
+---
+
+## 🧩 Componentes Reutilizables
+
+### Layout (`components/layout/Layout.jsx`)
+- Navbar inferior con 5 pestañas: Inicio, Rutinas, Cuerpo, Progreso, Perfil
+- Iconos de Lucide
+- Indicador de pestaña activa
+- Safe area para móviles con notch
+
+### Toast (`components/ui/Toast.jsx`)
+- Sistema de notificaciones global
+- Hook `useToast()` con métodos:
+  - `toast.success(message)`
+  - `toast.error(message)`
+  - `toast.info(message)`
+- Auto-dismiss después de 3 segundos
+- Posición: bottom-center (arriba del navbar)
+
+### Celebration (`components/ui/Celebration.jsx`)
+- Animación de confeti para PRs
+- Se activa cuando se logra un nuevo récord personal
+- Dura 2 segundos
+
+### ProtectedRoute (`components/ProtectedRoute.jsx`)
+- HOC que verifica autenticación
+- Redirige a `/login` si no hay sesión
+- Muestra loading mientras verifica
+
+---
+
+## 🔐 Sistema de Autenticación
+
+### Flujo de Login
+```
+1. Usuario → Login con username/email + password
+2. Server → Verifica credenciales con bcrypt
+3. Server → Genera JWT (expira en 365 días)
+4. Client → Guarda token en localStorage (nexlift_token)
+5. Client → Guarda user en localStorage (nexlift_user)
+6. Client → AuthContext distribuye estado a toda la app
+```
+
+### Protección de Rutas
+```javascript
+// Todas las llamadas protegidas usan authFetch() desde api.js
+const authFetch = async (url, options = {}) => {
+    const token = localStorage.getItem('nexlift_token');
+    return fetch(url, {
+        ...options,
+        headers: {
+            ...options.headers,
+            'Authorization': `Bearer ${token}`
+        }
+    });
+};
+```
+
+### AuthContext (`contexts/AuthContext.jsx`)
+```javascript
+const { 
+    user,           // Datos del usuario actual
+    token,          // JWT token
+    loading,        // Estado de carga inicial
+    isAuthenticated,// Boolean si hay sesión
+    login,          // Función login(username, password)
+    register,       // Función register(userData)
+    logout,         // Función logout()
+    updateProfile,  // Función updateProfile(data)
+    refreshProfile  // Fuerza recarga del perfil
+} = useAuth();
+```
+
+---
+
+## 📸 Sistema de Fotos (Catbox)
+
+Las fotos de progreso y avatares se almacenan en Catbox.moe (servicio gratuito):
+
+### Flujo de Upload
+```
+1. Usuario selecciona imagen
+2. Frontend comprime a max 1200px (fotos) o 400px (avatar)
+3. Frontend envía base64 al backend
+4. Backend detecta base64 y llama a Catbox API
+5. Catbox devuelve URL permanente (https://files.catbox.moe/abc.jpg)
+6. Backend guarda URL en DB (no el base64)
+7. Frontend recibe URL
+```
+
+### En el código
+```javascript
+// Detección automática en el servidor
+if (photo.startsWith('data:image') || photo.length > 500) {
+    // Es base64 → subir a Catbox
+    photoUrl = await uploadBase64ToCatbox(photo, 'jpg');
+} else {
+    // Ya es URL → usar directamente
+    photoUrl = photo;
+}
+```
+
+---
+
+## 📊 Modelo de Datos
 
 ```prisma
-// ==================== USUARIO ====================
 model User {
-  id            String    @id @default(cuid())
-  username      String    @unique
-  email         String    @unique
-  passwordHash  String
-  firstName     String
-  lastName      String
-  phone         String?
-  birthDate     DateTime?
-  avatarUrl     String?   // Foto perfil Catbox
-  securityQuestion  String?
-  securityAnswerHash String?
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  lastLogin     DateTime?
+  id                  String     @id @default(uuid())
+  username            String     @unique
+  email               String     @unique
+  passwordHash        String
+  firstName           String
+  lastName            String
+  phone               String?
+  birthDate           DateTime?
+  avatarUrl           String?
+  securityQuestion    String?
+  securityAnswerHash  String?
+  isActive            Boolean    @default(true)
+  createdAt           DateTime   @default(now())
+  lastLogin           DateTime?
   
-  routines        Routine[]
-  bodyLogs        BodyLog[]
-  restLogs        RestLog[]
-  personalRecords PersonalRecord[]
+  // Relaciones
+  routines            Routine[]
+  personalRecords     PersonalRecord[]
+  bodyLogs            BodyLog[]
+  workoutLogs         WorkoutLog[]
 }
 
-// ==================== RUTINAS ====================
 model Routine {
-  id          String       @id @default(cuid())
+  id          String       @id @default(uuid())
+  userId      String?
   name        String
   description String?
   isActive    Boolean      @default(false)
-  userId      String?      // 🆕 v1.8
-  user        User?        @relation(...)
+  createdAt   DateTime     @default(now())
   days        RoutineDay[]
+  user        User?        @relation(...)
 }
 
 model RoutineDay {
-  id        String     @id @default(cuid())
+  id        String     @id @default(uuid())
+  routineId String
   dayName   String
   isRestDay Boolean    @default(false)
   order     Int        @default(0)
-  routine   Routine    @relation(...)
   exercises Exercise[]
+  routine   Routine    @relation(...)
 }
 
 model Exercise {
-  id          String       @id @default(cuid())
+  id          String       @id @default(uuid())
+  routineDayId String
   name        String
-  muscleGroup String?
-  targetSets  Int
-  targetReps  String
+  targetSets  Int          @default(3)
+  targetReps  String       @default("8-12")
   restSeconds Int?
+  muscleGroup String?
   note        String?
   order       Int          @default(0)
-  routineDay  RoutineDay   @relation(...)
   workoutLogs WorkoutLog[]
+  routineDay  RoutineDay   @relation(...)
 }
 
-// ==================== WORKOUTS ====================
 model WorkoutLog {
-  id         String    @id @default(cuid())
-  date       DateTime  @default(now())
-  exercise   Exercise  @relation(...)
+  id         String     @id @default(uuid())
+  exerciseId String?
+  userId     String?
+  date       DateTime   @default(now())
+  duration   Int?
+  note       String?
+  isRestDay  Boolean    @default(false)
   sets       SetLog[]
-  notes      String?
+  exercise   Exercise?  @relation(...)
+  user       User?      @relation(...)
 }
 
 model SetLog {
-  id        String     @id @default(cuid())
-  setNumber Int
-  weight    Float
-  reps      Int
-  rpe       Int?
-  completed Boolean    @default(true)
-  workoutLog WorkoutLog @relation(...)
-}
-
-// ==================== PERSONAL RECORDS ====================
-model PersonalRecord {
-  id           String   @id @default(cuid())
-  exerciseName String   // Normalizado (minúsculas)
+  id           String     @id @default(uuid())
+  workoutLogId String
   weight       Float
   reps         Int
-  estimated1RM Float?
+  setNumber    Int
+  workoutLog   WorkoutLog @relation(...)
+}
+
+model PersonalRecord {
+  id           String   @id @default(uuid())
+  exerciseName String
+  weight       Float
+  reps         Int
   date         DateTime @default(now())
-  userId       String?  // 🆕 v1.8
+  userId       String?
   user         User?    @relation(...)
 }
 
-// ==================== DESCANSO ====================
-model RestLog {
-  id     String   @id @default(cuid())
-  date   DateTime @default(now())
-  note   String?
-  userId String?  // 🆕 v1.8
-  user   User?    @relation(...)
-}
-
-// ==================== BODY TRACKING ====================
 model BodyLog {
-  id          String   @id @default(cuid())
+  id          String   @id @default(uuid())
+  userId      String?
   date        DateTime @default(now())
   weight      Float?
-  photoUrl    String?  // 🆕 v1.8: URL Catbox (antes era base64)
+  photoUrl    String?
   note        String?
   bmi         Float?
   bodyFat     Float?
@@ -212,292 +557,125 @@ model BodyLog {
   visceralFat Float?
   boneMass    Float?
   protein     Float?
-  userId      String?  // 🆕 v1.8
   user        User?    @relation(...)
 }
 ```
 
 ---
 
-## 🔐 Sistema de Autenticación (v1.8)
+## 🎨 Sistema de Diseño
 
-### Flujo de Auth
-
-```
-┌─────────────┐         ┌─────────────┐         ┌─────────────┐
-│   Login     │         │   Server    │         │  Database   │
-│   Page      │────────>│  /auth/login│────────>│   Users     │
-└─────────────┘         └─────────────┘         └─────────────┘
-      │                        │                       │
-      │   { token, user }      │     bcrypt.compare    │
-      │<───────────────────────│<──────────────────────│
-      │                        │                       │
-      ▼                        │                       │
-┌─────────────┐                │                       │
-│ localStorage│                │                       │
-│ nexlift_token                │                       │
-└─────────────┘                │                       │
-      │                        │                       │
-      ▼                        │                       │
-┌─────────────┐         ┌─────────────┐               │
-│ AuthContext │         │authMiddleware               │
-│ (isAuth)    │────────>│jwt.verify() │               │
-└─────────────┘         └─────────────┘               │
-      │                        │                       │
-      ▼                        ▼                       │
-┌─────────────┐         ┌─────────────┐               │
-│api.js       │         │ req.userId  │───────────────│
-│authFetch()  │─────────│ attached    │               │
-└─────────────┘         └─────────────┘               │
-```
-
-### Endpoints de Auth
-
-| Método | Endpoint | Auth | Descripción |
-|--------|----------|------|-------------|
-| POST | `/api/auth/register` | ❌ | Crear cuenta |
-| POST | `/api/auth/login` | ❌ | Iniciar sesión |
-| GET | `/api/auth/me` | ✅ | Obtener perfil |
-| PUT | `/api/auth/profile` | ✅ | Actualizar perfil |
-| PUT | `/api/auth/password` | ✅ | Cambiar contraseña |
-| POST | `/api/auth/recover/question` | ❌ | Obtener pregunta seguridad |
-| POST | `/api/auth/recover/verify` | ❌ | Verificar respuesta y resetear |
-| PUT | `/api/auth/security-question` | ✅ | Actualizar pregunta |
-
-### Almacenamiento del Token
-
-```javascript
-// Al login exitoso:
-localStorage.setItem('nexlift_token', token);
-
-// Helper en api.js:
-function getAuthHeaders() {
-    const token = localStorage.getItem('nexlift_token');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
-}
-```
-
----
-
-## 🔌 API Endpoints (v1.8)
-
-> ⚠️ **TODOS los endpoints (excepto auth login/register/recover) requieren autenticación**
-
-### Rutinas
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/api/routines` | Lista rutinas del usuario |
-| GET | `/api/routines/:id` | Detalle de rutina |
-| GET | `/api/routines/active` | Rutina activa actual |
-| POST | `/api/routines` | Crear rutina |
-| POST | `/api/routines/import` | Importar JSON |
-| PUT | `/api/routines/:id` | Actualizar (con smart PR rename) |
-| PUT | `/api/routines/:id/activate` | Activar |
-| DELETE | `/api/routines/:id` | Eliminar |
-
-### Entrenamientos
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| POST | `/api/workouts/log` | Registrar sesión |
-| POST | `/api/workouts/log-rest` | Registrar descanso |
-| GET | `/api/workouts/history` | Historial |
-| GET | `/api/workouts/exercise/:id/history` | Por ejercicio |
-| PUT | `/api/workouts/:logId` | Editar sesión |
-| DELETE | `/api/workouts/:logId` | Eliminar |
-
-### Estadísticas
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/api/stats/overview` | Resumen general |
-| GET | `/api/stats/consistency` | Heatmap datos |
-| GET | `/api/stats/prs` | Personal Records |
-| GET | `/api/stats/progress/:name` | Evolución ejercicio |
-| GET | `/api/stats/routine/:id` | Stats de rutina |
-
-### Body Tracking
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/api/body/logs` | Registros corporales |
-| GET | `/api/body/photos` | Solo fotos |
-| GET | `/api/body/latest` | Último peso |
-| POST | `/api/body/log` | Crear registro (auto-upload Catbox) |
-
----
-
-## 📸 Sistema de Fotos Catbox (v1.8)
-
-### Flujo de Upload
-
-```
-Frontend                    Backend                    Catbox
-   │                           │                          │
-   │ base64 image              │                          │
-   │──────────────────────────>│                          │
-   │                           │ POST multipart/form-data │
-   │                           │─────────────────────────>│
-   │                           │                          │
-   │                           │   https://files.catbox.moe/abc.jpg
-   │                           │<─────────────────────────│
-   │                           │                          │
-   │   { photoUrl: "https://..." }                        │
-   │<──────────────────────────│                          │
-```
-
-### Detección Automática
-
-```javascript
-// En server/src/index.js
-if (photo.startsWith('data:image') || photo.length > 500) {
-    // Es base64 → subir a Catbox
-    photoUrl = await uploadBase64ToCatbox(photo, 'jpg');
-} else {
-    // Ya es URL
-    photoUrl = photo;
-}
-```
-
-### Script de Migración
-
-```bash
-# Migrar fotos antiguas base64 → Catbox
-cd server
-node scripts/migrate-photos.js
-```
-
----
-
-## 🎨 Patrones de UI
-
-### Variables CSS (index.css)
+### Variables CSS (`index.css`)
 ```css
 :root {
-  --bg-dark: #0a0a0a;      /* Fondo principal OLED */
-  --bg-card: #141414;      /* Tarjetas */
-  --primary: #8b5cf6;      /* Púrpura principal */
-  --success: #22c55e;      /* Verde éxito */
-  --warning: #eab308;      /* Amarillo warning */
-  --error: #ef4444;        /* Rojo error */
+  --bg-dark: #0a0a0a;       /* Fondo OLED true black */
+  --bg-card: #141414;       /* Cards ligeramente más claras */
+  --primary: #8b5cf6;       /* Púrpura principal */
+  --primary-glow: rgba(139, 92, 246, 0.25);
+  --success: #22c55e;       /* Verde para éxito/PRs */
+  --warning: #eab308;       /* Amarillo para warnings */
+  --error: #ef4444;         /* Rojo para errores */
   --text-primary: #ffffff;
   --text-secondary: #a1a1aa;
   --border: #27272a;
 }
 ```
 
-### Componentes Clave
-- **AuthContext:** Estado global de autenticación
-- **ProtectedRoute:** HOC para rutas que requieren login
-- **Toast:** Notificaciones globales (`useToast()`)
-- **Celebration:** Confeti para PRs
+### Patrones de UI
+- **Cards:** `bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)]`
+- **Gradientes:** `bg-gradient-to-br from-purple-500 to-pink-500`
+- **Inputs:** `bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl px-4 py-3`
+- **Buttons primarios:** `bg-[var(--primary)] hover:bg-purple-600 text-white rounded-xl`
+- **Animaciones:** `animate-fade-in`, `transition-all duration-300`
 
 ---
 
-## ⚠️ Gotchas y Problemas Conocidos
+## ⚠️ Gotchas y Consideraciones Importantes
 
 ### 1. Token en localStorage
 ```javascript
-// ⚠️ Todas las llamadas protegidas DEBEN usar authFetch()
-const res = await authFetch(`${API_URL}/routines`);
+// ⚠️ Todas las llamadas protegidas DEBEN usar authFetch() o api.xyz()
 // ❌ NO usar fetch() directamente para rutas protegidas
+const res = await api.getRoutines(); // ✅ Correcto
+const res = await fetch('/api/routines'); // ❌ Sin auth header
 ```
 
 ### 2. Dos Schemas Prisma
 ```
-⚠️ shared/prisma/schema.prisma  ← Fuente de verdad
-⚠️ api/prisma/schema.prisma     ← Sincronizar manualmente para Vercel
+⚠️ server/prisma/schema.prisma  ← Desarrollo local (symlink a shared)
+⚠️ api/prisma/schema.prisma     ← Vercel (sincronizar manualmente)
+```
+Después de cambiar el schema, correr:
+```bash
+cd api && npx prisma generate
 ```
 
 ### 3. Campo photoUrl vs photo
-- **Base de datos:** `photoUrl` (campo real)
-- **API response:** `photo` (mapeado para compatibilidad frontend)
+- **Database:** `photoUrl` (campo real)
+- **API response:** A veces mapeado como `photo` para compatibilidad frontend
+- **Verificar:** `log.photo || log.photoUrl`
 
 ### 4. userId Opcional
-Los campos `userId` son opcionales (`String?`) para permitir migración de datos antiguos sin usuario.
+Los campos `userId` son opcionales (`String?`) para mantener compatibilidad con datos creados antes de v1.8 (sin usuarios).
 
 ### 5. Fechas y Timezone ⚠️ CRÍTICO
 ```javascript
-// ❌ INCORRECTO - interpreta como UTC, muestra fecha incorrecta
-new Date("2026-01-05").toLocaleDateString() // Muestra "4 ene" en CST!
+// ❌ INCORRECTO - interpreta como UTC
+new Date("2026-01-05").toLocaleDateString() // Muestra fecha incorrecta!
 
 // ✅ CORRECTO - forzar parseo local
 function formatLocalDate(dateStr, options) {
     const dateOnly = dateStr.split('T')[0];
     const [year, month, day] = dateOnly.split('-').map(Number);
-    const date = new Date(year, month - 1, day); // Local timezone
+    const date = new Date(year, month - 1, day);
     return date.toLocaleDateString('es-ES', options);
 }
 ```
-**Ubicaciones con este fix:**
-- `BodyTracking.jsx` → `formatLocalDate()`
-- `Profile.jsx` → `formatDate()`
-- `Dashboard.jsx`, `Progress.jsx` → verificar si aplica
+
+---
+
+## 🚀 Desarrollo Local
+
+```bash
+# Terminal 1 - Backend
+cd server
+npm run dev  # Puerto 3001
+
+# Terminal 2 - Frontend
+cd client
+npm run dev  # Puerto 5173
+```
+
+### Variables de Entorno
+```env
+# server/.env
+DATABASE_URL="postgresql://user:pass@host:5432/nexlift"
+JWT_SECRET="tu_secreto_super_seguro_aqui"
+```
 
 ---
 
 ## 📋 Changelog
 
-### v1.8.0 - Multi-User Auth System (9 Ene 2026)
-**Cambio más grande en la historia del proyecto**
+### v1.8.0 (10 Ene 2026) - Multi-User Auth
+- Sistema completo de autenticación JWT
+- Páginas: Login, Register, Profile, ForgotPassword
+- Integración Catbox para fotos (reemplaza base64)
+- Arquitectura multi-tenant con userId en todas las tablas
+- Script de migración de fotos existentes
 
-#### 🔐 Autenticación Completa
-- ✅ Sistema JWT con tokens persistentes
-- ✅ Login, Register, Forgot Password
-- ✅ Pregunta de seguridad para recuperación
-- ✅ Perfil de usuario editable
-- ✅ AuthContext + ProtectedRoute
+### v1.7.x - Mejoras UI
+- Body composition tracking completo
+- Heatmaps de consistencia
+- Mejoras en gráficas de progreso
+- Export PDF mejorado
 
-#### 🏗️ Arquitectura Multi-Tenant
-- ✅ Modelo `User` en Prisma
-- ✅ `userId` en todas las tablas relevantes
-- ✅ Filtrado por usuario en TODAS las queries
-- ✅ Ownership verification en UPDATE/DELETE
+### v1.6.x - Rutinas
+- Importación JSON de rutinas
+- Editor de rutinas mejorado
+- Renombrado inteligente de PRs
 
-#### 📸 Sistema de Fotos Catbox
-- ✅ Upload automático a catbox.moe
-- ✅ Eliminación de base64 en DB
-- ✅ Script de migración incluido
-
-#### 📁 Código Compartido
-- ✅ `shared/` con routes, middleware, utils
-- ✅ Schema centralizado
-- ✅ Rutas modulares reutilizables
-
-#### 🔧 Fixes Críticos
-- ✅ api.js con authFetch() para tokens automáticos
-- ✅ photoUrl vs photo mapeado correctamente
-- ✅ Funciones inline para evitar problemas de módulos
-
-### v1.7.1 - Workout Bug Fixes (9 Ene 2026)
-- ✅ "Mejor anterior" corregido
-- ✅ localStorage expira 24h
-- ✅ Fix timezone
-
-### v1.7.0 - Exercise Normalization (8 Ene 2026)
-- ✅ `normalizeExerciseName()`
-- ✅ Autocomplete en EditRoutine
-
-### v1.6.x - Data Integrity
-- ✅ Fórmula Epley unificada
-- ✅ onDelete: Restrict
-
-### v1.5.0 - VPS Deployment
-- ✅ Dockerfile para Docker/Easypanel
-
-### v1.4.0 - Body Composition
-- ✅ 8 métricas de báscula inteligente
-- ✅ Galería de fotos
-
----
-
-## 📝 Notas para IAs Futuras
-
-1. **SIEMPRE usa authFetch()** para llamadas protegidas
-2. **Sincroniza schemas** al modificar modelos
-3. **Token en localStorage** como `nexlift_token`
-4. **Catbox para fotos** - no guardar base64 en DB
-5. **userId en queries** - SIEMPRE filtrar por usuario
-6. **Tailwind 4** usa PostCSS, no tailwind.config.js
-7. **No hay tests automatizados** - testing manual
-
----
-
-*Última actualización: 9 Enero 2026 - v1.8.0*
+### v1.5.x - Foundation
+- Core workout logging
+- Personal Records tracking
+- Dashboard inicial

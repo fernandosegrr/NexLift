@@ -90,7 +90,7 @@ export default async function handler(req, res) {
                     securityQuestion: securityQuestion || null,
                     securityAnswerHash
                 },
-                select: { id: true, username: true, email: true, firstName: true, lastName: true, createdAt: true }
+                select: { id: true, username: true, email: true, firstName: true, lastName: true, phone: true, birthDate: true, avatarUrl: true, createdAt: true }
             });
 
             const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '365d' });
@@ -115,7 +115,7 @@ export default async function handler(req, res) {
 
             const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '365d' });
             return res.json({
-                user: { id: user.id, username: user.username, email: user.email, firstName: user.firstName, lastName: user.lastName, avatarUrl: user.avatarUrl, createdAt: user.createdAt },
+                user: { id: user.id, username: user.username, email: user.email, firstName: user.firstName, lastName: user.lastName, phone: user.phone, birthDate: user.birthDate, avatarUrl: user.avatarUrl, createdAt: user.createdAt },
                 token
             });
         }

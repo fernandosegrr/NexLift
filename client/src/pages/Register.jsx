@@ -75,7 +75,7 @@ export default function Register() {
     };
 
     return (
-        <div className="min-h-screen bg-[var(--bg-dark)] py-8 px-4">
+        <div className="min-h-screen bg-[var(--bg-dark)] py-8 px-4" style={{ paddingTop: 'max(2rem, env(safe-area-inset-top))' }}>
             <div className="w-full max-w-md mx-auto">
                 {/* Header */}
                 <div className="mb-6">
