@@ -175,7 +175,7 @@ app.post('/api/auth/login', async (req, res) => {
 
         const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '365d' });
         res.json({
-            user: { id: user.id, username: user.username, email: user.email, firstName: user.firstName, lastName: user.lastName, avatarUrl: user.avatarUrl },
+            user: { id: user.id, username: user.username, email: user.email, firstName: user.firstName, lastName: user.lastName, avatarUrl: user.avatarUrl, createdAt: user.createdAt },
             token
         });
     } catch (error) {

@@ -17,6 +17,7 @@ export default function Profile() {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
+    const [showAvatarModal, setShowAvatarModal] = useState(false);
 
     // Profile edit state
     const [editMode, setEditMode] = useState(false);
@@ -64,6 +65,17 @@ export default function Profile() {
             });
         }
     }, [user]);
+
+    // Refresh profile when tab becomes visible again
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && token) {
+                refreshProfile();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [token, refreshProfile]);
 
     const handleUpdateProfile = async () => {
         setError('');
@@ -270,17 +282,22 @@ export default function Profile() {
                             <img
                                 src={user.avatarUrl}
                                 alt={user.firstName}
-                                className="w-24 h-24 rounded-full border-4 border-[var(--bg-dark)] object-cover shadow-xl"
+                                loading="lazy"
+                                onClick={() => setShowAvatarModal(true)}
+                                className="w-24 h-24 rounded-full border-4 border-[var(--bg-dark)] object-cover shadow-xl cursor-pointer hover:scale-105 transition-transform"
                             />
                         ) : (
-                            <div className="w-24 h-24 rounded-full border-4 border-[var(--bg-dark)] bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center text-3xl font-bold text-white shadow-xl">
+                            <div
+                                onClick={() => user.avatarUrl && setShowAvatarModal(true)}
+                                className="w-24 h-24 rounded-full border-4 border-[var(--bg-dark)] bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center text-3xl font-bold text-white shadow-xl"
+                            >
                                 {getInitials()}
                             </div>
                         )}
 
-                        {/* Camera overlay */}
+                        {/* Camera overlay - only visible on hover */}
                         <button
-                            onClick={handleAvatarClick}
+                            onClick={(e) => { e.stopPropagation(); handleAvatarClick(); }}
                             className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
                         >
                             <Camera className="w-6 h-6 text-white" />
@@ -705,6 +722,40 @@ export default function Profile() {
             <div className="mt-4 text-center text-xs text-[var(--text-secondary)]">
                 {user.lastLogin && <p>Último acceso: {formatTimestamp(user.lastLogin)}</p>}
             </div>
+
+            {/* Avatar Modal */}
+            {showAvatarModal && user.avatarUrl && (
+                <div
+                    className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm"
+                    onClick={() => setShowAvatarModal(false)}
+                >
+                    <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
+                        <button
+                            onClick={() => setShowAvatarModal(false)}
+                            className="absolute -top-12 right-0 text-white/70 hover:text-white transition-colors p-2"
+                        >
+                            <X size={32} />
+                        </button>
+                        <img
+                            src={user.avatarUrl}
+                            alt={user.firstName}
+                            className="w-full h-auto rounded-2xl shadow-2xl border border-[var(--border)]"
+                        />
+                        <div className="mt-6 flex justify-center">
+                            <button
+                                onClick={() => {
+                                    setShowAvatarModal(false);
+                                    handleAvatarClick();
+                                }}
+                                className="flex items-center gap-2 px-6 py-3 bg-[var(--primary)] text-white rounded-full font-medium hover:bg-purple-700 transition-colors shadow-lg shadow-purple-500/25"
+                            >
+                                <Camera size={20} />
+                                Cambiar Foto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
