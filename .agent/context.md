@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión: 1.8.0 | Última actualización: 10 Enero 2026**
+> **Versión: 1.9.0 | Última actualización: 10 Enero 2026**
 
 ---
 
@@ -140,6 +140,43 @@ Editor completo de rutinas:
 **API usada:**
 - `GET /api/routines/:id` - Obtener rutina
 - `PUT /api/routines/:id` - Guardar cambios
+
+---
+
+### 5.1 Create Routine (`Import.jsx`)
+**Ruta:** `/routines/new`
+
+Página unificada para crear nuevas rutinas con 3 métodos:
+
+**Pestañas:**
+
+1. **Plantillas:**
+   - Selección de rutinas prediseñadas (PPL, Full Body, Arnold, etc.)
+   - Vista previa expandible de cada plantilla
+   - Información de días por semana
+   
+2. **Manual:**
+   - Crear rutina desde cero
+   - Agregar días con nombre personalizable
+   - Marcar días como descanso
+   - Agregar ejercicios vía:
+     - Búsqueda en base de datos (`exercises.js`)
+     - Creación de ejercicio personalizado (escribir nombre nuevo)
+   - Editar sets, reps y descanso por ejercicio
+   - Valores por defecto: 3 series, 10-12 reps, 90s descanso
+   
+3. **JSON:**
+   - Pegar JSON con estructura definida
+   - Muestra ejemplo de estructura esperada
+   - Normalización de datos (acepta `sets`/`targetSets`, `reps`/`targetReps`)
+
+**UI Mobile-First:**
+- Header sticky con backdrop blur
+- Modal de ejercicios fullscreen en móvil
+- Botones de acción fijos en la parte inferior
+
+**API usada:**
+- `POST /api/routines/import` - Crear rutina
 
 ---
 
@@ -655,7 +692,110 @@ JWT_SECRET="tu_secreto_super_seguro_aqui"
 
 ---
 
-## 📋 Changelog
+## � Archivos de Datos Frontend
+
+### exercises.js
+**Ruta:** `client/src/data/exercises.js`
+
+Base de datos local de ejercicios predefinidos (~80 ejercicios).
+
+**Estructura:**
+```javascript
+export const MUSCLE_GROUPS = [
+  { id: 'chest', name: 'Pecho' },
+  { id: 'back', name: 'Espalda' },
+  { id: 'shoulders', name: 'Hombros' },
+  { id: 'legs', name: 'Piernas' },
+  { id: 'biceps', name: 'Bíceps' },
+  { id: 'triceps', name: 'Tríceps' },
+  { id: 'forearms', name: 'Antebrazos' },
+  { id: 'core', name: 'Core / Abdomen' }
+];
+
+export const EXERCISES = [
+  { id: 'bench-press', name: 'Press de Banca con Barra', muscleGroup: 'chest' },
+  // ... ~80 ejercicios más organizados por grupo
+];
+```
+
+**Funciones Helper:**
+| Función | Descripción |
+|---------|-------------|
+| `searchExercises(query)` | Busca ejercicios por nombre (min 2 chars) |
+| `getExercisesByMuscle(muscleGroup)` | Filtra ejercicios por grupo muscular |
+| `getMuscleGroup(id)` | Obtiene info de un grupo muscular |
+
+---
+
+### routineTemplates.js
+**Ruta:** `client/src/data/routineTemplates.js`
+
+Plantillas de rutinas predefinidas para quick-start.
+
+**Plantillas incluidas:**
+| Template | Días | Descripción |
+|----------|------|-------------|
+| PPL (Push Pull Legs) | 6 | Split clásico x frecuencia 2 |
+| Upper/Lower | 4 | Tren superior/inferior alternado |
+| Full Body | 3 | Cuerpo completo cada sesión |
+| Bro Split | 5 | Un grupo muscular por día |
+
+**Estructura:**
+```javascript
+export const ROUTINE_TEMPLATES = [
+  {
+    id: 'ppl',
+    name: 'Push Pull Legs',
+    description: 'Split de 6 días...',
+    difficulty: 'intermediate', // beginner | intermediate | advanced
+    daysPerWeek: 6,
+    days: [
+      {
+        dayName: 'Push (Pecho/Hombros/Tríceps)',
+        isRestDay: false,
+        exercises: [
+          { exerciseId: 'bench-press', order: 0 },
+          // ...
+        ]
+      }
+    ]
+  }
+];
+```
+
+---
+
+### MuscleIcon.jsx
+**Ruta:** `client/src/components/ui/MuscleIcon.jsx`
+
+Componente para mostrar emojis/iconos de grupos musculares.
+
+```jsx
+import MuscleIcon, { MUSCLE_LIST, getMuscleColor } from './ui/MuscleIcon';
+
+// Uso básico
+<MuscleIcon muscle="chest" size={24} />
+
+// Obtener color del grupo
+const color = getMuscleColor('chest'); // '#ef4444'
+
+// Lista de todos los grupos
+MUSCLE_LIST.forEach(m => console.log(m.id, m.name, m.color, m.emoji));
+```
+
+---
+
+## �📋 Changelog
+
+### v1.9.0 (10 Ene 2026) - Routine Creation Revamp
+- Página unificada para crear rutinas (`Import.jsx`)
+  - 3 tabs: Plantillas, Manual, JSON
+  - Biblioteca de ~80 ejercicios predefinidos
+  - Crear ejercicios personalizados
+  - 4 plantillas de rutinas (PPL, Upper/Lower, Full Body, Bro Split)
+- Modal fullscreen mobile-first para selección de ejercicios
+- UI optimizada con botones de acción flotantes
+- Archivos de datos: `exercises.js`, `routineTemplates.js`
 
 ### v1.8.0 (10 Ene 2026) - Multi-User Auth
 - Sistema completo de autenticación JWT
@@ -679,3 +819,4 @@ JWT_SECRET="tu_secreto_super_seguro_aqui"
 - Core workout logging
 - Personal Records tracking
 - Dashboard inicial
+
