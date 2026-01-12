@@ -305,6 +305,101 @@ export default function ExportReport() {
         const filteredLogs = data.bodyLogs.filter(l => l.weight && isAfterCutoff(l.date));
         const filteredHistory = data.history.filter(h => isAfterCutoff(h.date));
 
+        // ============ COMPARACIÓN DIARIA POR DÍA DE SEMANA ============
+        let dailyComparison = null;
+        if (selectedP.id === 'daily') {
+            const today = new Date();
+            const todayStr = getLocalDateStr(today);
+            const todayWeekday = today.getDay(); // 0=Domingo, 1=Lunes, etc.
+
+            // Encontrar entrenamientos de hoy
+            const todaySessions = data.history.filter(h =>
+                getLocalDateStr(new Date(h.date)) === todayStr
+            );
+
+            // Buscar mismo día de semana anterior (7 días atrás)
+            const lastWeekDate = new Date(today);
+            lastWeekDate.setDate(lastWeekDate.getDate() - 7);
+            const lastWeekStr = getLocalDateStr(lastWeekDate);
+
+            const lastWeekSessions = data.history.filter(h =>
+                getLocalDateStr(new Date(h.date)) === lastWeekStr
+            );
+
+            // Calcular volumen total (peso x reps de todas las series)
+            const calculateVolume = (sessions) => {
+                let total = 0;
+                let sets = 0;
+                sessions.forEach(session => {
+                    (session.sets || []).forEach(s => {
+                        total += (s.weight || 0) * (s.reps || 0);
+                        sets++;
+                    });
+                });
+                return { volume: total, sets };
+            };
+
+            const todayStats = calculateVolume(todaySessions);
+            const lastWeekStats = calculateVolume(lastWeekSessions);
+
+            // PRs logrados hoy
+            const todayPRs = data.prs.filter(pr =>
+                getLocalDateStr(new Date(pr.date)) === todayStr
+            );
+
+            // Agrupar por ejercicio con detalle de series
+            const groupByExercise = (sessions) => {
+                const grouped = {};
+                sessions.forEach(session => {
+                    if (!session.exercise?.name) return;
+                    const name = session.exercise.name;
+                    if (!grouped[name]) grouped[name] = [];
+                    grouped[name].push(...(session.sets || []).map(s => ({
+                        weight: s.weight,
+                        reps: s.reps
+                    })));
+                });
+                return grouped;
+            };
+
+            const todayExercises = groupByExercise(todaySessions);
+            const lastWeekExercises = groupByExercise(lastWeekSessions);
+
+            // Combinar para comparación
+            const allExerciseNames = [...new Set([
+                ...Object.keys(todayExercises),
+                ...Object.keys(lastWeekExercises)
+            ])];
+
+            // Calcular cambio porcentual de volumen
+            const volumeChange = lastWeekStats.volume > 0
+                ? ((todayStats.volume - lastWeekStats.volume) / lastWeekStats.volume * 100).toFixed(1)
+                : null;
+
+            dailyComparison = {
+                todayDate: todayStr,
+                lastWeekDate: lastWeekStr,
+                weekdayName: today.toLocaleDateString('es-ES', { weekday: 'long' }),
+                // Stats de hoy
+                todayVolume: todayStats.volume,
+                todaySets: todayStats.sets,
+                todayExerciseCount: Object.keys(todayExercises).length,
+                todayPRs: todayPRs,
+                // Stats de la semana pasada
+                lastWeekVolume: lastWeekStats.volume,
+                lastWeekSets: lastWeekStats.sets,
+                // Comparación
+                volumeChange: volumeChange,
+                volumeDelta: todayStats.volume - lastWeekStats.volume,
+                // Ejercicios detallados
+                exercises: allExerciseNames.map(name => ({
+                    name,
+                    today: todayExercises[name] || [],
+                    lastWeek: lastWeekExercises[name] || []
+                })).filter(ex => ex.today.length > 0 || ex.lastWeek.length > 0)
+            };
+        }
+
         const photos = data.bodyLogs
             .filter(l => l.photo && isAfterCutoff(l.date))
             .sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -333,10 +428,15 @@ export default function ExportReport() {
             if (!session.exercise?.name || !session.sets?.length) return;
             const name = session.exercise.name;
 
-            // Buscar mejor set de la sesión (mayor peso)
-            const bestSet = session.sets.reduce((prev, current) =>
-                (current.weight > (prev?.weight || 0)) ? current : prev
-                , null);
+            // Fórmula Epley: 1RM = weight * (1 + reps / 30)
+            const calculate1RM = (weight, reps) => weight * (1 + reps / 30);
+
+            // Buscar mejor set de la sesión usando 1RM (considera peso Y reps)
+            const bestSet = session.sets.reduce((prev, current) => {
+                const prevScore = calculate1RM(prev?.weight || 0, prev?.reps || 0);
+                const currScore = calculate1RM(current?.weight || 0, current?.reps || 0);
+                return currScore > prevScore ? current : prev;
+            }, null);
 
             if (!bestSet) return;
 
@@ -344,11 +444,12 @@ export default function ExportReport() {
             exerciseGroups[name].push({
                 date: new Date(session.date),
                 weight: bestSet.weight || 0,
-                reps: bestSet.reps || 0
+                reps: bestSet.reps || 0,
+                estimated1RM: calculate1RM(bestSet.weight || 0, bestSet.reps || 0)
             });
         });
 
-        // Calcular diferencias y score de mejora
+        // Calcular diferencias y score de mejora usando 1RM
         Object.keys(exerciseGroups).forEach(name => {
             const sessions = exerciseGroups[name].sort((a, b) => a.date - b.date);
             if (sessions.length >= 2) {
@@ -356,19 +457,23 @@ export default function ExportReport() {
                 const last = sessions[sessions.length - 1];
                 const deltaWeight = Number((last.weight - first.weight).toFixed(2));
                 const deltaReps = last.reps - first.reps;
+                const delta1RM = Number((last.estimated1RM - first.estimated1RM).toFixed(2));
 
-                // Solo incluir si hubo cambio real
-                if (deltaWeight !== 0 || deltaReps !== 0) {
+                // Solo incluir si hubo cambio real en 1RM
+                if (delta1RM !== 0) {
                     progressData.push({
                         name,
                         firstWeight: first.weight,
                         firstReps: first.reps,
+                        first1RM: Number(first.estimated1RM.toFixed(1)),
                         lastWeight: last.weight,
                         lastReps: last.reps,
+                        last1RM: Number(last.estimated1RM.toFixed(1)),
                         deltaWeight,
                         deltaReps,
-                        // Score ponderado: prioriza peso, secundario reps
-                        improvementScore: Math.abs(deltaWeight) + (Math.abs(deltaReps) * 0.3)
+                        delta1RM,
+                        // Score basado en mejora de 1RM estimado
+                        improvementScore: Math.abs(delta1RM)
                     });
                 }
             }
@@ -388,8 +493,9 @@ export default function ExportReport() {
             trainingDays,
             totalSessions,
             weightChange,
-            progressData, // <--- Nueva propiedad disponible
-            hasData: trainingDays > 0 || totalSessions > 0 || filteredPRs.length > 0 || filteredLogs.length > 0
+            progressData,
+            dailyComparison, // <--- Comparación diaria por día de semana
+            hasData: trainingDays > 0 || totalSessions > 0 || filteredPRs.length > 0 || filteredLogs.length > 0 || (dailyComparison?.exercises?.length > 0)
         };
     }, [data, period]);
 
@@ -447,6 +553,121 @@ export default function ExportReport() {
             });
             builder.y += 35;
 
+            // 2.5 COMPARACIÓN DIARIA (solo para período "Diario")
+            if (computed.dailyComparison) {
+                const dc = computed.dailyComparison;
+                builder.printSectionTitle(`RESUMEN DEL ${dc.weekdayName.toUpperCase()}`, 80);
+
+                // Stats cards para el día
+                const dailyStats = [
+                    { val: dc.todayExerciseCount, lbl: 'Ejercicios', col: COLORS.purple },
+                    { val: dc.todaySets, lbl: 'Series', col: [59, 130, 246] },
+                    { val: Math.round(dc.todayVolume / 1000) + 'k', lbl: 'Volumen (kg)', col: [34, 197, 94] },
+                    { val: dc.todayPRs.length, lbl: 'PRs', col: COLORS.yellow }
+                ];
+
+                const dCardW = (w - margin * 2 - 15) / 4;
+                dailyStats.forEach((s, i) => {
+                    const x = margin + i * (dCardW + 5);
+                    doc.setFillColor(...COLORS.bgLight);
+                    doc.roundedRect(x, builder.y, dCardW, 22, 3, 3, 'F');
+                    doc.setFontSize(14);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(...s.col);
+                    doc.text(String(s.val), x + dCardW / 2, builder.y + 9, { align: 'center' });
+                    doc.setFontSize(7);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setTextColor(...COLORS.textLight);
+                    doc.text(s.lbl, x + dCardW / 2, builder.y + 17, { align: 'center' });
+                });
+                builder.y += 30;
+
+                // Comparación de volumen vs semana pasada
+                if (dc.lastWeekVolume > 0) {
+                    const volChangeNum = parseFloat(dc.volumeChange);
+                    const isPositive = volChangeNum > 0;
+                    doc.setFillColor(...COLORS.bgAlt);
+                    doc.roundedRect(margin, builder.y, w - margin * 2, 18, 3, 3, 'F');
+
+                    doc.setFontSize(9);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setTextColor(...COLORS.textMedium);
+                    doc.text('Volumen vs semana pasada:', margin + 5, builder.y + 7);
+
+                    doc.setFontSize(11);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(...(isPositive ? COLORS.green : COLORS.red));
+                    doc.text(
+                        `${isPositive ? '+' : ''}${dc.volumeChange}% (${isPositive ? '+' : ''}${Math.round(dc.volumeDelta).toLocaleString()}kg)`,
+                        margin + 5, builder.y + 14
+                    );
+
+                    doc.setFontSize(8);
+                    doc.setTextColor(...COLORS.textLight);
+                    doc.text(`Hoy: ${Math.round(dc.todayVolume).toLocaleString()}kg  |  Anterior: ${Math.round(dc.lastWeekVolume).toLocaleString()}kg`, w - margin - 5, builder.y + 11, { align: 'right' });
+                    builder.y += 25;
+                }
+
+                // PRs logrados hoy
+                if (dc.todayPRs.length > 0) {
+                    builder.ensureSpace(40);
+                    doc.setFontSize(10);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(...COLORS.yellow);
+                    doc.text('RECORDS PERSONALES DE HOY', margin, builder.y);
+                    builder.y += 6;
+
+                    const prRows = dc.todayPRs.map(pr => [
+                        pr.exerciseName?.substring(0, 30),
+                        `${pr.weight}kg x ${pr.reps}`
+                    ]);
+                    autoTable(doc, {
+                        startY: builder.y,
+                        body: prRows,
+                        theme: 'plain',
+                        bodyStyles: { fontSize: 9 },
+                        columnStyles: {
+                            0: { fontStyle: 'bold' },
+                            1: { halign: 'right', textColor: COLORS.yellow, fontStyle: 'bold' }
+                        },
+                        margin: { left: margin, right: margin }
+                    });
+                    builder.y = doc.lastAutoTable.finalY + 8;
+                }
+
+                // Tabla de ejercicios con comparación
+                if (dc.exercises.length > 0) {
+                    builder.printSectionTitle('DETALLE POR EJERCICIO', 40);
+
+                    const formatSets = (sets) => {
+                        if (!sets || sets.length === 0) return '—';
+                        return sets.map(s => `${s.weight}x${s.reps}`).join(', ');
+                    };
+
+                    const compRows = dc.exercises.map(ex => [
+                        ex.name.substring(0, 22),
+                        formatSets(ex.today),
+                        formatSets(ex.lastWeek)
+                    ]);
+
+                    autoTable(doc, {
+                        startY: builder.y,
+                        head: [['Ejercicio', 'Hoy', `${dc.weekdayName} pasado`]],
+                        body: compRows,
+                        theme: 'grid',
+                        headStyles: { fillColor: COLORS.purpleDark, fontSize: 9 },
+                        bodyStyles: { fontSize: 8 },
+                        columnStyles: {
+                            0: { fontStyle: 'bold', cellWidth: 50 },
+                            1: { halign: 'left', textColor: COLORS.purple },
+                            2: { halign: 'left', textColor: COLORS.textMedium }
+                        },
+                        margin: { left: margin, right: margin }
+                    });
+                    builder.y = doc.lastAutoTable.finalY + 10;
+                }
+            }
+
             // 3. Rutina Activa
             if (data.routine) {
                 builder.printSectionTitle(`RUTINA: ${data.routine.name}`, 40);
@@ -493,21 +714,22 @@ export default function ExportReport() {
                 builder.y = doc.lastAutoTable.finalY + 10;
             }
 
-            // 5. PROGRESO POR EJERCICIO (DELTAS) - MEJORADO
+            // 5. PROGRESO POR EJERCICIO - Muestra peso, reps y fuerza estimada
             if (computed.progressData.length > 0) {
                 builder.printSectionTitle('PROGRESO POR EJERCICIO', 60);
 
                 const deltaRows = computed.progressData.map(ex => [
-                    ex.name.substring(0, 35),
-                    `${ex.firstWeight}kg x ${ex.firstReps}`,
-                    `${ex.lastWeight}kg x ${ex.lastReps}`,
-                    ex.deltaWeight > 0 ? `+${ex.deltaWeight}kg` : ex.deltaWeight < 0 ? `${ex.deltaWeight}kg` : '0',
-                    ex.deltaReps > 0 ? `+${ex.deltaReps}` : ex.deltaReps < 0 ? `${ex.deltaReps}` : '0'
+                    ex.name.substring(0, 28),
+                    `${ex.firstWeight}x${ex.firstReps}`,
+                    `${ex.lastWeight}x${ex.lastReps}`,
+                    ex.deltaWeight > 0 ? `+${ex.deltaWeight}` : ex.deltaWeight < 0 ? `${ex.deltaWeight}` : '0',
+                    ex.deltaReps > 0 ? `+${ex.deltaReps}` : ex.deltaReps < 0 ? `${ex.deltaReps}` : '0',
+                    ex.delta1RM > 0 ? `+${ex.delta1RM.toFixed(1)}` : ex.delta1RM < 0 ? `${ex.delta1RM.toFixed(1)}` : '0'
                 ]);
 
                 autoTable(doc, {
                     startY: builder.y,
-                    head: [['Ejercicio', 'Primera Sesión', 'Última Sesión', 'Δ Peso', 'Δ Reps']],
+                    head: [['Ejercicio', 'Inicio', 'Actual', 'kg', 'reps', 'Fuerza']],
                     body: deltaRows,
                     theme: 'grid',
                     headStyles: { fillColor: COLORS.purpleDark, fontSize: 9 },
@@ -517,20 +739,27 @@ export default function ExportReport() {
                         1: { halign: 'center', textColor: COLORS.textMedium },
                         2: { halign: 'center', textColor: COLORS.purple },
                         3: { halign: 'center', fontStyle: 'bold' },
-                        4: { halign: 'center' }
+                        4: { halign: 'center' },
+                        5: { halign: 'center', fontStyle: 'bold' }
                     },
                     didParseCell: (cellData) => {
-                        // Colorear columna Δ Peso (index 3)
-                        if (cellData.section === 'body' && cellData.column.index === 3) {
+                        if (cellData.section === 'body') {
                             const text = cellData.cell.text[0];
-                            if (text.startsWith('+')) cellData.cell.styles.textColor = COLORS.green;
-                            else if (text.startsWith('-')) cellData.cell.styles.textColor = COLORS.red;
-                        }
-                        // Colorear columna Δ Reps (index 4)
-                        if (cellData.section === 'body' && cellData.column.index === 4) {
-                            const text = cellData.cell.text[0];
-                            if (text.startsWith('+')) cellData.cell.styles.textColor = COLORS.green;
-                            else if (text.startsWith('-')) cellData.cell.styles.textColor = COLORS.red;
+                            // kg (index 3)
+                            if (cellData.column.index === 3) {
+                                if (text.startsWith('+')) cellData.cell.styles.textColor = COLORS.green;
+                                else if (text.startsWith('-')) cellData.cell.styles.textColor = COLORS.red;
+                            }
+                            // reps (index 4)
+                            if (cellData.column.index === 4) {
+                                if (text.startsWith('+')) cellData.cell.styles.textColor = COLORS.green;
+                                else if (text.startsWith('-')) cellData.cell.styles.textColor = COLORS.red;
+                            }
+                            // Fuerza (index 5)
+                            if (cellData.column.index === 5) {
+                                if (text.startsWith('+')) cellData.cell.styles.textColor = COLORS.green;
+                                else if (text.startsWith('-')) cellData.cell.styles.textColor = COLORS.red;
+                            }
                         }
                     },
                     margin: { left: margin, right: margin }
@@ -800,6 +1029,30 @@ export default function ExportReport() {
                             <StatBox val={computed.weightChange} label="Peso" isDelta />
                         </div>
 
+                        {/* Daily Comparison Preview - Solo estadística de volumen */}
+                        {computed.dailyComparison && computed.dailyComparison.lastWeekVolume > 0 && (
+                            <div className={`rounded-lg p-3 border ${parseFloat(computed.dailyComparison.volumeChange) >= 0
+                                    ? 'bg-green-500/10 border-green-500/20'
+                                    : 'bg-red-500/10 border-red-500/20'
+                                }`}>
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">
+                                            vs {computed.dailyComparison.weekdayName} pasado
+                                        </p>
+                                        <p className={`text-xl font-bold ${parseFloat(computed.dailyComparison.volumeChange) >= 0 ? 'text-green-400' : 'text-red-400'
+                                            }`}>
+                                            {parseFloat(computed.dailyComparison.volumeChange) >= 0 ? '+' : ''}{computed.dailyComparison.volumeChange}%
+                                        </p>
+                                    </div>
+                                    <div className="text-right text-xs text-[var(--text-secondary)]">
+                                        <p>Hoy: <span className="text-[var(--text-primary)] font-medium">{Math.round(computed.dailyComparison.todayVolume).toLocaleString()}kg</span></p>
+                                        <p>Anterior: {Math.round(computed.dailyComparison.lastWeekVolume).toLocaleString()}kg</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Weight Chart */}
                         {computed.weightChart.length > 1 && (
                             <div className="h-24 w-full">
@@ -831,15 +1084,25 @@ export default function ExportReport() {
                                 <p className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2 flex items-center gap-1">
                                     <TrendingUp size={10} className="text-green-400" /> Top Mejoras
                                 </p>
-                                <div className="space-y-1.5">
+                                <div className="space-y-2">
                                     {computed.progressData.slice(0, 3).map((ex, i) => (
-                                        <div key={ex.name} className="flex items-center justify-between text-xs">
-                                            <span className="text-[var(--text-secondary)] truncate flex-1 mr-2">
-                                                <span className="text-[var(--text-primary)] font-medium">{i + 1}.</span> {ex.name}
-                                            </span>
-                                            <span className={`font-bold shrink-0 ${ex.deltaWeight > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                {ex.deltaWeight > 0 ? '▲' : '▼'} {Math.abs(ex.deltaWeight)}kg
-                                            </span>
+                                        <div key={ex.name} className="text-xs">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[var(--text-primary)] font-medium truncate flex-1 mr-2">
+                                                    {i + 1}. {ex.name}
+                                                </span>
+                                            </div>
+                                            <div className="flex gap-3 mt-0.5 text-[10px]">
+                                                <span className={ex.deltaWeight > 0 ? 'text-green-400' : ex.deltaWeight < 0 ? 'text-red-400' : 'text-gray-400'}>
+                                                    {ex.deltaWeight > 0 ? '+' : ''}{ex.deltaWeight}kg
+                                                </span>
+                                                <span className={ex.deltaReps > 0 ? 'text-green-400' : ex.deltaReps < 0 ? 'text-red-400' : 'text-gray-400'}>
+                                                    {ex.deltaReps > 0 ? '+' : ''}{ex.deltaReps} reps
+                                                </span>
+                                                <span className={`font-bold ${ex.delta1RM > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {ex.delta1RM > 0 ? '↑' : '↓'}{Math.abs(ex.delta1RM).toFixed(1)} fuerza
+                                                </span>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>

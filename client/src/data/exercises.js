@@ -1,11 +1,8 @@
 /**
- * NexLift - Base de Datos de Ejercicios
- * 
- * Ejercicios principales organizados por grupo muscular
- * PRIORIDAD: Pecho, Espalda, Hombros, Piernas, Brazos
+ * NexLift - Base de Datos de Ejercicios (Versión 2.0)
+ * Optimizado para Hipertrofia y PPL / Arnold Split
  */
 
-// Grupos musculares ordenados por importancia/uso
 export const MUSCLE_GROUPS = [
     { id: 'chest', name: 'Pecho' },
     { id: 'back', name: 'Espalda' },
@@ -13,153 +10,139 @@ export const MUSCLE_GROUPS = [
     { id: 'legs', name: 'Piernas' },
     { id: 'biceps', name: 'Bíceps' },
     { id: 'triceps', name: 'Tríceps' },
+    { id: 'forearms', name: 'Antebrazos' }, // NUEVO
     { id: 'core', name: 'Core / Abdomen' }
 ];
 
 export const EXERCISES = [
-    // ==================== PECHO (15+ ejercicios) ====================
-    { id: 'bench-press', name: 'Press de Banca', muscleGroup: 'chest' },
-    { id: 'incline-bench-press', name: 'Press Inclinado Barra', muscleGroup: 'chest' },
-    { id: 'decline-bench-press', name: 'Press Declinado Barra', muscleGroup: 'chest' },
-    { id: 'dumbbell-press', name: 'Press con Mancuernas', muscleGroup: 'chest' },
-    { id: 'incline-dumbbell-press', name: 'Press Inclinado Mancuernas', muscleGroup: 'chest' },
-    { id: 'decline-dumbbell-press', name: 'Press Declinado Mancuernas', muscleGroup: 'chest' },
-    { id: 'chest-flyes', name: 'Aperturas con Mancuernas', muscleGroup: 'chest' },
-    { id: 'incline-flyes', name: 'Aperturas Inclinadas', muscleGroup: 'chest' },
-    { id: 'cable-flyes', name: 'Aperturas en Polea', muscleGroup: 'chest' },
-    { id: 'cable-crossover', name: 'Cruce de Poleas', muscleGroup: 'chest' },
-    { id: 'push-ups', name: 'Flexiones', muscleGroup: 'chest' },
-    { id: 'diamond-push-ups', name: 'Flexiones Diamante', muscleGroup: 'chest' },
-    { id: 'incline-push-ups', name: 'Flexiones Inclinadas', muscleGroup: 'chest' },
-    { id: 'dips-chest', name: 'Fondos para Pecho', muscleGroup: 'chest' },
+    // ==================== PECHO ====================
+    // Compuestos
+    { id: 'bench-press', name: 'Press de Banca con Barra', muscleGroup: 'chest' },
+    { id: 'incline-bench-press', name: 'Press Inclinado con Barra', muscleGroup: 'chest' },
+    { id: 'dumbbell-press', name: 'Press Plano con Mancuernas', muscleGroup: 'chest' },
+    { id: 'incline-dumbbell-press', name: 'Press Inclinado con Mancuernas', muscleGroup: 'chest' },
+    { id: 'machine-chest-press', name: 'Press de Pecho en Máquina', muscleGroup: 'chest' },
+    { id: 'smith-incline-press', name: 'Press Inclinado en Multipower (Smith)', muscleGroup: 'chest' }, // Estabilidad = Hipertrofia
+    { id: 'dips-chest', name: 'Fondos en Paralelas (Enfoque Pecho)', muscleGroup: 'chest' },
+
+    // Aislamiento
+    { id: 'cable-crossover-high', name: 'Cruce de Poleas (Alta a Baja)', muscleGroup: 'chest' },
+    { id: 'cable-crossover-mid', name: 'Cruce de Poleas (Media)', muscleGroup: 'chest' },
+    { id: 'cable-crossover-low', name: 'Cruce de Poleas (Baja a Alta)', muscleGroup: 'chest' }, // Clave para pecho superior
     { id: 'pec-deck', name: 'Pec Deck / Contractora', muscleGroup: 'chest' },
-    { id: 'machine-chest-press', name: 'Press en Máquina', muscleGroup: 'chest' },
-    { id: 'svend-press', name: 'Svend Press', muscleGroup: 'chest' },
-    { id: 'landmine-press', name: 'Landmine Press', muscleGroup: 'chest' },
+    { id: 'dumbbell-flyes', name: 'Aperturas con Mancuernas', muscleGroup: 'chest' },
+    { id: 'hex-press', name: 'Press Hexagonal (Svend)', muscleGroup: 'chest' },
 
-    // ==================== ESPALDA (15+ ejercicios) ====================
-    { id: 'deadlift', name: 'Peso Muerto Convencional', muscleGroup: 'back' },
-    { id: 'sumo-deadlift', name: 'Peso Muerto Sumo', muscleGroup: 'back' },
-    { id: 'romanian-deadlift', name: 'Peso Muerto Rumano', muscleGroup: 'back' },
-    { id: 'pull-ups', name: 'Dominadas', muscleGroup: 'back' },
+    // ==================== ESPALDA ====================
+    // Tracción Vertical (Anchura)
+    { id: 'lat-pulldown', name: 'Jalón al Pecho Agarre Prono', muscleGroup: 'back' },
+    { id: 'neutral-lat-pulldown', name: 'Jalón al Pecho Agarre Neutro', muscleGroup: 'back' },
+    { id: 'single-arm-pulldown', name: 'Jalón Unilateral (Iliaco)', muscleGroup: 'back' }, // Top tier hipertrofia
+    { id: 'pull-ups', name: 'Dominadas Pronas', muscleGroup: 'back' },
     { id: 'chin-ups', name: 'Dominadas Supinas', muscleGroup: 'back' },
-    { id: 'lat-pulldown', name: 'Jalón al Pecho', muscleGroup: 'back' },
-    { id: 'close-grip-pulldown', name: 'Jalón Agarre Cerrado', muscleGroup: 'back' },
-    { id: 'behind-neck-pulldown', name: 'Jalón Tras Nuca', muscleGroup: 'back' },
+
+    // Tracción Horizontal (Densidad)
     { id: 'barbell-row', name: 'Remo con Barra', muscleGroup: 'back' },
-    { id: 'pendlay-row', name: 'Remo Pendlay', muscleGroup: 'back' },
-    { id: 'dumbbell-row', name: 'Remo con Mancuerna', muscleGroup: 'back' },
-    { id: 'cable-row', name: 'Remo en Polea', muscleGroup: 'back' },
-    { id: 't-bar-row', name: 'Remo en T', muscleGroup: 'back' },
-    { id: 'machine-row', name: 'Remo en Máquina', muscleGroup: 'back' },
-    { id: 'face-pulls', name: 'Face Pulls', muscleGroup: 'back' },
-    { id: 'pullover', name: 'Pullover', muscleGroup: 'back' },
-    { id: 'hyperextensions', name: 'Hiperextensiones', muscleGroup: 'back' },
-    { id: 'good-mornings', name: 'Buenos Días', muscleGroup: 'back' },
+    { id: 'dumbbell-row', name: 'Remo con Mancuerna (Kroc Row)', muscleGroup: 'back' },
+    { id: 'chest-supported-row', name: 'Remo con Soporte al Pecho', muscleGroup: 'back' }, // Elimina inercia
+    { id: 'cable-row', name: 'Remo Gironda / Polea Baja', muscleGroup: 'back' },
+    { id: 't-bar-row', name: 'Remo en Barra T', muscleGroup: 'back' },
+    { id: 'meadows-row', name: 'Remo Meadows', muscleGroup: 'back' },
+
+    // Espalda Baja / Completa
+    { id: 'deadlift', name: 'Peso Muerto Convencional', muscleGroup: 'back' },
     { id: 'rack-pulls', name: 'Rack Pulls', muscleGroup: 'back' },
-    { id: 'shrugs', name: 'Encogimientos (Trapecios)', muscleGroup: 'back' },
+    { id: 'hyperextensions', name: 'Hiperextensiones', muscleGroup: 'back' },
+    { id: 'face-pulls', name: 'Face Pulls', muscleGroup: 'back' }, // Salud de hombro/Trapecio
+    { id: 'shrugs-dumbbell', name: 'Encogimientos con Mancuernas', muscleGroup: 'back' },
 
-    // ==================== HOMBROS (12+ ejercicios) ====================
-    { id: 'overhead-press', name: 'Press Militar Barra', muscleGroup: 'shoulders' },
-    { id: 'seated-overhead-press', name: 'Press Militar Sentado', muscleGroup: 'shoulders' },
-    { id: 'dumbbell-shoulder-press', name: 'Press con Mancuernas', muscleGroup: 'shoulders' },
+    // ==================== HOMBROS ====================
+    // Anterior / Press
+    { id: 'overhead-press', name: 'Press Militar con Barra', muscleGroup: 'shoulders' },
+    { id: 'seated-dumbbell-press', name: 'Press Sentado con Mancuernas', muscleGroup: 'shoulders' },
+    { id: 'machine-shoulder-press', name: 'Press de Hombros en Máquina', muscleGroup: 'shoulders' },
     { id: 'arnold-press', name: 'Press Arnold', muscleGroup: 'shoulders' },
-    { id: 'push-press', name: 'Push Press', muscleGroup: 'shoulders' },
-    { id: 'lateral-raises', name: 'Elevaciones Laterales', muscleGroup: 'shoulders' },
-    { id: 'cable-lateral-raises', name: 'Elevaciones Laterales Polea', muscleGroup: 'shoulders' },
-    { id: 'front-raises', name: 'Elevaciones Frontales', muscleGroup: 'shoulders' },
-    { id: 'rear-delt-fly', name: 'Pájaros / Deltoides Posterior', muscleGroup: 'shoulders' },
-    { id: 'reverse-pec-deck', name: 'Pec Deck Inverso', muscleGroup: 'shoulders' },
-    { id: 'upright-rows', name: 'Remo al Mentón', muscleGroup: 'shoulders' },
-    { id: 'machine-shoulder-press', name: 'Press Hombro en Máquina', muscleGroup: 'shoulders' },
-    { id: 'landmine-shoulder-press', name: 'Landmine Press Hombro', muscleGroup: 'shoulders' },
 
-    // ==================== PIERNAS (15+ ejercicios) ====================
-    { id: 'squat', name: 'Sentadilla Barra', muscleGroup: 'legs' },
-    { id: 'front-squat', name: 'Sentadilla Frontal', muscleGroup: 'legs' },
-    { id: 'goblet-squat', name: 'Sentadilla Goblet', muscleGroup: 'legs' },
-    { id: 'hack-squat', name: 'Hack Squat', muscleGroup: 'legs' },
-    { id: 'leg-press', name: 'Prensa de Piernas', muscleGroup: 'legs' },
-    { id: 'leg-extension', name: 'Extensión de Cuádriceps', muscleGroup: 'legs' },
-    { id: 'leg-curl', name: 'Curl de Femorales', muscleGroup: 'legs' },
-    { id: 'stiff-leg-deadlift', name: 'Peso Muerto Piernas Rígidas', muscleGroup: 'legs' },
-    { id: 'lunges', name: 'Zancadas / Desplantes', muscleGroup: 'legs' },
-    { id: 'walking-lunges', name: 'Zancadas Caminando', muscleGroup: 'legs' },
+    // Lateral (La clave para amplitud)
+    { id: 'lateral-raises', name: 'Elevaciones Laterales Mancuerna', muscleGroup: 'shoulders' },
+    { id: 'cable-lateral-raises', name: 'Elevaciones Laterales en Polea', muscleGroup: 'shoulders' }, // Tensión constante
+    { id: 'egyptian-lateral-raises', name: 'Elevaciones Egipcias', muscleGroup: 'shoulders' },
+    { id: 'lu-raises', name: 'Elevaciones Lu (Rango completo)', muscleGroup: 'shoulders' },
+
+    // Posterior
+    { id: 'rear-delt-fly-machine', name: 'Pájaros en Máquina (Reverse Fly)', muscleGroup: 'shoulders' },
+    { id: 'rear-delt-dumbbell', name: 'Pájaros con Mancuernas', muscleGroup: 'shoulders' },
+    { id: 'rope-face-pull', name: 'Face Pull con Cuerda', muscleGroup: 'shoulders' },
+
+    // ==================== PIERNAS ====================
+    // Dominante de Rodilla (Cuádriceps)
+    { id: 'squat', name: 'Sentadilla con Barra (High Bar)', muscleGroup: 'legs' },
+    { id: 'hack-squat', name: 'Sentadilla Hack', muscleGroup: 'legs' }, // Top tier hipertrofia
+    { id: 'leg-press', name: 'Prensa Inclinada', muscleGroup: 'legs' },
     { id: 'bulgarian-split-squat', name: 'Sentadilla Búlgara', muscleGroup: 'legs' },
-    { id: 'step-ups', name: 'Step Ups / Subidas al Banco', muscleGroup: 'legs' },
+    { id: 'leg-extension', name: 'Extensiones de Cuádriceps', muscleGroup: 'legs' },
+    { id: 'goblet-squat', name: 'Sentadilla Goblet', muscleGroup: 'legs' },
+
+    // Dominante de Cadera (Femoral/Glúteo)
+    { id: 'romanian-deadlift', name: 'Peso Muerto Rumano (Barra)', muscleGroup: 'legs' },
+    { id: 'romanian-deadlift-db', name: 'Peso Muerto Rumano (Mancuernas)', muscleGroup: 'legs' },
+    { id: 'seated-leg-curl', name: 'Curl Femoral Sentado', muscleGroup: 'legs' }, // Científicamente superior al tumbado
+    { id: 'lying-leg-curl', name: 'Curl Femoral Tumbado', muscleGroup: 'legs' },
     { id: 'hip-thrust', name: 'Hip Thrust', muscleGroup: 'legs' },
-    { id: 'glute-bridge', name: 'Puente de Glúteos', muscleGroup: 'legs' },
-    { id: 'calf-raises', name: 'Elevación de Talones', muscleGroup: 'legs' },
-    { id: 'seated-calf-raises', name: 'Elevación Talones Sentado', muscleGroup: 'legs' },
-    { id: 'leg-press-calf', name: 'Pantorrillas en Prensa', muscleGroup: 'legs' },
-    { id: 'sissy-squat', name: 'Sissy Squat', muscleGroup: 'legs' },
 
-    // ==================== BÍCEPS (10+ ejercicios) ====================
-    { id: 'barbell-curl', name: 'Curl con Barra', muscleGroup: 'biceps' },
+    // Otros
+    { id: 'standing-calf-raise', name: 'Elevación Talones De Pie', muscleGroup: 'legs' },
+    { id: 'seated-calf-raise', name: 'Elevación Talones Sentado', muscleGroup: 'legs' },
+    { id: 'adductor-machine', name: 'Máquina de Aductores', muscleGroup: 'legs' }, // Clave para piernas grandes
+
+    // ==================== BÍCEPS ====================
+    { id: 'barbell-curl', name: 'Curl con Barra Recta', muscleGroup: 'biceps' },
     { id: 'ez-bar-curl', name: 'Curl con Barra Z', muscleGroup: 'biceps' },
-    { id: 'dumbbell-curl', name: 'Curl con Mancuernas', muscleGroup: 'biceps' },
-    { id: 'hammer-curl', name: 'Curl Martillo', muscleGroup: 'biceps' },
+    { id: 'incline-dumbbell-curl', name: 'Curl Inclinado (Enfoque Cabeza Larga)', muscleGroup: 'biceps' },
+    { id: 'bayesian-curl', name: 'Curl Bayesiano (Polea)', muscleGroup: 'biceps' }, // Gran estiramiento
     { id: 'preacher-curl', name: 'Curl Predicador / Scott', muscleGroup: 'biceps' },
-    { id: 'concentration-curl', name: 'Curl Concentrado', muscleGroup: 'biceps' },
-    { id: 'incline-curl', name: 'Curl Inclinado', muscleGroup: 'biceps' },
-    { id: 'cable-curl', name: 'Curl en Polea', muscleGroup: 'biceps' },
+    { id: 'hammer-curl', name: 'Curl Martillo', muscleGroup: 'biceps' },
+    { id: 'reverse-curl', name: 'Curl Inverso (Braquiorradial)', muscleGroup: 'biceps' },
     { id: 'spider-curl', name: 'Spider Curl', muscleGroup: 'biceps' },
-    { id: 'drag-curl', name: 'Drag Curl', muscleGroup: 'biceps' },
-    { id: 'machine-curl', name: 'Curl en Máquina', muscleGroup: 'biceps' },
-    { id: '21s', name: 'Curl 21s', muscleGroup: 'biceps' },
 
-    // ==================== TRÍCEPS (10+ ejercicios) ====================
-    { id: 'tricep-pushdown', name: 'Extensión en Polea', muscleGroup: 'triceps' },
-    { id: 'rope-pushdown', name: 'Extensión con Cuerda', muscleGroup: 'triceps' },
-    { id: 'overhead-tricep-extension', name: 'Extensión sobre Cabeza', muscleGroup: 'triceps' },
-    { id: 'skull-crushers', name: 'Rompecráneos / Press Francés', muscleGroup: 'triceps' },
-    { id: 'close-grip-bench', name: 'Press Agarre Cerrado', muscleGroup: 'triceps' },
-    { id: 'dips-triceps', name: 'Fondos para Tríceps', muscleGroup: 'triceps' },
-    { id: 'bench-dips', name: 'Fondos en Banco', muscleGroup: 'triceps' },
-    { id: 'tricep-kickback', name: 'Patada de Tríceps', muscleGroup: 'triceps' },
-    { id: 'diamond-push-ups-triceps', name: 'Flexiones Diamante (Tríceps)', muscleGroup: 'triceps' },
-    { id: 'cable-overhead-extension', name: 'Extensión Polea Alta', muscleGroup: 'triceps' },
-    { id: 'machine-tricep-extension', name: 'Extensión en Máquina', muscleGroup: 'triceps' },
+    // ==================== TRÍCEPS ====================
+    { id: 'tricep-pushdown-rope', name: 'Extensión Polea con Cuerda', muscleGroup: 'triceps' },
+    { id: 'tricep-pushdown-bar', name: 'Extensión Polea con Barra', muscleGroup: 'triceps' },
+    { id: 'skull-crushers', name: 'Rompecráneos (Barra Z)', muscleGroup: 'triceps' },
+    { id: 'overhead-cable-extension', name: 'Extensión Katana / Tras Nuca Polea', muscleGroup: 'triceps' }, // Enfatiza cabeza larga
+    { id: 'close-grip-bench', name: 'Press Banca Agarre Cerrado', muscleGroup: 'triceps' },
+    { id: 'dips-triceps', name: 'Fondos (Verticales)', muscleGroup: 'triceps' },
+    { id: 'single-arm-pushdown', name: 'Extensión Unilateral Supina', muscleGroup: 'triceps' },
 
-    // ==================== CORE / ABDOMEN (10+ ejercicios) ====================
-    { id: 'plank', name: 'Plancha', muscleGroup: 'core' },
-    { id: 'side-plank', name: 'Plancha Lateral', muscleGroup: 'core' },
-    { id: 'crunches', name: 'Abdominales / Crunches', muscleGroup: 'core' },
-    { id: 'leg-raises', name: 'Elevación de Piernas', muscleGroup: 'core' },
-    { id: 'hanging-leg-raises', name: 'Elevación Piernas Colgando', muscleGroup: 'core' },
-    { id: 'russian-twist', name: 'Giro Ruso', muscleGroup: 'core' },
-    { id: 'cable-crunch', name: 'Crunch en Polea', muscleGroup: 'core' },
+    // ==================== ANTEBRAZOS (NUEVO) ====================
+    { id: 'wrist-curl', name: 'Curl de Muñeca', muscleGroup: 'forearms' },
+    { id: 'reverse-wrist-curl', name: 'Curl de Muñeca Inverso', muscleGroup: 'forearms' },
+    { id: 'farmers-walk', name: 'Paseo de Granjero', muscleGroup: 'forearms' },
+    { id: 'plate-pinch', name: 'Pellizco de Discos', muscleGroup: 'forearms' },
+
+    // ==================== CORE / ABDOMEN ====================
+    { id: 'cable-crunch', name: 'Crunch en Polea Alta', muscleGroup: 'core' }, // Mejor opción con peso
+    { id: 'hanging-leg-raises', name: 'Elevación de Piernas Colgado', muscleGroup: 'core' },
     { id: 'ab-wheel', name: 'Rueda Abdominal', muscleGroup: 'core' },
-    { id: 'mountain-climbers', name: 'Escaladores', muscleGroup: 'core' },
-    { id: 'dead-bug', name: 'Dead Bug', muscleGroup: 'core' },
-    { id: 'hollow-body-hold', name: 'Hollow Body Hold', muscleGroup: 'core' },
-    { id: 'bicycle-crunches', name: 'Abdominales Bicicleta', muscleGroup: 'core' }
+    { id: 'plank', name: 'Plancha Isométrica', muscleGroup: 'core' },
+    { id: 'woodchoppers', name: 'Leñadores (Woodchoppers)', muscleGroup: 'core' },
+    { id: 'vacuum', name: 'Vacío Abdominal', muscleGroup: 'core' }
 ];
 
-/**
- * Buscar ejercicios por nombre
- */
+// Funciones Helper (Sin cambios, funcionan bien)
 export function searchExercises(query) {
     if (!query || query.length < 2) return [];
-
     const normalizedQuery = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
     return EXERCISES.filter(ex => {
         const normalizedName = ex.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         return normalizedName.includes(normalizedQuery);
     });
 }
 
-/**
- * Obtener ejercicios por grupo muscular
- */
 export function getExercisesByMuscle(muscleGroup) {
     return EXERCISES.filter(ex => ex.muscleGroup === muscleGroup);
 }
 
-/**
- * Obtener info de grupo muscular
- */
 export function getMuscleGroup(id) {
     return MUSCLE_GROUPS.find(m => m.id === id);
 }

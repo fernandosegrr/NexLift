@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión: 1.9.0 | Última actualización: 10 Enero 2026**
+> **Versión: 1.9.2 | Última actualización: 11 Enero 2026**
 
 ---
 
@@ -254,6 +254,11 @@ Generador de reportes PDF profesionales:
 - `GET /api/workouts/history?days=X` - Historial de workouts
 - `GET /api/body/logs?days=X` - Historial corporal
 - `GET /api/stats/prs` - Personal Records
+
+**⚠️ Limitación jsPDF:**
+- jsPDF NO soporta emojis ni caracteres unicode especiales (Δ, ↑, ↓, 🏆)
+- Usar solo caracteres ASCII en el PDF (+, -, texto plano)
+- Los emojis se renderizan como símbolos rotos
 
 ---
 
@@ -785,7 +790,34 @@ MUSCLE_LIST.forEach(m => console.log(m.id, m.name, m.color, m.emoji));
 
 ---
 
-## �📋 Changelog
+## 📋 Changelog
+### v1.9.2 (11 Ene 2026) - Reportes Avanzados & Fixes
+- **Refinamiento de Algoritmo de Progreso**:
+  - Implementada fórmula Epley (1RM) para calcular "mejor set" real, reemplazando comparación simple de peso máximo.
+  - Nueva métrica **"Fuerza"** en reportes PDF para mostrar mejoras reales de rendimiento.
+- **Reportes PDF (`ExportReport.jsx`)**:
+  - **Nueva sección diaria**: Comparación detallada de volumen vs mismo día semana anterior, PRs del día y desglose por ejercicio.
+  - **Tabla de Progreso expandida**: Muestra 6 columnas clave (Inicio, Actual, Δ Peso, Δ Reps, Δ Fuerza).
+  - **Optimización técnica**: Tablas con ancho dinámico (sin `cellWidth` fijos) y compatibilidad ASCII (fix caracteres unicode/emojis).
+- **UI & UX**:
+  - **Preview Simplificado**: La vista previa en app muestra solo KPIs esenciales (Volumen vs Anterior), dejando el detalle denso para el PDF.
+  - **Feedback Inmediato**: `SetCard` (`Workout.jsx`) ahora actualiza visualmente los checkmarks de PR al instante (fix `React.memo`).
+  - Badge "Posible PR" reactivo a cambios en historial.
+
+
+### v1.9.1 (11 Ene 2026) - UX Improvements
+- **Dashboard**: Saludo personalizado con nombre del usuario ("Bienvenido de nuevo, {nombre}")
+- **Cálculo Epley mejorado**: Peso sugerido ahora usa reps objetivo de la rutina
+  - Parsea el rango (ej: "6-10" → usa 6) en lugar de hardcodear 10 reps
+- **Workout UI rediseñada** (`Workout.jsx`):
+  - Layout simplificado: header y botón en flujo normal (no fijos)
+  - SetCard optimizado con `React.memo` y comparación personalizada
+  - Validación de inputs para prevenir valores negativos
+  - Eliminado `window.confirm` para mejor UX
+  - Etiquetas verticales "SET 1", "SET 2" para ahorrar espacio
+  - RIR selector estilo segmentado
+  - Badge de "Posible PR" cuando superas tu mejor marca
+  - Historial modal con diseño mejorado
 
 ### v1.9.0 (10 Ene 2026) - Routine Creation Revamp
 - Página unificada para crear rutinas (`Import.jsx`)
@@ -816,7 +848,33 @@ MUSCLE_LIST.forEach(m => console.log(m.id, m.name, m.color, m.emoji));
 - Renombrado inteligente de PRs
 
 ### v1.5.x - Foundation
+
+---
+
+## 🎨 Principios de Diseño y Preferencias
+
+> **Esta sección documenta las preferencias explícitas del usuario y reglas de diseño aprendidas.**
+
+### 1. Reportes y PDF
+- **Filosofía**: "Data-rich". El PDF debe estar cargado de información valiosa, bien estructurada y útil para análisis estadístico.
+- **Contenido Diario**:
+  - Comparar volumen del día vs el mismo día de la semana anterior.
+  - No mostrar datos vacíos o irrelevantes.
+- **Constraints Técnicos (jsPDF)**:
+  - **NO EMOJIS**: jsPDF no los renderiza (se ven como símbolos rotos).
+  - **NO UNICODE**: Caracteres como Δ, ↑, ↓ fallan. Usar ASCII (+, -, ^, v) o texto plano.
+  - **Tablas**: No usar `cellWidth` fijos que estrechen columnas innecesariamente; dejar que `autoTable` use el ancho disponible.
+
+### 2. UI y Previsualizaciones
+- **Filosofía**: "Simple y Directo". A diferencia del PDF, la UI debe mostrar solo lo esencial.
+- **Previews**: Evitar saturación. Si hay una comparación compleja, mostrar solo el dato "headline" (ej: cambio de volumen %).
+- **Estética**: Tema OLED oscuro (negro puro #000000 o muy oscuro) siempre.
+
+### 3. Lógica de Negocio
+- **Cálculo de Fuerza (1RM)**: Usar fórmula Epley: `weight * (1 + reps/30)`. No usar solo peso máximo.
+- **Checkmarks**: En `Workout.jsx`, el check debe reaccionar inmediatamente a cambios en `completed` y `isPR`.
+- **Ordenamiento**: Cronológico inverso para historiales.
+
 - Core workout logging
 - Personal Records tracking
 - Dashboard inicial
-

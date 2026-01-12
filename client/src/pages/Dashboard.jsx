@@ -5,8 +5,10 @@ import {
     ChevronRight, Dumbbell, TrendingUp, Coffee, CheckCircle2, Loader2, ArrowRight
 } from 'lucide-react';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function Dashboard() {
+    const { user } = useAuth();
     const [stats, setStats] = useState(null);
     const [activeRoutine, setActiveRoutine] = useState(null);
     const [consistency, setConsistency] = useState({});
@@ -193,7 +195,9 @@ export default function Dashboard() {
         <div className="space-y-6 animate-fade-in max-w-lg md:max-w-2xl mx-auto pb-4">
             {/* Header */}
             <div className="pt-2 px-1">
-                <p className="text-[var(--text-secondary)] text-sm">Bienvenido de nuevo</p>
+                <p className="text-[var(--text-secondary)] text-sm">
+                    Bienvenido de nuevo{user?.firstName ? `, ${user.firstName}` : ''}
+                </p>
                 <h1 className="text-2xl font-bold mt-1">
                     ¡A entrenar! 💪
                 </h1>
