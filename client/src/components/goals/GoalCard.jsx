@@ -1,10 +1,10 @@
-import { useState, useMemo, useEffect } from 'react';
-import { ChevronDown, ChevronUp, TrendingUp, AlertTriangle, Trash2, Calendar, Target, Zap, Dumbbell, CheckCircle2 } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ChevronDown, ChevronUp, TrendingUp, Trash2, Calendar, Target, Zap, Dumbbell, CheckCircle2 } from 'lucide-react';
 import { api } from '../../services/api';
 
 // --- MATH UTILS ---
 
-// Linear Regression
+// Regresión Lineal para detectar tendencias en el historial
 function linearRegression(dataPoints) {
     if (dataPoints.length < 2) return { slope: 0, r2: 0 };
     const n = dataPoints.length;
@@ -23,44 +23,43 @@ function linearRegression(dataPoints) {
     return { slope, r2 };
 }
 
-// 1RM Estimation (Epley) - Fixed for 1 rep
-const calculate1RM = (weight, reps) => reps === 1 ? weight : weight * (1 + reps / 30);
-
-// --- PERIODIZATION ENGINE (Math-Based) ---
+// --- MOTOR DE PERIODIZACIÓN (Lógica Matemática Corregida) ---
 
 function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetReps, frequency = 2) {
     const sessions = [];
-    const gap = target1RM - current1RM;
 
-    // Safety check
-    if (gap <= 0 || weeklyIncrease <= 0) return [];
+    // Forzamos conversión a número para evitar errores
+    const start = Number(current1RM);
+    const target = Number(target1RM);
+    const increase = Number(weeklyIncrease);
 
-    // Calculate total weeks needed
-    let totalWeeks = Math.ceil(gap / weeklyIncrease);
+    const gap = target - start;
 
-    // Use phases if simple linear progression is too long (> 8 weeks)
+    // Validación de seguridad
+    if (gap <= 0 || increase <= 0 || isNaN(gap)) return [];
+
+    // Calcular semanas totales necesarias
+    let totalWeeks = Math.ceil(gap / increase);
+
+    // Usar fases solo si el plan es largo (> 8 semanas)
     const usePhases = totalWeeks >= 8;
 
-    // --- STRATEGY SELECTION ---
-    // If High Rep Goal (>5): Hypertrophy Focus (Volume -> Specificity)
-    // If Strength Goal (<=5): Strength Focus (Hypertrophy -> Strength -> Peaking)
+    // --- SELECCIÓN DE ESTRATEGIA ---
     const isHypertrophyGoal = targetReps > 5;
 
-    let weeksPhase1 = 0; // Accumulation
-    let weeksPhase2 = 0; // Transmutation
+    let weeksPhase1 = 0; // Acumulación
+    let weeksPhase2 = 0; // Transición/Fuerza
 
     if (usePhases) {
         weeksPhase1 = Math.floor(totalWeeks * (isHypertrophyGoal ? 0.5 : 0.33));
         weeksPhase2 = Math.floor(totalWeeks * (isHypertrophyGoal ? 0.5 : 0.33));
     }
 
-    let currentProjected1RM = current1RM;
+    let currentProjected1RM = start;
     let week = 1;
 
-    // --- GENERATION LOOP ---
-    // We increment the user's theoretical 1RM linearly every week.
-    // The prescribed weights are derived as a % of this moving 1RM.
-    while (currentProjected1RM <= target1RM + 0.1 && week <= 52) { // 0.1 buffer for float precision
+    // --- BUCLE DE GENERACIÓN ---
+    while (currentProjected1RM <= target + 0.1 && week <= 52) {
 
         let phase = 'Peak';
         let reps = targetReps;
@@ -69,22 +68,18 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
         let phaseLabel = 'Realización';
         let advice = '';
 
-        // --- BRANCH 1: HYPERTROPHY GOAL (>5 reps) ---
+        // --- RAMA 1: HIPERTROFIA (>5 reps) ---
         if (isHypertrophyGoal) {
             if (week <= weeksPhase1 && usePhases) {
-                // Phase 1: High Volume Accumulation
                 phase = 'Accumulation';
-                reps = targetReps + 2; // Work capacity
-                // 1RM table: 10 reps ~ 75%. We under-shoot for volume.
-                intensityPct = 1 / (1 + (reps + 2) / 30); // Leave 2 reps in reserve implicit
+                reps = targetReps + 2;
+                intensityPct = 1 / (1 + (reps + 2) / 30);
                 phaseColor = 'text-blue-400';
                 phaseLabel = 'Acumulación';
                 advice = 'Volumen alto. Descansos controlados (60-90s).';
             } else {
-                // Phase 2: Intensity/Specificity
                 phase = 'Realization';
                 reps = targetReps;
-                // Intensity matches the rep goal exactly based on Epley
                 intensityPct = 1 / (1 + reps / 30);
                 phaseColor = 'text-yellow-400';
                 phaseLabel = 'Intensificación';
@@ -92,37 +87,37 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
             }
         }
 
-        // --- BRANCH 2: STRENGTH GOAL (<=5 reps) ---
+        // --- RAMA 2: FUERZA (<=5 reps) ---
         else {
             if (week <= weeksPhase1 && usePhases) {
-                // Phase 1: Hypertrophy Base
+                // Fase 1: Base (Hipertrofia Funcional)
                 phase = 'Accumulation';
                 reps = 8;
-                intensityPct = 0.72; // ~72% (RPE 7-8 for 8 reps)
+                intensityPct = 0.72; // ~72% (RPE 7-8 para 8 reps)
                 phaseColor = 'text-blue-400';
                 phaseLabel = 'Base (Hipertrofia)';
                 advice = 'Construye músculo base. Descanso 90s.';
             } else if (week <= weeksPhase1 + weeksPhase2 && usePhases) {
-                // Phase 2: Strength Base (Linear Ramp 0.75 -> 0.85)
+                // Fase 2: Fuerza (RAMPA SUAVIZADA - FIX IMPORTANTE)
                 phase = 'Strength';
                 reps = 5;
 
-                // Fix: Calculate progress within Phase 2 for smoothing
+                // Calculamos el progreso dentro de la fase 2 para subir la intensidad poco a poco
                 const phase2Week = week - weeksPhase1;
                 const phase2Duration = Math.max(1, weeksPhase2);
                 const progress = Math.min(1, phase2Week / phase2Duration);
 
-                // Ramp from 0.75 to 0.85
+                // Rampa lineal de 0.75 a 0.85 (Evita saltos bruscos)
                 intensityPct = 0.75 + (0.10 * progress);
 
                 phaseColor = 'text-purple-400';
                 phaseLabel = 'Fuerza';
                 advice = 'Cargas sub-máximas. Descanso 2-3m.';
             } else {
-                // Phase 3: Peaking
+                // Fase 3: Peaking (Pico de Forma)
                 phase = 'Peak';
 
-                // Taper Reps
+                // Reducción de repeticiones (Tapering)
                 if (targetReps === 1) {
                     const weeksLeft = totalWeeks - week;
                     if (weeksLeft > 3) reps = 3;
@@ -132,20 +127,11 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
                     reps = targetReps;
                 }
 
-                // LINEAR INTENSITY RAMP TO 100% SPECIFICITY
-                // We want to hit exactly "TargetWeight" for "TargetReps" at the end.
-                // Weight = Projected1RM * Intensity.
-                // At End: Projected1RM = Target1RM. We need Weight = TargetWeight.
-                // Per Epley: TargetWeight = Target1RM / (1 + TargetReps/30).
-                // So FinalIntensity must be 1 / (1 + TargetReps/30).
-
                 const finalTargetIntensity = 1 / (1 + (targetReps === 1 ? 0 : targetReps / 30));
 
-                // Start of peaking intensity (e.g., 90% of specific intensity)
-                // Fix: Start Peaking where Phase 2 left off (approx 0.85-0.86) to avoid jumps
+                // Conectamos suavemente donde terminó la Fase 2 (aprox 0.86)
                 const startPeakingIntensity = 0.86;
 
-                // Ramp calculation
                 const weeksInPeak = Math.max(1, totalWeeks - (weeksPhase1 + weeksPhase2));
                 const currentPeakWeek = week - (weeksPhase1 + weeksPhase2);
                 const progress = Math.min(1, currentPeakWeek / weeksInPeak);
@@ -158,12 +144,11 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
             }
         }
 
-        // --- CALCULATE WEIGHT ---
+        // --- CÁLCULO DEL PESO ---
         let weight = currentProjected1RM * intensityPct;
 
-        // --- TEST WEEK OVERRIDE ---
-        // If this is the last projected week (or we passed target), force exact numbers
-        if (currentProjected1RM >= target1RM - 0.1) {
+        // --- SEMANA DE TEST (OVERRIDE) ---
+        if (currentProjected1RM >= target - 0.1) {
             weight = goal.targetWeight;
             reps = goal.targetReps;
             phaseLabel = '¡SEMANA DE TEST!';
@@ -171,7 +156,7 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
             advice = '¡Día de Récord! Hoy se levantan ' + goal.targetWeight + ' kg.';
         }
 
-        // Rounding
+        // Redondeo a pasos de 2.5kg
         weight = Math.round(weight / 2.5) * 2.5;
 
         sessions.push({
@@ -185,16 +170,16 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
             advice
         });
 
-        if (currentProjected1RM >= target1RM - 0.1) break;
+        if (currentProjected1RM >= target - 0.1) break;
 
-        currentProjected1RM += weeklyIncrease;
+        currentProjected1RM += increase;
         week++;
     }
 
     return sessions;
 }
 
-// --- SUB COMPONENTS ---
+// --- COMPONENTES AUXILIARES ---
 
 function WeekRow({ weekData, isCompleted, isManuallyCompleted, onToggle, id }) {
     const [expanded, setExpanded] = useState(false);
@@ -276,13 +261,13 @@ function WeekRow({ weekData, isCompleted, isManuallyCompleted, onToggle, id }) {
     );
 }
 
-// --- MAIN COMPONENT ---
+// --- COMPONENTE PRINCIPAL ---
 
 export default function GoalCard({ goal, history, onDelete, onUpdate }) {
     const [expanded, setExpanded] = useState(false);
     const [toggling, setToggling] = useState(null);
 
-    // --- PREDICTION LOGIC ---
+    // --- LÓGICA DE PREDICCIÓN (useMemo) ---
     const prediction = useMemo(() => {
         let starting1RM = 0;
         let trendSlope = 0;
@@ -292,9 +277,9 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
         let source = 'manual';
 
         const POTENTIAL = {
-            beginner: 1.25,      // Newbie gains
-            intermediate: 0.6,   // Steady
-            advanced: 0.25       // Hard
+            beginner: 1.25,      // Ganancias rápidas
+            intermediate: 0.6,   // Estables
+            advanced: 0.25       // Lentas
         };
 
         if (hasHistory) {
@@ -314,30 +299,33 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
             confidence = r2;
 
         } else {
-            if (!goal.currentOneRepMax) {
+            // SI NO HAY HISTORIAL: Usamos el dato manual (currentOneRepMax) que viene del Modal
+            // La validación "|| 0" evita el NaN si el dato falta.
+            starting1RM = Number(goal.currentOneRepMax) || 0;
+
+            if (starting1RM === 0) {
                 return { hasData: false, error: 'Faltan datos de fuerza inicial' };
             }
-            // FIX 1: Input Normalization - Use calculated 1RM if better than entered 1RM
-            const calculated1RM = goal.startWeight * (1 + goal.startReps / 30);
-            starting1RM = Math.max(goal.currentOneRepMax, calculated1RM);
 
             trendSlope = POTENTIAL[goal.experienceLevel || 'intermediate'] || 0.5;
             confidence = 0.5;
         }
 
-        // Goal Target Calculation (Exact)
+        // Cálculo Exacto de la Meta (1RM objetivo)
         const target1RM = goal.targetReps === 1
             ? goal.targetWeight
             : goal.targetWeight * (1 + goal.targetReps / 30);
 
         const limitDiff = target1RM - starting1RM;
 
+        // Si ya superaste la meta
         if (limitDiff <= 0) {
             return { hasData: true, achieved: true, confidence, starting1RM, target1RM };
         }
 
         const effectiveWeeklyIncrease = Math.max(0.1, trendSlope);
 
+        // Generamos el plan con la lógica corregida
         const plan = generatePeriodizedPlan(
             starting1RM,
             target1RM,
@@ -361,7 +349,7 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
 
     }, [goal, history]);
 
-    // Check completion helper
+    // Helper para verificar completado automático
     const checkCompletion = (weekData) => {
         if (!history || !history.sessions) return false;
         if (!history.sessions.length) return false;
@@ -369,7 +357,7 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
         return currentRealBest1RM >= weekData.projected1RM;
     };
 
-    // Filter plan for display
+    // Filtrar plan visible
     const visiblePlan = (prediction.plan || []).filter(weekData => {
         const isManually = (goal.completedWeeks || []).includes(weekData.week);
         const isAuto = checkCompletion(weekData);
@@ -378,7 +366,7 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
 
     const hiddenWeeksCount = (prediction.plan?.length || 0) - visiblePlan.length;
 
-    // Async toggle handler
+    // Manejador de toggle
     const handleToggleWeek = async (weekNum, completed) => {
         setToggling(weekNum);
         try {
@@ -391,7 +379,7 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
         }
     };
 
-    // ERROR STATE
+    // ESTADO DE ERROR (Si faltan datos)
     if (!prediction.hasData && prediction.error) {
         return (
             <div className="p-4 bg-[var(--bg-card)] rounded-2xl border border-red-500/20 text-center flex items-center justify-between">
