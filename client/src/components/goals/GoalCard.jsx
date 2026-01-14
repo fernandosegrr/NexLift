@@ -103,10 +103,18 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
                 phaseLabel = 'Base (Hipertrofia)';
                 advice = 'Construye músculo base. Descanso 90s.';
             } else if (week <= weeksPhase1 + weeksPhase2 && usePhases) {
-                // Phase 2: Strength Base
+                // Phase 2: Strength Base (Linear Ramp 0.75 -> 0.85)
                 phase = 'Strength';
                 reps = 5;
-                intensityPct = 0.82; // ~82% (Standard 5x5 intensity)
+
+                // Fix: Calculate progress within Phase 2 for smoothing
+                const phase2Week = week - weeksPhase1;
+                const phase2Duration = Math.max(1, weeksPhase2);
+                const progress = Math.min(1, phase2Week / phase2Duration);
+
+                // Ramp from 0.75 to 0.85
+                intensityPct = 0.75 + (0.10 * progress);
+
                 phaseColor = 'text-purple-400';
                 phaseLabel = 'Fuerza';
                 advice = 'Cargas sub-máximas. Descanso 2-3m.';
@@ -134,7 +142,8 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
                 const finalTargetIntensity = 1 / (1 + (targetReps === 1 ? 0 : targetReps / 30));
 
                 // Start of peaking intensity (e.g., 90% of specific intensity)
-                const startPeakingIntensity = finalTargetIntensity * 0.92;
+                // Fix: Start Peaking where Phase 2 left off (approx 0.85-0.86) to avoid jumps
+                const startPeakingIntensity = 0.86;
 
                 // Ramp calculation
                 const weeksInPeak = Math.max(1, totalWeeks - (weeksPhase1 + weeksPhase2));
@@ -199,8 +208,8 @@ function WeekRow({ weekData, isCompleted, isManuallyCompleted, onToggle, id }) {
 
     return (
         <div id={id} className={`rounded-xl border transition-all duration-300 ${isDone
-                ? 'bg-green-500/5 border-green-500/20'
-                : 'bg-[var(--bg-card)] border-[var(--border)] hover:border-[var(--primary)]/40'
+            ? 'bg-green-500/5 border-green-500/20'
+            : 'bg-[var(--bg-card)] border-[var(--border)] hover:border-[var(--primary)]/40'
             }`}>
             <div
                 onClick={() => setExpanded(!expanded)}
@@ -213,8 +222,8 @@ function WeekRow({ weekData, isCompleted, isManuallyCompleted, onToggle, id }) {
                             onToggle(!isManuallyCompleted);
                         }}
                         className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors border ${isDone
-                                ? 'bg-green-500 text-black border-green-500 hover:bg-green-400'
-                                : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] border-[var(--border)] hover:border-white'
+                            ? 'bg-green-500 text-black border-green-500 hover:bg-green-400'
+                            : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] border-[var(--border)] hover:border-white'
                             }`}
                     >
                         {isDone ? <CheckCircle2 size={16} /> : <span className="text-xs font-bold">W{weekData.week}</span>}
@@ -308,7 +317,10 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
             if (!goal.currentOneRepMax) {
                 return { hasData: false, error: 'Faltan datos de fuerza inicial' };
             }
-            starting1RM = goal.currentOneRepMax;
+            // FIX 1: Input Normalization - Use calculated 1RM if better than entered 1RM
+            const calculated1RM = goal.startWeight * (1 + goal.startReps / 30);
+            starting1RM = Math.max(goal.currentOneRepMax, calculated1RM);
+
             trendSlope = POTENTIAL[goal.experienceLevel || 'intermediate'] || 0.5;
             confidence = 0.5;
         }

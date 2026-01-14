@@ -1,23 +1,24 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión: 1.9.3 | Última actualización: 13 Enero 2026**
+> **Versión:** 1.9.4 | **Última actualización:** 13 Enero 2026
 
 ---
 
 ## 🎯 ¿Qué es NexLift?
 
-**NexLift** es una Progressive Web App (PWA) completa de tracking de gimnasio. Está diseñada mobile-first con tema OLED oscuro para ahorro de batería en móviles con pantalla AMOLED.
+**NexLift** es una Progressive Web App (PWA) completa de tracking de gimnasio. Está diseñada mobile-first con tema OLED oscuro para ahorro de batería en móviles con pantalla AMOLED. Se diferencia por su enfoque en la **periodización matemática** y el análisis de datos.
 
 ### Funcionalidades Principales
 
 | Característica | Descripción |
 |----------------|-------------|
-| 🏋️ **Registro de Entrenamientos** | Log de ejercicios con series, repeticiones, peso y notas |
+| 🏋️ **Registro de Entrenamientos** | Log de ejercicios con series, repeticiones, peso, RIR y notas |
+| 🎯 **Objetivos & Periodización** | **[NUEVO]** Generación automática de planes de fuerza basados en 1RM (Fórmula Epley) |
 | 📈 **Progreso Visual** | Gráficas de evolución, heatmaps de consistencia, PRs |
-| 📊 **Composición Corporal** | Peso, grasa, músculo, BMI, fotos de progreso |
-| 📋 **Gestión de Rutinas** | Crear, editar, importar rutinas de entrenamiento |
-| 📄 **Reportes PDF** | Exportar informes profesionales con estadísticas |
+| 📊 **Composición Corporal** | **[NUEVO]** Soporte para básculas inteligentes (Grasa, Agua, Músculo, Hueso, etc.) |
+| 📋 **Gestión de Rutinas** | Crear, editar, importar rutinas de entrenamiento (JSON/Plantillas) |
+| 📄 **Reportes PDF** | Exportar informes profesionales con estadísticas detalladas |
 | 👤 **Sistema Multi-Usuario** | Cuentas individuales con autenticación JWT |
 | 📱 **PWA Instalable** | Funciona offline, instalable como app nativa |
 
@@ -28,6 +29,7 @@ Frontend:  React 18 + Vite + Tailwind CSS 4 + Recharts
 Backend:   Express.js + Prisma ORM + PostgreSQL
 Fotos:     Catbox.moe (almacenamiento gratuito ilimitado)
 Deploy:    Vercel (serverless) | VPS Docker | Local
+Formatos:  PDF (jsPDF + html2canvas) | JSON (Backup/Restore)
 ```
 
 ---
@@ -40,557 +42,323 @@ Deploy:    Vercel (serverless) | VPS Docker | Local
 La página principal muestra un resumen del progreso del usuario:
 
 - **Header personalizado:** Saludo con nombre y hora del día
-- **Tarjetas de estadísticas rápidas:**
+- **KPIs Rápidos:**
   - Racha actual de entrenamientos (streak)
   - Total de workouts del mes
   - Personal Records del mes
   - Días restantes en el mes
 - **Heatmap de actividad:** Calendario visual estilo GitHub mostrando días de entrenamiento
-- **Última sesión:** Resumen del último workout con ejercicios y PRs logrados
-- **Acceso rápido:** Botón para ir al workout activo
+- **Última sesión:** Resumen del último workout con ejercicios y PRs logrados/medallas.
+- **Acceso rápido:** Botón para ir al workout activo o iniciar una rutina.
 
 **API usada:**
 - `GET /api/stats/overview` - Estadísticas generales
 - `GET /api/stats/consistency` - Datos del heatmap
 - `GET /api/workouts/history?limit=1` - Última sesión
 
----
-
 ### 2. Workout (`Workout.jsx`)
-**Ruta:** `/workout`
+**Ruta:** `/workout/:dayId`
 
-Página principal para registrar el entrenamiento del día:
+Página crítica para registrar el entrenamiento del día. Ha recibido actualizaciones masivas en v1.9.
 
-- **Carga la rutina activa:** Muestra los ejercicios del día correspondiente
-- **Cards de ejercicio:**
-  - Nombre del ejercicio con grupo muscular
-  - Input para peso (kg) y repeticiones
-  - Botón para agregar series adicionales
-  - Historial de la última sesión del mismo ejercicio
-  - Notas opcionales por ejercicio
-- **Detección automática de PRs:** Si se supera el mejor peso, muestra celebración con confeti
-- **Guardado por ejercicio:** Cada ejercicio se guarda individualmente
-- **Día de descanso:** Opción de registrar día de descanso
+- **Carga Inteligente:**
+  - Detecta ejercicios ya completados hoy (persistencia).
+  - Determina si es un día de descanso.
+- **Algoritmo de Sugerencia (Smart Loading):**
+  - Analiza el historial del ejercicio.
+  - Calcula el 1RM estimado de la mejor sesión histórica.
+  - Sugiere un peso para igualar ese esfuerzo en el rango de reps actual.
+- **Cards de Ejercicio (`SetCard.jsx`):**
+  - Componente optimizado (React.memo).
+  - Inputs para Peso (kg), Reps y **RIR** (Reps in Reserve).
+  - Feedback visual inmediato al completar (verde/check).
+  - Badge de "PR" animado si se rompe un récord.
+- **Acciones:**
+  - "Copiar peso a todo": Facilita el llenado rápido.
+  - "Ver historial": Modal con sesiones pasadas.
+  - Guardado por ejercicio (granularidad) y finalización global.
+  - Persistencia local: `useWorkoutPersistence` guarda en `localStorage` cada keystroke para evitar pérdida de datos si se cierra la app.
 
 **API usada:**
-- `GET /api/routines/active` - Rutina activa con ejercicios
-- `POST /api/workouts/log` - Registrar workout
-- `POST /api/workouts/log-rest` - Registrar día de descanso
-- `GET /api/workouts/exercise/:id/history` - Historial de ejercicio
-
----
+- `GET /api/routines` - Obtener estructura del día
+- `POST /api/workouts/log` - Registrar ejercicio
+- `GET /api/workouts/exercise/:id/history` - Historial específico para algoritmos
 
 ### 3. Routines (`Routines.jsx`)
 **Ruta:** `/routines`
 
 Gestión de rutinas de entrenamiento:
 
-- **Lista de rutinas:** Muestra todas las rutinas del usuario
-- **Indicador de rutina activa:** Badge visual en la rutina en uso
+- **Lista de rutinas:** Muestra todas las rutinas del usuario con sus días.
+- **Indicador de rutina activa:** Badge visual en la rutina en uso.
 - **Acciones por rutina:**
   - Ver detalle
   - Editar
   - Activar/Desactivar
   - Eliminar con confirmación
-- **Botón importar:** Permite importar rutinas desde archivo JSON
+- **Botón Importar:** Permite importar rutinas desde archivo JSON o Texto.
 
 **API usada:**
-- `GET /api/routines` - Listar rutinas
-- `PUT /api/routines/:id/activate` - Activar rutina
-- `DELETE /api/routines/:id` - Eliminar rutina
-
----
+- `GET /api/routines`
+- `PUT /api/routines/:id/activate`
+- `DELETE /api/routines/:id`
 
 ### 4. Routine Detail (`RoutineDetail.jsx`)
 **Ruta:** `/routines/:id`
 
-Vista detallada de una rutina específica:
-
-- **Información general:** Nombre, descripción, días de la semana
-- **Lista de días:** Cada día con sus ejercicios
-- **Por cada día:**
-  - Nombre del día (ej: "Lunes - Pecho y Tríceps")
-  - Indicador si es día de descanso
-  - Lista de ejercicios con:
-    - Nombre del ejercicio
-    - Series objetivo × Reps objetivo
-    - Grupo muscular
-    - Notas del ejercicio
-
----
+Vista de solo lectura de una rutina específica:
+- Desglose completo de días y ejercicios.
+- Muestra series objetivo, rangos de reps y notas.
 
 ### 5. Edit Routine (`EditRoutine.jsx`)
 **Ruta:** `/routines/:id/edit`
 
-Editor completo de rutinas:
+Editor completo y complejo de rutinas:
 
-- **Información básica:** Nombre y descripción editable
-- **Gestión de días:**
-  - Agregar/eliminar días
-  - Marcar día como descanso
-  - Reordenar días (drag & drop o flechas)
+- **Información básica:** Nombre y descripción editable.
+- **Gestión de días:** Agregar/eliminar días, marcar como descanso, reordenar (drag & drop implícito).
 - **Gestión de ejercicios:**
-  - Agregar ejercicios a cada día
-  - Editar nombre, series, reps, descanso, notas
-  - Seleccionar grupo muscular
-  - Reordenar ejercicios
-  - Eliminar ejercicios
-- **Renombrado inteligente de PRs:** Al cambiar nombre de ejercicio, actualiza PRs históricos
+  - Agregar ejercicios desde `exercises.js` o personalizados.
+  - Editar meta de series, reps, descanso, notas.
+  - Clasificación rápida de grupo muscular.
+- **Lógica de PRs:** Si se renombra un ejercicio, el backend actualiza inteligentemente los PRs históricos asociados.
 
-**API usada:**
-- `GET /api/routines/:id` - Obtener rutina
-- `PUT /api/routines/:id` - Guardar cambios
-
----
-
-### 5.1 Create Routine (`Import.jsx`)
+### 5.1 Create Routine / Import (`Import.jsx`)
 **Ruta:** `/routines/new`
 
-Página unificada para crear nuevas rutinas con 3 métodos:
-
-**Pestañas:**
-
-1. **Plantillas:**
-   - Selección de rutinas prediseñadas (PPL, Full Body, Arnold, etc.)
-   - Vista previa expandible de cada plantilla
-   - Información de días por semana
-   
-2. **Manual:**
-   - Crear rutina desde cero
-   - Agregar días con nombre personalizable
-   - Marcar días como descanso
-   - Agregar ejercicios vía:
-     - Búsqueda en base de datos (`exercises.js`)
-     - Creación de ejercicio personalizado (escribir nombre nuevo)
-   - Editar sets, reps y descanso por ejercicio
-   - Valores por defecto: 3 series, 10-12 reps, 90s descanso
-   
-3. **JSON:**
-   - Pegar JSON con estructura definida
-   - Muestra ejemplo de estructura esperada
-   - Normalización de datos (acepta `sets`/`targetSets`, `reps`/`targetReps`)
-
-**UI Mobile-First:**
-- Header sticky con backdrop blur
-- Modal de ejercicios fullscreen en móvil
-- Botones de acción fijos en la parte inferior
-
-**API usada:**
-- `POST /api/routines/import` - Crear rutina
-
----
+Página unificada para crear rutinas con 3 métodos:
+1.  **Plantillas:** Selección de rutinas probadas (PPL, Arnold, Full Body).
+2.  **Manual:** Constructor visual paso a paso.
+3.  **JSON:** Importación directa de texto estructurado.
 
 ### 6. Body Tracking (`BodyTracking.jsx`)
 **Ruta:** `/body`
 
-Seguimiento de composición corporal completo:
+Seguimiento de composición corporal completo (Actualizado v1.9.2):
 
-- **Tarjetas de estadísticas:**
-  - Peso actual con cambio vs 30 días
-  - BMI con categorización (bajo/normal/sobrepeso/obesidad)
-  - Grasa corporal %
-  - Masa muscular kg
-- **Formulario de registro:**
-  - Campos básicos: Peso, foto de progreso
-  - Campos avanzados (expandible):
-    - BMI, Grasa %, Músculo %, BMR
-    - Agua corporal, Grasa visceral
-    - Masa ósea, Proteína %
-  - Notas opcionales
-- **Gráficas con tabs:** Peso / Grasa / Músculo a lo largo del tiempo
-- **Tabla de historial:** Últimos 10 registros
-- **Galería de fotos:** Grid de fotos de progreso con modal ampliar
+- **Formulario Dinámico:**
+  - *Básico:* Peso, Foto.
+  - *Avanzado (Expandible):* Grasa %, Agua %, Músculo kg, Hueso, Visceral, Proteína, BMR, BMI.
+- **Galería de Fotos:**
+  - Integración con Catbox.moe.
+  - Grid de fotos ordenadas cronológicamente.
+  - Comparador visual (Modal).
+- **Gráficos:** Tabs para alternar entre Peso, Grasa Corporal y Masa Muscular a lo largo del tiempo.
 
 **API usada:**
-- `GET /api/body/logs?days=90` - Historial de registros
-- `GET /api/body/photos` - Fotos de progreso
-- `POST /api/body/log` - Nuevo registro (auto-upload a Catbox)
-
----
+- `GET /api/body/logs`
+- `POST /api/body/log`
+- `GET /api/body/photos`
 
 ### 7. Progress (`Progress.jsx`)
 **Ruta:** `/progress`
 
-Análisis detallado del progreso:
+Dashboard de análisis profundo. Se divide en pestañas:
 
-- **Selector de ejercicio:** Dropdown con búsqueda
-- **Gráfica de evolución:** Peso máximo por sesión a lo largo del tiempo
-- **Personal Records:**
-  - Lista de todos los PRs del usuario
-  - Cards con medalla (🥇🥈🥉) para top 3
-  - Fecha relativa (hace X días)
-  - Peso y reps del PR
-- **Heatmap de consistencia:** Calendario de entrenamientos del año
-- **Estadísticas de rutina actual:**
-  - Ejercicios completados vs totales
-  - Porcentaje de cumplimiento
-  - PRs logrados en esta rutina
+- **General:**
+  - KPIs de consistencia.
+  - Heatmap Anual interactivo.
+  - Gráfico de "Compliance" (Cumplimiento de meta semanal).
+- **Objetivos (Goals) [NUEVO]:**
+  - Muestra las tarjetas `GoalCard` activas.
+  - Visualización de la barra de progreso hacia la meta de fuerza.
+- **Músculos (Analítica):**
+  - Distribución de volumen por grupo muscular (Pie chart / Barras).
+- **PRs:**
+  - Lista de Récords Personales con medallas (🥇, 🥈, 🥉) según ranking histórico.
+  - Gráfico de evolución de 1RM estimado por ejercicio.
 
-**API usada:**
-- `GET /api/stats/prs` - Personal Records
-- `GET /api/stats/progress/:name` - Evolución de ejercicio específico
-- `GET /api/stats/consistency` - Datos del heatmap
-- `GET /api/stats/routine/:id` - Stats de rutina
-
----
+**Componente Clave: `GoalCard.jsx`**
+Este componente encapsula la lógica de periodización.
+- Muestra el 1RM actual vs Meta.
+- Despliega el plan de entrenamiento (Semanas, % Intensidad, Series/Reps).
+- Permite marcar semanas como completadas.
 
 ### 8. Export Report (`ExportReport.jsx`)
 **Ruta:** `/export`
 
-Generador de reportes PDF profesionales:
+Generador de reportes PDF de alta calidad:
 
-- **Selector de período:** 7, 14, 30, 60, 90 días
-- **Secciones del reporte:**
-  - Encabezado con logo y nombre de usuario
-  - Resumen ejecutivo (workouts, PRs, racha)
-  - Tabla de Personal Records
-  - Gráfica de peso corporal
-  - Tabla de composición corporal
-  - Fotos de progreso (si hay ≥2)
-  - Detalle de entrenamientos
-- **Exporta a PDF:** Usa jsPDF + html2canvas
-
-**API usada:**
-- `GET /api/workouts/history?days=X` - Historial de workouts
-- `GET /api/body/logs?days=X` - Historial corporal
-- `GET /api/stats/prs` - Personal Records
-
-**⚠️ Limitación jsPDF:**
-- jsPDF NO soporta emojis ni caracteres unicode especiales (Δ, ↑, ↓, 🏆)
-- Usar solo caracteres ASCII en el PDF (+, -, texto plano)
-- Los emojis se renderizan como símbolos rotos
-
----
+- **Motor:** `jsPDF` + `html2canvas`.
+- **Selector de rango:** 7, 30, 90 días.
+- **Contenido del Reporte:**
+  1.  Resumen Ejecutivo (Stats clave).
+  2.  Tabla de Récords (PRs).
+  3.  **[NUEVO]** Sección Diaria Detallada: Comparativa de volumen vs semana anterior.
+  4.  Gráficos de Composición Corporal.
+  5.  Galería de Fotos de Progreso.
+- **Notas Técnicas:** Sanitización de Emojis (jsPDF no soporta UTF-8 complejo, se reemplazan por iconos SVG o texto).
 
 ### 9. Profile (`Profile.jsx`)
 **Ruta:** `/profile`
 
-Gestión del perfil de usuario:
+Hub del usuario:
+- Avatar (click para subir/cambiar).
+- Resumen de antigüedad y stats "lifetime".
+- Navegación a Settings.
 
-- **Header con avatar:**
-  - Foto de perfil (click para ampliar)
-  - Botón para cambiar foto (upload a Catbox)
-  - Iniciales si no hay foto
-  - Indicador online
-- **Información personal:**
-  - Nombre completo
-  - Email
-  - Teléfono
-  - Fecha de nacimiento
-- **Estadísticas de cuenta:**
-  - Días como miembro
-  - Total de rutinas
-  - Total de PRs
-- **Tabs de configuración:**
-  - **Perfil:** Editar datos personales
-  - **Seguridad:** Cambiar contraseña
-  - **Protección:** Pregunta de seguridad para recuperación
-- **Logout button**
-
-**API usada:**
-- `GET /api/auth/me` - Perfil actual
-- `PUT /api/auth/profile` - Actualizar datos
-- `PUT /api/auth/password` - Cambiar contraseña
-- `PUT /api/auth/security-question` - Pregunta de seguridad
-- `POST /api/auth/avatar` - Subir avatar
-
----
-
-### 10. Login (`Login.jsx`)
-**Ruta:** `/login`
-
-Página de inicio de sesión:
-
-- Input de username o email
-- Input de contraseña con toggle mostrar/ocultar
-- Botón "Olvidé mi contraseña"
-- Link a registro
-- Manejo de errores
-
-**API usada:**
-- `POST /api/auth/login` - Iniciar sesión
-
----
-
-### 11. Register (`Register.jsx`)
-**Ruta:** `/register`
-
-Formulario de registro completo:
-
-- **Campos requeridos:**
-  - Nombre y apellidos
-  - Username
-  - Email
-  - Contraseña (min 8 chars)
-- **Campos opcionales:**
-  - Teléfono
-  - Fecha de nacimiento
-  - Pregunta de seguridad
-
-**API usada:**
-- `POST /api/auth/register` - Crear cuenta
-
----
-
-### 12. Forgot Password (`ForgotPassword.jsx`)
-**Ruta:** `/forgot-password`
-
-Recuperación de cuenta por pregunta de seguridad:
-
-- **Paso 1:** Ingresar username o email
-- **Paso 2:** Responder pregunta de seguridad
-- **Paso 3:** Establecer nueva contraseña
-- Flujo sin email (no requiere servidor de correo)
-
-**API usada:**
-- `POST /api/auth/recover/question` - Obtener pregunta
-- `POST /api/auth/recover/verify` - Verificar y cambiar password
-
----
-
-### 13. Import (`Import.jsx`)
-**Ruta:** `/import`
-
-Importador de rutinas desde JSON:
-
-- Textarea para pegar JSON
-- Validación de estructura
-- Preview antes de importar
-- Ejemplo de formato
-
-**API usada:**
-- `POST /api/routines/import` - Importar rutina
-
----
-
-### 14. Settings (`Settings.jsx`)
+### 10. Settings (`Settings.jsx`)
 **Ruta:** `/settings`
 
-Configuración general (legacy, la mayoría movido a Profile):
+Panel de control rediseñado (v1.9.3):
 
-- Unidades de peso (kg/lb)
-- Tema (siempre oscuro por ahora)
-- Notificaciones
-
----
-
-### 15. Edit Session (`EditSession.jsx`)
-**Ruta:** `/workouts/:id/edit`
-
-Editor de sesiones pasadas:
-
-- Cargar workout histórico
-- Modificar series/reps/peso por ejercicio
-- Guardar cambios
-
-**API usada:**
-- `GET /api/workouts/:id` - Obtener sesión
-- `PUT /api/workouts/:id` - Actualizar sesión
+- **Tabs:**
+  1.  **Perfil:** Editar nombre, email, bio.
+  2.  **Seguridad:** Cambio de contraseña, Pregunta de Seguridad (Recuperación).
+  3.  **Músculos:** Interfaz visual para clasificar ejercicios "Sin Grupo" en categorías (Pecho, Espalda, etc.).
+  4.  **Historial:** Tabla de todas las sesiones pasadas con opción de **Editar** (`EditSession.jsx`) o **Eliminar**.
+  5.  **Data:** Botón para **Exportar Backup JSON** completo.
 
 ---
 
-## 🧩 Componentes Reutilizables
+## 🧠 Lógica de Negocio Avanzada
 
-### Layout (`components/layout/Layout.jsx`)
-- Navbar inferior con 5 pestañas: Inicio, Rutinas, Cuerpo, Progreso, Perfil
-- Iconos de Lucide
-- Indicador de pestaña activa
-- Safe area para móviles con notch
+### Algoritmos de Fuerza
+NexLift utiliza matemáticas estándar de powerlifting:
 
-### Toast (`components/ui/Toast.jsx`)
-- Sistema de notificaciones global
-- Hook `useToast()` con métodos:
-  - `toast.success(message)`
-  - `toast.error(message)`
-  - `toast.info(message)`
-- Auto-dismiss después de 3 segundos
-- Posición: bottom-center (arriba del navbar)
+1.  **Fórmula de Epley (1RM):**
+    $$ 1RM = Peso \times (1 + \frac{Reps}{30}) $$
+    Se utiliza para normalizar comparaciones entre series de diferentes repeticiones.
 
-### Celebration (`components/ui/Celebration.jsx`)
-- Animación de confeti para PRs
-- Se activa cuando se logra un nuevo récord personal
-- Dura 2 segundos
+2.  **Generador de Periodización (Goals):**
+    Ubicación: `src/components/goals/GoalCard.jsx`
+    - **Fase Acumulación:** Alto volumen, intensidad media (~65-75% 1RM).
+    - **Fase Fuerza:** Rampa lineal de intensidad (0.75 → 0.85 1RM), bajando reps.
+    - **Fase Peaking:** Intensidad específica (0.86 → 1.0 1RM) para preparar el sistema nervioso.
+    - **Validación:** Si el usuario tiene un 1RM histórico real > input manual, el sistema usa el real.
 
-### ProtectedRoute (`components/ProtectedRoute.jsx`)
-- HOC que verifica autenticación
-- Redirige a `/login` si no hay sesión
-- Muestra loading mientras verifica
+3.  **Smart Loading (Workout):**
+    Calcula la "Mejor Serie Histórica" (mayor 1RM estimado) del ejercicio actual y proyecta ese esfuerzo a las repeticiones objetivo de hoy.
+    *Ejemplo: Si tu mejor fue 100kg x 5, y hoy te tocan 8 reps, te sugerirá ~90kg para mantener la misma intensidad relativa.*
 
 ---
 
-## 🔐 Sistema de Autenticación
+## 📊 Modelo de Datos (Prisma Schema Completo)
 
-### Flujo de Login
-```
-1. Usuario → Login con username/email + password
-2. Server → Verifica credenciales con bcrypt
-3. Server → Genera JWT (expira en 365 días)
-4. Client → Guarda token en localStorage (nexlift_token)
-5. Client → Guarda user en localStorage (nexlift_user)
-6. Client → AuthContext distribuye estado a toda la app
-```
-
-### Protección de Rutas
-```javascript
-// Todas las llamadas protegidas usan authFetch() desde api.js
-const authFetch = async (url, options = {}) => {
-    const token = localStorage.getItem('nexlift_token');
-    return fetch(url, {
-        ...options,
-        headers: {
-            ...options.headers,
-            'Authorization': `Bearer ${token}`
-        }
-    });
-};
-```
-
-### AuthContext (`contexts/AuthContext.jsx`)
-```javascript
-const { 
-    user,           // Datos del usuario actual
-    token,          // JWT token
-    loading,        // Estado de carga inicial
-    isAuthenticated,// Boolean si hay sesión
-    login,          // Función login(username, password)
-    register,       // Función register(userData)
-    logout,         // Función logout()
-    updateProfile,  // Función updateProfile(data)
-    refreshProfile  // Fuerza recarga del perfil
-} = useAuth();
-```
-
----
-
-## 📸 Sistema de Fotos (Catbox)
-
-Las fotos de progreso y avatares se almacenan en Catbox.moe (servicio gratuito):
-
-### Flujo de Upload
-```
-1. Usuario selecciona imagen
-2. Frontend comprime a max 1200px (fotos) o 400px (avatar)
-3. Frontend envía base64 al backend
-4. Backend detecta base64 y llama a Catbox API
-5. Catbox devuelve URL permanente (https://files.catbox.moe/abc.jpg)
-6. Backend guarda URL en DB (no el base64)
-7. Frontend recibe URL
-```
-
-### En el código
-```javascript
-// Detección automática en el servidor
-if (photo.startsWith('data:image') || photo.length > 500) {
-    // Es base64 → subir a Catbox
-    photoUrl = await uploadBase64ToCatbox(photo, 'jpg');
-} else {
-    // Ya es URL → usar directamente
-    photoUrl = photo;
-}
-```
-
----
-
-## 📊 Modelo de Datos
+La base de datos PostgreSQL está normalizada y optimizada para queries de series temporales.
 
 ```prisma
+// server/prisma/schema.prisma
+
+// ==================== USUARIO ====================
 model User {
-  id                  String     @id @default(uuid())
-  username            String     @unique
-  email               String     @unique
-  passwordHash        String
-  firstName           String
-  lastName            String
-  phone               String?
-  birthDate           DateTime?
-  avatarUrl           String?
-  securityQuestion    String?
-  securityAnswerHash  String?
-  isActive            Boolean    @default(true)
-  createdAt           DateTime   @default(now())
-  lastLogin           DateTime?
+  id            String    @id @default(cuid())
+  username      String    @unique
+  email         String    @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  phone         String?
+  birthDate     DateTime?
+  avatarUrl     String?   // URL de Catbox
+  
+  // Seguridad
+  securityQuestion   String?
+  securityAnswerHash String?
+  
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
   
   // Relaciones
-  routines            Routine[]
-  personalRecords     PersonalRecord[]
-  bodyLogs            BodyLog[]
-  workoutLogs         WorkoutLog[]
+  routines        Routine[]
+  bodyLogs        BodyLog[]
+  personalRecords PersonalRecord[]
+  goals           Goal[]
+  workoutLogs     WorkoutLog[] // (Opcional, logs sueltos)
 }
 
+// ==================== RUTINAS ====================
 model Routine {
-  id          String       @id @default(uuid())
-  userId      String?
+  id          String       @id @default(cuid())
   name        String
   description String?
   isActive    Boolean      @default(false)
-  createdAt   DateTime     @default(now())
+  userId      String?
+  user        User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
   days        RoutineDay[]
-  user        User?        @relation(...)
 }
 
 model RoutineDay {
-  id        String     @id @default(uuid())
-  routineId String
+  id        String     @id @default(cuid())
   dayName   String
   isRestDay Boolean    @default(false)
   order     Int        @default(0)
+  routineId String
+  routine   Routine    @relation(fields: [routineId], references: [id], onDelete: Cascade)
   exercises Exercise[]
-  routine   Routine    @relation(...)
 }
 
 model Exercise {
-  id          String       @id @default(uuid())
+  id           String       @id @default(cuid())
+  name         String
+  muscleGroup  String?      // 'Pecho', 'Espalda', 'Piernas', 'Bíceps', 'Tríceps', 'Hombros', 'Core'
+  targetSets   Int
+  targetReps   String       // "8-12"
+  restSeconds  Int?
+  note         String?
+  order        Int          @default(0)
   routineDayId String
-  name        String
-  targetSets  Int          @default(3)
-  targetReps  String       @default("8-12")
-  restSeconds Int?
-  muscleGroup String?
-  note        String?
-  order       Int          @default(0)
-  workoutLogs WorkoutLog[]
-  routineDay  RoutineDay   @relation(...)
+  routineDay   RoutineDay   @relation(fields: [routineDayId], references: [id], onDelete: Cascade)
+  workoutLogs  WorkoutLog[]
 }
 
+// ==================== WORKOUTS (Logs) ====================
 model WorkoutLog {
-  id         String     @id @default(uuid())
-  exerciseId String?
-  userId     String?
-  date       DateTime   @default(now())
-  duration   Int?
-  note       String?
-  isRestDay  Boolean    @default(false)
-  sets       SetLog[]
-  exercise   Exercise?  @relation(...)
-  user       User?      @relation(...)
+  id          String    @id @default(cuid())
+  date        DateTime  @default(now())
+  exerciseId  String
+  exercise    Exercise  @relation(fields: [exerciseId], references: [id])
+  sets        SetLog[]
+  notes       String?
 }
 
 model SetLog {
-  id           String     @id @default(uuid())
-  workoutLogId String
+  id           String     @id @default(cuid())
+  setNumber    Int
   weight       Float
   reps         Int
-  setNumber    Int
-  workoutLog   WorkoutLog @relation(...)
+  rpe          Int?       // (1-10) Esfuerzo Percibido / RIR invertido
+  completed    Boolean    @default(true)
+  workoutLogId String
+  workoutLog   WorkoutLog @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
+}
+
+// ==================== METAS & RECORDS ====================
+model Goal {
+  id               String    @id @default(cuid())
+  exerciseName     String
+  targetWeight     Float
+  targetReps       Int
+  currentOneRepMax Float?    // Snapshot para cálculos
+  experienceLevel  String?   // 'beginner', 'intermediate', 'advanced'
+  frequencyPerWeek Int?
+  completedWeeks   Int[]     // Control manual de progreso
+  achievedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PersonalRecord {
-  id           String   @id @default(uuid())
+  id           String   @id @default(cuid())
   exerciseName String
   weight       Float
   reps         Int
+  estimated1RM Float?   // Resultado Epley
   date         DateTime @default(now())
   userId       String?
-  user         User?    @relation(...)
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// ==================== BODY TRACKING ====================
 model BodyLog {
-  id          String   @id @default(uuid())
-  userId      String?
+  id          String   @id @default(cuid())
   date        DateTime @default(now())
   weight      Float?
   photoUrl    String?
   note        String?
+  
+  // Métricas Avanzadas
   bmi         Float?
   bodyFat     Float?
   muscleMass  Float?
@@ -599,304 +367,111 @@ model BodyLog {
   visceralFat Float?
   boneMass    Float?
   protein     Float?
-  user        User?    @relation(...)
+  
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 ```
 
 ---
 
-## 🎨 Sistema de Diseño
+## 🎨 Sistema de Diseño & UI
 
-### Variables CSS (`index.css`)
+### Variables Globales CSS (`index.css`)
 ```css
 :root {
-  --bg-dark: #0a0a0a;       /* Fondo OLED true black */
-  --bg-card: #141414;       /* Cards ligeramente más claras */
-  --primary: #8b5cf6;       /* Púrpura principal */
-  --primary-glow: rgba(139, 92, 246, 0.25);
-  --success: #22c55e;       /* Verde para éxito/PRs */
-  --warning: #eab308;       /* Amarillo para warnings */
-  --error: #ef4444;         /* Rojo para errores */
+  --bg-dark: #0a0a0a;       /* OLED Black puro */
+  --bg-card: #141414;       /* Cards ligeramente elevadas */
+  --primary: #8b5cf6;       /* Violeta Vivid */
+  --success: #22c55e;       /* Verde Éxito */
+  --warning: #eab308;       /* Amarillo Warning */
+  --error: #ef4444;         /* Rojo Error */
   --text-primary: #ffffff;
   --text-secondary: #a1a1aa;
   --border: #27272a;
 }
 ```
 
-### Patrones de UI
-- **Cards:** `bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)]`
-- **Gradientes:** `bg-gradient-to-br from-purple-500 to-pink-500`
-- **Inputs:** `bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl px-4 py-3`
-- **Buttons primarios:** `bg-[var(--primary)] hover:bg-purple-600 text-white rounded-xl`
-- **Animaciones:** `animate-fade-in`, `transition-all duration-300`
+### Código de Colores Muscular
+Definido en `MuscleIcon.jsx` y `Settings.jsx`.
+*   🔴 **Pecho:** Rojo/Azul (Configurable, default Blue)
+*   🟢 **Espalda:** Verde
+*   🟠 **Hombros:** Naranja
+*   🟣 **Bíceps:** Púrpura
+*   🩷 **Tríceps:** Rosa
+*   🔴 **Piernas:** Rojo
+*   🔵 **Core:** Cian
 
 ---
 
-## ⚠️ Gotchas y Consideraciones Importantes
+## ⚠️ Gotchas y Consideraciones Técnicas
 
-### 1. Token en localStorage
-```javascript
-// ⚠️ Todas las llamadas protegidas DEBEN usar authFetch() o api.xyz()
-// ❌ NO usar fetch() directamente para rutas protegidas
-const res = await api.getRoutines(); // ✅ Correcto
-const res = await fetch('/api/routines'); // ❌ Sin auth header
-```
+### 1. Manejo de Fechas
+PostgreSQL guarda en UTC. El frontend debe siempre castear a local para visualización y a `YYYY-MM-DD` (ISO) para comparaciones de strings.
+*   **Correcto:** `new Date(utcDate).toLocaleDateString()`
+*   **API:** Usa formato `sv` (Sweden/ISO) `date.toLocaleDateString('sv')` para enviar al backend.
 
-### 2. Dos Schemas Prisma
-```
-⚠️ server/prisma/schema.prisma  ← Desarrollo local (symlink a shared)
-⚠️ api/prisma/schema.prisma     ← Vercel (sincronizar manualmente)
-```
-Después de cambiar el schema, correr:
+### 2. Sincronización de Schema
+Existen dos copias de `schema.prisma`:
+1.  `server/prisma/schema.prisma` (Desarrollo Local)
+2.  `api/prisma/schema.prisma` (Producción Vercel)
+**Regla:** Cualquier cambio en el modelo debe aplicarse manualmente a ambos archivos.
+
+### 3. Imágenes
+No almacenamos binarios.
+1.  Frontend recibe archivo -> Convierte a Base64.
+2.  Backend recibe Base64 -> Sube a Catbox API -> Recibe URL.
+3.  DB guarda `https://files.catbox.moe/xyz.jpg`.
+
+---
+
+## 📝 Guía para Modificar Documentación
+
+Para mantener esta documentación al día:
+
+1.  **Integridad:** Este archivo es la fuente de verdad. Si el código cambia, actualiza esto primero.
+2.  **Detalle:** Mantén la descripción detallada de "Páginas y Componentes". No resumas excesivamente.
+3.  **Schema:** Copia y pega el schema real si hay migraciones.
+4.  **Changelog:** Registra cada cambio significativo abajo.
+
+---
+
+## 📋 Changelog Histórico
+
+### v1.9.4 (13 Ene 2026) - **Current**
+*   **CORE FIX:** Corrección en `GoalCard.jsx` para normalizar el input manual de 1RM con la fórmula de Epley, evitando "easy mode" accidental.
+*   **ALGORITMO:** Suavizado (Smoothing) de la curva de intensidad en la fase de fuerza (0.75-0.85) para conectar fluidamente con el Peaking.
+*   **DOCS:** Restauración masiva de documentación detallada en `context.md`.
+
+### v1.9.3 (12 Ene 2026)
+*   **UI:** Rediseño total de la página de Configuración (`Settings.jsx`). Tabs, animaciones y mejor UX.
+*   **FEATURE:** Nueva herramienta de "Clasificación Muscular" en Settings.
+*   **FEATURE:** Exportación de Backup completo (JSON) desde el cliente.
+*   **SECURITY:** Implementada pregunta de seguridad y recuperación de contraseña sin email.
+
+### v1.9.2 (11 Ene 2026)
+*   **PDF:** Mejora en el motor de reportes. Añadida sección de "Detalle Diario" con comparativas de volumen.
+*   **DATA:** Extensión del modelo `BodyLog` para soportar métricas de bioimpedancia (agua, hueso, etc.).
+
+### v1.9.0 (Ene 2026)
+*   **MAJOR:** Lanzamiento del sistema de **Goals** (Objetivos).
+*   **ALGO:** Implementación inicial del motor de periodización ondulatoria.
+
+### v1.8.x (Dic 2025)
+*   Migración a PostgreSQL + Prisma.
+*   Sistema Multi-usuario (Auth JWT).
+
+---
+
+## 🚀 Comandos
+
 ```bash
-cd api && npx prisma generate
+# Iniciar Backend
+cd server && npm run dev
+
+# Iniciar Frontend
+cd client && npm run dev
+
+# Prisma Studio (Ver datos)
+cd server && npx prisma studio
 ```
-
-### 3. Campo photoUrl vs photo
-- **Database:** `photoUrl` (campo real)
-- **API response:** A veces mapeado como `photo` para compatibilidad frontend
-- **Verificar:** `log.photo || log.photoUrl`
-
-### 4. userId Opcional
-Los campos `userId` son opcionales (`String?`) para mantener compatibilidad con datos creados antes de v1.8 (sin usuarios).
-
-### 5. Fechas y Timezone ⚠️ CRÍTICO
-```javascript
-// ❌ INCORRECTO - interpreta como UTC
-new Date("2026-01-05").toLocaleDateString() // Muestra fecha incorrecta!
-
-// ✅ CORRECTO - forzar parseo local
-function formatLocalDate(dateStr, options) {
-    const dateOnly = dateStr.split('T')[0];
-    const [year, month, day] = dateOnly.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString('es-ES', options);
-}
-```
-
----
-
-## 🚀 Desarrollo Local
-
-```bash
-# Terminal 1 - Backend
-cd server
-npm run dev  # Puerto 3001
-
-# Terminal 2 - Frontend
-cd client
-npm run dev  # Puerto 5173
-```
-
-### Variables de Entorno
-```env
-# server/.env
-DATABASE_URL="postgresql://user:pass@host:5432/nexlift"
-JWT_SECRET="tu_secreto_super_seguro_aqui"
-```
-
----
-
-## � Archivos de Datos Frontend
-
-### exercises.js
-**Ruta:** `client/src/data/exercises.js`
-
-Base de datos local de ejercicios predefinidos (~80 ejercicios).
-
-**Estructura:**
-```javascript
-export const MUSCLE_GROUPS = [
-  { id: 'chest', name: 'Pecho' },
-  { id: 'back', name: 'Espalda' },
-  { id: 'shoulders', name: 'Hombros' },
-  { id: 'legs', name: 'Piernas' },
-  { id: 'biceps', name: 'Bíceps' },
-  { id: 'triceps', name: 'Tríceps' },
-  { id: 'forearms', name: 'Antebrazos' },
-  { id: 'core', name: 'Core / Abdomen' }
-];
-
-export const EXERCISES = [
-  { id: 'bench-press', name: 'Press de Banca con Barra', muscleGroup: 'chest' },
-  // ... ~80 ejercicios más organizados por grupo
-];
-```
-
-**Funciones Helper:**
-| Función | Descripción |
-|---------|-------------|
-| `searchExercises(query)` | Busca ejercicios por nombre (min 2 chars) |
-| `getExercisesByMuscle(muscleGroup)` | Filtra ejercicios por grupo muscular |
-| `getMuscleGroup(id)` | Obtiene info de un grupo muscular |
-
----
-
-### routineTemplates.js
-**Ruta:** `client/src/data/routineTemplates.js`
-
-Plantillas de rutinas predefinidas para quick-start.
-
-**Plantillas incluidas:**
-| Template | Días | Descripción |
-|----------|------|-------------|
-| PPL (Push Pull Legs) | 6 | Split clásico x frecuencia 2 |
-| Upper/Lower | 4 | Tren superior/inferior alternado |
-| Full Body | 3 | Cuerpo completo cada sesión |
-| Bro Split | 5 | Un grupo muscular por día |
-
-**Estructura:**
-```javascript
-export const ROUTINE_TEMPLATES = [
-  {
-    id: 'ppl',
-    name: 'Push Pull Legs',
-    description: 'Split de 6 días...',
-    difficulty: 'intermediate', // beginner | intermediate | advanced
-    daysPerWeek: 6,
-    days: [
-      {
-        dayName: 'Push (Pecho/Hombros/Tríceps)',
-        isRestDay: false,
-        exercises: [
-          { exerciseId: 'bench-press', order: 0 },
-          // ...
-        ]
-      }
-    ]
-  }
-];
-```
-
----
-
-### MuscleIcon.jsx
-**Ruta:** `client/src/components/ui/MuscleIcon.jsx`
-
-Componente para mostrar emojis/iconos de grupos musculares.
-
-```jsx
-import MuscleIcon, { MUSCLE_LIST, getMuscleColor } from './ui/MuscleIcon';
-
-// Uso básico
-<MuscleIcon muscle="chest" size={24} />
-
-// Obtener color del grupo
-const color = getMuscleColor('chest'); // '#ef4444'
-
-// Lista de todos los grupos
-MUSCLE_LIST.forEach(m => console.log(m.id, m.name, m.color, m.emoji));
-```
-
----
-
-## 📋 Changelog
-### v1.9.2 (11 Ene 2026) - Reportes Avanzados & Fixes
-- **Refinamiento de Algoritmo de Progreso**:
-  - Implementada fórmula Epley (1RM) para calcular "mejor set" real, reemplazando comparación simple de peso máximo.
-  - Nueva métrica **"Fuerza"** en reportes PDF para mostrar mejoras reales de rendimiento.
-- **Reportes PDF (`ExportReport.jsx`)**:
-  - **Nueva sección diaria**: Comparación detallada de volumen vs mismo día semana anterior, PRs del día y desglose por ejercicio.
-  - **Tabla de Progreso expandida**: Muestra 6 columnas clave (Inicio, Actual, Δ Peso, Δ Reps, Δ Fuerza).
-  - **Optimización técnica**: Tablas con ancho dinámico (sin `cellWidth` fijos) y compatibilidad ASCII (fix caracteres unicode/emojis).
-- **UI & UX**:
-  - **Preview Simplificado**: La vista previa en app muestra solo KPIs esenciales (Volumen vs Anterior), dejando el detalle denso para el PDF.
-  - **Feedback Inmediato**: `SetCard` (`Workout.jsx`) ahora actualiza visualmente los checkmarks de PR al instante (fix `React.memo`).
-  - Badge "Posible PR" reactivo a cambios en historial.
-
-
-### v1.9.3 (13 Ene 2026) - Advanced Periodization & Goals V2
-- **Motor de Periodización V2**:
-  - Reescritura a matemáticas puras (Lineal vs RPE) para progresión ultra-suave.
-  - Soporte de "Test Week" explícita al final (100% target weight).
-  - Lógica híbrida: Rutas diferenciadas para Fuerza (1-5 reps) e Hipertrofia (>5 reps).
-  - "Tapering" lineal en la fase de Peaking.
-- **Goals System 2.0**:
-  - Wizard de creación mejorado con validación de inputs (1-1000kg).
-  - Predicción manual: Permitir crear planes sin historial previo usando 1RM estimado y experiencia.
-  - Gestión de Semanas: Toggle manual de completado y filtro para ocultar semanas pasadas.
-- **Infraestructura**:
-  - Sincronización total de API/Serverless (Vercel) con servidor local.
-
-### v1.9.2 (12 Ene 2026) - PDF Export & Fixes
-- **PDF Report V2**:
-  - Tablas dinámicas con ancho automático.
-  - Eliminación de emojis/unicode para compatibilidad ASCII.
-  - Columnas expandidas: Δ Peso, Δ Reps, Δ Fuerza.
-- **UX**:
-  - SetCard memoization fix para feedback instantáneo.
-  - Preview de reportes simplificado en UI.
-
-### v1.9.1 (11 Ene 2026) - UX Improvements
-- **Dashboard**: Saludo personalizado con nombre del usuario ("Bienvenido de nuevo, {nombre}")
-- **Cálculo Epley mejorado**: Peso sugerido ahora usa reps objetivo de la rutina
-  - Parsea el rango (ej: "6-10" → usa 6) en lugar de hardcodear 10 reps
-- **Workout UI rediseñada** (`Workout.jsx`):
-  - Layout simplificado: header y botón en flujo normal (no fijos)
-  - SetCard optimizado con `React.memo` y comparación personalizada
-  - Validación de inputs para prevenir valores negativos
-  - Eliminado `window.confirm` para mejor UX
-  - Etiquetas verticales "SET 1", "SET 2" para ahorrar espacio
-  - RIR selector estilo segmentado
-  - Badge de "Posible PR" cuando superas tu mejor marca
-  - Historial modal con diseño mejorado
-
-### v1.9.0 (10 Ene 2026) - Routine Creation Revamp
-- Página unificada para crear rutinas (`Import.jsx`)
-  - 3 tabs: Plantillas, Manual, JSON
-  - Biblioteca de ~80 ejercicios predefinidos
-  - Crear ejercicios personalizados
-  - 4 plantillas de rutinas (PPL, Upper/Lower, Full Body, Bro Split)
-- Modal fullscreen mobile-first para selección de ejercicios
-- UI optimizada con botones de acción flotantes
-- Archivos de datos: `exercises.js`, `routineTemplates.js`
-
-### v1.8.0 (10 Ene 2026) - Multi-User Auth
-- Sistema completo de autenticación JWT
-- Páginas: Login, Register, Profile, ForgotPassword
-- Integración Catbox para fotos (reemplaza base64)
-- Arquitectura multi-tenant con userId en todas las tablas
-- Script de migración de fotos existentes
-
-### v1.7.x - Mejoras UI
-- Body composition tracking completo
-- Heatmaps de consistencia
-- Mejoras en gráficas de progreso
-- Export PDF mejorado
-
-### v1.6.x - Rutinas
-- Importación JSON de rutinas
-- Editor de rutinas mejorado
-- Renombrado inteligente de PRs
-
-### v1.5.x - Foundation
-
----
-
-## 🎨 Principios de Diseño y Preferencias
-
-> **Esta sección documenta las preferencias explícitas del usuario y reglas de diseño aprendidas.**
-
-### 1. Reportes y PDF
-- **Filosofía**: "Data-rich". El PDF debe estar cargado de información valiosa, bien estructurada y útil para análisis estadístico.
-- **Contenido Diario**:
-  - Comparar volumen del día vs el mismo día de la semana anterior.
-  - No mostrar datos vacíos o irrelevantes.
-- **Constraints Técnicos (jsPDF)**:
-  - **NO EMOJIS**: jsPDF no los renderiza (se ven como símbolos rotos).
-  - **NO UNICODE**: Caracteres como Δ, ↑, ↓ fallan. Usar ASCII (+, -, ^, v) o texto plano.
-  - **Tablas**: No usar `cellWidth` fijos que estrechen columnas innecesariamente; dejar que `autoTable` use el ancho disponible.
-
-### 2. UI y Previsualizaciones
-- **Filosofía**: "Simple y Directo". A diferencia del PDF, la UI debe mostrar solo lo esencial.
-- **Previews**: Evitar saturación. Si hay una comparación compleja, mostrar solo el dato "headline" (ej: cambio de volumen %).
-- **Estética**: Tema OLED oscuro (negro puro #000000 o muy oscuro) siempre.
-
-### 3. Lógica de Negocio
-- **Cálculo de Fuerza (1RM)**: Usar fórmula Epley: `weight * (1 + reps/30)`. No usar solo peso máximo.
-- **Checkmarks**: En `Workout.jsx`, el check debe reaccionar inmediatamente a cambios en `completed` y `isPR`.
-- **Ordenamiento**: Cronológico inverso para historiales.
-
-- Core workout logging
-- Personal Records tracking
-- Dashboard inicial
