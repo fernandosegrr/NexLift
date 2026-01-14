@@ -23,46 +23,76 @@ function linearRegression(dataPoints) {
     return { slope, r2 };
 }
 
-// --- MOTOR DE PERIODIZACIÓN (Lógica Matemática Corregida) ---
+// --- MOTOR DE PERIODIZACIÓN MEJORADO ---
 
 function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetReps, frequency = 2) {
     const sessions = [];
 
+    // ✅ MEJORA 1: Incrementos de peso en pasos de 5kg (equipamiento del gym)
+    const WEIGHT_INCREMENT = 5; // Era 2.5kg, ahora 5kg
+
     // Forzamos conversión a número para evitar errores y NaN
     const start = Number(current1RM);
     const target = Number(target1RM);
-    const increase = Number(weeklyIncrease);
+    let increase = Number(weeklyIncrease);
 
     const gap = target - start;
 
     // Validación de seguridad estricta
     if (gap <= 0 || increase <= 0 || isNaN(gap) || isNaN(increase)) return [];
 
+    // ✅ MEJORA 2: Ajuste automático de progresión si es demasiado agresiva
+    // Para press de banca intermedio, máximo realista es ~1kg/semana
+    const MAX_REALISTIC_INCREASE = 1.0;
+    if (increase > MAX_REALISTIC_INCREASE) {
+        console.warn(`⚠️ Progresión de ${increase}kg/sem es muy agresiva. Ajustando a ${MAX_REALISTIC_INCREASE}kg/sem para sostenibilidad.`);
+        increase = MAX_REALISTIC_INCREASE;
+    }
+
     // Calcular semanas totales necesarias
     let totalWeeks = Math.ceil(gap / increase);
-    
+
+    // ✅ MEJORA 3: Mínimo de semanas para permitir adaptación neuromuscular
+    const MIN_WEEKS_FOR_PHASES = 12;
+    if (totalWeeks < MIN_WEEKS_FOR_PHASES) {
+        console.info(`📊 Plan extendido de ${totalWeeks} a ${MIN_WEEKS_FOR_PHASES} semanas para progresión sostenible.`);
+        totalWeeks = MIN_WEEKS_FOR_PHASES;
+        // Recalcular el incremento semanal ajustado
+        increase = gap / totalWeeks;
+    }
+
     // Safety check: Si el cálculo da semanas infinitas o absurdas, cortamos
     if (totalWeeks > 100) totalWeeks = 100;
 
-    // Usar fases solo si el plan es largo (> 8 semanas)
+    // Usar fases si el plan es >= 8 semanas
     const usePhases = totalWeeks >= 8;
 
     // --- SELECCIÓN DE ESTRATEGIA ---
     const isHypertrophyGoal = targetReps > 5;
 
-    let weeksPhase1 = 0; // Acumulación
-    let weeksPhase2 = 0; // Transición/Fuerza
+    let weeksPhase1 = 0; // Acumulación/Base
+    let weeksPhase2 = 0; // Fuerza/Intensificación
+    let weeksPhase3 = 0; // Peaking/Realización
 
     if (usePhases) {
-        weeksPhase1 = Math.floor(totalWeeks * (isHypertrophyGoal ? 0.5 : 0.33));
-        weeksPhase2 = Math.floor(totalWeeks * (isHypertrophyGoal ? 0.5 : 0.33));
+        if (isHypertrophyGoal) {
+            // Para hipertrofia: más tiempo en volumen
+            weeksPhase1 = Math.floor(totalWeeks * 0.5);
+            weeksPhase2 = Math.floor(totalWeeks * 0.3);
+            weeksPhase3 = totalWeeks - weeksPhase1 - weeksPhase2;
+        } else {
+            // ✅ MEJORA 4: Para fuerza: distribución equilibrada (35/35/30)
+            weeksPhase1 = Math.floor(totalWeeks * 0.35);
+            weeksPhase2 = Math.floor(totalWeeks * 0.35);
+            weeksPhase3 = totalWeeks - weeksPhase1 - weeksPhase2;
+        }
     }
 
     let currentProjected1RM = start;
     let week = 1;
 
     // --- BUCLE DE GENERACIÓN ---
-    while (currentProjected1RM <= target + 0.1 && week <= 52) {
+    while (currentProjected1RM <= target + 0.1 && week <= totalWeeks + 1) {
 
         let phase = 'Peak';
         let reps = targetReps;
@@ -80,13 +110,20 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
                 phaseColor = 'text-blue-400';
                 phaseLabel = 'Acumulación';
                 advice = 'Volumen alto. Descansos controlados (60-90s).';
+            } else if (week <= weeksPhase1 + weeksPhase2 && usePhases) {
+                phase = 'Intensification';
+                reps = targetReps;
+                intensityPct = 1 / (1 + reps / 30);
+                phaseColor = 'text-purple-400';
+                phaseLabel = 'Intensificación';
+                advice = 'Aumentando intensidad, volumen moderado.';
             } else {
                 phase = 'Realization';
                 reps = targetReps;
                 intensityPct = 1 / (1 + reps / 30);
-                phaseColor = 'text-yellow-400';
-                phaseLabel = 'Intensificación';
-                advice = 'Aumentando carga hacia la meta.';
+                phaseColor = 'text-green-400';
+                phaseLabel = 'Realización';
+                advice = 'Consolidando tu meta de repeticiones.';
             }
         }
 
@@ -110,8 +147,8 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
                 const phase2Duration = Math.max(1, weeksPhase2);
                 const progress = Math.min(1, phase2Week / phase2Duration);
 
-                // Rampa lineal de 0.75 a 0.85
-                intensityPct = 0.75 + (0.10 * progress);
+                // ✅ MEJORA 5: Rampa más gradual de 0.72 a 0.85 (antes 0.75-0.85)
+                intensityPct = 0.72 + (0.13 * progress);
 
                 phaseColor = 'text-purple-400';
                 phaseLabel = 'Fuerza';
@@ -120,22 +157,22 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
                 // Fase 3: Peaking (Pico de Forma)
                 phase = 'Peak';
 
-                // Tapering
+                // Tapering progresivo
                 if (targetReps === 1) {
                     const weeksLeft = totalWeeks - week;
-                    if (weeksLeft > 3) reps = 3;
-                    else if (weeksLeft > 1) reps = 2;
+                    if (weeksLeft > 4) reps = 3;
+                    else if (weeksLeft > 2) reps = 2;
                     else reps = 1;
                 } else {
                     reps = targetReps;
                 }
 
                 const finalTargetIntensity = 1 / (1 + (targetReps === 1 ? 0 : targetReps / 30));
-                
-                // Conectamos suavemente donde terminó la Fase 2 (aprox 0.86)
-                const startPeakingIntensity = 0.86;
 
-                const weeksInPeak = Math.max(1, totalWeeks - (weeksPhase1 + weeksPhase2));
+                // Conectamos suavemente desde donde terminó la Fase 2
+                const startPeakingIntensity = 0.85;
+
+                const weeksInPeak = Math.max(1, weeksPhase3);
                 const currentPeakWeek = week - (weeksPhase1 + weeksPhase2);
                 const progress = Math.min(1, currentPeakWeek / weeksInPeak);
 
@@ -155,15 +192,24 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
             // El peso final debe ser la meta exacta
             weight = target / (1 + (targetReps === 1 ? 0 : targetReps/30));
             if(targetReps === 1) weight = target;
-            
+
             reps = targetReps;
             phaseLabel = '¡SEMANA DE TEST!';
             phaseColor = 'text-yellow-400 font-black animate-pulse';
             advice = '¡Día de Récord! Hoy se levantan ' + target + ' kg.';
         }
 
-        // Redondeo a pasos de 2.5kg
-        weight = Math.round(weight / 2.5) * 2.5;
+        // ✅ MEJORA 6: Redondeo a pasos de 5kg (equipamiento del gym)
+        weight = Math.round(weight / WEIGHT_INCREMENT) * WEIGHT_INCREMENT;
+
+        // ✅ MEJORA 7: Evitar que el peso baje entre semanas (progresión monotónica)
+        if (sessions.length > 0) {
+            const prevWeight = sessions[sessions.length - 1].weight;
+            // Solo permitir peso igual o mayor, excepto en tapering intencional
+            if (weight < prevWeight && phase !== 'Peak') {
+                weight = prevWeight;
+            }
+        }
 
         sessions.push({
             week,
@@ -309,7 +355,6 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
 
         } else {
             // SI NO HAY HISTORIAL: Usamos el dato manual (currentOneRepMax)
-            // La validación "Number() || 0" evita el NaN si el dato falta.
             starting1RM = Number(goal.currentOneRepMax) || 0;
 
             if (starting1RM === 0) {
@@ -321,10 +366,9 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
         }
 
         // Cálculo Seguro de la Meta (1RM objetivo)
-        // Usamos Number() por seguridad
         const targetWeight = Number(goal.targetWeight);
         const targetReps = Number(goal.targetReps);
-        
+
         const target1RM = targetReps === 1
             ? targetWeight
             : targetWeight * (1 + targetReps / 30);
