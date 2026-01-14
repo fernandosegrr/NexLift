@@ -5,7 +5,7 @@
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.8.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.9.3-blue?style=flat-square)
 
 ---
 
@@ -198,6 +198,15 @@ npm run dev
 ---
 
 ## 📜 Changelog
+
+### v1.9.3 (13 Ene 2026) - Advanced Periodization
+- **Goals V2**: Algoritmo matemático puro (Fuerza/Hipertrofia), Test week, Validación.
+- **Vercel Sync**: Deploy serverless totalmente funcional.
+
+### v1.9.0 - v1.9.2 (Ene 2026)
+- **PDF Export V2**: Tablas dinámicas y datos ASCII.
+- **Routine Wizard**: Creador de rutinas unificado.
+- **UX**: Mejoras en dashboard y workout logs.
 
 ### v1.8.0 - Multi-User Auth System (9 Ene 2026)
 **El cambio más grande en la historia del proyecto**

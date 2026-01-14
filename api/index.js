@@ -1187,6 +1187,96 @@ export default async function handler(req, res) {
             return res.json({ routineId: routine.id, routineName: routine.name, totalSessions, totalVolume: Math.round(totalVolume), exerciseCount });
         }
 
+        // ==========================================
+        // GOALS
+        // ==========================================
+
+        // GET /api/goals
+        if (path === '/goals' && method === 'GET') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const goals = await prisma.goal.findMany({
+                where: { userId },
+                orderBy: { createdAt: 'desc' }
+            });
+            return res.json(goals);
+        }
+
+        // POST /api/goals
+        if (path === '/goals' && method === 'POST') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const {
+                exerciseName, muscleGroup, targetWeight, targetReps,
+                currentOneRepMax, currentEightRepMax, experienceLevel, frequencyPerWeek
+            } = body;
+
+            if (!exerciseName || !targetWeight || !targetReps) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
+
+            const goal = await prisma.goal.create({
+                data: {
+                    userId,
+                    exerciseName,
+                    muscleGroup: muscleGroup || null,
+                    targetWeight: parseFloat(targetWeight),
+                    targetReps: parseInt(targetReps),
+                    currentOneRepMax: currentOneRepMax ? parseFloat(currentOneRepMax) : null,
+                    currentEightRepMax: currentEightRepMax ? parseFloat(currentEightRepMax) : null,
+                    experienceLevel: experienceLevel || null,
+                    frequencyPerWeek: frequencyPerWeek ? parseInt(frequencyPerWeek) : null
+                }
+            });
+            return res.status(201).json(goal);
+        }
+
+        // DELETE /api/goals/:id
+        const goalDeleteMatch = path.match(/^\/goals\/([^/]+)$/);
+        if (goalDeleteMatch && method === 'DELETE') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const goal = await prisma.goal.findFirst({
+                where: { id: goalDeleteMatch[1], userId }
+            });
+            if (!goal) return res.status(404).json({ error: 'Goal not found' });
+
+            await prisma.goal.delete({ where: { id: goalDeleteMatch[1] } });
+            return res.json({ message: 'Goal deleted' });
+        }
+
+        // PUT /api/goals/:id/weeks - Toggle completed week
+        const goalWeeksMatch = path.match(/^\/goals\/([^/]+)\/weeks$/);
+        if (goalWeeksMatch && method === 'PUT') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const goalId = goalWeeksMatch[1];
+            const { weekNumber, completed } = body;
+
+            const goal = await prisma.goal.findFirst({
+                where: { id: goalId, userId }
+            });
+
+            if (!goal) return res.status(404).json({ error: 'Goal not found' });
+
+            let updatedWeeks = goal.completedWeeks || [];
+            if (completed) {
+                if (!updatedWeeks.includes(weekNumber)) updatedWeeks.push(weekNumber);
+            } else {
+                updatedWeeks = updatedWeeks.filter(w => w !== weekNumber);
+            }
+
+            const updatedGoal = await prisma.goal.update({
+                where: { id: goalId },
+                data: { completedWeeks: updatedWeeks }
+            });
+            return res.json(updatedGoal);
+        }
+
         // GET /api/health
         if (path === '/health' && method === 'GET') {
             return res.json({ status: 'ok', timestamp: new Date().toISOString() });

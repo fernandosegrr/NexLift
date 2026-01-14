@@ -1494,6 +1494,110 @@ app.get('/api/body/latest', authMiddleware, async (req, res) => {
 });
 
 // ============================================
+// GOALS
+// ============================================
+
+// GET /api/goals - Get all goals
+app.get('/api/goals', authMiddleware, async (req, res) => {
+    try {
+        const goals = await prisma.goal.findMany({
+            where: { userId: req.userId },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(goals);
+    } catch (error) {
+        console.error('Error fetching goals:', error);
+        res.status(500).json({ error: 'Failed to fetch goals' });
+    }
+});
+
+// POST /api/goals - Create goal
+app.post('/api/goals', authMiddleware, async (req, res) => {
+    try {
+        const {
+            exerciseName,
+            muscleGroup,
+            targetWeight,
+            targetReps,
+            // Manual data for fallback predictions
+            currentOneRepMax,
+            currentEightRepMax,
+            experienceLevel,
+            frequencyPerWeek
+        } = req.body;
+
+        if (!exerciseName || !targetWeight || !targetReps) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        const goal = await prisma.goal.create({
+            data: {
+                userId: req.userId,
+                exerciseName,
+                muscleGroup: muscleGroup || null,
+                targetWeight: parseFloat(targetWeight),
+                targetReps: parseInt(targetReps),
+                currentOneRepMax: currentOneRepMax ? parseFloat(currentOneRepMax) : null,
+                currentEightRepMax: currentEightRepMax ? parseFloat(currentEightRepMax) : null,
+                experienceLevel: experienceLevel || null,
+                frequencyPerWeek: frequencyPerWeek ? parseInt(frequencyPerWeek) : null
+            }
+        });
+        res.status(201).json(goal);
+    } catch (error) {
+        console.error('Error creating goal:', error);
+        res.status(500).json({ error: 'Failed to create goal' });
+    }
+});
+
+// PUT /api/goals/:id/weeks - Toggle completed week
+app.put('/api/goals/:id/weeks', authMiddleware, async (req, res) => {
+    try {
+        const { weekNumber, completed } = req.body; // completed: boolean
+        const goal = await prisma.goal.findFirst({
+            where: { id: req.params.id, userId: req.userId }
+        });
+
+        if (!goal) return res.status(404).json({ error: 'Goal not found' });
+
+        let newCompletedWeeks = goal.completedWeeks || [];
+        if (completed) {
+            if (!newCompletedWeeks.includes(weekNumber)) {
+                newCompletedWeeks.push(weekNumber);
+            }
+        } else {
+            newCompletedWeeks = newCompletedWeeks.filter(w => w !== weekNumber);
+        }
+
+        const updated = await prisma.goal.update({
+            where: { id: req.params.id },
+            data: { completedWeeks: newCompletedWeeks }
+        });
+
+        res.json(updated);
+    } catch (error) {
+        console.error('Error updating goal weeks:', error);
+        res.status(500).json({ error: 'Failed to update goal' });
+    }
+});
+
+// DELETE /api/goals/:id - Delete goal
+app.delete('/api/goals/:id', authMiddleware, async (req, res) => {
+    try {
+        const goal = await prisma.goal.findFirst({
+            where: { id: req.params.id, userId: req.userId }
+        });
+        if (!goal) return res.status(404).json({ error: 'Goal not found' });
+
+        await prisma.goal.delete({ where: { id: req.params.id } });
+        res.json({ message: 'Goal deleted' });
+    } catch (error) {
+        console.error('Error deleting goal:', error);
+        res.status(500).json({ error: 'Failed to delete goal' });
+    }
+});
+
+// ============================================
 // Health Check
 // ============================================
 app.get('/api/health', (req, res) => {

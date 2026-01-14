@@ -326,5 +326,43 @@ export const api = {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to update security question');
         return data;
+    },
+
+    // ==========================================
+    // GOALS
+    // ==========================================
+
+    async getGoals() {
+        const res = await authFetch(`${API_URL}/goals`);
+        if (!res.ok) throw new Error('Failed to fetch goals');
+        return res.json();
+    },
+
+    async createGoal(goalData) {
+        const res = await authFetch(`${API_URL}/goals`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(goalData),
+        });
+        if (!res.ok) throw new Error('Failed to create goal');
+        return res.json();
+    },
+
+    async deleteGoal(goalId) {
+        const res = await authFetch(`${API_URL}/goals/${goalId}`, {
+            method: 'DELETE',
+        });
+        if (!res.ok) throw new Error('Failed to delete goal');
+        return res.json();
+    },
+
+    async updateGoalWeek(goalId, weekNumber, completed) {
+        const res = await authFetch(`${API_URL}/goals/${goalId}/weeks`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ weekNumber, completed }),
+        });
+        if (!res.ok) throw new Error('Failed to update goal week');
+        return res.json();
     }
 };

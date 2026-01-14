@@ -7,6 +7,7 @@ import {
 import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
+import { useAuth } from '../context/AuthContext';
 
 // ==========================================
 // CONSTANTS & CONFIG
@@ -161,7 +162,7 @@ class PDFBuilder {
         this.y += height + 10;
     }
 
-    renderHeader(logoBase64, periodLabel) {
+    renderHeader(logoBase64, periodLabel, userName) {
         for (let i = 0; i < 40; i++) {
             const ratio = i / 40;
             const r = Math.round(COLORS.purple[0] + (COLORS.purpleDark[0] - COLORS.purple[0]) * ratio);
@@ -182,7 +183,8 @@ class PDFBuilder {
 
         this.doc.setFontSize(12);
         this.doc.setFont('helvetica', 'normal');
-        this.doc.text(`Reporte de Progreso • ${periodLabel}`, logoBase64 ? this.margin + 34 : this.margin, 29);
+        const subtitle = userName ? `Reporte de ${userName} • ${periodLabel}` : `Reporte de Progreso • ${periodLabel}`;
+        this.doc.text(subtitle, logoBase64 ? this.margin + 34 : this.margin, 29);
 
         this.doc.setFontSize(10);
         this.doc.text(
@@ -216,6 +218,7 @@ class PDFBuilder {
 // ==========================================
 export default function ExportReport() {
     const toast = useToast();
+    const { user } = useAuth();
     const [searchParams] = useSearchParams();
 
     const [data, setData] = useState({
@@ -521,7 +524,7 @@ export default function ExportReport() {
             const builder = new PDFBuilder(doc, w, h, margin, 20);
 
             // 1. Header
-            builder.renderHeader(logoBase64, computed.period.label);
+            builder.renderHeader(logoBase64, computed.period.label, user?.firstName);
             setProgress(25);
 
             // 2. Resumen Stats
@@ -1032,8 +1035,8 @@ export default function ExportReport() {
                         {/* Daily Comparison Preview - Solo estadística de volumen */}
                         {computed.dailyComparison && computed.dailyComparison.lastWeekVolume > 0 && (
                             <div className={`rounded-lg p-3 border ${parseFloat(computed.dailyComparison.volumeChange) >= 0
-                                    ? 'bg-green-500/10 border-green-500/20'
-                                    : 'bg-red-500/10 border-red-500/20'
+                                ? 'bg-green-500/10 border-green-500/20'
+                                : 'bg-red-500/10 border-red-500/20'
                                 }`}>
                                 <div className="flex items-center justify-between">
                                     <div>

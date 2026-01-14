@@ -41,6 +41,7 @@ model User {
   bodyLogs        BodyLog[]
   restLogs        RestLog[]
   personalRecords PersonalRecord[]
+  goals           Goal[]
   
   @@index([email])
   @@index([username])
@@ -168,5 +169,31 @@ model BodyLog {
   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@index([date])
+  @@index([userId])
+}
+
+// ==================== GOALS ====================
+
+model Goal {
+  id           String    @id @default(cuid())
+  exerciseName String
+  muscleGroup  String?
+  targetWeight Float
+  targetReps   Int
+  createdAt    DateTime  @default(now())
+  achievedAt   DateTime?
+  
+  // Manual data (fallback when no workout history)
+  // Manual data (fallback when no workout history)
+  currentOneRepMax   Float?   // Max weight for 1 rep
+  currentEightRepMax Float?   // Max weight for 8 reps
+  experienceLevel    String?  // 'beginner', 'intermediate', 'advanced'
+  frequencyPerWeek   Int?     // How many times per week training this exercise
+  completedWeeks     Int[]    // Array of completed week numbers (1-indexed)
+  
+  // Relación con usuario
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
   @@index([userId])
 }

@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión: 1.9.2 | Última actualización: 11 Enero 2026**
+> **Versión: 1.9.3 | Última actualización: 13 Enero 2026**
 
 ---
 
@@ -804,6 +804,28 @@ MUSCLE_LIST.forEach(m => console.log(m.id, m.name, m.color, m.emoji));
   - **Feedback Inmediato**: `SetCard` (`Workout.jsx`) ahora actualiza visualmente los checkmarks de PR al instante (fix `React.memo`).
   - Badge "Posible PR" reactivo a cambios en historial.
 
+
+### v1.9.3 (13 Ene 2026) - Advanced Periodization & Goals V2
+- **Motor de Periodización V2**:
+  - Reescritura a matemáticas puras (Lineal vs RPE) para progresión ultra-suave.
+  - Soporte de "Test Week" explícita al final (100% target weight).
+  - Lógica híbrida: Rutas diferenciadas para Fuerza (1-5 reps) e Hipertrofia (>5 reps).
+  - "Tapering" lineal en la fase de Peaking.
+- **Goals System 2.0**:
+  - Wizard de creación mejorado con validación de inputs (1-1000kg).
+  - Predicción manual: Permitir crear planes sin historial previo usando 1RM estimado y experiencia.
+  - Gestión de Semanas: Toggle manual de completado y filtro para ocultar semanas pasadas.
+- **Infraestructura**:
+  - Sincronización total de API/Serverless (Vercel) con servidor local.
+
+### v1.9.2 (12 Ene 2026) - PDF Export & Fixes
+- **PDF Report V2**:
+  - Tablas dinámicas con ancho automático.
+  - Eliminación de emojis/unicode para compatibilidad ASCII.
+  - Columnas expandidas: Δ Peso, Δ Reps, Δ Fuerza.
+- **UX**:
+  - SetCard memoization fix para feedback instantáneo.
+  - Preview de reportes simplificado en UI.
 
 ### v1.9.1 (11 Ene 2026) - UX Improvements
 - **Dashboard**: Saludo personalizado con nombre del usuario ("Bienvenido de nuevo, {nombre}")

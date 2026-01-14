@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
     TrendingUp, Calendar, Trophy, Dumbbell, ChevronDown, ChevronRight, Activity,
-    CheckCircle, Search, FileText, Loader2, Flame, X, Clock
+    CheckCircle, Search, FileText, Loader2, Flame, X, Clock, Target
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, CartesianGrid, Area, AreaChart } from 'recharts';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
+import GoalSection from '../components/goals/GoalSection';
 
 // ==========================================
 // CONSTANTS & UTILITIES
@@ -668,8 +669,8 @@ export default function Progress() {
                 <div className="flex gap-1">
                     {[
                         { id: 'overview', label: 'General', icon: Activity },
-                        { id: 'muscles', label: 'Músculos', icon: Dumbbell },
-                        { id: 'yearly', label: 'Anual', icon: Calendar }
+                        { id: 'goals', label: 'Objetivos', icon: Target },
+                        { id: 'muscles', label: 'Músculos', icon: Dumbbell }
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -819,6 +820,14 @@ export default function Progress() {
                             </button>
                         )}
                     </div>
+
+                </div>
+            )}
+
+            {/* Goals Tab */}
+            {uiState.activeTab === 'goals' && (
+                <div className="animate-fade-in">
+                    <GoalSection />
                 </div>
             )}
 

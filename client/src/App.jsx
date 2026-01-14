@@ -16,6 +16,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import Profile from './pages/Profile';
+import NewGoal from './pages/NewGoal';
 import { ToastProvider } from './components/ui/Toast';
 import './index.css';
 
@@ -79,6 +80,7 @@ function AppRoutes() {
         <Route path="body" element={<BodyTracking />} />
         <Route path="export" element={<ExportReport />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="goals/new" element={<NewGoal />} />
       </Route>
     </Routes>
   );

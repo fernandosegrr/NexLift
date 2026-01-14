@@ -408,7 +408,15 @@ export default function Workout() {
         }
         setSets(prev => {
             const updated = [...prev];
-            updated[index] = { ...updated[index], [field]: value };
+            // Crear nuevo objeto para forzar re-render
+            const newSet = { ...updated[index], [field]: value };
+            
+            // Auto-complete: marcar como completado si tiene peso Y reps
+            const hasWeight = field === 'weight' ? value !== '' : newSet.weight !== '';
+            const hasReps = field === 'reps' ? value !== '' : newSet.reps !== '';
+            newSet.completed = hasWeight && hasReps;
+            
+            updated[index] = newSet;
             return updated;
         });
     }, [isAlreadyLogged]);
@@ -417,7 +425,11 @@ export default function Workout() {
         if (isAlreadyLogged) return;
         setSets(prev => {
             const updated = [...prev];
-            updated[index].completed = !updated[index].completed;
+            // CREAR NUEVO OBJETO (no mutar) para forzar re-render
+            updated[index] = { 
+                ...updated[index], 
+                completed: !updated[index].completed 
+            };
             return updated;
         });
         if (navigator.vibrate) navigator.vibrate(50);
