@@ -6,7 +6,7 @@ import { api } from '../../services/api';
 
 // Regresión Lineal para detectar tendencias en el historial
 function linearRegression(dataPoints) {
-    if (dataPoints.length < 2) return { slope: 0, r2: 0 };
+    if (!dataPoints || dataPoints.length < 2) return { slope: 0, r2: 0 };
     const n = dataPoints.length;
     const sumX = dataPoints.reduce((sum, p) => sum + p.x, 0);
     const sumY = dataPoints.reduce((sum, p) => sum + p.y, 0);
@@ -28,18 +28,21 @@ function linearRegression(dataPoints) {
 function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetReps, frequency = 2) {
     const sessions = [];
 
-    // Forzamos conversión a número para evitar errores
+    // Forzamos conversión a número para evitar errores y NaN
     const start = Number(current1RM);
     const target = Number(target1RM);
     const increase = Number(weeklyIncrease);
 
     const gap = target - start;
 
-    // Validación de seguridad
-    if (gap <= 0 || increase <= 0 || isNaN(gap)) return [];
+    // Validación de seguridad estricta
+    if (gap <= 0 || increase <= 0 || isNaN(gap) || isNaN(increase)) return [];
 
     // Calcular semanas totales necesarias
     let totalWeeks = Math.ceil(gap / increase);
+    
+    // Safety check: Si el cálculo da semanas infinitas o absurdas, cortamos
+    if (totalWeeks > 100) totalWeeks = 100;
 
     // Usar fases solo si el plan es largo (> 8 semanas)
     const usePhases = totalWeeks >= 8;
@@ -98,16 +101,16 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
                 phaseLabel = 'Base (Hipertrofia)';
                 advice = 'Construye músculo base. Descanso 90s.';
             } else if (week <= weeksPhase1 + weeksPhase2 && usePhases) {
-                // Fase 2: Fuerza (RAMPA SUAVIZADA - FIX IMPORTANTE)
+                // Fase 2: Fuerza (RAMPA SUAVIZADA)
                 phase = 'Strength';
                 reps = 5;
 
-                // Calculamos el progreso dentro de la fase 2 para subir la intensidad poco a poco
+                // Calculamos el progreso dentro de la fase 2
                 const phase2Week = week - weeksPhase1;
                 const phase2Duration = Math.max(1, weeksPhase2);
                 const progress = Math.min(1, phase2Week / phase2Duration);
 
-                // Rampa lineal de 0.75 a 0.85 (Evita saltos bruscos)
+                // Rampa lineal de 0.75 a 0.85
                 intensityPct = 0.75 + (0.10 * progress);
 
                 phaseColor = 'text-purple-400';
@@ -117,7 +120,7 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
                 // Fase 3: Peaking (Pico de Forma)
                 phase = 'Peak';
 
-                // Reducción de repeticiones (Tapering)
+                // Tapering
                 if (targetReps === 1) {
                     const weeksLeft = totalWeeks - week;
                     if (weeksLeft > 3) reps = 3;
@@ -128,7 +131,7 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
                 }
 
                 const finalTargetIntensity = 1 / (1 + (targetReps === 1 ? 0 : targetReps / 30));
-
+                
                 // Conectamos suavemente donde terminó la Fase 2 (aprox 0.86)
                 const startPeakingIntensity = 0.86;
 
@@ -149,11 +152,14 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
 
         // --- SEMANA DE TEST (OVERRIDE) ---
         if (currentProjected1RM >= target - 0.1) {
-            weight = goal.targetWeight;
-            reps = goal.targetReps;
+            // El peso final debe ser la meta exacta
+            weight = target / (1 + (targetReps === 1 ? 0 : targetReps/30));
+            if(targetReps === 1) weight = target;
+            
+            reps = targetReps;
             phaseLabel = '¡SEMANA DE TEST!';
             phaseColor = 'text-yellow-400 font-black animate-pulse';
-            advice = '¡Día de Récord! Hoy se levantan ' + goal.targetWeight + ' kg.';
+            advice = '¡Día de Récord! Hoy se levantan ' + target + ' kg.';
         }
 
         // Redondeo a pasos de 2.5kg
@@ -267,6 +273,9 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
     const [expanded, setExpanded] = useState(false);
     const [toggling, setToggling] = useState(null);
 
+    // FIX CRÍTICO: Si goal es undefined o null, no renderizar nada para evitar crash
+    if (!goal) return null;
+
     // --- LÓGICA DE PREDICCIÓN (useMemo) ---
     const prediction = useMemo(() => {
         let starting1RM = 0;
@@ -299,8 +308,8 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
             confidence = r2;
 
         } else {
-            // SI NO HAY HISTORIAL: Usamos el dato manual (currentOneRepMax) que viene del Modal
-            // La validación "|| 0" evita el NaN si el dato falta.
+            // SI NO HAY HISTORIAL: Usamos el dato manual (currentOneRepMax)
+            // La validación "Number() || 0" evita el NaN si el dato falta.
             starting1RM = Number(goal.currentOneRepMax) || 0;
 
             if (starting1RM === 0) {
@@ -311,10 +320,14 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
             confidence = 0.5;
         }
 
-        // Cálculo Exacto de la Meta (1RM objetivo)
-        const target1RM = goal.targetReps === 1
-            ? goal.targetWeight
-            : goal.targetWeight * (1 + goal.targetReps / 30);
+        // Cálculo Seguro de la Meta (1RM objetivo)
+        // Usamos Number() por seguridad
+        const targetWeight = Number(goal.targetWeight);
+        const targetReps = Number(goal.targetReps);
+        
+        const target1RM = targetReps === 1
+            ? targetWeight
+            : targetWeight * (1 + targetReps / 30);
 
         const limitDiff = target1RM - starting1RM;
 
@@ -330,7 +343,7 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
             starting1RM,
             target1RM,
             effectiveWeeklyIncrease,
-            goal.targetReps,
+            targetReps,
             goal.frequencyPerWeek || 2
         );
 
@@ -379,7 +392,7 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
         }
     };
 
-    // ESTADO DE ERROR (Si faltan datos)
+    // ESTADO DE ERROR CONTROLADO
     if (!prediction.hasData && prediction.error) {
         return (
             <div className="p-4 bg-[var(--bg-card)] rounded-2xl border border-red-500/20 text-center flex items-center justify-between">
@@ -398,7 +411,10 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
         );
     }
 
-    const pct = Math.min(100, Math.max(0, ((prediction.current1RM / prediction.target1RM) * 100)));
+    // Cálculo seguro del porcentaje para la barra
+    const pct = prediction.target1RM > 0 
+        ? Math.min(100, Math.max(0, ((prediction.current1RM / prediction.target1RM) * 100)))
+        : 0;
 
     return (
         <div className="bg-[var(--bg-card)] rounded-2xl border border-[var(--border)] overflow-hidden transition-all hover:border-[var(--primary)]/30">
