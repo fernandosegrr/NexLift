@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 1.9.4 | **Última actualización:** 13 Enero 2026
+> **Versión:** 1.9.5 | **Última actualización:** 28 Enero 2026
 
 ---
 
@@ -438,7 +438,13 @@ Para mantener esta documentación al día:
 
 ## 📋 Changelog Histórico
 
-### v1.9.4 (13 Ene 2026) - **Current**
+### v1.9.5 (28 Ene 2026) - **Current**
+*   **DATA INTEGRITY:** Implementación de "Papelera de Historial" (Smart Archive). Los ejercicios con logs ya no se eliminan al editar rutinas; se mueven a una rutina de sistema oculta para proteger los datos.
+*   **SMART RESTORE:** Lógica automatizada en el backend que detecta si un ejercicio nuevo (o renombrado) ya existe en la papelera. Si coincide el nombre (insensible a mayúsculas), restaura el ejercicio original preservando su ID único y todo su historial.
+*   **FIX:** Corregidos errores 500 (P2003) al intentar eliminar ejercicios que tenían registros vinculados.
+*   **UI:** Nueva sección "Papelera de Historial" integrada en **Configuración > Historial**, permitiendo acceso y gestión de ejercicios archivados.
+
+### v1.9.4 (13 Ene 2026)
 *   **CORE FIX:** Corrección en `GoalCard.jsx` para normalizar el input manual de 1RM con la fórmula de Epley, evitando "easy mode" accidental.
 *   **ALGORITMO:** Suavizado (Smoothing) de la curva de intensidad en la fase de fuerza (0.75-0.85) para conectar fluidamente con el Peaking.
 *   **DOCS:** Restauración masiva de documentación detallada en `context.md`.

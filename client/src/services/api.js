@@ -59,6 +59,12 @@ export const api = {
         return res.json();
     },
 
+    async getTrashRoutine() {
+        const res = await authFetch(`${API_URL}/routines/trash`);
+        if (!res.ok) throw new Error('Failed to fetch trash routine');
+        return res.json();
+    },
+
     async getActiveRoutine() {
         const res = await authFetch(`${API_URL}/routines/active`);
         if (!res.ok) {

@@ -88,11 +88,19 @@ export default function EditRoutine() {
 
     // --- EXERCISE OPERATIONS ---
     const updateExercise = (dayIndex, exIndex, field, value) => {
-        const newDays = [...routine.days];
-        const newExercises = [...newDays[dayIndex].exercises];
-        newExercises[exIndex] = { ...newExercises[exIndex], [field]: value };
-        newDays[dayIndex].exercises = newExercises;
-        setRoutine(prev => ({ ...prev, days: newDays }));
+        setRoutine(prev => {
+            const newDays = prev.days.map((day, dIdx) => {
+                if (dIdx !== dayIndex) return day;
+                return {
+                    ...day,
+                    exercises: day.exercises.map((ex, eIdx) => {
+                        if (eIdx !== exIndex) return ex;
+                        return { ...ex, [field]: value };
+                    })
+                };
+            });
+            return { ...prev, days: newDays };
+        });
     };
 
     const addExercise = (dayIndex) => {
@@ -108,9 +116,16 @@ export default function EditRoutine() {
     };
 
     const removeExercise = (dayIndex, exIndex) => {
-        const newDays = [...routine.days];
-        newDays[dayIndex].exercises.splice(exIndex, 1);
-        setRoutine(prev => ({ ...prev, days: newDays }));
+        setRoutine(prev => {
+            const newDays = prev.days.map((day, dIdx) => {
+                if (dIdx !== dayIndex) return day;
+                return {
+                    ...day,
+                    exercises: day.exercises.filter((_, eIdx) => eIdx !== exIndex)
+                };
+            });
+            return { ...prev, days: newDays };
+        });
     };
 
     const moveExercise = (dayIndex, exIndex, direction) => {
@@ -118,13 +133,18 @@ export default function EditRoutine() {
         if (direction === 'up' && exIndex === 0) return;
         if (direction === 'down' && exIndex === exercises.length - 1) return;
 
-        const newDays = [...routine.days];
-        const newExercises = [...newDays[dayIndex].exercises];
-        const swapIndex = direction === 'up' ? exIndex - 1 : exIndex + 1;
-        [newExercises[exIndex], newExercises[swapIndex]] = [newExercises[swapIndex], newExercises[exIndex]];
-        newDays[dayIndex].exercises = newExercises;
+        setRoutine(prev => {
+            const newDays = prev.days.map((day, dIdx) => {
+                if (dIdx !== dayIndex) return day;
 
-        setRoutine(prev => ({ ...prev, days: newDays }));
+                const newExercises = [...day.exercises];
+                const swapIndex = direction === 'up' ? exIndex - 1 : exIndex + 1;
+                [newExercises[exIndex], newExercises[swapIndex]] = [newExercises[swapIndex], newExercises[exIndex]];
+
+                return { ...day, exercises: newExercises };
+            });
+            return { ...prev, days: newDays };
+        });
     };
 
     if (loading) return (

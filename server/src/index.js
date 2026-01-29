@@ -96,6 +96,38 @@ function normalizeExerciseName(name) {
         .replace(/\s+/g, ' '); // Normaliza espacios múltiples
 }
 
+async function getRecycleBinDay(userId) {
+    let routine = await prisma.routine.findFirst({
+        where: { userId, name: "ARCHIVED_HISTORY_DO_NOT_DELETE", isActive: false }
+    });
+
+    if (!routine) {
+        routine = await prisma.routine.create({
+            data: {
+                userId,
+                name: "ARCHIVED_HISTORY_DO_NOT_DELETE",
+                description: "System routine for preserving history of renamed/deleted exercises.",
+                isActive: false
+            }
+        });
+    }
+
+    let day = await prisma.routineDay.findFirst({
+        where: { routineId: routine.id }
+    });
+
+    if (!day) {
+        day = await prisma.routineDay.create({
+            data: {
+                routineId: routine.id,
+                dayName: "Bin",
+                order: 0
+            }
+        });
+    }
+    return day.id;
+}
+
 // ============================================
 // ROUTES: Routine Import
 // ============================================
@@ -412,7 +444,10 @@ app.post('/api/routines/import', authMiddleware, async (req, res) => {
 app.get('/api/routines', authMiddleware, async (req, res) => {
     try {
         const routines = await prisma.routine.findMany({
-            where: { userId: req.userId },
+            where: {
+                userId: req.userId,
+                name: { not: "ARCHIVED_HISTORY_DO_NOT_DELETE" }
+            },
             include: {
                 days: {
                     include: {
@@ -427,6 +462,31 @@ app.get('/api/routines', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Error fetching routines:', error);
         res.status(500).json({ error: 'Failed to fetch routines' });
+    }
+});
+
+// GET /api/routines/trash - Get the system archive routine
+app.get('/api/routines/trash', authMiddleware, async (req, res) => {
+    try {
+        const routine = await prisma.routine.findFirst({
+            where: {
+                userId: req.userId,
+                name: "ARCHIVED_HISTORY_DO_NOT_DELETE"
+            },
+            include: {
+                days: {
+                    include: {
+                        exercises: { orderBy: { order: 'asc' } }
+                    },
+                    orderBy: { order: 'asc' }
+                }
+            }
+        });
+        // Return null if not found (no trash yet), frontend handles it
+        res.json(routine || null);
+    } catch (error) {
+        console.error('Error fetching trash routine:', error);
+        res.status(500).json({ error: 'Failed to fetch trash routine' });
     }
 });
 
@@ -507,6 +567,25 @@ app.delete('/api/routines/:id', authMiddleware, async (req, res) => {
             return res.status(404).json({ error: 'Routine not found' });
         }
 
+        // PRE-DELETE: Archive exercises with history
+        const routineDays = await prisma.routineDay.findMany({
+            where: { routineId: req.params.id },
+            include: { exercises: { select: { id: true } } }
+        });
+
+        for (const day of routineDays) {
+            for (const ex of day.exercises) {
+                const logCount = await prisma.workoutLog.count({ where: { exerciseId: ex.id } });
+                if (logCount > 0) {
+                    const binId = await getRecycleBinDay(req.userId);
+                    await prisma.exercise.update({
+                        where: { id: ex.id },
+                        data: { routineDayId: binId }
+                    });
+                }
+            }
+        }
+
         await prisma.routine.delete({
             where: { id: req.params.id }
         });
@@ -521,6 +600,7 @@ app.delete('/api/routines/:id', authMiddleware, async (req, res) => {
 app.put('/api/routines/:id', authMiddleware, async (req, res) => {
     try {
         const routineId = req.params.id;
+        console.log(`DEBUG: PUT routine ${routineId}`);
         const { name, description, days } = req.body;
 
         // Verify ownership
@@ -547,6 +627,24 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
         const daysToDelete = existingDays.filter(d => !incomingDayIds.includes(d.id)).map(d => d.id);
 
         if (daysToDelete.length > 0) {
+            // SAFE DELETE DAYS: Archive exercises with logs first
+            const days = await prisma.routineDay.findMany({
+                where: { id: { in: daysToDelete } },
+                include: { exercises: { select: { id: true } } }
+            });
+
+            for (const d of days) {
+                for (const ex of d.exercises) {
+                    const logCount = await prisma.workoutLog.count({ where: { exerciseId: ex.id } });
+                    if (logCount > 0) {
+                        const binId = await getRecycleBinDay(req.userId);
+                        await prisma.exercise.update({
+                            where: { id: ex.id },
+                            data: { routineDayId: binId }
+                        });
+                    }
+                }
+            }
             await prisma.routineDay.deleteMany({ where: { id: { in: daysToDelete } } });
         }
 
@@ -585,18 +683,92 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
                 const exToDelete = existingExercises.filter(e => !incomingExIds.includes(e.id)).map(e => e.id);
 
                 if (exToDelete.length > 0) {
-                    await prisma.exercise.deleteMany({ where: { id: { in: exToDelete } } });
+                    for (const exId of exToDelete) {
+                        const logCount = await prisma.workoutLog.count({ where: { exerciseId: exId } });
+                        if (logCount > 0) {
+                            // Safe Delete: Has history, move to archive
+                            console.log(`Archiving deleted exercise ${exId} to preserve history`);
+                            const binId = await getRecycleBinDay(req.userId);
+                            await prisma.exercise.update({
+                                where: { id: exId },
+                                data: { routineDayId: binId }
+                            });
+                        } else {
+                            // True Delete: No history
+                            await prisma.exercise.delete({ where: { id: exId } });
+                        }
+                    }
                 }
 
                 for (let j = 0; j < day.exercises.length; j++) {
                     const ex = day.exercises[j];
+                    const normalizedName = normalizeExerciseName(ex.name);
+
                     if (ex.id) {
                         const currentExercise = await prisma.exercise.findUnique({
                             where: { id: ex.id },
                             select: { name: true }
                         });
 
-                        const normalizedName = normalizeExerciseName(ex.name);
+                        const currentName = currentExercise ? normalizeExerciseName(currentExercise.name) : '';
+
+                        if (currentName !== normalizedName) {
+                            // Check for history
+                            const logCount = await prisma.workoutLog.count({
+                                where: { exerciseId: ex.id }
+                            });
+                            console.log(`DEBUG: Rename "${currentName}" -> "${normalizedName}". LogCount: ${logCount}`);
+
+                            if (logCount > 0) {
+                                // Has history: Move current to Recycle Bin
+                                console.log(`Archiving exercise "${currentExercise.name}" due to rename/replace to "${normalizedName}"`);
+                                const binId = await getRecycleBinDay(req.userId);
+
+                                await prisma.exercise.update({
+                                    where: { id: ex.id },
+                                    data: { routineDayId: binId }
+                                });
+
+                                // Check if NEW name exists in Archive to RESTORE instead of Create
+                                const archivedEx = await prisma.exercise.findFirst({
+                                    where: {
+                                        routineDayId: binId,
+                                        name: normalizedName
+                                    }
+                                });
+
+                                if (archivedEx) {
+                                    console.log(`Restoring archived exercise "${normalizedName}" (ID: ${archivedEx.id})`);
+                                    await prisma.exercise.update({
+                                        where: { id: archivedEx.id },
+                                        data: {
+                                            routineDayId: dayId,
+                                            targetSets: parseInt(ex.targetSets),
+                                            targetReps: ex.targetReps,
+                                            restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
+                                            note: ex.note,
+                                            order: j
+                                        }
+                                    });
+                                } else {
+                                    // Make new if not found in archive
+                                    await prisma.exercise.create({
+                                        data: {
+                                            routineDayId: dayId,
+                                            name: normalizedName,
+                                            targetSets: parseInt(ex.targetSets),
+                                            targetReps: ex.targetReps,
+                                            restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
+                                            note: ex.note,
+                                            order: j
+                                        }
+                                    });
+                                }
+                                continue; // Skip the standard update
+                            }
+                        }
+
+                        // Update existing (No history or name didn't change)
                         await prisma.exercise.update({
                             where: { id: ex.id },
                             data: {
@@ -609,33 +781,43 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
                             }
                         });
 
-                        // SMART PR RENAMING:
-                        // If name changed, update associated PRs to keep history linked
-                        if (currentExercise && normalizeExerciseName(currentExercise.name) !== normalizedName) {
-                            console.log(`Renaming PRs: "${currentExercise.name}" -> "${normalizedName}"`);
-                            await prisma.personalRecord.updateMany({
-                                where: {
-                                    userId: req.userId, // Ensure we only update user's PRs
-                                    exerciseName: {
-                                        equals: currentExercise.name,
-                                        mode: 'insensitive'
-                                    }
-                                },
-                                data: { exerciseName: normalizedName }
-                            });
-                        }
                     } else {
-                        await prisma.exercise.create({
-                            data: {
-                                routineDayId: dayId,
-                                name: normalizeExerciseName(ex.name),
-                                targetSets: parseInt(ex.targetSets || 3),
-                                targetReps: ex.targetReps || '8-12',
-                                restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
-                                note: ex.note,
-                                order: j
+                        const binId = await getRecycleBinDay(req.userId);
+                        console.log(`DEBUG: Checking archive for "${normalizedName}" in bin ${binId}`);
+                        const archivedEx = await prisma.exercise.findFirst({
+                            where: {
+                                routineDayId: binId,
+                                name: { equals: normalizedName, mode: 'insensitive' }
                             }
                         });
+                        console.log(`DEBUG: Search result:`, archivedEx ? archivedEx.id : 'null');
+
+                        if (archivedEx) {
+                            console.log(`Restoring archived exercise "${normalizedName}" (ID: ${archivedEx.id})`);
+                            await prisma.exercise.update({
+                                where: { id: archivedEx.id },
+                                data: {
+                                    routineDayId: dayId,
+                                    targetSets: parseInt(ex.targetSets || 3),
+                                    targetReps: ex.targetReps || '8-12',
+                                    restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
+                                    note: ex.note,
+                                    order: j
+                                }
+                            });
+                        } else {
+                            await prisma.exercise.create({
+                                data: {
+                                    routineDayId: dayId,
+                                    name: normalizedName,
+                                    targetSets: parseInt(ex.targetSets || 3),
+                                    targetReps: ex.targetReps || '8-12',
+                                    restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
+                                    note: ex.note,
+                                    order: j
+                                }
+                            });
+                        }
                     }
                 }
             }
@@ -981,7 +1163,6 @@ app.get('/api/workouts/exercise/:exerciseId/history', authMiddleware, async (req
         }
 
         // Find all workout logs for exercises with the same name (case-insensitive)
-        // AND belonging to the user
         const logs = await prisma.workoutLog.findMany({
             where: {
                 exercise: {

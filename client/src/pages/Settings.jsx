@@ -45,6 +45,7 @@ export default function Settings() {
     // Exercise/History data
     const [exercises, setExercises] = useState([]);
     const [workoutHistory, setWorkoutHistory] = useState([]);
+    const [trashRoutine, setTrashRoutine] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(null);
     const [expandedMuscle, setExpandedMuscle] = useState(null);
@@ -91,12 +92,14 @@ export default function Settings() {
 
     async function fetchData() {
         try {
-            const [exercisesData, historyData] = await Promise.all([
+            const [exercisesData, historyData, trashData] = await Promise.all([
                 api.getExercises(),
-                api.getWorkoutHistory(30)
+                api.getWorkoutHistory(30),
+                api.getTrashRoutine()
             ]);
             setExercises(exercisesData || []);
             setWorkoutHistory(historyData || []);
+            setTrashRoutine(trashData);
         } catch (err) {
             console.error(err);
         } finally {
@@ -610,6 +613,29 @@ export default function Settings() {
                     </div>
 
                     <div className="space-y-4">
+                        {/* Papelera / Archivo */}
+                        {trashRoutine && (
+                            <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)] flex items-center justify-between mb-6 shadow-lg shadow-black/20">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-[var(--bg-dark)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)]">
+                                        <Trash2 size={20} />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-white">Papelera de Historial</h3>
+                                        <p className="text-xs text-[var(--text-secondary)]">
+                                            {trashRoutine.days?.[0]?.exercises?.length || 0} ejercicios archivados
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => navigate(`/routines/${trashRoutine.id}`)}
+                                    className="px-4 py-2 bg-[var(--bg-dark)] hover:bg-[var(--primary)] text-sm font-medium rounded-lg border border-[var(--border)] hover:border-[var(--primary)] hover:text-white transition-all"
+                                >
+                                    Ver Archivo
+                                </button>
+                            </div>
+                        )}
+
                         {Object.entries(sessionsByDate).map(([dateStr, sessions]) => (
                             <div key={dateStr}>
                                 <div className="sticky top-0 z-10 bg-[var(--bg-body)]/95 backdrop-blur-sm py-2 mb-2 border-b border-[var(--border)]">
