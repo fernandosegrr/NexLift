@@ -13,86 +13,80 @@ export default function GoalSection() {
     const [workoutHistory, setWorkoutHistory] = useState({});
 
     useEffect(() => {
-        fetchGoals();
-        fetchWorkoutHistory();
+        async function loadAll() {
+            try {
+                // Cargar goals e historial EN PARALELO para evitar race condition
+                const [goalsData, historyData] = await Promise.all([
+                    api.getGoals(),
+                    api.getWorkoutHistory(500)
+                ]);
+                setGoals(goalsData || []);
+                processHistory(historyData);
+            } catch (err) {
+                console.error('Error loading goals data:', err);
+            } finally {
+                setLoading(false);
+            }
+        }
+        loadAll();
     }, []);
 
-    async function fetchGoals() {
-        try {
-            const data = await api.getGoals();
-            setGoals(data || []);
-        } catch (err) {
-            console.error('Error fetching goals:', err);
-        } finally {
-            setLoading(false);
-        }
-    }
+    function processHistory(history) {
+        const grouped = {};
 
-    async function fetchWorkoutHistory() {
-        try {
-            const history = await api.getWorkoutHistory(500);
+        history?.forEach(workout => {
+            const exerciseName = workout.exercise?.name?.toLowerCase().trim();
+            if (!exerciseName) return;
 
-            // Group sets by exercise name, then by session (date)
-            const grouped = {};
+            if (!grouped[exerciseName]) {
+                grouped[exerciseName] = {
+                    muscleGroup: workout.exercise?.muscleGroup,
+                    sessions: {}
+                };
+            }
 
-            history?.forEach(workout => {
-                const exerciseName = workout.exercise?.name?.toLowerCase().trim();
-                if (!exerciseName) return;
+            const dateKey = new Date(workout.date).toISOString().split('T')[0];
+            if (!grouped[exerciseName].sessions[dateKey]) {
+                grouped[exerciseName].sessions[dateKey] = [];
+            }
 
-                if (!grouped[exerciseName]) {
-                    grouped[exerciseName] = {
-                        muscleGroup: workout.exercise?.muscleGroup,
-                        sessions: {} // keyed by date string
-                    };
-                }
-
-                const dateKey = new Date(workout.date).toISOString().split('T')[0];
-                if (!grouped[exerciseName].sessions[dateKey]) {
-                    grouped[exerciseName].sessions[dateKey] = [];
-                }
-
-                // Add all sets from this workout to the session
-                workout.sets?.forEach(set => {
-                    if (set.weight && set.reps) {
-                        grouped[exerciseName].sessions[dateKey].push({
-                            weight: parseFloat(set.weight),
-                            reps: parseInt(set.reps)
-                        });
-                    }
-                });
-            });
-
-            // Convert sessions object to sorted array with best 1RM per session
-            Object.keys(grouped).forEach(name => {
-                const sessionsObj = grouped[name].sessions;
-                const sessionsArray = Object.keys(sessionsObj)
-                    .sort() // Sort by date ascending
-                    .map(dateKey => {
-                        const sets = sessionsObj[dateKey];
-                        // Calculate best 1RM for this session (Epley formula)
-                        const best1RM = Math.max(
-                            ...sets.map(s => s.weight * (1 + s.reps / 30))
-                        );
-                        const bestSet = sets.reduce((best, s) => {
-                            const rm = s.weight * (1 + s.reps / 30);
-                            return rm > (best.weight * (1 + best.reps / 30)) ? s : best;
-                        });
-                        return {
-                            date: dateKey,
-                            best1RM,
-                            weight: bestSet.weight,
-                            reps: bestSet.reps,
-                            setsCount: sets.length
-                        };
+            workout.sets?.forEach(set => {
+                if (set.weight && set.reps) {
+                    grouped[exerciseName].sessions[dateKey].push({
+                        weight: parseFloat(set.weight),
+                        reps: parseInt(set.reps)
                     });
-
-                grouped[name].sessions = sessionsArray;
+                }
             });
+        });
 
-            setWorkoutHistory(grouped);
-        } catch (err) {
-            console.error('Error fetching workout history:', err);
-        }
+        // Convert sessions object to sorted array with best 1RM per session
+        Object.keys(grouped).forEach(name => {
+            const sessionsObj = grouped[name].sessions;
+            const sessionsArray = Object.keys(sessionsObj)
+                .sort()
+                .map(dateKey => {
+                    const sets = sessionsObj[dateKey];
+                    const best1RM = Math.max(
+                        ...sets.map(s => s.weight * (1 + s.reps / 30))
+                    );
+                    const bestSet = sets.reduce((best, s) => {
+                        const rm = s.weight * (1 + s.reps / 30);
+                        return rm > (best.weight * (1 + best.reps / 30)) ? s : best;
+                    });
+                    return {
+                        date: dateKey,
+                        best1RM,
+                        weight: bestSet.weight,
+                        reps: bestSet.reps,
+                        setsCount: sets.length
+                    };
+                });
+
+            grouped[name].sessions = sessionsArray;
+        });
+
+        setWorkoutHistory(grouped);
     }
 
     async function handleDeleteGoal(goalId) {
@@ -105,10 +99,25 @@ export default function GoalSection() {
         }
     }
 
-    // Function to find matching history (case-insensitive)
     function getHistoryForGoal(goalExerciseName) {
-        const normalizedGoalName = goalExerciseName.toLowerCase().trim();
-        return workoutHistory[normalizedGoalName] || null;
+        const normalize = (n) => n
+            .toLowerCase()
+            .replace(/^[a-z]\.?\d+\.?\s*/i, '')
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        const normalizedGoalName = normalize(goalExerciseName);
+
+        // Coincidencia directa
+        if (workoutHistory[normalizedGoalName]) return workoutHistory[normalizedGoalName];
+
+        // Buscar con normalizacion robusta (tildes, prefijos, espacios)
+        for (const key of Object.keys(workoutHistory)) {
+            if (normalize(key) === normalizedGoalName) return workoutHistory[key];
+        }
+
+        return null;
     }
 
     function handleUpdateGoal(updatedGoal) {
@@ -125,7 +134,6 @@ export default function GoalSection() {
 
     return (
         <div className="space-y-4">
-            {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Target className="w-5 h-5 text-purple-400" />
@@ -140,7 +148,6 @@ export default function GoalSection() {
                 </button>
             </div>
 
-            {/* Goals List */}
             {goals.length === 0 ? (
                 <div className="bg-[var(--bg-card)] rounded-2xl p-8 border border-[var(--border)] text-center">
                     <Target className="w-12 h-12 text-[var(--text-secondary)] mx-auto mb-4 opacity-50" />
