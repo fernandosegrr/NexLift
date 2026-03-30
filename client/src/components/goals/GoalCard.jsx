@@ -328,7 +328,7 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
         let trendSlope = 0;
         let confidence = 0;
         let totalSessions = 0;
-        let hasHistory = history && history.sessions && history.sessions.length >= 3;
+        let hasHistory = history && history.sessions && history.sessions.length >= 2;
         let source = 'manual';
 
         const POTENTIAL = {
