@@ -110,7 +110,8 @@ export default function EditRoutine() {
             targetSets: 3,
             targetReps: '8-12',
             restSeconds: 60,
-            note: ''
+            note: '',
+            isUnilateral: false
         });
         setRoutine(prev => ({ ...prev, days: newDays }));
     };
@@ -316,6 +317,17 @@ export default function EditRoutine() {
                                                 className="w-full bg-transparent text-[11px] text-[var(--text-secondary)] focus:text-white outline-none placeholder:text-[var(--text-secondary)]/40"
                                                 placeholder="Notas (opcional)..."
                                             />
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={ex.isUnilateral || false}
+                                                    onChange={(e) => updateExercise(dayIndex, exIndex, 'isUnilateral', e.target.checked)}
+                                                    className="w-3.5 h-3.5 rounded accent-orange-500"
+                                                />
+                                                <span className={`text-[10px] font-bold ${ex.isUnilateral ? 'text-orange-400' : 'text-[var(--text-secondary)]/50'}`}>
+                                                    Unilateral
+                                                </span>
+                                            </label>
                                         </div>
 
                                         <button

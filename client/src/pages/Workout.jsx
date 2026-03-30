@@ -160,58 +160,105 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
 
             <div className="grid grid-cols-10 gap-3 items-center">
                 <div className="col-span-8 space-y-2">
-                    <div className="grid grid-cols-2 gap-3">
-                        {/* Peso */}
-                        <div className="relative">
-                            <input
-                                type="number"
-                                inputMode="decimal"
-                                value={set.weight}
-                                onFocus={handleFocus}
-                                onChange={(e) => onUpdate(index, 'weight', e.target.value)}
-                                placeholder="0"
-                                readOnly={isLocked}
-                                className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.weight ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-                                    } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
-                            />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">KG</span>
+                    {!isUnilateral ? (
+                        /* Bilateral: standard weight + reps row */
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    inputMode="decimal"
+                                    value={set.weight}
+                                    onFocus={handleFocus}
+                                    onChange={(e) => onUpdate(index, 'weight', e.target.value)}
+                                    placeholder="0"
+                                    readOnly={isLocked}
+                                    className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.weight ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                                        } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
+                                />
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">KG</span>
+                            </div>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    inputMode="numeric"
+                                    value={set.reps}
+                                    onFocus={handleFocus}
+                                    onChange={(e) => onUpdate(index, 'reps', e.target.value)}
+                                    placeholder="0"
+                                    readOnly={isLocked}
+                                    className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.reps ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                                        } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
+                                />
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">REP</span>
+                            </div>
                         </div>
-
-                        {/* Reps (bilateral or left side) */}
-                        <div className="relative">
-                            <input
-                                type="number"
-                                inputMode="numeric"
-                                value={set.reps}
-                                onFocus={handleFocus}
-                                onChange={(e) => onUpdate(index, 'reps', e.target.value)}
-                                placeholder="0"
-                                readOnly={isLocked}
-                                className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.reps ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-                                    } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
-                            />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">
-                                {isUnilateral ? 'IZQ' : 'REP'}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Right side reps (unilateral only) */}
-                    {isUnilateral && (
-                        <div className="relative">
-                            <input
-                                type="number"
-                                inputMode="numeric"
-                                value={set.repsR || ''}
-                                onFocus={handleFocus}
-                                onChange={(e) => onUpdate(index, 'repsR', e.target.value)}
-                                placeholder="0"
-                                readOnly={isLocked}
-                                className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.repsR ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-                                    } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
-                            />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">DER</span>
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-orange-400 pointer-events-none font-bold">R</span>
+                    ) : (
+                        /* Unilateral: separate L/R rows for weight + reps */
+                        <div className="space-y-2">
+                            {/* Left side */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        inputMode="decimal"
+                                        value={set.weight}
+                                        onFocus={handleFocus}
+                                        onChange={(e) => onUpdate(index, 'weight', e.target.value)}
+                                        placeholder="0"
+                                        readOnly={isLocked}
+                                        className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.weight ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                                            } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
+                                    />
+                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">KG</span>
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-orange-400 pointer-events-none font-bold">IZQ</span>
+                                </div>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        inputMode="numeric"
+                                        value={set.reps}
+                                        onFocus={handleFocus}
+                                        onChange={(e) => onUpdate(index, 'reps', e.target.value)}
+                                        placeholder="0"
+                                        readOnly={isLocked}
+                                        className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.reps ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                                            } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
+                                    />
+                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">REP</span>
+                                </div>
+                            </div>
+                            {/* Right side */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        inputMode="decimal"
+                                        value={set.weightR || ''}
+                                        onFocus={handleFocus}
+                                        onChange={(e) => onUpdate(index, 'weightR', e.target.value)}
+                                        placeholder="0"
+                                        readOnly={isLocked}
+                                        className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.weightR ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                                            } ${isLocked ? 'opacity-60' : 'focus:ring-orange-500/50 focus:bg-[var(--bg-dark)]'}`}
+                                    />
+                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">KG</span>
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-orange-400 pointer-events-none font-bold">DER</span>
+                                </div>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        inputMode="numeric"
+                                        value={set.repsR || ''}
+                                        onFocus={handleFocus}
+                                        onChange={(e) => onUpdate(index, 'repsR', e.target.value)}
+                                        placeholder="0"
+                                        readOnly={isLocked}
+                                        className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.repsR ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                                            } ${isLocked ? 'opacity-60' : 'focus:ring-orange-500/50 focus:bg-[var(--bg-dark)]'}`}
+                                    />
+                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">REP</span>
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -318,6 +365,14 @@ export default function Workout() {
         [sets]
     );
 
+    // Auto-trigger AI suggestion when exercise changes
+    useEffect(() => {
+        if (currentExercise?.id && !isAlreadyLogged) {
+            requestAISuggestion(true);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentExercise?.id]);
+
     // Guardado automático en localStorage
     useEffect(() => {
         if (workoutState.exercises.length > 0) {
@@ -389,6 +444,8 @@ export default function Workout() {
 
     async function loadExerciseData(exercise, index) {
         currentExerciseIdRef.current = exercise.id;
+        // Auto-detect unilateral from exercise DB field
+        setIsUnilateral(exercise.isUnilateral || false);
         try {
             const history = await api.getExerciseHistory(exercise.id);
             if (currentExerciseIdRef.current !== exercise.id) return;
@@ -401,6 +458,8 @@ export default function Workout() {
                     const apiSets = history[0].sets.map(s => ({
                         weight: s.weight.toString(),
                         reps: s.reps.toString(),
+                        weightR: s.weightRight?.toString() || '',
+                        repsR: s.repsRight?.toString() || '',
                         rir: s.rpe ? (10 - s.rpe) : null,
                         completed: true
                     }));
@@ -481,7 +540,7 @@ export default function Workout() {
         toast.success('Peso sugerido aplicado');
     }, [isAlreadyLogged, suggestedWeight, toast]);
 
-    const requestAISuggestion = useCallback(async () => {
+    const requestAISuggestion = useCallback(async (silent = false) => {
         if (!currentExercise?.id || aiLoading) return;
         setAiLoading(true);
         setAiSuggestion(null);
@@ -489,11 +548,11 @@ export default function Workout() {
             const result = await api.getAISuggestion(currentExercise.id);
             if (result.suggestion) {
                 setAiSuggestion(result.suggestion);
-            } else {
+            } else if (!silent) {
                 toast.error(result.reason || 'Sin sugerencia disponible');
             }
         } catch (err) {
-            toast.error('Error al obtener sugerencia IA');
+            if (!silent) toast.error('Error al obtener sugerencia IA');
         } finally {
             setAiLoading(false);
         }
@@ -553,16 +612,16 @@ export default function Workout() {
         const validSets = sets
             .filter(s => s.weight !== '' && s.reps !== '')
             .map(s => {
-                // For unilateral exercises, store the minimum reps (weakest side)
-                // and add a note with both sides
-                const reps = isUnilateral && s.repsR
-                    ? Math.min(parseInt(s.reps), parseInt(s.repsR))
-                    : parseInt(s.reps);
-                return {
+                const setData = {
                     weight: parseFloat(s.weight),
-                    reps,
+                    reps: parseInt(s.reps),
                     rpe: s.rir !== null ? (10 - s.rir) : null
                 };
+                if (isUnilateral) {
+                    setData.weightRight = s.weightR ? parseFloat(s.weightR) : parseFloat(s.weight);
+                    setData.repsRight = s.repsR ? parseInt(s.repsR) : parseInt(s.reps);
+                }
+                return setData;
             });
 
         if (validSets.length === 0) {
@@ -759,22 +818,15 @@ export default function Workout() {
                         ) : null}
                     </div>
 
-                    {/* AI Request Button - only show if not yet requested */}
-                    {!aiSuggestion && !aiLoading && (
-                        <button
-                            onClick={requestAISuggestion}
-                            className="w-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-2.5 flex items-center justify-center gap-2 hover:border-blue-500/40 transition-all active:scale-95"
-                        >
-                            <Brain size={14} className="text-blue-400" />
-                            <span className="text-xs font-bold text-blue-400">Pedir sugerencia IA</span>
-                        </button>
-                    )}
-
-                    {/* AI Reasoning */}
+                    {/* AI Reasoning - collapsible */}
                     {aiSuggestion?.reasoning && (
-                        <p className="text-[10px] text-[var(--text-secondary)] bg-[var(--bg-card)] p-2 rounded-lg border border-[var(--border)]">
-                            <Brain size={10} className="inline mr-1 text-blue-400" />{aiSuggestion.reasoning}
-                        </p>
+                        <details className="text-[10px] text-[var(--text-secondary)] bg-[var(--bg-card)] rounded-lg border border-[var(--border)]">
+                            <summary className="p-2 cursor-pointer flex items-center gap-1 select-none">
+                                <Brain size={10} className="text-blue-400" />
+                                <span className="font-bold text-blue-400">Ver analisis IA</span>
+                            </summary>
+                            <p className="px-2 pb-2">{aiSuggestion.reasoning}</p>
+                        </details>
                     )}
                     </>
                 )}

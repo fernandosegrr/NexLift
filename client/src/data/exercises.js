@@ -37,17 +37,17 @@ export const EXERCISES = [
     // Tracción Vertical (Anchura)
     { id: 'lat-pulldown', name: 'Jalón al Pecho Agarre Prono', muscleGroup: 'back' },
     { id: 'neutral-lat-pulldown', name: 'Jalón al Pecho Agarre Neutro', muscleGroup: 'back' },
-    { id: 'single-arm-pulldown', name: 'Jalón Unilateral (Iliaco)', muscleGroup: 'back' }, // Top tier hipertrofia
+    { id: 'single-arm-pulldown', name: 'Jalón Unilateral (Iliaco)', muscleGroup: 'back', isUnilateral: true }, // Top tier hipertrofia
     { id: 'pull-ups', name: 'Dominadas Pronas', muscleGroup: 'back' },
     { id: 'chin-ups', name: 'Dominadas Supinas', muscleGroup: 'back' },
 
     // Tracción Horizontal (Densidad)
     { id: 'barbell-row', name: 'Remo con Barra', muscleGroup: 'back' },
-    { id: 'dumbbell-row', name: 'Remo con Mancuerna (Kroc Row)', muscleGroup: 'back' },
+    { id: 'dumbbell-row', name: 'Remo con Mancuerna (Kroc Row)', muscleGroup: 'back', isUnilateral: true },
     { id: 'chest-supported-row', name: 'Remo con Soporte al Pecho', muscleGroup: 'back' }, // Elimina inercia
     { id: 'cable-row', name: 'Remo Gironda / Polea Baja', muscleGroup: 'back' },
     { id: 't-bar-row', name: 'Remo en Barra T', muscleGroup: 'back' },
-    { id: 'meadows-row', name: 'Remo Meadows', muscleGroup: 'back' },
+    { id: 'meadows-row', name: 'Remo Meadows', muscleGroup: 'back', isUnilateral: true },
 
     // Espalda Baja / Completa
     { id: 'deadlift', name: 'Peso Muerto Convencional', muscleGroup: 'back' },
@@ -66,7 +66,7 @@ export const EXERCISES = [
     // Lateral (La clave para amplitud)
     { id: 'lateral-raises', name: 'Elevaciones Laterales Mancuerna', muscleGroup: 'shoulders' },
     { id: 'cable-lateral-raises', name: 'Elevaciones Laterales en Polea', muscleGroup: 'shoulders' }, // Tensión constante
-    { id: 'egyptian-lateral-raises', name: 'Elevaciones Egipcias', muscleGroup: 'shoulders' },
+    { id: 'egyptian-lateral-raises', name: 'Elevaciones Egipcias', muscleGroup: 'shoulders', isUnilateral: true },
     { id: 'lu-raises', name: 'Elevaciones Lu (Rango completo)', muscleGroup: 'shoulders' },
 
     // Posterior
@@ -79,7 +79,7 @@ export const EXERCISES = [
     { id: 'squat', name: 'Sentadilla con Barra (High Bar)', muscleGroup: 'legs' },
     { id: 'hack-squat', name: 'Sentadilla Hack', muscleGroup: 'legs' }, // Top tier hipertrofia
     { id: 'leg-press', name: 'Prensa Inclinada', muscleGroup: 'legs' },
-    { id: 'bulgarian-split-squat', name: 'Sentadilla Búlgara', muscleGroup: 'legs' },
+    { id: 'bulgarian-split-squat', name: 'Sentadilla Búlgara', muscleGroup: 'legs', isUnilateral: true },
     { id: 'leg-extension', name: 'Extensiones de Cuádriceps', muscleGroup: 'legs' },
     { id: 'goblet-squat', name: 'Sentadilla Goblet', muscleGroup: 'legs' },
 
@@ -99,7 +99,7 @@ export const EXERCISES = [
     { id: 'barbell-curl', name: 'Curl con Barra Recta', muscleGroup: 'biceps' },
     { id: 'ez-bar-curl', name: 'Curl con Barra Z', muscleGroup: 'biceps' },
     { id: 'incline-dumbbell-curl', name: 'Curl Inclinado (Enfoque Cabeza Larga)', muscleGroup: 'biceps' },
-    { id: 'bayesian-curl', name: 'Curl Bayesiano (Polea)', muscleGroup: 'biceps' }, // Gran estiramiento
+    { id: 'bayesian-curl', name: 'Curl Bayesiano (Polea)', muscleGroup: 'biceps', isUnilateral: true }, // Gran estiramiento
     { id: 'preacher-curl', name: 'Curl Predicador / Scott', muscleGroup: 'biceps' },
     { id: 'hammer-curl', name: 'Curl Martillo', muscleGroup: 'biceps' },
     { id: 'reverse-curl', name: 'Curl Inverso (Braquiorradial)', muscleGroup: 'biceps' },
@@ -112,7 +112,7 @@ export const EXERCISES = [
     { id: 'overhead-cable-extension', name: 'Extensión Katana / Tras Nuca Polea', muscleGroup: 'triceps' }, // Enfatiza cabeza larga
     { id: 'close-grip-bench', name: 'Press Banca Agarre Cerrado', muscleGroup: 'triceps' },
     { id: 'dips-triceps', name: 'Fondos (Verticales)', muscleGroup: 'triceps' },
-    { id: 'single-arm-pushdown', name: 'Extensión Unilateral Supina', muscleGroup: 'triceps' },
+    { id: 'single-arm-pushdown', name: 'Extensión Unilateral Supina', muscleGroup: 'triceps', isUnilateral: true },
 
     // ==================== ANTEBRAZOS (NUEVO) ====================
     { id: 'wrist-curl', name: 'Curl de Muñeca', muscleGroup: 'forearms' },

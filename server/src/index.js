@@ -410,6 +410,7 @@ app.post('/api/routines/import', authMiddleware, async (req, res) => {
                                 targetReps: exercise.reps || '8-12',
                                 restSeconds: exercise.rest || null,
                                 note: exercise.note || null,
+                                isUnilateral: exercise.isUnilateral || false,
                                 order: exercise.order !== undefined ? exercise.order : exIndex
                             }))
                         }
@@ -747,6 +748,7 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
                                             targetReps: ex.targetReps,
                                             restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
                                             note: ex.note,
+                                            isUnilateral: ex.isUnilateral !== undefined ? ex.isUnilateral : false,
                                             order: j
                                         }
                                     });
@@ -760,6 +762,7 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
                                             targetReps: ex.targetReps,
                                             restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
                                             note: ex.note,
+                                            isUnilateral: ex.isUnilateral !== undefined ? ex.isUnilateral : false,
                                             order: j
                                         }
                                     });
@@ -777,6 +780,7 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
                                 targetReps: ex.targetReps,
                                 restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
                                 note: ex.note,
+                                isUnilateral: ex.isUnilateral !== undefined ? ex.isUnilateral : false,
                                 order: j
                             }
                         });
@@ -802,6 +806,7 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
                                     targetReps: ex.targetReps || '8-12',
                                     restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
                                     note: ex.note,
+                                    isUnilateral: ex.isUnilateral !== undefined ? ex.isUnilateral : false,
                                     order: j
                                 }
                             });
@@ -814,6 +819,7 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
                                     targetReps: ex.targetReps || '8-12',
                                     restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
                                     note: ex.note,
+                                    isUnilateral: ex.isUnilateral !== undefined ? ex.isUnilateral : false,
                                     order: j
                                 }
                             });
@@ -1041,6 +1047,8 @@ app.post('/api/workouts/log', authMiddleware, async (req, res) => {
                         weight: set.weight,
                         reps: set.reps,
                         rpe: set.rpe || null,
+                        weightRight: set.weightRight != null ? parseFloat(set.weightRight) : null,
+                        repsRight: set.repsRight != null ? parseInt(set.repsRight) : null,
                         completed: set.completed !== false
                     }))
                 }
@@ -1269,6 +1277,29 @@ app.get('/api/workouts/exercise/:exerciseId/history', authMiddleware, async (req
     }
 });
 
+// GET /api/workouts/:logId - Fetch a single session by ID
+app.get('/api/workouts/:logId', authMiddleware, async (req, res) => {
+    try {
+        const logId = req.params.logId;
+        const log = await prisma.workoutLog.findFirst({
+            where: {
+                id: logId,
+                exercise: { routineDay: { routine: { userId: req.userId } } }
+            },
+            include: {
+                sets: { orderBy: { setNumber: 'asc' } },
+                exercise: true
+            }
+        });
+
+        if (!log) return res.status(404).json({ error: 'Session not found' });
+        res.json(log);
+    } catch (error) {
+        console.error('Error fetching session:', error);
+        res.status(500).json({ error: 'Failed to fetch session' });
+    }
+});
+
 // PUT /api/workouts/:logId - Update a workout session
 app.put('/api/workouts/:logId', authMiddleware, async (req, res) => {
     try {
@@ -1308,6 +1339,8 @@ app.put('/api/workouts/:logId', authMiddleware, async (req, res) => {
                     weight: parseFloat(set.weight),
                     reps: parseInt(set.reps),
                     rpe: set.rpe ? parseFloat(set.rpe) : null,
+                    weightRight: set.weightRight != null ? parseFloat(set.weightRight) : null,
+                    repsRight: set.repsRight != null ? parseInt(set.repsRight) : null,
                     completed: true
                 }))
             });

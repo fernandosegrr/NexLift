@@ -161,6 +161,12 @@ export const api = {
         return res.json();
     },
 
+    async getWorkoutSession(logId) {
+        const res = await authFetch(`${API_URL}/workouts/${logId}`);
+        if (!res.ok) throw new Error('Failed to fetch session');
+        return res.json();
+    },
+
     async updateWorkoutSession(logId, sets) {
         const res = await authFetch(`${API_URL}/workouts/${logId}`, {
             method: 'PUT',

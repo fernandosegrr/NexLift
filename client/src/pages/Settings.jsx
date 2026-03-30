@@ -14,6 +14,79 @@ const MUSCLE_OPTIONS = [
     'Pecho', 'Espalda', 'Hombros', 'Bíceps', 'Tríceps', 'Piernas', 'Core', 'Otros'
 ];
 
+// Fuzzy search utilities
+function normalizeForSearch(str) {
+    return str
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .replace(/\s+/g, ' ');
+}
+
+function levenshtein(a, b) {
+    const m = a.length, n = b.length;
+    if (m === 0) return n;
+    if (n === 0) return m;
+    const dp = Array.from({ length: m + 1 }, (_, i) =>
+        Array.from({ length: n + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0)
+    );
+    for (let i = 1; i <= m; i++)
+        for (let j = 1; j <= n; j++)
+            dp[i][j] = a[i - 1] === b[j - 1]
+                ? dp[i - 1][j - 1]
+                : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    return dp[m][n];
+}
+
+function fuzzyMatch(query, target) {
+    const nq = normalizeForSearch(query);
+    const nt = normalizeForSearch(target);
+    if (!nq || !nt) return 0;
+
+    // Exact substring
+    if (nt.includes(nq)) return 1.0;
+
+    // Each query word must match somewhere
+    const queryWords = nq.split(' ');
+    const allWordsMatch = queryWords.every(qw => {
+        if (nt.includes(qw)) return true;
+        // Plural handling
+        const plural = qw.endsWith('s') ? qw.slice(0, -1) : qw + 's';
+        if (nt.includes(plural)) return true;
+        // Levenshtein against each target word
+        const targetWords = nt.split(' ');
+        return targetWords.some(tw => {
+            if (tw.length < 3 || qw.length < 3) return false;
+            return levenshtein(qw, tw) <= 2;
+        });
+    });
+    if (allWordsMatch && queryWords.length > 1) return 0.85;
+
+    // Single word fuzzy
+    if (queryWords.length === 1) {
+        // Plural handling
+        const plural = nq.endsWith('s') ? nq.slice(0, -1) : nq + 's';
+        if (nt.includes(plural)) return 0.95;
+        // Levenshtein against target words
+        const targetWords = nt.split(' ');
+        for (const tw of targetWords) {
+            if (tw.length < 3 || nq.length < 3) continue;
+            const dist = levenshtein(nq, tw);
+            if (dist <= 1) return 0.8;
+            if (dist <= 2) return 0.6;
+        }
+        // Sliding window for substring-like matches
+        if (nq.length >= 3) {
+            for (let i = 0; i <= nt.length - nq.length; i++) {
+                const window = nt.substring(i, i + nq.length);
+                if (levenshtein(nq, window) <= 1) return 0.7;
+            }
+        }
+    }
+
+    return allWordsMatch ? 0.5 : 0;
+}
+
 const MUSCLE_COLORS = {
     'Pecho': 'bg-red-500/20 text-red-400 border-red-500/30',
     'Espalda': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
@@ -123,8 +196,11 @@ export default function Settings() {
         const page = resetPage ? 0 : historyPage;
         if (resetPage) setHistoryPage(0);
         try {
+            // Send first word only as server pre-filter for broader results; fuzzy filter client-side
+            const serverSearch = historyFilters.search ? historyFilters.search.split(' ')[0] : '';
             const data = await api.getWorkoutHistory(50, {
                 ...historyFilters,
+                search: serverSearch,
                 offset: page * 50
             });
             if (resetPage) {
@@ -339,17 +415,31 @@ export default function Settings() {
         return ordered;
     }, [exercises]);
 
-    const sessionsByDate = useMemo(() => {
+    const { sessionsByDate, fuzzyFilteredCount } = useMemo(() => {
+        let filtered = workoutHistory;
+
+        // Apply client-side fuzzy filter when search is active
+        if (historyFilters.search && historyFilters.search.length >= 2) {
+            filtered = workoutHistory
+                .map(session => ({
+                    session,
+                    score: fuzzyMatch(historyFilters.search, session.exercise?.name || '')
+                }))
+                .filter(item => item.score > 0)
+                .sort((a, b) => b.score - a.score)
+                .map(item => item.session);
+        }
+
         const groups = {};
-        workoutHistory.forEach(session => {
+        filtered.forEach(session => {
             const dateStr = new Date(session.date).toLocaleDateString('es-ES', {
                 weekday: 'long', day: 'numeric', month: 'short'
             });
             if (!groups[dateStr]) groups[dateStr] = [];
             groups[dateStr].push(session);
         });
-        return groups;
-    }, [workoutHistory]);
+        return { sessionsByDate: groups, fuzzyFilteredCount: filtered.length };
+    }, [workoutHistory, historyFilters.search]);
 
     const stats = useMemo(() => ({
         total: exercises.length,
@@ -770,7 +860,7 @@ export default function Settings() {
 
                         {/* Results count */}
                         <p className="text-xs text-[var(--text-secondary)]">
-                            {workoutHistory.length} sesiones {historyFilters.search || historyFilters.dateFrom || historyFilters.dateTo || historyFilters.dayOfWeek ? '(filtrado)' : ''}
+                            {historyFilters.search ? fuzzyFilteredCount : workoutHistory.length} sesiones {historyFilters.search || historyFilters.dateFrom || historyFilters.dateTo || historyFilters.dayOfWeek ? '(filtrado)' : ''}
                         </p>
 
                         {Object.entries(sessionsByDate).map(([dateStr, sessions]) => (
@@ -794,7 +884,16 @@ export default function Settings() {
                                                     <div className="flex gap-1.5 flex-wrap">
                                                         {session.sets?.map((set, i) => (
                                                             <span key={i} className="text-xs bg-[var(--bg-dark)] px-2.5 py-1.5 rounded-lg border border-[var(--border)] font-mono">
-                                                                <span className="text-[var(--primary)] font-bold">{set.weight}</span>kg × <span className="font-bold">{set.reps}</span>
+                                                                {set.repsRight != null ? (
+                                                                    <>
+                                                                        <span className="text-[var(--primary)] font-bold">{set.weight}</span>kg
+                                                                        <span className="text-orange-400 ml-1">I:{set.reps} D:{set.repsRight}</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <span className="text-[var(--primary)] font-bold">{set.weight}</span>kg × <span className="font-bold">{set.reps}</span>
+                                                                    </>
+                                                                )}
                                                                 {set.rpe && <span className="text-[var(--text-secondary)] ml-1">R{10 - set.rpe}</span>}
                                                             </span>
                                                         ))}

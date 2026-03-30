@@ -13,6 +13,7 @@ export default function EditSession() {
     const [saving, setSaving] = useState(false);
     const [session, setSession] = useState(null);
     const [sets, setSets] = useState([]);
+    const [isUnilateral, setIsUnilateral] = useState(false);
 
     useEffect(() => {
         fetchSession();
@@ -20,26 +21,22 @@ export default function EditSession() {
 
     async function fetchSession() {
         try {
-            // Get workout history and find the specific session
-            const history = await api.getWorkoutHistory(100);
-            const found = history.find(s => s.id === logId);
-
-            if (!found) {
-                toast.error('Sesión no encontrada');
-                navigate('/settings');
-                return;
-            }
+            const found = await api.getWorkoutSession(logId);
 
             setSession(found);
+            const hasUnilateralData = found.sets.some(s => s.repsRight != null);
+            setIsUnilateral(hasUnilateralData || found.exercise?.isUnilateral || false);
             setSets(found.sets.map(s => ({
                 id: s.id,
                 weight: s.weight.toString(),
                 reps: s.reps.toString(),
+                weightRight: s.weightRight?.toString() || '',
+                repsRight: s.repsRight?.toString() || '',
                 rpe: s.rpe || null
             })));
         } catch (error) {
             console.error('Error:', error);
-            toast.error('Error cargando sesión');
+            toast.error('Sesión no encontrada');
             navigate('/settings');
         } finally {
             setLoading(false);
@@ -53,7 +50,7 @@ export default function EditSession() {
     }
 
     function addSet() {
-        setSets([...sets, { weight: '', reps: '', rpe: null }]);
+        setSets([...sets, { weight: '', reps: '', weightRight: '', repsRight: '', rpe: null }]);
     }
 
     function removeSet(index) {
@@ -67,11 +64,18 @@ export default function EditSession() {
     async function saveChanges() {
         const validSets = sets
             .filter(s => s.weight !== '' && s.reps !== '')
-            .map(s => ({
-                weight: parseFloat(s.weight),
-                reps: parseInt(s.reps),
-                rpe: s.rpe ? parseFloat(s.rpe) : null
-            }));
+            .map(s => {
+                const setData = {
+                    weight: parseFloat(s.weight),
+                    reps: parseInt(s.reps),
+                    rpe: s.rpe ? parseFloat(s.rpe) : null
+                };
+                if (isUnilateral) {
+                    setData.weightRight = s.weightRight ? parseFloat(s.weightRight) : null;
+                    setData.repsRight = s.repsRight ? parseInt(s.repsRight) : null;
+                }
+                return setData;
+            });
 
         if (validSets.length === 0) {
             toast.error('Debe haber al menos 1 serie válida');
@@ -114,6 +118,7 @@ export default function EditSession() {
                         <h1 className="font-bold text-lg">Editar Sesión</h1>
                         <p className="text-xs text-[var(--text-secondary)]">
                             {session?.exercise?.name}
+                            {isUnilateral && <span className="ml-1 text-orange-400">(Unilateral)</span>}
                         </p>
                     </div>
                     <button
@@ -159,37 +164,72 @@ export default function EditSession() {
                             key={index}
                             className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)]"
                         >
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-start gap-3">
                                 {/* Set Number */}
-                                <div className="w-8 h-8 rounded-full bg-[var(--primary)]/20 flex items-center justify-center">
+                                <div className="w-8 h-8 rounded-full bg-[var(--primary)]/20 flex items-center justify-center mt-5">
                                     <span className="text-sm font-bold text-[var(--primary)]">{index + 1}</span>
                                 </div>
 
-                                {/* Weight Input */}
-                                <div className="flex-1">
-                                    <label className="text-[10px] text-[var(--text-secondary)] block mb-1">PESO (kg)</label>
-                                    <input
-                                        type="number"
-                                        inputMode="decimal"
-                                        step="0.5"
-                                        value={set.weight}
-                                        onChange={e => updateSet(index, 'weight', e.target.value)}
-                                        placeholder="0"
-                                        className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg py-3 px-3 text-center font-bold focus:border-[var(--primary)] focus:outline-none"
-                                    />
-                                </div>
+                                <div className="flex-1 space-y-2">
+                                    {/* Left / Bilateral row */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] text-[var(--text-secondary)] block mb-1">
+                                                {isUnilateral ? 'PESO IZQ (kg)' : 'PESO (kg)'}
+                                            </label>
+                                            <input
+                                                type="number"
+                                                inputMode="decimal"
+                                                step="0.5"
+                                                value={set.weight}
+                                                onChange={e => updateSet(index, 'weight', e.target.value)}
+                                                placeholder="0"
+                                                className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg py-3 px-3 text-center font-bold focus:border-[var(--primary)] focus:outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-[var(--text-secondary)] block mb-1">
+                                                {isUnilateral ? 'REPS IZQ' : 'REPS'}
+                                            </label>
+                                            <input
+                                                type="number"
+                                                inputMode="numeric"
+                                                value={set.reps}
+                                                onChange={e => updateSet(index, 'reps', e.target.value)}
+                                                placeholder="0"
+                                                className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg py-3 px-3 text-center font-bold focus:border-[var(--primary)] focus:outline-none"
+                                            />
+                                        </div>
+                                    </div>
 
-                                {/* Reps Input */}
-                                <div className="flex-1">
-                                    <label className="text-[10px] text-[var(--text-secondary)] block mb-1">REPS</label>
-                                    <input
-                                        type="number"
-                                        inputMode="numeric"
-                                        value={set.reps}
-                                        onChange={e => updateSet(index, 'reps', e.target.value)}
-                                        placeholder="0"
-                                        className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg py-3 px-3 text-center font-bold focus:border-[var(--primary)] focus:outline-none"
-                                    />
+                                    {/* Right side row (unilateral only) */}
+                                    {isUnilateral && (
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label className="text-[10px] text-orange-400 block mb-1">PESO DER (kg)</label>
+                                                <input
+                                                    type="number"
+                                                    inputMode="decimal"
+                                                    step="0.5"
+                                                    value={set.weightRight}
+                                                    onChange={e => updateSet(index, 'weightRight', e.target.value)}
+                                                    placeholder="0"
+                                                    className="w-full bg-[var(--bg-dark)] border border-orange-500/30 rounded-lg py-3 px-3 text-center font-bold focus:border-orange-500 focus:outline-none"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] text-orange-400 block mb-1">REPS DER</label>
+                                                <input
+                                                    type="number"
+                                                    inputMode="numeric"
+                                                    value={set.repsRight}
+                                                    onChange={e => updateSet(index, 'repsRight', e.target.value)}
+                                                    placeholder="0"
+                                                    className="w-full bg-[var(--bg-dark)] border border-orange-500/30 rounded-lg py-3 px-3 text-center font-bold focus:border-orange-500 focus:outline-none"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Delete Button */}

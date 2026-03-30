@@ -275,6 +275,7 @@ export default async function handler(req, res) {
                                     targetReps: ex.reps || '8-12',
                                     restSeconds: ex.rest || null,
                                     note: ex.note || null,
+                                    isUnilateral: ex.isUnilateral || false,
                                     order: ex.order !== undefined ? ex.order : exIndex
                                 }))
                             }
@@ -452,6 +453,7 @@ export default async function handler(req, res) {
                                 targetReps: String(ex.targetReps || '8-12'),
                                 restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
                                 note: ex.note || null,
+                                isUnilateral: ex.isUnilateral !== undefined ? ex.isUnilateral : false,
                                 order: j,
                                 routineDayId: dayId // Needed for create
                             };
@@ -602,6 +604,8 @@ export default async function handler(req, res) {
                             weight: parseFloat(set.weight),
                             reps: parseInt(set.reps),
                             rpe: set.rpe ? parseFloat(set.rpe) : null,
+                            weightRight: set.weightRight != null ? parseFloat(set.weightRight) : null,
+                            repsRight: set.repsRight != null ? parseInt(set.repsRight) : null,
                             completed: true
                         }))
                     }
@@ -762,6 +766,28 @@ export default async function handler(req, res) {
             });
         }
 
+        // GET /api/workouts/:logId - Fetch a single session by ID
+        const workoutGetMatch = path.match(/^\/workouts\/([^/]+)$/);
+        if (workoutGetMatch && method === 'GET') {
+            const userId = getUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            const logId = workoutGetMatch[1];
+            const log = await prisma.workoutLog.findFirst({
+                where: {
+                    id: logId,
+                    exercise: { routineDay: { routine: { userId } } }
+                },
+                include: {
+                    sets: { orderBy: { setNumber: 'asc' } },
+                    exercise: true
+                }
+            });
+
+            if (!log) return res.status(404).json({ error: 'Session not found' });
+            return res.json(log);
+        }
+
         // PUT /api/workouts/:logId - Update a workout session
         const workoutUpdateMatch = path.match(/^\/workouts\/([^/]+)$/);
         if (workoutUpdateMatch && method === 'PUT') {
@@ -798,6 +824,8 @@ export default async function handler(req, res) {
                         weight: parseFloat(set.weight),
                         reps: parseInt(set.reps),
                         rpe: set.rpe ? parseFloat(set.rpe) : null,
+                        weightRight: set.weightRight != null ? parseFloat(set.weightRight) : null,
+                        repsRight: set.repsRight != null ? parseInt(set.repsRight) : null,
                         completed: true
                     }))
                 });

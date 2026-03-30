@@ -39,7 +39,8 @@ export default function NewGoal() {
     const [targetWeight, setTargetWeight] = useState('');
     const [targetReps, setTargetReps] = useState('5');
     const [exercises, setExercises] = useState([]);
-    const [workoutHistory, setWorkoutHistory] = useState({});
+    const [sessionCountForSelected, setSessionCountForSelected] = useState(0);
+    const [exerciseSessionCounts, setExerciseSessionCounts] = useState({});
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [needsManualData, setNeedsManualData] = useState(false);
@@ -53,40 +54,19 @@ export default function NewGoal() {
     useEffect(() => {
         async function fetchData() {
             try {
-                // Fetch exercises from routines
+                // Fetch exercises from routines (include id for history lookup)
                 const routines = await api.getRoutines();
                 const allExercises = [];
                 const seen = new Set();
                 routines.forEach(r => r.days?.forEach(d => {
                     d.exercises?.forEach(e => {
                         if (!seen.has(e.name.toLowerCase())) {
-                            allExercises.push({ name: e.name, muscleGroup: e.muscleGroup });
+                            allExercises.push({ name: e.name, muscleGroup: e.muscleGroup, id: e.id });
                             seen.add(e.name.toLowerCase());
                         }
                     });
                 }));
                 setExercises(allExercises);
-
-                // Fetch workout history to check data availability
-                const history = await api.getWorkoutHistory(500);
-                const grouped = {};
-                history?.forEach(workout => {
-                    const name = workout.exercise?.name?.toLowerCase().trim();
-                    if (!name) return;
-                    if (!grouped[name]) grouped[name] = { sessions: {} };
-
-                    const dateKey = new Date(workout.date).toISOString().split('T')[0];
-                    if (!grouped[name].sessions[dateKey]) {
-                        grouped[name].sessions[dateKey] = true;
-                    }
-                });
-
-                // Convert to session count
-                Object.keys(grouped).forEach(name => {
-                    grouped[name] = Object.keys(grouped[name].sessions).length;
-                });
-                setWorkoutHistory(grouped);
-
             } catch (err) {
                 console.error(err);
             } finally {
@@ -103,7 +83,7 @@ export default function NewGoal() {
 
     function getSessionCount(exerciseName) {
         const normalizedName = exerciseName.toLowerCase().trim();
-        return workoutHistory[normalizedName] || 0;
+        return exerciseSessionCounts[normalizedName] || 0;
     }
 
     async function handleSubmit() {
@@ -158,16 +138,27 @@ export default function NewGoal() {
         setStep(2);
     }
 
-    function handleExerciseSelect(name) {
+    async function handleExerciseSelect(name) {
         setSelectedExercise(name);
+        // Fetch actual session count using exercise-specific history endpoint
+        const ex = exercises.find(e => e.name === name);
+        if (ex) {
+            try {
+                const history = await api.getExerciseHistory(ex.id);
+                const uniqueDates = new Set(history.map(h => new Date(h.date).toISOString().split('T')[0]));
+                setSessionCountForSelected(uniqueDates.size);
+                setExerciseSessionCounts(prev => ({ ...prev, [name.toLowerCase().trim()]: uniqueDates.size }));
+            } catch {
+                setSessionCountForSelected(0);
+            }
+        }
         setStep(3);
     }
 
     function handleTargetContinue() {
         if (!targetWeight) return;
 
-        const sessionCount = getSessionCount(selectedExercise);
-        if (sessionCount < 3) {
+        if (sessionCountForSelected < 2) {
             setNeedsManualData(true);
             setStep(4);
         } else {

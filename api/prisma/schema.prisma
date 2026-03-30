@@ -83,6 +83,7 @@ model Exercise {
   restSeconds  Int?
   note         String?
   order        Int          @default(0)
+  isUnilateral Boolean      @default(false)
   routineDayId String
   routineDay   RoutineDay   @relation(fields: [routineDayId], references: [id], onDelete: Cascade)
   workoutLogs  WorkoutLog[]
@@ -106,6 +107,8 @@ model SetLog {
   reps         Int
   rpe          Int?
   completed    Boolean    @default(true)
+  weightRight  Float?
+  repsRight    Int?
   workoutLogId String
   workoutLog   WorkoutLog @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
 }
