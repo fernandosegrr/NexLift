@@ -350,7 +350,7 @@ export default function ExportReport() {
                 getLocalDateStr(new Date(pr.date)) === todayStr
             );
 
-            // Agrupar por ejercicio con detalle de series
+            // Agrupar por ejercicio con detalle de series (incluye RIR)
             const groupByExercise = (sessions) => {
                 const grouped = {};
                 sessions.forEach(session => {
@@ -359,7 +359,8 @@ export default function ExportReport() {
                     if (!grouped[name]) grouped[name] = [];
                     grouped[name].push(...(session.sets || []).map(s => ({
                         weight: s.weight,
-                        reps: s.reps
+                        reps: s.reps,
+                        rir: s.rpe ? (10 - s.rpe) : null
                     })));
                 });
                 return grouped;
@@ -444,11 +445,15 @@ export default function ExportReport() {
             if (!bestSet) return;
 
             if (!exerciseGroups[name]) exerciseGroups[name] = [];
+            const bestRIR = bestSet.rpe ? (10 - bestSet.rpe) : null;
+            // Adjusted 1RM considers RIR: effective reps = reps + RIR
+            const effectiveReps = (bestSet.reps || 0) + (bestRIR || 0);
             exerciseGroups[name].push({
                 date: new Date(session.date),
                 weight: bestSet.weight || 0,
                 reps: bestSet.reps || 0,
-                estimated1RM: calculate1RM(bestSet.weight || 0, bestSet.reps || 0)
+                rir: bestRIR,
+                estimated1RM: calculate1RM(bestSet.weight || 0, effectiveReps)
             });
         });
 
@@ -644,7 +649,11 @@ export default function ExportReport() {
 
                     const formatSets = (sets) => {
                         if (!sets || sets.length === 0) return '—';
-                        return sets.map(s => `${s.weight}x${s.reps}`).join(', ');
+                        return sets.map(s => {
+                            let str = `${s.weight}x${s.reps}`;
+                            if (s.rir !== null && s.rir !== undefined) str += ` R${s.rir}`;
+                            return str;
+                        }).join(', ');
                     };
 
                     const compRows = dc.exercises.map(ex => [
@@ -695,22 +704,27 @@ export default function ExportReport() {
             // 4. PRs
             if (computed.filteredPRs.length > 0) {
                 builder.printSectionTitle('RÉCORDS PERSONALES (PRs)', 50);
-                const rows = computed.filteredPRs.map(pr => [
-                    pr.exerciseName?.substring(0, 30),
-                    `${pr.weight}kg`,
-                    `x${pr.reps}`,
-                    new Date(pr.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })
-                ]);
+                const rows = computed.filteredPRs.map(pr => {
+                    const est1RM = pr.estimated1RM ? `~${Math.round(pr.estimated1RM)}` : '--';
+                    return [
+                        pr.exerciseName?.substring(0, 28),
+                        `${pr.weight}kg`,
+                        `x${pr.reps}`,
+                        est1RM,
+                        new Date(pr.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })
+                    ];
+                });
                 autoTable(doc, {
                     startY: builder.y,
-                    head: [['Ejercicio', 'Peso', 'Reps', 'Fecha']],
+                    head: [['Ejercicio', 'Peso', 'Reps', '1RM Est.', 'Fecha']],
                     body: rows,
                     theme: 'grid',
                     headStyles: { fillColor: COLORS.purpleDark, fontSize: 9 },
                     columnStyles: {
                         1: { halign: 'right', fontStyle: 'bold', textColor: COLORS.purple },
                         2: { halign: 'center' },
-                        3: { halign: 'right', textColor: COLORS.textMedium }
+                        3: { halign: 'center', textColor: COLORS.yellow },
+                        4: { halign: 'right', textColor: COLORS.textMedium }
                     },
                     margin: { left: margin, right: margin }
                 });

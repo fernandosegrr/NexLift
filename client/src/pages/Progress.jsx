@@ -243,26 +243,46 @@ function ProgressBar({ compliance }) {
 }
 
 function HeatmapCalendar({ days }) {
-    // Reorganizar en semanas (7 columnas)
     const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
-    // Agrupar días en filas de 7 (como semanas)
-    const weeks = [];
-    for (let i = 0; i < days.length; i += 7) {
-        weeks.push(days.slice(i, i + 7));
-    }
+    // Properly align days to their day-of-week columns (Mon=0, Sun=6)
+    const weeks = useMemo(() => {
+        if (!days || days.length === 0) return [];
 
-    // Función para obtener el color basado en intensidad
-    const getIntensityClass = (hasWorkout, count = 1) => {
+        const result = [];
+        let currentWeek = new Array(7).fill(null);
+
+        days.forEach(day => {
+            const date = new Date(day.date + 'T12:00:00'); // Avoid timezone issues
+            // Convert JS day (0=Sun) to Mon-first (0=Mon, 6=Sun)
+            const dow = date.getDay();
+            const mondayDow = dow === 0 ? 6 : dow - 1;
+
+            // If we need to start a new week
+            if (mondayDow === 0 && currentWeek.some(d => d !== null)) {
+                result.push(currentWeek);
+                currentWeek = new Array(7).fill(null);
+            }
+
+            currentWeek[mondayDow] = day;
+        });
+
+        // Push last week if it has data
+        if (currentWeek.some(d => d !== null)) {
+            result.push(currentWeek);
+        }
+
+        return result;
+    }, [days]);
+
+    const getIntensityClass = (hasWorkout) => {
         if (!hasWorkout) return 'bg-[var(--bg-dark)]';
-        if (count >= 3) return 'bg-green-500 shadow-md shadow-green-500/40';
-        if (count >= 2) return 'bg-green-500/80';
         return 'bg-green-500/60';
     };
 
     return (
         <div className="space-y-1">
-            {/* Etiquetas de días */}
+            {/* Day labels */}
             <div className="grid grid-cols-7 gap-1 mb-1">
                 {DAY_LABELS.map(label => (
                     <span key={label} className="text-[9px] text-center text-[var(--text-secondary)] font-medium">
@@ -271,19 +291,16 @@ function HeatmapCalendar({ days }) {
                 ))}
             </div>
 
-            {/* Grid de semanas */}
+            {/* Week rows */}
             {weeks.map((week, weekIdx) => (
                 <div key={weekIdx} className="grid grid-cols-7 gap-1">
                     {week.map((day, dayIdx) => (
                         <div
                             key={dayIdx}
-                            title={`${day.date}${day.hasWorkout ? ' ✓' : ''}`}
-                            className={`aspect-square rounded-md min-h-[36px] transition-all cursor-default ${getIntensityClass(day.hasWorkout)}`}
+                            title={day ? `${day.date}${day.hasWorkout ? ' ✓' : ''}` : ''}
+                            className={`aspect-square rounded-md min-h-[36px] transition-all cursor-default ${day ? getIntensityClass(day.hasWorkout) : 'opacity-0'
+                                }`}
                         />
-                    ))}
-                    {/* Rellenar celdas vacías si la última semana está incompleta */}
-                    {week.length < 7 && Array.from({ length: 7 - week.length }).map((_, i) => (
-                        <div key={`empty-${i}`} className="aspect-square rounded-md min-h-[36px] opacity-0" />
                     ))}
                 </div>
             ))}

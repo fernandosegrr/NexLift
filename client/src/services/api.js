@@ -143,8 +143,14 @@ export const api = {
         return res.json();
     },
 
-    async getWorkoutHistory(limit = 30) {
-        const res = await authFetch(`${API_URL}/workouts/history?limit=${limit}`);
+    async getWorkoutHistory(limit = 30, filters = {}) {
+        const params = new URLSearchParams({ limit: String(limit) });
+        if (filters.search) params.set('search', filters.search);
+        if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
+        if (filters.dateTo) params.set('dateTo', filters.dateTo);
+        if (filters.dayOfWeek !== undefined && filters.dayOfWeek !== '') params.set('dayOfWeek', String(filters.dayOfWeek));
+        if (filters.offset) params.set('offset', String(filters.offset));
+        const res = await authFetch(`${API_URL}/workouts/history?${params.toString()}`);
         if (!res.ok) throw new Error('Failed to fetch workout history');
         return res.json();
     },
@@ -359,6 +365,26 @@ export const api = {
             method: 'DELETE',
         });
         if (!res.ok) throw new Error('Failed to delete goal');
+        return res.json();
+    },
+
+    async fixWeights(exerciseName, oldWeight, newWeight) {
+        const res = await authFetch(`${API_URL}/workouts/fix-weights`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ exerciseName, oldWeight, newWeight }),
+        });
+        if (!res.ok) throw new Error('Failed to fix weights');
+        return res.json();
+    },
+
+    async getAISuggestion(exerciseId) {
+        const res = await authFetch(`${API_URL}/ai/suggest`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ exerciseId }),
+        });
+        if (!res.ok) throw new Error('Failed to get AI suggestion');
         return res.json();
     },
 

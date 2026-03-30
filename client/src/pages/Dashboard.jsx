@@ -126,7 +126,7 @@ export default function Dashboard() {
         return { last30Days: days, localStreak: streak, isTodayLogged: todayLogged };
     }, [consistency, todayStr]);
 
-    // Memoizar heatmap de 365 días
+    // Memoizar heatmap de 365 días (estilo GitHub: columnas = semanas, filas = días de la semana)
     const yearHeatmap = useMemo(() => {
         if (!showHeatmap) return null;
 
@@ -134,22 +134,30 @@ export default function Dashboard() {
         const startOfYear = new Date(year, 0, 1);
         const endOfYear = new Date(year, 11, 31);
         const today = new Date();
-        const weeks = [];
-        let currentDate = new Date(startOfYear);
 
-        while (currentDate <= endOfYear) {
+        // Adjust start to the Monday of the week containing Jan 1
+        const startDow = startOfYear.getDay(); // 0=Sun
+        const mondayOffset = startDow === 0 ? -6 : 1 - startDow;
+        const firstMonday = new Date(year, 0, 1 + mondayOffset);
+
+        // Build weeks as columns (each week = Mon-Sun)
+        const weeks = [];
+        let currentDate = new Date(firstMonday);
+
+        while (currentDate <= endOfYear || weeks.length < 53) {
             const week = [];
             for (let d = 0; d < 7; d++) {
-                if (currentDate.getFullYear() === year) {
-                    const dateStr = getLocalDateStr(new Date(currentDate));
-                    const isFuture = currentDate > today;
-                    week.push({ date: dateStr, isFuture });
-                } else {
-                    week.push(null);
-                }
+                const dateStr = getLocalDateStr(new Date(currentDate));
+                const inYear = currentDate.getFullYear() === year;
+                const isFuture = currentDate > today;
+                week.push(inYear ? { date: dateStr, isFuture } : null);
                 currentDate.setDate(currentDate.getDate() + 1);
             }
-            weeks.push(week);
+            // Only add weeks that have at least one day in the year
+            if (week.some(d => d !== null)) {
+                weeks.push(week);
+            }
+            if (currentDate.getFullYear() > year && currentDate.getDay() === 1) break;
         }
 
         return weeks;
@@ -384,7 +392,7 @@ export default function Dashboard() {
 
                             <div className="flex gap-[2px] overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-[var(--border)] scrollbar-track-transparent" ref={heatmapRef}>
                                 <div className="flex flex-col gap-[2px] shrink-0 text-[9px] text-[var(--text-secondary)] mr-1.5">
-                                    {['D', 'L', 'M', 'X', 'J', 'V', 'S'].map((d, i) => (
+                                    {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((d, i) => (
                                         <div key={i} className="h-[11px] flex items-center justify-center w-3">
                                             {d}
                                         </div>

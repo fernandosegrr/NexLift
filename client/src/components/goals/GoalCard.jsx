@@ -406,18 +406,43 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
 
     }, [goal, history]);
 
-    // Helper para verificar completado automático
-    const checkCompletion = (weekData) => {
-        if (!history || !history.sessions) return false;
-        if (!history.sessions.length) return false;
-        const currentRealBest1RM = history.sessions[history.sessions.length - 1].best1RM;
-        return currentRealBest1RM >= weekData.projected1RM;
-    };
+    // Auto-detect completion from real workout history
+    // A week is completed if the user has achieved a 1RM >= the week's projected1RM
+    // at any point in their training history
+    const { completedAutoWeeks, currentReal1RM, realProgressPct } = useMemo(() => {
+        if (!history?.sessions?.length || !prediction.plan?.length) {
+            return { completedAutoWeeks: new Set(), currentReal1RM: 0, realProgressPct: 0 };
+        }
 
-    // Filtrar plan visible
+        // Get all historical 1RM values sorted by date
+        const best1RMs = history.sessions.map(s => s.best1RM).sort((a, b) => a - b);
+        const maxReal1RM = Math.max(...best1RMs);
+        const latestReal1RM = history.sessions[history.sessions.length - 1].best1RM;
+
+        // Mark weeks as completed if user's BEST historical 1RM exceeds the week's target
+        const autoCompleted = new Set();
+        prediction.plan.forEach(weekData => {
+            if (maxReal1RM >= weekData.projected1RM) {
+                autoCompleted.add(weekData.week);
+            }
+        });
+
+        // Calculate real progress toward the goal
+        const realPct = prediction.target1RM > 0
+            ? Math.min(100, Math.max(0, (latestReal1RM / prediction.target1RM) * 100))
+            : 0;
+
+        return {
+            completedAutoWeeks: autoCompleted,
+            currentReal1RM: Math.round(latestReal1RM * 10) / 10,
+            realProgressPct: Math.round(realPct)
+        };
+    }, [history, prediction.plan, prediction.target1RM]);
+
+    // Filter visible plan: hide both manually and auto-completed weeks
     const visiblePlan = (prediction.plan || []).filter(weekData => {
         const isManually = (goal.completedWeeks || []).includes(weekData.week);
-        const isAuto = checkCompletion(weekData);
+        const isAuto = completedAutoWeeks.has(weekData.week);
         return !isManually && !isAuto;
     });
 
@@ -455,10 +480,11 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
         );
     }
 
-    // Cálculo seguro del porcentaje para la barra
-    const pct = prediction.target1RM > 0 
-        ? Math.min(100, Math.max(0, ((prediction.current1RM / prediction.target1RM) * 100)))
-        : 0;
+    // Use real progress if available, otherwise use initial estimate
+    const pct = currentReal1RM > 0 ? realProgressPct
+        : prediction.target1RM > 0
+            ? Math.min(100, Math.max(0, ((prediction.current1RM / prediction.target1RM) * 100)))
+            : 0;
 
     return (
         <div className="bg-[var(--bg-card)] rounded-2xl border border-[var(--border)] overflow-hidden transition-all hover:border-[var(--primary)]/30">
@@ -488,8 +514,14 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
                 {!prediction.achieved && (
                     <div className="space-y-2">
                         <div className="flex justify-between text-xs font-semibold">
-                            <span className="text-[var(--text-secondary)]">Inicio: {prediction.current1RM} RM</span>
-                            <span className="text-purple-400">Meta Estimada: {prediction.target1RM} RM</span>
+                            <span className="text-[var(--text-secondary)]">
+                                {currentReal1RM > 0 ? (
+                                    <>Actual: <span className="text-green-400">{currentReal1RM}</span> RM</>
+                                ) : (
+                                    <>Inicio: {prediction.current1RM} RM</>
+                                )}
+                            </span>
+                            <span className="text-purple-400">Meta: {prediction.target1RM} RM</span>
                         </div>
                         <div className="h-2 w-full bg-[var(--bg-dark)] rounded-full overflow-hidden">
                             <div className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" style={{ width: `${pct}%` }} />

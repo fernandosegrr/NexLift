@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, Save, Trophy, History, X, ChevronLeft, ChevronRight,
-    Target, Lock, ArrowRight, TrendingUp, Sparkles, Dumbbell
+    Target, Lock, ArrowRight, TrendingUp, Sparkles, Dumbbell, Brain, Loader2
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
@@ -136,64 +136,87 @@ const SkeletonLoader = () => (
 );
 
 // Componente memoizado - compara props específicas para detectar cambios
-const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, previousBest }) => {
+const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, previousBest, isUnilateral }) => {
     const handleFocus = (e) => e.target.select();
 
     const isPR = useMemo(() => {
         if (!previousBest || isLocked || !set.completed) return false;
-        const currentScore = (Number(set.weight) || 0) * (1 + (Number(set.reps) || 0) / 30);
+        const reps = isUnilateral ? Math.min(Number(set.reps) || 0, Number(set.repsR) || 0) : Number(set.reps) || 0;
+        const currentScore = (Number(set.weight) || 0) * (1 + reps / 30);
         const bestScore = (Number(previousBest.weight) || 0) * (1 + (Number(previousBest.reps) || 0) / 30);
         return currentScore > bestScore;
-    }, [set, previousBest, isLocked]);
+    }, [set, previousBest, isLocked, isUnilateral]);
 
     return (
         <div className={`group relative rounded-2xl p-3 transition-all duration-300 ${set.completed
             ? 'bg-[var(--success)]/10 ring-1 ring-[var(--success)]/50'
             : 'bg-[var(--bg-card)] border border-[var(--border)]'
             }`}>
-            {/* Etiqueta vertical para ahorrar espacio horizontal */}
+            {/* Etiqueta vertical */}
             <div className="absolute -left-3 top-1/2 -translate-y-1/2 flex flex-col items-center justify-center gap-1 z-10">
                 <span className={`text-[10px] font-bold uppercase rotate-180 py-1 [writing-mode:vertical-rl] tracking-wider ${set.completed ? 'text-[var(--success)]' : 'text-[var(--text-secondary)]'
                     }`}>Set {index + 1}</span>
             </div>
 
             <div className="grid grid-cols-10 gap-3 items-center">
-                {/* Inputs Wrapper */}
-                <div className="col-span-8 grid grid-cols-2 gap-3">
-                    {/* Peso */}
-                    <div className="relative">
-                        <input
-                            type="number"
-                            inputMode="decimal"
-                            value={set.weight}
-                            onFocus={handleFocus}
-                            onChange={(e) => onUpdate(index, 'weight', e.target.value)}
-                            placeholder="0"
-                            readOnly={isLocked}
-                            className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.weight ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-                                } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">KG</span>
+                <div className="col-span-8 space-y-2">
+                    <div className="grid grid-cols-2 gap-3">
+                        {/* Peso */}
+                        <div className="relative">
+                            <input
+                                type="number"
+                                inputMode="decimal"
+                                value={set.weight}
+                                onFocus={handleFocus}
+                                onChange={(e) => onUpdate(index, 'weight', e.target.value)}
+                                placeholder="0"
+                                readOnly={isLocked}
+                                className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.weight ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                                    } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">KG</span>
+                        </div>
+
+                        {/* Reps (bilateral or left side) */}
+                        <div className="relative">
+                            <input
+                                type="number"
+                                inputMode="numeric"
+                                value={set.reps}
+                                onFocus={handleFocus}
+                                onChange={(e) => onUpdate(index, 'reps', e.target.value)}
+                                placeholder="0"
+                                readOnly={isLocked}
+                                className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.reps ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                                    } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">
+                                {isUnilateral ? 'IZQ' : 'REP'}
+                            </span>
+                        </div>
                     </div>
 
-                    {/* Reps */}
-                    <div className="relative">
-                        <input
-                            type="number"
-                            inputMode="numeric"
-                            value={set.reps}
-                            onFocus={handleFocus}
-                            onChange={(e) => onUpdate(index, 'reps', e.target.value)}
-                            placeholder="0"
-                            readOnly={isLocked}
-                            className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.reps ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-                                } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">REP</span>
-                    </div>
+                    {/* Right side reps (unilateral only) */}
+                    {isUnilateral && (
+                        <div className="relative">
+                            <input
+                                type="number"
+                                inputMode="numeric"
+                                value={set.repsR || ''}
+                                onFocus={handleFocus}
+                                onChange={(e) => onUpdate(index, 'repsR', e.target.value)}
+                                placeholder="0"
+                                readOnly={isLocked}
+                                className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.repsR ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                                    } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">DER</span>
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-orange-400 pointer-events-none font-bold">R</span>
+                        </div>
+                    )}
 
-                    {/* RIR Selector (Estilo Control Segmentado) */}
-                    <div className="col-span-2 flex items-center bg-[var(--bg-dark)]/50 rounded-lg p-1 h-9 mt-1">
+                    {/* RIR Selector */}
+                    <div className="flex items-center bg-[var(--bg-dark)]/50 rounded-lg p-1 h-9">
                         <span className="text-[10px] text-[var(--text-secondary)] w-8 text-center font-bold">RIR</span>
                         <div className="flex flex-1 justify-end gap-1 h-full">
                             {[0, 1, 2, 3].map(rir => (
@@ -213,7 +236,7 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
                     </div>
                 </div>
 
-                {/* Check Button (Zona Táctil Grande) */}
+                {/* Check Button */}
                 <div className="col-span-2 flex justify-end">
                     <button
                         onClick={() => onToggle(index)}
@@ -237,13 +260,14 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
         </div>
     );
 }, (prevProps, nextProps) => {
-    // Custom comparison - re-render when any set property changes
     return prevProps.set.weight === nextProps.set.weight &&
         prevProps.set.reps === nextProps.set.reps &&
+        prevProps.set.repsR === nextProps.set.repsR &&
         prevProps.set.completed === nextProps.set.completed &&
         prevProps.set.rir === nextProps.set.rir &&
         prevProps.index === nextProps.index &&
         prevProps.isLocked === nextProps.isLocked &&
+        prevProps.isUnilateral === nextProps.isUnilateral &&
         prevProps.previousBest === nextProps.previousBest;
 });
 
@@ -269,7 +293,12 @@ export default function Workout() {
         history: []
     });
 
+    // AI suggestion replaces formula-based suggestion
+    const [aiSuggestion, setAiSuggestion] = useState(null);
+    const [aiLoading, setAiLoading] = useState(false);
+
     const [sets, setSets] = useState([]);
+    const [isUnilateral, setIsUnilateral] = useState(false);
     const currentExerciseIdRef = useRef(null);
 
     // Custom hooks
@@ -452,6 +481,34 @@ export default function Workout() {
         toast.success('Peso sugerido aplicado');
     }, [isAlreadyLogged, suggestedWeight, toast]);
 
+    const requestAISuggestion = useCallback(async () => {
+        if (!currentExercise?.id || aiLoading) return;
+        setAiLoading(true);
+        setAiSuggestion(null);
+        try {
+            const result = await api.getAISuggestion(currentExercise.id);
+            if (result.suggestion) {
+                setAiSuggestion(result.suggestion);
+            } else {
+                toast.error(result.reason || 'Sin sugerencia disponible');
+            }
+        } catch (err) {
+            toast.error('Error al obtener sugerencia IA');
+        } finally {
+            setAiLoading(false);
+        }
+    }, [currentExercise?.id, aiLoading, toast]);
+
+    const applyAISuggestion = useCallback(() => {
+        if (!aiSuggestion || isAlreadyLogged) return;
+        setSets(prev => prev.map(s => ({
+            ...s,
+            weight: aiSuggestion.weight.toString(),
+            reps: aiSuggestion.reps.toString()
+        })));
+        toast.success('Sugerencia IA aplicada');
+    }, [aiSuggestion, isAlreadyLogged, toast]);
+
     function goToExercise(newIndex) {
         if (newIndex < 0 || newIndex >= workoutState.exercises.length) return;
 
@@ -462,6 +519,7 @@ export default function Workout() {
         const updatedWorkoutData = { ...workoutData, [currentExId]: sets };
         setWorkoutData(updatedWorkoutData);
         setWorkoutState(prev => ({ ...prev, currentIndex: newIndex }));
+        setAiSuggestion(null);
         loadExerciseData(workoutState.exercises[newIndex], newIndex);
     }
 
@@ -494,11 +552,18 @@ export default function Workout() {
 
         const validSets = sets
             .filter(s => s.weight !== '' && s.reps !== '')
-            .map(s => ({
-                weight: parseFloat(s.weight),
-                reps: parseInt(s.reps),
-                rpe: s.rir !== null ? (10 - s.rir) : null
-            }));
+            .map(s => {
+                // For unilateral exercises, store the minimum reps (weakest side)
+                // and add a note with both sides
+                const reps = isUnilateral && s.repsR
+                    ? Math.min(parseInt(s.reps), parseInt(s.repsR))
+                    : parseInt(s.reps);
+                return {
+                    weight: parseFloat(s.weight),
+                    reps,
+                    rpe: s.rir !== null ? (10 - s.rir) : null
+                };
+            });
 
         if (validSets.length === 0) {
             toast.error('Registra al menos 1 serie');
@@ -610,9 +675,20 @@ export default function Workout() {
                     {currentExercise?.name}
                 </h1>
 
-                <div className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)] bg-[var(--bg-card)] px-3 py-1.5 rounded-lg border border-[var(--border)]">
-                    <Target size={14} />
-                    <span>Meta: <span className="font-bold text-[var(--text-primary)]">{currentExercise?.targetSets} × {currentExercise?.targetReps}</span></span>
+                <div className="flex items-center justify-center gap-3">
+                    <div className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)] bg-[var(--bg-card)] px-3 py-1.5 rounded-lg border border-[var(--border)]">
+                        <Target size={14} />
+                        <span>Meta: <span className="font-bold text-[var(--text-primary)]">{currentExercise?.targetSets} × {currentExercise?.targetReps}</span></span>
+                    </div>
+                    <button
+                        onClick={() => setIsUnilateral(!isUnilateral)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${isUnilateral
+                            ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+                            : 'bg-[var(--bg-card)] text-[var(--text-secondary)] border-[var(--border)]'
+                        }`}
+                    >
+                        {isUnilateral ? 'Unilateral' : 'Bilateral'}
+                    </button>
                 </div>
             </div>
 
@@ -628,7 +704,8 @@ export default function Workout() {
                             <p className="text-[var(--success)]/80 text-xs">Guardado hoy a las {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
                     </div>
-                ) : (previousBest || suggestedWeight) && (
+                ) : (previousBest || suggestedWeight || aiSuggestion) && (
+                    <>
                     <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-1 shadow-sm flex divide-x divide-[var(--border)]">
                         {previousBest && (
                             <div className="flex-1 p-3 flex flex-col items-center">
@@ -642,7 +719,30 @@ export default function Workout() {
                                 </div>
                             </div>
                         )}
-                        {suggestedWeight && (
+                        {/* AI suggestion replaces formula suggestion */}
+                        {aiSuggestion ? (
+                            <button
+                                onClick={applyAISuggestion}
+                                className="flex-1 p-3 flex flex-col items-center hover:bg-[var(--bg-dark)] transition-colors active:scale-95 group relative overflow-hidden"
+                            >
+                                <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <span className="text-[10px] uppercase text-blue-400 font-bold mb-1 flex items-center gap-1">
+                                    Sugerido IA <Brain size={10} />
+                                </span>
+                                <div className="flex items-end gap-1 text-blue-400 group-hover:scale-105 transition-transform">
+                                    <span className="text-2xl font-black tracking-tight leading-none">{aiSuggestion.weight}</span>
+                                    <span className="text-xs mb-0.5 font-bold">kg</span>
+                                    <span className="mx-1 text-[var(--border)]">/</span>
+                                    <span className="text-lg font-bold">{aiSuggestion.reps}</span>
+                                    <span className="text-xs mb-0.5">reps</span>
+                                </div>
+                            </button>
+                        ) : aiLoading ? (
+                            <div className="flex-1 p-3 flex flex-col items-center justify-center">
+                                <Loader2 size={20} className="text-blue-400 animate-spin mb-1" />
+                                <span className="text-[10px] text-blue-400 font-bold">Analizando...</span>
+                            </div>
+                        ) : suggestedWeight ? (
                             <button
                                 onClick={applySuggestedWeight}
                                 className="flex-1 p-3 flex flex-col items-center hover:bg-[var(--bg-dark)] transition-colors active:scale-95 group relative overflow-hidden"
@@ -656,8 +756,27 @@ export default function Workout() {
                                     <span className="text-xs mb-0.5 font-bold">kg</span>
                                 </div>
                             </button>
-                        )}
+                        ) : null}
                     </div>
+
+                    {/* AI Request Button - only show if not yet requested */}
+                    {!aiSuggestion && !aiLoading && (
+                        <button
+                            onClick={requestAISuggestion}
+                            className="w-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-2.5 flex items-center justify-center gap-2 hover:border-blue-500/40 transition-all active:scale-95"
+                        >
+                            <Brain size={14} className="text-blue-400" />
+                            <span className="text-xs font-bold text-blue-400">Pedir sugerencia IA</span>
+                        </button>
+                    )}
+
+                    {/* AI Reasoning */}
+                    {aiSuggestion?.reasoning && (
+                        <p className="text-[10px] text-[var(--text-secondary)] bg-[var(--bg-card)] p-2 rounded-lg border border-[var(--border)]">
+                            <Brain size={10} className="inline mr-1 text-blue-400" />{aiSuggestion.reasoning}
+                        </p>
+                    )}
+                    </>
                 )}
             </div>
 
@@ -673,6 +792,7 @@ export default function Workout() {
                         onSetRIR={setRIR}
                         isLocked={isAlreadyLogged}
                         previousBest={previousBest}
+                        isUnilateral={isUnilateral}
                     />
                 ))}
             </div>

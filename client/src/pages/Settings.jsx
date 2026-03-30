@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
     Settings as SettingsIcon, Dumbbell, Check, ChevronDown, Info, History,
     Trash2, Edit3, AlertTriangle, X, User, Lock, Shield, Download, Eye, EyeOff,
-    Loader2, ChevronLeft, Save, CheckCircle, AlertCircle
+    Loader2, ChevronLeft, Save, CheckCircle, AlertCircle, Search, Filter, ChevronRight,
+    Calendar
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
@@ -74,6 +75,15 @@ export default function Settings() {
     // Export state
     const [exporting, setExporting] = useState(false);
 
+    // History filters
+    const [historyFilters, setHistoryFilters] = useState({
+        search: '', dateFrom: '', dateTo: '', dayOfWeek: ''
+    });
+    const [historyPage, setHistoryPage] = useState(0);
+    const [hasMoreHistory, setHasMoreHistory] = useState(true);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [showFilters, setShowFilters] = useState(false);
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -94,16 +104,57 @@ export default function Settings() {
         try {
             const [exercisesData, historyData, trashData] = await Promise.all([
                 api.getExercises(),
-                api.getWorkoutHistory(30),
+                api.getWorkoutHistory(50),
                 api.getTrashRoutine()
             ]);
             setExercises(exercisesData || []);
             setWorkoutHistory(historyData || []);
             setTrashRoutine(trashData);
+            setHasMoreHistory((historyData || []).length >= 50);
         } catch (err) {
             console.error(err);
         } finally {
             setLoading(false);
+        }
+    }
+
+    async function fetchFilteredHistory(resetPage = true) {
+        setHistoryLoading(true);
+        const page = resetPage ? 0 : historyPage;
+        if (resetPage) setHistoryPage(0);
+        try {
+            const data = await api.getWorkoutHistory(50, {
+                ...historyFilters,
+                offset: page * 50
+            });
+            if (resetPage) {
+                setWorkoutHistory(data || []);
+            } else {
+                setWorkoutHistory(prev => [...prev, ...(data || [])]);
+            }
+            setHasMoreHistory((data || []).length >= 50);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setHistoryLoading(false);
+        }
+    }
+
+    async function loadMoreHistory() {
+        const nextPage = historyPage + 1;
+        setHistoryPage(nextPage);
+        setHistoryLoading(true);
+        try {
+            const data = await api.getWorkoutHistory(50, {
+                ...historyFilters,
+                offset: nextPage * 50
+            });
+            setWorkoutHistory(prev => [...prev, ...(data || [])]);
+            setHasMoreHistory((data || []).length >= 50);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setHistoryLoading(false);
         }
     }
 
@@ -219,7 +270,7 @@ export default function Settings() {
             }));
 
             const exportData = {
-                version: '1.9.3',
+                version: '1.9.6',
                 exportDate: new Date().toISOString(),
                 routines: sanitizeRoutines,
                 workouts: sanitizeWorkouts,
@@ -607,15 +658,96 @@ export default function Settings() {
             {/* TAB: History */}
             {activeSection === 'history' && (
                 <div className="space-y-4 animate-fade-in">
-                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 text-sm flex gap-3 items-start">
-                        <AlertTriangle size={20} className="text-yellow-500 shrink-0" />
-                        <p className="text-yellow-200/90">Edita o elimina sesiones. <strong>Los cambios son permanentes.</strong></p>
+                    {/* Search Bar */}
+                    <div className="flex gap-2">
+                        <div className="flex-1 relative">
+                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+                            <input
+                                type="text"
+                                value={historyFilters.search}
+                                onChange={(e) => setHistoryFilters(f => ({ ...f, search: e.target.value }))}
+                                onKeyDown={(e) => e.key === 'Enter' && fetchFilteredHistory()}
+                                placeholder="Buscar ejercicio..."
+                                className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl pl-10 pr-4 py-3 text-sm focus:border-[var(--primary)] focus:outline-none"
+                            />
+                        </div>
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`w-12 h-12 rounded-xl border flex items-center justify-center transition-all ${showFilters ? 'bg-[var(--primary)] border-[var(--primary)] text-white' : 'bg-[var(--bg-dark)] border-[var(--border)] text-[var(--text-secondary)]'}`}
+                        >
+                            <Filter size={18} />
+                        </button>
+                        <button
+                            onClick={() => fetchFilteredHistory()}
+                            disabled={historyLoading}
+                            className="px-4 h-12 rounded-xl bg-[var(--primary)] text-white text-sm font-medium disabled:opacity-50"
+                        >
+                            {historyLoading ? <Loader2 size={16} className="animate-spin" /> : 'Buscar'}
+                        </button>
+                    </div>
+
+                    {/* Filters Panel */}
+                    {showFilters && (
+                        <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)] space-y-3 animate-fade-in">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs text-[var(--text-secondary)] mb-1">Desde</label>
+                                    <input
+                                        type="date"
+                                        value={historyFilters.dateFrom}
+                                        onChange={(e) => setHistoryFilters(f => ({ ...f, dateFrom: e.target.value }))}
+                                        className="w-full px-3 py-2 bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg text-sm text-white focus:border-[var(--primary)] focus:outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-[var(--text-secondary)] mb-1">Hasta</label>
+                                    <input
+                                        type="date"
+                                        value={historyFilters.dateTo}
+                                        onChange={(e) => setHistoryFilters(f => ({ ...f, dateTo: e.target.value }))}
+                                        className="w-full px-3 py-2 bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg text-sm text-white focus:border-[var(--primary)] focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-[var(--text-secondary)] mb-1">Día de la semana</label>
+                                <select
+                                    value={historyFilters.dayOfWeek}
+                                    onChange={(e) => setHistoryFilters(f => ({ ...f, dayOfWeek: e.target.value }))}
+                                    className="w-full px-3 py-2 bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg text-sm text-white focus:border-[var(--primary)] focus:outline-none"
+                                >
+                                    <option value="">Todos</option>
+                                    <option value="1">Lunes</option>
+                                    <option value="2">Martes</option>
+                                    <option value="3">Miércoles</option>
+                                    <option value="4">Jueves</option>
+                                    <option value="5">Viernes</option>
+                                    <option value="6">Sábado</option>
+                                    <option value="0">Domingo</option>
+                                </select>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setHistoryFilters({ search: '', dateFrom: '', dateTo: '', dayOfWeek: '' });
+                                    setTimeout(() => fetchFilteredHistory(), 50);
+                                }}
+                                className="w-full py-2 text-xs text-[var(--text-secondary)] hover:text-white border border-[var(--border)] rounded-lg transition-colors"
+                            >
+                                Limpiar filtros
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Warning */}
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-sm flex gap-3 items-start">
+                        <AlertTriangle size={18} className="text-yellow-500 shrink-0 mt-0.5" />
+                        <p className="text-yellow-200/90 text-xs">Edita o elimina sesiones. <strong>Los cambios son permanentes.</strong></p>
                     </div>
 
                     <div className="space-y-4">
                         {/* Papelera / Archivo */}
                         {trashRoutine && (
-                            <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)] flex items-center justify-between mb-6 shadow-lg shadow-black/20">
+                            <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)] flex items-center justify-between shadow-lg shadow-black/20">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-full bg-[var(--bg-dark)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)]">
                                         <Trash2 size={20} />
@@ -635,6 +767,11 @@ export default function Settings() {
                                 </button>
                             </div>
                         )}
+
+                        {/* Results count */}
+                        <p className="text-xs text-[var(--text-secondary)]">
+                            {workoutHistory.length} sesiones {historyFilters.search || historyFilters.dateFrom || historyFilters.dateTo || historyFilters.dayOfWeek ? '(filtrado)' : ''}
+                        </p>
 
                         {Object.entries(sessionsByDate).map(([dateStr, sessions]) => (
                             <div key={dateStr}>
@@ -658,6 +795,7 @@ export default function Settings() {
                                                         {session.sets?.map((set, i) => (
                                                             <span key={i} className="text-xs bg-[var(--bg-dark)] px-2.5 py-1.5 rounded-lg border border-[var(--border)] font-mono">
                                                                 <span className="text-[var(--primary)] font-bold">{set.weight}</span>kg × <span className="font-bold">{set.reps}</span>
+                                                                {set.rpe && <span className="text-[var(--text-secondary)] ml-1">R{10 - set.rpe}</span>}
                                                             </span>
                                                         ))}
                                                     </div>
@@ -676,12 +814,26 @@ export default function Settings() {
                                 </div>
                             </div>
                         ))}
+
+                        {/* Load More Button */}
+                        {hasMoreHistory && workoutHistory.length > 0 && (
+                            <button
+                                onClick={loadMoreHistory}
+                                disabled={historyLoading}
+                                className="w-full py-3 text-sm text-[var(--primary)] hover:bg-[var(--bg-card)] rounded-xl font-medium transition-all border border-[var(--border)] flex items-center justify-center gap-2"
+                            >
+                                {historyLoading ? <Loader2 size={16} className="animate-spin" /> : <ChevronDown size={16} />}
+                                Cargar más sesiones
+                            </button>
+                        )}
                     </div>
 
-                    {workoutHistory.length === 0 && (
+                    {workoutHistory.length === 0 && !historyLoading && (
                         <div className="bg-[var(--bg-card)] rounded-xl p-8 text-center border border-[var(--border)]">
                             <History size={32} className="mx-auto text-[var(--text-secondary)] mb-2" />
-                            <p className="text-sm text-[var(--text-secondary)]">Aún no hay sesiones registradas.</p>
+                            <p className="text-sm text-[var(--text-secondary)]">
+                                {historyFilters.search || historyFilters.dateFrom ? 'Sin resultados para estos filtros.' : 'Aún no hay sesiones registradas.'}
+                            </p>
                         </div>
                     )}
                 </div>

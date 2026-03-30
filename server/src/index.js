@@ -1110,10 +1110,10 @@ app.post('/api/workouts/log-rest', authMiddleware, async (req, res) => {
     }
 });
 
-// GET /api/workouts/history - Get workout history
+// GET /api/workouts/history - Get workout history with filters
 app.get('/api/workouts/history', authMiddleware, async (req, res) => {
     try {
-        const { exerciseId, limit = 30 } = req.query;
+        const { exerciseId, limit = 30, search, dateFrom, dateTo, dayOfWeek, offset = 0 } = req.query;
 
         // Base filter: logs belonging to user's exercises
         const where = {
@@ -1128,6 +1128,25 @@ app.get('/api/workouts/history', authMiddleware, async (req, res) => {
             where.exerciseId = exerciseId;
         }
 
+        // Search by exercise name
+        if (search) {
+            where.exercise = {
+                ...where.exercise,
+                name: { contains: search, mode: 'insensitive' }
+            };
+        }
+
+        // Date range filter
+        if (dateFrom || dateTo) {
+            where.date = {};
+            if (dateFrom) where.date.gte = new Date(dateFrom);
+            if (dateTo) {
+                const end = new Date(dateTo);
+                end.setHours(23, 59, 59, 999);
+                where.date.lte = end;
+            }
+        }
+
         const logs = await prisma.workoutLog.findMany({
             where,
             include: {
@@ -1135,13 +1154,75 @@ app.get('/api/workouts/history', authMiddleware, async (req, res) => {
                 exercise: true
             },
             orderBy: { date: 'desc' },
-            take: parseInt(limit)
+            take: parseInt(limit),
+            skip: parseInt(offset)
         });
 
-        res.json(logs);
+        // Filter by day of week on application side (Prisma doesn't support this natively)
+        let filtered = logs;
+        if (dayOfWeek !== undefined && dayOfWeek !== '') {
+            const dow = parseInt(dayOfWeek);
+            filtered = logs.filter(log => new Date(log.date).getDay() === dow);
+        }
+
+        res.json(filtered);
     } catch (error) {
         console.error('Error fetching history:', error);
         res.status(500).json({ error: 'Failed to fetch workout history' });
+    }
+});
+
+// PUT /api/workouts/fix-weights - Bulk fix weights for exercise logs
+app.put('/api/workouts/fix-weights', authMiddleware, async (req, res) => {
+    try {
+        const { exerciseName, oldWeight, newWeight } = req.body;
+
+        if (!exerciseName || oldWeight === undefined || newWeight === undefined) {
+            return res.status(400).json({ error: 'exerciseName, oldWeight, newWeight required' });
+        }
+
+        // Find all sets matching the criteria for this user's exercises
+        const matchingLogs = await prisma.workoutLog.findMany({
+            where: {
+                exercise: {
+                    name: { contains: exerciseName, mode: 'insensitive' },
+                    routineDay: { routine: { userId: req.userId } }
+                }
+            },
+            include: { sets: true, exercise: true }
+        });
+
+        let updatedCount = 0;
+        for (const log of matchingLogs) {
+            for (const set of log.sets) {
+                if (Math.abs(set.weight - parseFloat(oldWeight)) < 0.1) {
+                    await prisma.setLog.update({
+                        where: { id: set.id },
+                        data: { weight: parseFloat(newWeight) }
+                    });
+                    updatedCount++;
+                }
+            }
+        }
+
+        // Also fix personal records
+        const prUpdated = await prisma.personalRecord.updateMany({
+            where: {
+                userId: req.userId,
+                exerciseName: { contains: exerciseName, mode: 'insensitive' },
+                weight: { gte: parseFloat(oldWeight) - 0.1, lte: parseFloat(oldWeight) + 0.1 }
+            },
+            data: { weight: parseFloat(newWeight) }
+        });
+
+        res.json({
+            message: `Fixed ${updatedCount} sets and ${prUpdated.count} PRs`,
+            setsUpdated: updatedCount,
+            prsUpdated: prUpdated.count
+        });
+    } catch (error) {
+        console.error('Error fixing weights:', error);
+        res.status(500).json({ error: 'Failed to fix weights' });
     }
 });
 
@@ -1313,14 +1394,42 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
             ...recentRestLogs.map(r => r.date.toISOString().split('T')[0])
         ]);
 
+        // Get active routine to detect scheduled rest days
+        const activeRoutine = await prisma.routine.findFirst({
+            where: { userId: req.userId, isActive: true },
+            include: { days: { orderBy: { order: 'asc' } } }
+        });
+
+        // Build a map of which day-of-week is a rest day in the routine
+        const DAY_NAMES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+        const restDaySet = new Set();
+        if (activeRoutine?.days) {
+            activeRoutine.days.forEach(d => {
+                if (d.isRestDay) {
+                    const normalized = d.dayName.toLowerCase()
+                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3);
+                    DAY_NAMES.forEach((name, idx) => {
+                        const norm = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3);
+                        if (norm === normalized) restDaySet.add(idx);
+                    });
+                }
+            });
+        }
+
         // Calculate current streak (up to 365 days)
+        // Scheduled rest days count as streak continuity automatically
         let streak = 0;
         const today = new Date();
         for (let i = 0; i < 365; i++) {
             const checkDate = new Date(today);
             checkDate.setDate(checkDate.getDate() - i);
             const dateStr = checkDate.toISOString().split('T')[0];
+            const dayOfWeek = checkDate.getDay();
+
             if (uniqueDays.has(dateStr)) {
+                streak++;
+            } else if (restDaySet.has(dayOfWeek)) {
+                // Scheduled rest day - counts as streak continuation
                 streak++;
             } else if (i > 0) {
                 break;
@@ -1361,29 +1470,67 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
 // GET /api/stats/consistency - Get consistency data (calendar heatmap)
 app.get('/api/stats/consistency', authMiddleware, async (req, res) => {
     try {
-        const ninetyDaysAgo = new Date();
-        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const threeSixtyFiveDaysAgo = new Date();
+        threeSixtyFiveDaysAgo.setDate(threeSixtyFiveDaysAgo.getDate() - 365);
 
         const workouts = await prisma.workoutLog.findMany({
             where: {
-                date: { gte: ninetyDaysAgo },
+                date: { gte: threeSixtyFiveDaysAgo },
                 exercise: { routineDay: { routine: { userId: req.userId } } }
             },
             select: { date: true }
         });
         const restLogs = await prisma.restLog.findMany({
             where: {
-                date: { gte: ninetyDaysAgo },
+                date: { gte: threeSixtyFiveDaysAgo },
                 userId: req.userId
             },
             select: { date: true }
         });
 
-        // Return raw timestamps for frontend processing (Timezone fix)
+        // Get active routine to identify scheduled rest days
+        const activeRoutine = await prisma.routine.findFirst({
+            where: { userId: req.userId, isActive: true },
+            include: { days: { orderBy: { order: 'asc' } } }
+        });
+
+        const DAY_NAMES_NORM = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
+        const restDaySet = new Set();
+        if (activeRoutine?.days) {
+            activeRoutine.days.forEach(d => {
+                if (d.isRestDay) {
+                    const normalized = d.dayName.toLowerCase()
+                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3);
+                    DAY_NAMES_NORM.forEach((name, idx) => {
+                        if (name === normalized) restDaySet.add(idx);
+                    });
+                }
+            });
+        }
+
+        // Build events list including auto-rest days
         const allEvents = [
             ...workouts.map(w => w.date),
             ...restLogs.map(r => r.date)
         ];
+
+        // Add auto-rest events for scheduled rest days (last 365 days)
+        const loggedDates = new Set([
+            ...workouts.map(w => w.date.toISOString().split('T')[0]),
+            ...restLogs.map(r => r.date.toISOString().split('T')[0])
+        ]);
+
+        if (restDaySet.size > 0) {
+            const today = new Date();
+            for (let i = 0; i < 365; i++) {
+                const checkDate = new Date(today);
+                checkDate.setDate(checkDate.getDate() - i);
+                const dateStr = checkDate.toISOString().split('T')[0];
+                if (!loggedDates.has(dateStr) && restDaySet.has(checkDate.getDay())) {
+                    allEvents.push(checkDate);
+                }
+            }
+        }
 
         res.json({ events: allEvents });
     } catch (error) {
@@ -1775,6 +1922,114 @@ app.delete('/api/goals/:id', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Error deleting goal:', error);
         res.status(500).json({ error: 'Failed to delete goal' });
+    }
+});
+
+// ============================================
+// AI-Powered Weight Suggestion
+// ============================================
+
+// POST /api/ai/suggest - Get AI suggestion for weight/reps based on exercise history
+app.post('/api/ai/suggest', authMiddleware, async (req, res) => {
+    try {
+        const { exerciseId } = req.body;
+
+        if (!exerciseId) {
+            return res.status(400).json({ error: 'exerciseId required' });
+        }
+
+        // Get exercise info
+        const exercise = await prisma.exercise.findFirst({
+            where: {
+                id: exerciseId,
+                routineDay: { routine: { userId: req.userId } }
+            }
+        });
+
+        if (!exercise) {
+            return res.status(404).json({ error: 'Exercise not found' });
+        }
+
+        // Get last 10 sessions for this exercise (by name, cross-routine)
+        const history = await prisma.workoutLog.findMany({
+            where: {
+                exercise: {
+                    name: { equals: exercise.name, mode: 'insensitive' },
+                    routineDay: { routine: { userId: req.userId } }
+                }
+            },
+            include: { sets: { orderBy: { setNumber: 'asc' } } },
+            orderBy: { date: 'desc' },
+            take: 10
+        });
+
+        if (history.length < 2) {
+            return res.json({ suggestion: null, reason: 'Historial insuficiente (min. 2 sesiones)' });
+        }
+
+        // Format history for AI
+        const historyText = history.map((log, i) => {
+            const date = new Date(log.date).toLocaleDateString('es-ES');
+            const setsText = log.sets.map(s => {
+                const rir = s.rpe ? `RIR ${10 - s.rpe}` : 'sin RIR';
+                return `${s.weight}kg x ${s.reps} reps (${rir})`;
+            }).join(', ');
+            return `Sesión ${i + 1} (${date}): ${setsText}`;
+        }).join('\n');
+
+        const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+        if (!OPENAI_API_KEY) {
+            // Fallback: use math-based suggestion
+            return res.json({ suggestion: null, reason: 'API key de OpenAI no configurada' });
+        }
+
+        const prompt = `Eres un entrenador de fuerza experto. Analiza el historial de "${exercise.name}" (meta: ${exercise.targetSets}x${exercise.targetReps}) y sugiere peso y repeticiones para la próxima sesión.
+
+Historial (más reciente primero):
+${historyText}
+
+Reglas:
+- Analiza tendencia de RIR, peso y repeticiones
+- Si RIR promedio es alto (2-3), sugiere subir peso ligeramente
+- Si RIR es bajo (0-1), mantener o bajar peso
+- Incrementos máximos: 2.5kg para tren superior, 5kg para tren inferior
+- Prioriza técnica y seguridad
+
+Responde SOLO con JSON: {"weight": number, "reps": number, "reasoning": "explicación breve en español"}`;
+
+        const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${OPENAI_API_KEY}`
+            },
+            body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [{ role: 'user', content: prompt }],
+                temperature: 0.3,
+                max_tokens: 200
+            })
+        });
+
+        if (!aiResponse.ok) {
+            console.error('OpenAI API error:', aiResponse.status);
+            return res.json({ suggestion: null, reason: 'Error de API de IA' });
+        }
+
+        const aiData = await aiResponse.json();
+        const content = aiData.choices?.[0]?.message?.content || '';
+
+        // Parse JSON from response
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            const suggestion = JSON.parse(jsonMatch[0]);
+            return res.json({ suggestion });
+        }
+
+        res.json({ suggestion: null, reason: 'No se pudo parsear respuesta de IA' });
+    } catch (error) {
+        console.error('Error getting AI suggestion:', error);
+        res.status(500).json({ error: 'Failed to get AI suggestion' });
     }
 });
 

@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 1.9.5 | **Última actualización:** 28 Enero 2026
+> **Versión:** 1.9.6 | **Última actualización:** 29 Marzo 2026
 
 ---
 
@@ -438,7 +438,18 @@ Para mantener esta documentación al día:
 
 ## 📋 Changelog Histórico
 
-### v1.9.5 (28 Ene 2026) - **Current**
+### v1.9.6 (29 Mar 2026) - **Current**
+*   **FEATURE:** Soporte de ejercicios unilaterales en Workout (inputs IZQ/DER separados).
+*   **AI:** Sugerencia de carga vía GPT-4o-mini analizando historial con RIR.
+*   **FIX:** Alineación correcta del calendario heatmap (semanas empiezan en lunes).
+*   **FIX:** Streak ya cuenta días de descanso programados automáticamente.
+*   **FEATURE:** Historial ilimitado en Configuración con filtros (búsqueda, rango de fechas, día de semana).
+*   **FIX:** PDFs incluyen datos de RIR por serie y columna 1RM estimado en tabla de PRs.
+*   **GOALS:** Progreso automático desde historial real (1RM vs proyección por semana).
+*   **API:** Endpoint `PUT /api/workouts/fix-weights` para corrección masiva de pesos en DB.
+
+### v1.9.5 (28 Ene 2026)
+
 *   **DATA INTEGRITY:** Implementación de "Papelera de Historial" (Smart Archive). Los ejercicios con logs ya no se eliminan al editar rutinas; se mueven a una rutina de sistema oculta para proteger los datos.
 *   **SMART RESTORE:** Lógica automatizada en el backend que detecta si un ejercicio nuevo (o renombrado) ya existe en la papelera. Si coincide el nombre (insensible a mayúsculas), restaura el ejercicio original preservando su ID único y todo su historial.
 *   **FIX:** Corregidos errores 500 (P2003) al intentar eliminar ejercicios que tenían registros vinculados.
