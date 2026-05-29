@@ -5,10 +5,12 @@ import {
     Mail, Phone, Calendar
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/ui/Toast';
 
 export default function Profile() {
     const navigate = useNavigate();
     const { user, token, logout, refreshProfile } = useAuth();
+    const toast = useToast();
     const fileInputRef = useRef(null);
 
     const [loading, setLoading] = useState(false);
@@ -20,10 +22,11 @@ export default function Profile() {
 
     // Compress image for avatar
     const compressImage = (file, maxSize = 400) => {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             const img = new Image();
+            const objectUrl = URL.createObjectURL(file);
 
             img.onload = () => {
                 let { width, height } = img;
@@ -35,9 +38,16 @@ export default function Profile() {
                 canvas.width = width;
                 canvas.height = height;
                 ctx.drawImage(img, 0, 0, width, height);
+                // Revoke the blob URL once we're done reading the image
+                URL.revokeObjectURL(objectUrl);
                 resolve(canvas.toDataURL('image/jpeg', 0.85));
             };
-            img.src = URL.createObjectURL(file);
+            img.onerror = () => {
+                // Avoid hanging the spinner if the image can't be loaded
+                URL.revokeObjectURL(objectUrl);
+                reject(new Error('No se pudo cargar la imagen'));
+            };
+            img.src = objectUrl;
         });
     };
 
@@ -65,8 +75,10 @@ export default function Profile() {
 
             if (!res.ok) throw new Error('Failed to upload avatar');
             await refreshProfile();
+            toast.success('Foto actualizada');
         } catch (err) {
             console.error(err);
+            toast.error('No se pudo actualizar la foto');
         } finally {
             setLoading(false);
         }

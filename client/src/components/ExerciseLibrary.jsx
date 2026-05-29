@@ -39,6 +39,7 @@ export default function ExerciseLibrary({
         onSelectExercise({
             name: exercise.name,
             muscleGroup: exercise.muscleGroup,
+            isUnilateral: exercise.isUnilateral || false,
             targetSets: exercise.defaultSets,
             targetReps: exercise.defaultReps,
             restSeconds: 90,

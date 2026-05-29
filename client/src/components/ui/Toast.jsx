@@ -1,8 +1,12 @@
-import { useState, useEffect, createContext, useContext, useCallback } from 'react';
+import { useState, createContext, useContext, useCallback, useRef, useEffect } from 'react';
 import { CheckCircle, AlertCircle, Info, X, Trophy } from 'lucide-react';
 
 // Context para usar toasts globalmente
 const ToastContext = createContext(null);
+
+// Contador incremental para garantizar IDs únicos aunque se creen
+// varios toasts en el mismo milisegundo
+let toastCounter = 0;
 
 export function useToast() {
     const context = useContext(ToastContext);
@@ -15,22 +19,41 @@ export function useToast() {
 // Proveedor de Toasts
 export function ToastProvider({ children }) {
     const [toasts, setToasts] = useState([]);
+    // Guardamos los ids de los setTimeout para poder limpiarlos al desmontar
+    const timeoutsRef = useRef(new Map());
+
+    const removeToast = useCallback((id) => {
+        const timeoutId = timeoutsRef.current.get(id);
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutsRef.current.delete(id);
+        }
+        setToasts(prev => prev.filter(t => t.id !== id));
+    }, []);
 
     const addToast = useCallback((message, type = 'info', duration = 3000) => {
-        const id = Date.now();
+        // ID único: timestamp + contador incremental para evitar colisiones
+        const id = `${Date.now()}-${toastCounter++}`;
         setToasts(prev => [...prev, { id, message, type }]);
 
         if (duration > 0) {
-            setTimeout(() => {
+            const timeoutId = setTimeout(() => {
+                timeoutsRef.current.delete(id);
                 setToasts(prev => prev.filter(t => t.id !== id));
             }, duration);
+            timeoutsRef.current.set(id, timeoutId);
         }
 
         return id;
     }, []);
 
-    const removeToast = useCallback((id) => {
-        setToasts(prev => prev.filter(t => t.id !== id));
+    // Limpiar todos los timeouts pendientes al desmontar el proveedor
+    useEffect(() => {
+        const timeouts = timeoutsRef.current;
+        return () => {
+            timeouts.forEach(timeoutId => clearTimeout(timeoutId));
+            timeouts.clear();
+        };
     }, []);
 
     const toast = {

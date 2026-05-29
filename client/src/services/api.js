@@ -13,7 +13,19 @@ async function authFetch(url, options = {}) {
         ...getAuthHeaders(),
         ...(options.headers || {})
     };
-    return fetch(url, { ...options, headers });
+    const res = await fetch(url, { ...options, headers });
+
+    // Token expirado/inválido: limpiar sesión y redirigir al login
+    if (res.status === 401) {
+        const authPaths = ['/login', '/register', '/forgot-password'];
+        if (!authPaths.includes(window.location.pathname)) {
+            localStorage.removeItem('nexlift_token');
+            localStorage.removeItem('nexlift_user');
+            window.location.href = '/login';
+        }
+    }
+
+    return res;
 }
 
 export const api = {
@@ -279,7 +291,12 @@ export const api = {
         const res = await fetch(`${API_URL}/auth/me`, {
             headers: { 'Authorization': `Bearer ${token}` },
         });
-        if (!res.ok) throw new Error('Failed to fetch profile');
+        if (!res.ok) {
+            // Adjuntar el status para distinguir errores de auth (401) de errores de red
+            const err = new Error('Failed to fetch profile');
+            err.status = res.status;
+            throw err;
+        }
         return res.json();
     },
 
@@ -381,16 +398,6 @@ export const api = {
             body: JSON.stringify({ exerciseName, oldWeight, newWeight }),
         });
         if (!res.ok) throw new Error('Failed to fix weights');
-        return res.json();
-    },
-
-    async getAISuggestion(exerciseId) {
-        const res = await authFetch(`${API_URL}/ai/suggest`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ exerciseId }),
-        });
-        if (!res.ok) throw new Error('Failed to get AI suggestion');
         return res.json();
     },
 

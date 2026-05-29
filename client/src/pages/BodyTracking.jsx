@@ -54,17 +54,23 @@ function calculateChange(logs, field, days = 30) {
     const latest = filtered[0][field];
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
+    const cutoffTime = cutoffDate.getTime();
 
-    const oldest = filtered.find(l => new Date(l.date) <= cutoffDate);
-    if (!oldest) {
-        // Use the oldest available if no data within cutoff
-        const oldestAvailable = filtered[filtered.length - 1];
-        if (oldestAvailable && oldestAvailable.id !== filtered[0].id) {
-            return (latest - oldestAvailable[field]).toFixed(1);
+    // Pick the log whose date is closest to exactly `days` ago (the cutoff),
+    // so the delta reflects ~30 days and not an arbitrarily older span.
+    // Skip the latest entry itself; fall back to the oldest log if needed.
+    let reference = null;
+    let bestDiff = Infinity;
+    for (let i = 1; i < filtered.length; i++) {
+        const diff = Math.abs(new Date(filtered[i].date).getTime() - cutoffTime);
+        if (diff < bestDiff) {
+            bestDiff = diff;
+            reference = filtered[i];
         }
-        return null;
     }
-    return (latest - oldest[field]).toFixed(1);
+
+    if (!reference) return null;
+    return (latest - reference[field]).toFixed(1);
 }
 
 // Fix timezone: parse date string as local, not UTC
@@ -81,6 +87,7 @@ function formatLocalDate(dateStr, options = { day: 'numeric', month: 'short' }) 
 export default function BodyTracking() {
     const toast = useToast();
     const fileInputRef = useRef(null);
+    const photoPreviewRef = useRef(null);
 
     // Consolidated data state
     const [logs, setLogs] = useState([]);
@@ -114,6 +121,17 @@ export default function BodyTracking() {
         fetchData();
     }, []);
 
+    // Keep a ref in sync with the current preview URL and revoke it on unmount
+    useEffect(() => {
+        photoPreviewRef.current = photoPreview;
+    }, [photoPreview]);
+
+    useEffect(() => {
+        return () => {
+            if (photoPreviewRef.current) URL.revokeObjectURL(photoPreviewRef.current);
+        };
+    }, []);
+
     async function fetchData() {
         try {
             const [logsData, photosData] = await Promise.all([
@@ -135,7 +153,12 @@ export default function BodyTracking() {
 
         try {
             const compressed = await compressImage(file);
-            setPhotoPreview(URL.createObjectURL(file));
+            const objectUrl = URL.createObjectURL(file);
+            // Revoke the previous blob URL before replacing it to avoid leaks
+            setPhotoPreview(prev => {
+                if (prev) URL.revokeObjectURL(prev);
+                return objectUrl;
+            });
             setPhotoData(compressed);
             toast.success('Foto cargada');
         } catch (error) {
@@ -144,7 +167,11 @@ export default function BodyTracking() {
     }
 
     const clearPhoto = useCallback(() => {
-        setPhotoPreview(null);
+        // Revoke the blob URL when clearing to avoid leaks
+        setPhotoPreview(prev => {
+            if (prev) URL.revokeObjectURL(prev);
+            return null;
+        });
         setPhotoData(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
     }, []);
@@ -239,7 +266,7 @@ export default function BodyTracking() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-[60vh]">
-                <div className="w-10 h-10 border-3 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                <div className="w-10 h-10 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
             </div>
         );
     }

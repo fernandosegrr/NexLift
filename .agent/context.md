@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 1.9.6 | **Última actualización:** 29 Marzo 2026
+> **Versión:** 1.9.9 | **Última actualización:** 28 Mayo 2026
 
 ---
 
@@ -28,7 +28,7 @@
 Frontend:  React 18 + Vite + Tailwind CSS 4 + Recharts
 Backend:   Express.js + Prisma ORM + PostgreSQL
 Fotos:     Catbox.moe (almacenamiento gratuito ilimitado)
-Deploy:    Vercel (serverless) | VPS Docker | Local
+Deploy:    VPS (Ubuntu + EasyPanel + Docker) | Local
 Formatos:  PDF (jsPDF + html2canvas) | JSON (Backup/Restore)
 ```
 
@@ -64,10 +64,11 @@ Página crítica para registrar el entrenamiento del día. Ha recibido actualiza
 - **Carga Inteligente:**
   - Detecta ejercicios ya completados hoy (persistencia).
   - Determina si es un día de descanso.
-- **Algoritmo de Sugerencia (Smart Loading):**
-  - Analiza el historial del ejercicio.
-  - Calcula el 1RM estimado de la mejor sesión histórica.
-  - Sugiere un peso para igualar ese esfuerzo en el rango de reps actual.
+- **Algoritmo de Sugerencia (Smart Loading) — 100% local, sin IA:**
+  - Analiza la última sesión completa (peso, reps, series y RIR).
+  - Doble progresión con autorregulación por RIR: sube peso y reinicia reps al llegar al tope del rango; suma reps si sobró fuerza; descarga si hubo fallo bajo el rango.
+  - Sugiere **peso Y reps** (no solo peso). En unilateral usa el lado débil.
+  - Incremento de carga: 5kg en piernas, 2.5kg en el resto.
 - **Cards de Ejercicio (`SetCard.jsx`):**
   - Componente optimizado (React.memo).
   - Inputs para Peso (kg), Reps y **RIR** (Reps in Reserve).
@@ -227,9 +228,9 @@ NexLift utiliza matemáticas estándar de powerlifting:
     - **Fase Peaking:** Intensidad específica (0.86 → 1.0 1RM) para preparar el sistema nervioso.
     - **Validación:** Si el usuario tiene un 1RM histórico real > input manual, el sistema usa el real.
 
-3.  **Smart Loading (Workout):**
-    Calcula la "Mejor Serie Histórica" (mayor 1RM estimado) del ejercicio actual y proyecta ese esfuerzo a las repeticiones objetivo de hoy.
-    *Ejemplo: Si tu mejor fue 100kg x 5, y hoy te tocan 8 reps, te sugerirá ~90kg para mantener la misma intensidad relativa.*
+3.  **Smart Loading (Workout) — cálculo local, sin IA:**
+    Doble progresión con autorregulación por RIR sobre la última sesión completa. Sugiere peso y reps.
+    *Ejemplo: si hiciste 100kg x 12 (tope del rango 8-12) con RIR 2, sugerirá 102.5kg x 8 (sube carga, reinicia reps). Si hiciste 100kg x 9 con RIR 3, sugerirá 100kg x 10 (suma una rep).*
 
 ---
 
@@ -411,11 +412,8 @@ PostgreSQL guarda en UTC. El frontend debe siempre castear a local para visualiz
 *   **Correcto:** `new Date(utcDate).toLocaleDateString()`
 *   **API:** Usa formato `sv` (Sweden/ISO) `date.toLocaleDateString('sv')` para enviar al backend.
 
-### 2. Sincronización de Schema
-Existen dos copias de `schema.prisma`:
-1.  `server/prisma/schema.prisma` (Desarrollo Local)
-2.  `api/prisma/schema.prisma` (Producción Vercel)
-**Regla:** Cualquier cambio en el modelo debe aplicarse manualmente a ambos archivos.
+### 2. Backend único
+Desde v1.9.9 hay **un solo backend**: `server/src/index.js`. Existe una sola copia del schema (`server/prisma/schema.prisma`). Se eliminaron `api/` (serverless de Vercel) y `shared/` al migrar el deploy a Docker en VPS. Ya no hay regla de sincronización de schema ni lógica duplicada.
 
 ### 3. Imágenes
 No almacenamos binarios.
@@ -438,7 +436,21 @@ Para mantener esta documentación al día:
 
 ## 📋 Changelog Histórico
 
-### v1.9.6 (29 Mar 2026) - **Current**
+### v1.9.9 (28 May 2026) - **Current**
+*   **BACKEND ÚNICO:** Eliminados `api/` (serverless de Vercel), `vercel.json` y `shared/` (código muerto). Ahora hay un solo backend (`server/src/index.js`) y un solo `schema.prisma`. Deploy en VPS con Docker/EasyPanel; `Dockerfile` ajustado.
+*   **SECURITY:** El server no arranca en producción sin `JWT_SECRET` (antes usaba un secreto por defecto público → tokens falsificables). Rate limiting en `login`/`register`/`recover`. `trust proxy` para IP real tras EasyPanel. Validación server-side de peso/reps (0-2000 kg / 0-1000 reps).
+*   **PRs CORRECTOS:** Los récords se recalculan desde los logs reales al crear/editar/eliminar sesiones (antes quedaban récords fantasma al editar a la baja o borrar). El recálculo considera el lado unilateral.
+*   **FRONTEND (auditoría):** Manejo central de 401 (logout+redirect), `JSON.parse` seguro y sin logout ante caídas de red en AuthContext, ruta catch-all, fugas de blob URL corregidas (Profile/BodyTracking), `border-3` inexistente → `border-2`, IDs de plantillas rotos remapeados (14 tipos), propagación de `muscleGroup`/`isUnilateral`, race condition del historial de Settings, fechas UTC del PDF, IDs de Toast únicos, emoji corrupto en MuscleIcon, `--bg-body` inexistente → `--bg-dark`.
+*   **`/body/log`:** acepta registros con solo composición corporal (sin peso/foto).
+
+### v1.9.8 (28 May 2026)
+*   **DATA INTEGRITY (PROD):** El backend serverless (`api/index.js`) ahora archiva ejercicios con historial al editar/eliminar rutinas (antes los borraba en duro → crash P2003 y pérdida de logs). Añadido `GET /routines/trash` y exclusión de la rutina-papelera en `GET /routines`.
+*   **DATA INTEGRITY:** El backup JSON (Settings) ahora incluye `weightRight`, `repsRight`, `rpe` (RIR) e `isUnilateral`/`restSeconds` (antes se perdían).
+*   **AI REMOVED:** Eliminada la sugerencia vía GPT-4o-mini y el endpoint `/api/ai/suggest`. Sustituida por cálculo local de **peso y reps** (doble progresión + autorregulación por RIR sobre la última sesión completa).
+*   **UNILATERAL:** Mejor marca previa, sugerencia, detección de PR, modal de historial, historial de Settings y reporte PDF ahora consideran/ muestran el lado derecho (lado débil para cálculos). Corregido el `memo` de SetCard que congelaba el input de peso derecho.
+*   **GOALS:** Tope de progresión escalado al 2.5% del 1RM (antes 1kg/sem fijo, irreal en piernas), sin inflar planes cortos a 12 semanas, y 1RM actual robusto (mejor de las últimas 3 sesiones) coherente entre barra de progreso y semanas completadas. Sesiones agrupadas por fecha local (no UTC).
+
+### v1.9.6 (29 Mar 2026)
 *   **FEATURE:** Soporte de ejercicios unilaterales en Workout (inputs IZQ/DER separados).
 *   **AI:** Sugerencia de carga vía GPT-4o-mini analizando historial con RIR.
 *   **FIX:** Alineación correcta del calendario heatmap (semanas empiezan en lunes).

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Settings as SettingsIcon, Dumbbell, Check, ChevronDown, Info, History,
@@ -156,6 +156,8 @@ export default function Settings() {
     const [hasMoreHistory, setHasMoreHistory] = useState(true);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
+    // Sequencing guard: ignore stale responses from concurrent history fetches
+    const historyReqId = useRef(0);
 
     useEffect(() => {
         fetchData();
@@ -191,18 +193,22 @@ export default function Settings() {
         }
     }
 
-    async function fetchFilteredHistory(resetPage = true) {
+    async function fetchFilteredHistory(resetPage = true, filterOverride = null) {
+        const reqId = ++historyReqId.current;
+        const filters = filterOverride || historyFilters;
         setHistoryLoading(true);
         const page = resetPage ? 0 : historyPage;
         if (resetPage) setHistoryPage(0);
         try {
             // Send first word only as server pre-filter for broader results; fuzzy filter client-side
-            const serverSearch = historyFilters.search ? historyFilters.search.split(' ')[0] : '';
+            const serverSearch = filters.search ? filters.search.split(' ')[0] : '';
             const data = await api.getWorkoutHistory(50, {
-                ...historyFilters,
+                ...filters,
                 search: serverSearch,
                 offset: page * 50
             });
+            // Ignore stale responses (a newer fetch was started after this one)
+            if (reqId !== historyReqId.current) return;
             if (resetPage) {
                 setWorkoutHistory(data || []);
             } else {
@@ -212,11 +218,12 @@ export default function Settings() {
         } catch (err) {
             console.error(err);
         } finally {
-            setHistoryLoading(false);
+            if (reqId === historyReqId.current) setHistoryLoading(false);
         }
     }
 
     async function loadMoreHistory() {
+        const reqId = ++historyReqId.current;
         const nextPage = historyPage + 1;
         setHistoryPage(nextPage);
         setHistoryLoading(true);
@@ -225,12 +232,14 @@ export default function Settings() {
                 ...historyFilters,
                 offset: nextPage * 50
             });
+            // Ignore stale responses (a newer fetch was started after this one)
+            if (reqId !== historyReqId.current) return;
             setWorkoutHistory(prev => [...prev, ...(data || [])]);
             setHasMoreHistory((data || []).length >= 50);
         } catch (err) {
             console.error(err);
         } finally {
-            setHistoryLoading(false);
+            if (reqId === historyReqId.current) setHistoryLoading(false);
         }
     }
 
@@ -317,6 +326,8 @@ export default function Settings() {
                         muscleGroup: e.muscleGroup,
                         targetSets: e.targetSets,
                         targetReps: e.targetReps,
+                        restSeconds: e.restSeconds,
+                        isUnilateral: e.isUnilateral || false,
                         note: e.note
                     }))
                 }))
@@ -325,7 +336,13 @@ export default function Settings() {
             const sanitizeWorkouts = workouts.map(w => ({
                 date: w.date,
                 exerciseName: w.exercise?.name,
-                sets: w.sets?.map(s => ({ weight: s.weight, reps: s.reps }))
+                sets: w.sets?.map(s => ({
+                    weight: s.weight,
+                    reps: s.reps,
+                    rpe: s.rpe ?? null,
+                    weightRight: s.weightRight ?? null,
+                    repsRight: s.repsRight ?? null
+                }))
             }));
 
             const sanitizeBodyLogs = bodyLogs.map(b => ({
@@ -346,7 +363,7 @@ export default function Settings() {
             }));
 
             const exportData = {
-                version: '1.9.6',
+                version: '1.9.9',
                 exportDate: new Date().toISOString(),
                 routines: sanitizeRoutines,
                 workouts: sanitizeWorkouts,
@@ -450,7 +467,7 @@ export default function Settings() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-[60vh]">
-                <div className="w-10 h-10 border-3 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                <div className="w-10 h-10 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
             </div>
         );
     }
@@ -818,8 +835,9 @@ export default function Settings() {
                             </div>
                             <button
                                 onClick={() => {
-                                    setHistoryFilters({ search: '', dateFrom: '', dateTo: '', dayOfWeek: '' });
-                                    setTimeout(() => fetchFilteredHistory(), 50);
+                                    const cleared = { search: '', dateFrom: '', dateTo: '', dayOfWeek: '' };
+                                    setHistoryFilters(cleared);
+                                    fetchFilteredHistory(true, cleared);
                                 }}
                                 className="w-full py-2 text-xs text-[var(--text-secondary)] hover:text-white border border-[var(--border)] rounded-lg transition-colors"
                             >
@@ -865,7 +883,7 @@ export default function Settings() {
 
                         {Object.entries(sessionsByDate).map(([dateStr, sessions]) => (
                             <div key={dateStr}>
-                                <div className="sticky top-0 z-10 bg-[var(--bg-body)]/95 backdrop-blur-sm py-2 mb-2 border-b border-[var(--border)]">
+                                <div className="sticky top-0 z-10 bg-[var(--bg-dark)]/95 backdrop-blur-sm py-2 mb-2 border-b border-[var(--border)]">
                                     <p className="text-xs font-bold text-[var(--primary)] uppercase tracking-wider">{dateStr}</p>
                                 </div>
                                 <div className="space-y-2">
@@ -884,11 +902,11 @@ export default function Settings() {
                                                     <div className="flex gap-1.5 flex-wrap">
                                                         {session.sets?.map((set, i) => (
                                                             <span key={i} className="text-xs bg-[var(--bg-dark)] px-2.5 py-1.5 rounded-lg border border-[var(--border)] font-mono">
-                                                                {set.repsRight != null ? (
-                                                                    <>
-                                                                        <span className="text-[var(--primary)] font-bold">{set.weight}</span>kg
-                                                                        <span className="text-orange-400 ml-1">I:{set.reps} D:{set.repsRight}</span>
-                                                                    </>
+                                                                {(set.repsRight != null || set.weightRight != null) ? (
+                                                                    <span className="text-orange-400">
+                                                                        I:<span className="text-[var(--primary)] font-bold">{set.weight}</span>×{set.reps}
+                                                                        {' '}D:<span className="text-[var(--primary)] font-bold">{set.weightRight ?? set.weight}</span>×{set.repsRight ?? set.reps}
+                                                                    </span>
                                                                 ) : (
                                                                     <>
                                                                         <span className="text-[var(--primary)] font-bold">{set.weight}</span>kg × <span className="font-bold">{set.reps}</span>

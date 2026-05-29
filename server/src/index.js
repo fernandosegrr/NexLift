@@ -12,6 +12,14 @@ dotenv.config();
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'nexlift-secret-key-change-in-production';
 
+// Seguridad: en producción NUNCA arrancar con el secreto por defecto. Si JWT_SECRET
+// no está definida, cualquiera podría falsificar tokens de cualquier usuario.
+// Define JWT_SECRET en las variables de entorno (EasyPanel) antes de desplegar.
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+    console.error('❌ FATAL: JWT_SECRET no está definida en producción. Configúrala en las variables de entorno antes de iniciar.');
+    process.exit(1);
+}
+
 // Catbox upload function (inline to avoid external dependencies)
 const CATBOX_API = 'https://catbox.moe/user/api.php';
 
@@ -69,6 +77,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3001;
+
+// Detrás del proxy de EasyPanel/Docker: confía en X-Forwarded-For para que req.ip
+// sea la IP real del cliente (necesario para el rate limiting).
+app.set('trust proxy', 1);
 
 // Middleware
 app.use(cors());
@@ -129,6 +141,119 @@ async function getRecycleBinDay(userId) {
 }
 
 // ============================================
+// RATE LIMITING (en memoria) para endpoints sensibles de auth
+// Una sola instancia en Docker; si se escala, migrar a Redis.
+// ============================================
+const rateLimitStore = new Map();
+function rateLimit({ windowMs = 15 * 60 * 1000, max = 12 } = {}) {
+    return (req, res, next) => {
+        const key = `${req.ip}:${req.path}`;
+        const now = Date.now();
+        const entry = rateLimitStore.get(key);
+        if (!entry || now > entry.resetAt) {
+            rateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
+            return next();
+        }
+        entry.count++;
+        if (entry.count > max) {
+            const retrySec = Math.ceil((entry.resetAt - now) / 1000);
+            res.set('Retry-After', String(retrySec));
+            return res.status(429).json({ error: `Demasiados intentos. Espera ${Math.ceil(retrySec / 60)} min.` });
+        }
+        next();
+    };
+}
+// Limpieza periódica de entradas expiradas (no bloquea el cierre del proceso)
+setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of rateLimitStore) if (now > v.resetAt) rateLimitStore.delete(k);
+}, 15 * 60 * 1000).unref?.();
+
+// ============================================
+// PERSONAL RECORDS: recálculo derivado de los logs reales
+// Se llama tras crear/editar/eliminar sesiones para que no queden récords fantasma.
+// Considera ambos lados en unilateral (el récord es el mejor esfuerzo de una extremidad).
+// ============================================
+async function recalcPRForExercise(exerciseName, userId) {
+    if (!exerciseName) return;
+    const nameLower = exerciseName.toLowerCase();
+    const logs = await prisma.workoutLog.findMany({
+        where: {
+            exercise: {
+                name: { equals: exerciseName, mode: 'insensitive' },
+                routineDay: { routine: { userId } }
+            }
+        },
+        include: { sets: true }
+    });
+
+    let best = null; // { weight, reps, est1RM, date }
+    for (const log of logs) {
+        for (const s of log.sets) {
+            const candidates = [{ w: s.weight, r: s.reps }];
+            if (s.weightRight != null || s.repsRight != null) {
+                candidates.push({ w: s.weightRight ?? s.weight, r: s.repsRight ?? s.reps });
+            }
+            for (const c of candidates) {
+                const w = Number(c.w) || 0;
+                const r = Number(c.r) || 0;
+                if (w <= 0 || r <= 0) continue;
+                const est = (r > 1 && r < 37) ? w * (1 + r / 30) : w;
+                if (!best || est > best.est1RM) best = { weight: w, reps: r, est1RM: est, date: log.date };
+            }
+        }
+    }
+
+    await prisma.personalRecord.deleteMany({ where: { userId, exerciseName: nameLower } });
+    if (best) {
+        await prisma.personalRecord.create({
+            data: {
+                userId,
+                exerciseName: nameLower,
+                weight: best.weight,
+                reps: best.reps,
+                estimated1RM: best.est1RM,
+                date: best.date
+            }
+        });
+    }
+}
+
+// Valida y normaliza un array de sets entrante. Devuelve { error } o { sets }.
+function sanitizeSets(rawSets, { unilateral = false } = {}) {
+    if (!Array.isArray(rawSets) || rawSets.length === 0) {
+        return { error: 'Se requiere al menos 1 serie' };
+    }
+    const sets = [];
+    for (const s of rawSets) {
+        const weight = parseFloat(s.weight);
+        const reps = parseInt(s.reps);
+        if (!Number.isFinite(weight) || weight < 0 || weight > 2000) {
+            return { error: 'Peso inválido (0-2000 kg)' };
+        }
+        if (!Number.isInteger(reps) || reps < 0 || reps > 1000) {
+            return { error: 'Repeticiones inválidas (0-1000)' };
+        }
+        const clean = {
+            weight,
+            reps,
+            rpe: s.rpe != null && Number.isFinite(parseFloat(s.rpe)) ? parseFloat(s.rpe) : null,
+            completed: s.completed !== false
+        };
+        if (s.weightRight != null) {
+            const wR = parseFloat(s.weightRight);
+            clean.weightRight = Number.isFinite(wR) && wR >= 0 && wR <= 2000 ? wR : null;
+        }
+        if (s.repsRight != null) {
+            const rR = parseInt(s.repsRight);
+            clean.repsRight = Number.isInteger(rR) && rR >= 0 && rR <= 1000 ? rR : null;
+        }
+        sets.push(clean);
+    }
+    return { sets };
+}
+
+// ============================================
 // ROUTES: Routine Import
 // ============================================
 
@@ -137,7 +262,7 @@ async function getRecycleBinDay(userId) {
 // ============================================
 
 // POST /api/auth/register
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', rateLimit(), async (req, res) => {
     try {
         const { username, email, password, firstName, lastName, phone, birthDate, securityQuestion, securityAnswer } = req.body;
 
@@ -182,7 +307,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // POST /api/auth/login
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', rateLimit(), async (req, res) => {
     try {
         const { username, password } = req.body;
 
@@ -279,7 +404,7 @@ app.put('/api/auth/password', authMiddleware, async (req, res) => {
 });
 
 // POST /api/auth/recover/question - Get security question
-app.post('/api/auth/recover/question', async (req, res) => {
+app.post('/api/auth/recover/question', rateLimit(), async (req, res) => {
     try {
         const { username } = req.body;
         const user = await prisma.user.findFirst({
@@ -297,7 +422,7 @@ app.post('/api/auth/recover/question', async (req, res) => {
 });
 
 // POST /api/auth/recover/verify - Verify answer and reset password
-app.post('/api/auth/recover/verify', async (req, res) => {
+app.post('/api/auth/recover/verify', rateLimit(), async (req, res) => {
     try {
         const { username, answer, newPassword } = req.body;
         const user = await prisma.user.findFirst({
@@ -1025,6 +1150,10 @@ app.post('/api/workouts/log', authMiddleware, async (req, res) => {
             });
         }
 
+        // Validación/normalización server-side (evita pesos negativos/absurdos y NaN)
+        const { sets: cleanSets, error: setsError } = sanitizeSets(sets);
+        if (setsError) return res.status(400).json({ error: setsError });
+
         // Verify exercise belongs to user
         const exercise = await prisma.exercise.findFirst({
             where: {
@@ -1042,14 +1171,14 @@ app.post('/api/workouts/log', authMiddleware, async (req, res) => {
                 exerciseId,
                 notes: notes || null,
                 sets: {
-                    create: sets.map((set, index) => ({
+                    create: cleanSets.map((set, index) => ({
                         setNumber: index + 1,
                         weight: set.weight,
                         reps: set.reps,
-                        rpe: set.rpe || null,
-                        weightRight: set.weightRight != null ? parseFloat(set.weightRight) : null,
-                        repsRight: set.repsRight != null ? parseInt(set.repsRight) : null,
-                        completed: set.completed !== false
+                        rpe: set.rpe,
+                        weightRight: set.weightRight ?? null,
+                        repsRight: set.repsRight ?? null,
+                        completed: set.completed
                     }))
                 }
             },
@@ -1059,37 +1188,8 @@ app.post('/api/workouts/log', authMiddleware, async (req, res) => {
             }
         });
 
-        // Check and update PR
-        if (exercise) {
-            for (const set of sets) {
-                // Calculate estimated 1RM using Epley formula (consistent with frontend)
-                let estimated1RM = set.weight;
-                if (set.reps > 1 && set.reps < 37) {
-                    estimated1RM = set.weight * (1 + set.reps / 30);
-                }
-
-                // Check if this is a new PR FOR THIS USER
-                const existingPR = await prisma.personalRecord.findFirst({
-                    where: {
-                        exerciseName: exercise.name.toLowerCase(),
-                        userId: req.userId
-                    },
-                    orderBy: { estimated1RM: 'desc' }
-                });
-
-                if (!existingPR || estimated1RM > (existingPR.estimated1RM || 0)) {
-                    await prisma.personalRecord.create({
-                        data: {
-                            userId: req.userId,
-                            exerciseName: exercise.name.toLowerCase(),
-                            weight: set.weight,
-                            reps: set.reps,
-                            estimated1RM
-                        }
-                    });
-                }
-            }
-        }
+        // Recalcula el PR del ejercicio desde los logs reales (consistente, incluye unilateral)
+        await recalcPRForExercise(exercise.name, req.userId);
 
         res.status(201).json({
             message: 'Workout logged successfully!',
@@ -1310,6 +1410,10 @@ app.put('/api/workouts/:logId', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: 'Sets array required' });
         }
 
+        // Validación/normalización server-side
+        const { sets: cleanSets, error: setsError } = sanitizeSets(sets);
+        if (setsError) return res.status(400).json({ error: setsError });
+
         // Verify ownership via relation chain
         const existingLog = await prisma.workoutLog.findFirst({
             where: {
@@ -1333,15 +1437,15 @@ app.put('/api/workouts/:logId', authMiddleware, async (req, res) => {
 
             // Create new sets
             await tx.setLog.createMany({
-                data: sets.map((set, i) => ({
+                data: cleanSets.map((set, i) => ({
                     workoutLogId: logId,
                     setNumber: i + 1,
-                    weight: parseFloat(set.weight),
-                    reps: parseInt(set.reps),
-                    rpe: set.rpe ? parseFloat(set.rpe) : null,
-                    weightRight: set.weightRight != null ? parseFloat(set.weightRight) : null,
-                    repsRight: set.repsRight != null ? parseInt(set.repsRight) : null,
-                    completed: true
+                    weight: set.weight,
+                    reps: set.reps,
+                    rpe: set.rpe,
+                    weightRight: set.weightRight ?? null,
+                    repsRight: set.repsRight ?? null,
+                    completed: set.completed
                 }))
             });
 
@@ -1350,6 +1454,11 @@ app.put('/api/workouts/:logId', authMiddleware, async (req, res) => {
                 include: { sets: { orderBy: { setNumber: 'asc' } }, exercise: true }
             });
         });
+
+        // Recalcula el PR del ejercicio (puede subir o bajar tras la edición)
+        if (updated?.exercise?.name) {
+            await recalcPRForExercise(updated.exercise.name, req.userId);
+        }
 
         res.json({ message: 'Session updated!', workoutLog: updated });
     } catch (error) {
@@ -1361,7 +1470,7 @@ app.put('/api/workouts/:logId', authMiddleware, async (req, res) => {
 // DELETE /api/workouts/:logId - Delete a workout session
 app.delete('/api/workouts/:logId', authMiddleware, async (req, res) => {
     try {
-        // Verify ownership
+        // Verify ownership (incluye el nombre del ejercicio para recalcular el PR después)
         const existingLog = await prisma.workoutLog.findFirst({
             where: {
                 id: req.params.logId,
@@ -1370,7 +1479,8 @@ app.delete('/api/workouts/:logId', authMiddleware, async (req, res) => {
                         routine: { userId: req.userId }
                     }
                 }
-            }
+            },
+            include: { exercise: { select: { name: true } } }
         });
 
         if (!existingLog) {
@@ -1378,6 +1488,10 @@ app.delete('/api/workouts/:logId', authMiddleware, async (req, res) => {
         }
 
         await prisma.workoutLog.delete({ where: { id: req.params.logId } });
+
+        // Recalcula el PR: si el récord venía de esta sesión, ya no debe quedar fantasma
+        await recalcPRForExercise(existingLog.exercise?.name, req.userId);
+
         res.json({ message: 'Session deleted!' });
     } catch (error) {
         console.error('Error deleting workout:', error);
@@ -1674,8 +1788,10 @@ app.post('/api/body/log', authMiddleware, async (req, res) => {
     try {
         const { weight, photo, note, bmi, bodyFat, muscleMass, bmr, bodyWater, visceralFat, boneMass, protein } = req.body;
 
-        if (!weight && !photo) {
-            return res.status(400).json({ error: 'Weight or photo required' });
+        // Acepta peso, foto O cualquier métrica de composición corporal
+        const hasData = weight || photo || bmi || bodyFat || muscleMass || bmr || bodyWater || visceralFat || boneMass || protein;
+        if (!hasData) {
+            return res.status(400).json({ error: 'Se requiere peso, foto o datos de composición corporal' });
         }
 
         // Upload photo to Catbox if it's base64
@@ -1955,114 +2071,6 @@ app.delete('/api/goals/:id', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Error deleting goal:', error);
         res.status(500).json({ error: 'Failed to delete goal' });
-    }
-});
-
-// ============================================
-// AI-Powered Weight Suggestion
-// ============================================
-
-// POST /api/ai/suggest - Get AI suggestion for weight/reps based on exercise history
-app.post('/api/ai/suggest', authMiddleware, async (req, res) => {
-    try {
-        const { exerciseId } = req.body;
-
-        if (!exerciseId) {
-            return res.status(400).json({ error: 'exerciseId required' });
-        }
-
-        // Get exercise info
-        const exercise = await prisma.exercise.findFirst({
-            where: {
-                id: exerciseId,
-                routineDay: { routine: { userId: req.userId } }
-            }
-        });
-
-        if (!exercise) {
-            return res.status(404).json({ error: 'Exercise not found' });
-        }
-
-        // Get last 10 sessions for this exercise (by name, cross-routine)
-        const history = await prisma.workoutLog.findMany({
-            where: {
-                exercise: {
-                    name: { equals: exercise.name, mode: 'insensitive' },
-                    routineDay: { routine: { userId: req.userId } }
-                }
-            },
-            include: { sets: { orderBy: { setNumber: 'asc' } } },
-            orderBy: { date: 'desc' },
-            take: 10
-        });
-
-        if (history.length < 2) {
-            return res.json({ suggestion: null, reason: 'Historial insuficiente (min. 2 sesiones)' });
-        }
-
-        // Format history for AI
-        const historyText = history.map((log, i) => {
-            const date = new Date(log.date).toLocaleDateString('es-ES');
-            const setsText = log.sets.map(s => {
-                const rir = s.rpe ? `RIR ${10 - s.rpe}` : 'sin RIR';
-                return `${s.weight}kg x ${s.reps} reps (${rir})`;
-            }).join(', ');
-            return `Sesión ${i + 1} (${date}): ${setsText}`;
-        }).join('\n');
-
-        const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-        if (!OPENAI_API_KEY) {
-            // Fallback: use math-based suggestion
-            return res.json({ suggestion: null, reason: 'API key de OpenAI no configurada' });
-        }
-
-        const prompt = `Eres un entrenador de fuerza experto. Analiza el historial de "${exercise.name}" (meta: ${exercise.targetSets}x${exercise.targetReps}) y sugiere peso y repeticiones para la próxima sesión.
-
-Historial (más reciente primero):
-${historyText}
-
-Reglas:
-- Analiza tendencia de RIR, peso y repeticiones
-- Si RIR promedio es alto (2-3), sugiere subir peso ligeramente
-- Si RIR es bajo (0-1), mantener o bajar peso
-- Incrementos máximos: 2.5kg para tren superior, 5kg para tren inferior
-- Prioriza técnica y seguridad
-
-Responde SOLO con JSON: {"weight": number, "reps": number, "reasoning": "explicación breve en español"}`;
-
-        const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${OPENAI_API_KEY}`
-            },
-            body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                messages: [{ role: 'user', content: prompt }],
-                temperature: 0.3,
-                max_tokens: 200
-            })
-        });
-
-        if (!aiResponse.ok) {
-            console.error('OpenAI API error:', aiResponse.status);
-            return res.json({ suggestion: null, reason: 'Error de API de IA' });
-        }
-
-        const aiData = await aiResponse.json();
-        const content = aiData.choices?.[0]?.message?.content || '';
-
-        // Parse JSON from response
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            const suggestion = JSON.parse(jsonMatch[0]);
-            return res.json({ suggestion });
-        }
-
-        res.json({ suggestion: null, reason: 'No se pudo parsear respuesta de IA' });
-    } catch (error) {
-        console.error('Error getting AI suggestion:', error);
-        res.status(500).json({ error: 'Failed to get AI suggestion' });
     }
 });
 

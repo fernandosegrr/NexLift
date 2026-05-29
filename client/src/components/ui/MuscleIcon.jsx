@@ -7,7 +7,7 @@
 // Emojis y colores por grupo muscular
 const MUSCLE_DATA = {
     chest: { emoji: '🏋️', name: 'Pecho', color: '#ef4444' },
-    back: { emoji: '�', name: 'Espalda', color: '#f97316' },
+    back: { emoji: '🧍', name: 'Espalda', color: '#f97316' },
     shoulders: { emoji: '🔺', name: 'Hombros', color: '#eab308' },
     biceps: { emoji: '💪', name: 'Bíceps', color: '#22c55e' },
     triceps: { emoji: '🦾', name: 'Tríceps', color: '#14b8a6' },

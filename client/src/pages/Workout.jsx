@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, Save, Trophy, History, X, ChevronLeft, ChevronRight,
-    Target, Lock, ArrowRight, TrendingUp, Sparkles, Dumbbell, Brain, Loader2
+    Target, ArrowRight, TrendingUp, Sparkles, Dumbbell
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
@@ -47,77 +47,143 @@ function useWorkoutPersistence(dayId) {
     return { workoutData, setWorkoutData, completedExerciseIds, setCompletedExerciseIds, saveToStorage, clearStorage };
 }
 
-// Hook para gestión de historial de ejercicio
-function useExerciseHistory(exerciseId, targetReps) {
+// Parsea el rango de reps objetivo ("8-12", "5", "AMRAP") -> { lo, hi }
+function parseRepRange(targetReps) {
+    const nums = String(targetReps || '').match(/\d+/g);
+    if (!nums) return { lo: 8, hi: 12 };
+    const a = parseInt(nums[0], 10);
+    const b = nums[1] ? parseInt(nums[1], 10) : a;
+    return { lo: Math.min(a, b), hi: Math.max(a, b) };
+}
+
+// Devuelve los valores efectivos de una serie (en unilateral usa el lado débil,
+// que es el que limita la progresión)
+function effectiveSet(set) {
+    const w = Number(set.weight) || 0;
+    const r = Number(set.reps) || 0;
+    const hasRight = set.weightRight != null || set.repsRight != null;
+    const wR = set.weightRight != null ? Number(set.weightRight) : w;
+    const rR = set.repsRight != null ? Number(set.repsRight) : r;
+    const rir = set.rpe != null ? (10 - set.rpe) : (set.rir != null ? set.rir : null);
+    return {
+        weight: hasRight ? Math.min(w, wR) : w,
+        reps: hasRight ? Math.min(r, rR) : r,
+        rir
+    };
+}
+
+// 1RM estimado (Epley) sobre la serie efectiva
+function estimate1RM(set) {
+    const e = effectiveSet(set);
+    return e.weight * (1 + e.reps / 30);
+}
+
+/**
+ * Sugerencia de peso y reps por DOBLE PROGRESIÓN con autorregulación por RIR.
+ * Analiza la última sesión completa (peso, reps, series y RIR) y decide:
+ * - Si llegaste al tope del rango -> sube peso y reinicia reps abajo del rango.
+ * - Si te sobró fuerza (RIR alto) -> suma reps manteniendo el peso.
+ * - Si fallaste por debajo del rango sin reserva -> descarga ligeramente.
+ * - En el resto de casos -> mantén el peso y busca una rep más.
+ */
+function computeSuggestion(sessions, targetReps, increment) {
+    if (!sessions || sessions.length === 0) return null;
+    const { lo, hi } = parseRepRange(targetReps);
+
+    const working = (sessions[0].sets || [])
+        .map(effectiveSet)
+        .filter(s => s.weight > 0 && s.reps > 0);
+    if (working.length === 0) return null;
+
+    // Peso de trabajo = el más pesado de la sesión; reps = las del set más exigido a ese peso
+    const topWeight = Math.max(...working.map(s => s.weight));
+    const topSets = working.filter(s => Math.abs(s.weight - topWeight) < 0.01);
+    const repsAtTop = Math.min(...topSets.map(s => s.reps));
+    const knownRir = topSets.map(s => s.rir).filter(v => v != null);
+    const rir = knownRir.length ? Math.min(...knownRir) : 2; // 2 = moderado si no se registró
+
+    let weight = topWeight;
+    let reps = repsAtTop;
+    let rationale;
+
+    if (repsAtTop >= hi) {
+        // Tope del rango alcanzado -> progresión de carga, reinicio de reps
+        weight = topWeight + increment;
+        reps = lo;
+        rationale = rir >= 1
+            ? `Llegaste a ${repsAtTop} reps con RIR ${rir}: sube a ${weight}kg y reinicia en ${lo}.`
+            : `Completaste el tope de ${hi} reps: sube a ${weight}kg y reinicia en ${lo}.`;
+    } else if (rir <= 0 && repsAtTop < lo) {
+        // Fallo por debajo del rango -> descarga para consolidar
+        weight = Math.max(increment, topWeight - increment);
+        reps = lo;
+        rationale = `Te quedaste por debajo del rango sin reserva: baja a ${weight}kg y consolida técnica.`;
+    } else if (rir >= 2) {
+        // Sobró fuerza -> suma reps manteniendo carga
+        reps = Math.min(hi, repsAtTop + 1);
+        rationale = `Te sobró fuerza (RIR ${rir}): mantén ${weight}kg y busca ${reps} reps.`;
+    } else {
+        // Progresión normal por reps
+        reps = Math.min(hi, repsAtTop + 1);
+        rationale = `Mantén ${weight}kg y apunta a ${reps} reps (RIR objetivo 1-2).`;
+    }
+
+    weight = Math.round(weight / 2.5) * 2.5;
+    if (weight <= 0 || reps <= 0) return null;
+
+    return { weight, reps, rationale, basedOn: sessions.length };
+}
+
+// Hook para gestión de historial de ejercicio (mejor marca previa + sugerencia calculada)
+function useExerciseHistory(exerciseId, targetReps, muscleGroup) {
     const [previousBest, setPreviousBest] = useState(null);
-    const [suggestedWeight, setSuggestedWeight] = useState(null);
+    const [suggestion, setSuggestion] = useState(null);
     const [loading, setLoading] = useState(false);
     const currentRequestRef = useRef(null);
 
-    const parseTargetReps = (reps) => {
-        if (!reps) return 10;
-        const str = String(reps);
-        const match = str.match(/^(\d+)/);
-        return match ? parseInt(match[1], 10) : 10;
-    };
-
-    const loadHistoryInternal = useCallback(async () => {
+    useEffect(() => {
+        setPreviousBest(null);
+        setSuggestion(null);
         if (!exerciseId) return;
+
         const requestId = exerciseId;
         currentRequestRef.current = requestId;
         setLoading(true);
 
-        try {
-            const historyData = await api.getExerciseHistory(exerciseId);
-            if (currentRequestRef.current !== requestId) return;
+        (async () => {
+            try {
+                const history = await api.getExerciseHistory(exerciseId);
+                if (currentRequestRef.current !== requestId) return;
 
-            const allSets = historyData?.flatMap(session => session.sets || []) || [];
+                const sessions = (history || []).filter(s => s.sets && s.sets.length > 0);
+                if (sessions.length === 0) {
+                    setPreviousBest(null);
+                    setSuggestion(null);
+                    return;
+                }
 
-            if (allSets.length > 0) {
-                const calculate1RM = (weight, reps) => weight * (1 + reps / 30);
-                const bestSet = allSets.reduce((best, set) => {
-                    const score = calculate1RM(Number(set.weight) || 0, Number(set.reps) || 0);
-                    const bestScore = calculate1RM(Number(best.weight) || 0, Number(best.reps) || 0);
-                    if (bestScore > 0 && Math.abs(score - bestScore) / bestScore < 0.01) {
-                        const setRIR = set.rpe ? (10 - set.rpe) : 3;
-                        const bestRIR = best.rpe ? (10 - best.rpe) : 3;
-                        return setRIR < bestRIR ? set : best;
-                    }
-                    return score > bestScore ? set : best;
-                }, allSets[0]);
+                // Mejor serie histórica por 1RM estimado (lado débil en unilateral)
+                const allSets = sessions.flatMap(s => s.sets);
+                const best = allSets.reduce(
+                    (b, s) => (estimate1RM(s) > estimate1RM(b) ? s : b),
+                    allSets[0]
+                );
+                setPreviousBest(best);
 
-                setPreviousBest(bestSet);
-
-                const bestWeight = Number(bestSet.weight) || 0;
-                const bestReps = Number(bestSet.reps) || 0;
-                const bestRIR = bestSet.rpe ? (10 - bestSet.rpe) : 2;
-                const estimated1RM = bestWeight * (1 + (bestReps + bestRIR) / 30);
-                const targetRepCount = parseTargetReps(targetReps);
-                const optimalWeight = estimated1RM / (1 + targetRepCount / 30);
-                const suggested = Math.round(optimalWeight / 2.5) * 2.5;
-
-                setSuggestedWeight(suggested > 0 ? suggested : null);
-            } else {
-                setPreviousBest(null);
-                setSuggestedWeight(null);
+                const increment = muscleGroup === 'Piernas' ? 5 : 2.5;
+                setSuggestion(computeSuggestion(sessions, targetReps, increment));
+            } catch {
+                if (currentRequestRef.current === requestId) {
+                    setPreviousBest(null);
+                    setSuggestion(null);
+                }
+            } finally {
+                if (currentRequestRef.current === requestId) setLoading(false);
             }
-        } catch (error) {
-            setPreviousBest(null);
-            setSuggestedWeight(null);
-        } finally {
-            setLoading(false);
-        }
-    }, [exerciseId, targetReps]);
+        })();
+    }, [exerciseId, targetReps, muscleGroup]);
 
-    useEffect(() => {
-        setPreviousBest(null);
-        setSuggestedWeight(null);
-        if (exerciseId) {
-            loadHistoryInternal();
-        }
-    }, [exerciseId, loadHistoryInternal]);
-
-    return { previousBest, suggestedWeight, loading, loadHistory: loadHistoryInternal };
+    return { previousBest, suggestion, loading };
 }
 
 // ==================== COMPONENTES UI ====================
@@ -141,10 +207,12 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
 
     const isPR = useMemo(() => {
         if (!previousBest || isLocked || !set.completed) return false;
-        const reps = isUnilateral ? Math.min(Number(set.reps) || 0, Number(set.repsR) || 0) : Number(set.reps) || 0;
-        const currentScore = (Number(set.weight) || 0) * (1 + reps / 30);
-        const bestScore = (Number(previousBest.weight) || 0) * (1 + (Number(previousBest.reps) || 0) / 30);
-        return currentScore > bestScore;
+        const w = Number(set.weight) || 0;
+        const r = Number(set.reps) || 0;
+        const effW = isUnilateral ? Math.min(w, Number(set.weightR) || w) : w;
+        const effR = isUnilateral ? Math.min(r, Number(set.repsR) || r) : r;
+        const currentScore = effW * (1 + effR / 30);
+        return currentScore > estimate1RM(previousBest);
     }, [set, previousBest, isLocked, isUnilateral]);
 
     return (
@@ -309,6 +377,7 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
 }, (prevProps, nextProps) => {
     return prevProps.set.weight === nextProps.set.weight &&
         prevProps.set.reps === nextProps.set.reps &&
+        prevProps.set.weightR === nextProps.set.weightR &&
         prevProps.set.repsR === nextProps.set.repsR &&
         prevProps.set.completed === nextProps.set.completed &&
         prevProps.set.rir === nextProps.set.rir &&
@@ -340,10 +409,6 @@ export default function Workout() {
         history: []
     });
 
-    // AI suggestion replaces formula-based suggestion
-    const [aiSuggestion, setAiSuggestion] = useState(null);
-    const [aiLoading, setAiLoading] = useState(false);
-
     const [sets, setSets] = useState([]);
     const [isUnilateral, setIsUnilateral] = useState(false);
     const currentExerciseIdRef = useRef(null);
@@ -352,7 +417,7 @@ export default function Workout() {
     const { workoutData, setWorkoutData, completedExerciseIds, setCompletedExerciseIds, saveToStorage, clearStorage } = useWorkoutPersistence(dayId);
 
     const currentExercise = workoutState.exercises[workoutState.currentIndex];
-    const { previousBest, suggestedWeight, loadHistory } = useExerciseHistory(currentExercise?.id, currentExercise?.targetReps);
+    const { previousBest, suggestion } = useExerciseHistory(currentExercise?.id, currentExercise?.targetReps, currentExercise?.muscleGroup);
 
     // Valores computados
     const isAlreadyLogged = useMemo(() =>
@@ -364,14 +429,6 @@ export default function Workout() {
         sets.some(s => s.weight !== '' && s.reps !== ''),
         [sets]
     );
-
-    // Auto-trigger AI suggestion when exercise changes
-    useEffect(() => {
-        if (currentExercise?.id && !isAlreadyLogged) {
-            requestAISuggestion(true);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentExercise?.id]);
 
     // Guardado automático en localStorage
     useEffect(() => {
@@ -534,39 +591,15 @@ export default function Workout() {
         toast.success('Peso copiado');
     }, [isAlreadyLogged, sets, toast]);
 
-    const applySuggestedWeight = useCallback(() => {
-        if (isAlreadyLogged || !suggestedWeight) return;
-        setSets(prev => prev.map(s => ({ ...s, weight: suggestedWeight.toString() })));
-        toast.success('Peso sugerido aplicado');
-    }, [isAlreadyLogged, suggestedWeight, toast]);
-
-    const requestAISuggestion = useCallback(async (silent = false) => {
-        if (!currentExercise?.id || aiLoading) return;
-        setAiLoading(true);
-        setAiSuggestion(null);
-        try {
-            const result = await api.getAISuggestion(currentExercise.id);
-            if (result.suggestion) {
-                setAiSuggestion(result.suggestion);
-            } else if (!silent) {
-                toast.error(result.reason || 'Sin sugerencia disponible');
-            }
-        } catch (err) {
-            if (!silent) toast.error('Error al obtener sugerencia IA');
-        } finally {
-            setAiLoading(false);
-        }
-    }, [currentExercise?.id, aiLoading, toast]);
-
-    const applyAISuggestion = useCallback(() => {
-        if (!aiSuggestion || isAlreadyLogged) return;
+    const applySuggestion = useCallback(() => {
+        if (isAlreadyLogged || !suggestion) return;
         setSets(prev => prev.map(s => ({
             ...s,
-            weight: aiSuggestion.weight.toString(),
-            reps: aiSuggestion.reps.toString()
+            weight: suggestion.weight.toString(),
+            reps: suggestion.reps.toString()
         })));
-        toast.success('Sugerencia IA aplicada');
-    }, [aiSuggestion, isAlreadyLogged, toast]);
+        toast.success('Sugerencia aplicada');
+    }, [isAlreadyLogged, suggestion, toast]);
 
     function goToExercise(newIndex) {
         if (newIndex < 0 || newIndex >= workoutState.exercises.length) return;
@@ -578,7 +611,6 @@ export default function Workout() {
         const updatedWorkoutData = { ...workoutData, [currentExId]: sets };
         setWorkoutData(updatedWorkoutData);
         setWorkoutState(prev => ({ ...prev, currentIndex: newIndex }));
-        setAiSuggestion(null);
         loadExerciseData(workoutState.exercises[newIndex], newIndex);
     }
 
@@ -763,47 +795,35 @@ export default function Workout() {
                             <p className="text-[var(--success)]/80 text-xs">Guardado hoy a las {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
                     </div>
-                ) : (previousBest || suggestedWeight || aiSuggestion) && (
+                ) : (previousBest || suggestion) && (
                     <>
                     <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-1 shadow-sm flex divide-x divide-[var(--border)]">
                         {previousBest && (
                             <div className="flex-1 p-3 flex flex-col items-center">
                                 <span className="text-[10px] uppercase text-[var(--text-secondary)] font-bold mb-1">Mejor Anterior</span>
-                                <div className="flex items-end gap-1 text-[var(--text-primary)]">
-                                    <span className="text-lg font-bold tabular-nums">{previousBest.weight}</span>
-                                    <span className="text-xs mb-1 text-[var(--text-secondary)]">kg</span>
-                                    <span className="mx-1 text-[var(--border)]">/</span>
-                                    <span className="text-lg font-bold tabular-nums">{previousBest.reps}</span>
-                                    <span className="text-xs mb-1 text-[var(--text-secondary)]">reps</span>
-                                </div>
+                                {(previousBest.repsRight != null || previousBest.weightRight != null) ? (
+                                    <div className="flex flex-col items-center text-[var(--text-primary)] leading-tight tabular-nums">
+                                        <span className="text-sm font-bold">
+                                            <span className="text-orange-400 text-[10px] mr-1">IZQ</span>{previousBest.weight}kg × {previousBest.reps}
+                                        </span>
+                                        <span className="text-sm font-bold">
+                                            <span className="text-orange-400 text-[10px] mr-1">DER</span>{previousBest.weightRight ?? previousBest.weight}kg × {previousBest.repsRight ?? previousBest.reps}
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-end gap-1 text-[var(--text-primary)]">
+                                        <span className="text-lg font-bold tabular-nums">{previousBest.weight}</span>
+                                        <span className="text-xs mb-1 text-[var(--text-secondary)]">kg</span>
+                                        <span className="mx-1 text-[var(--border)]">/</span>
+                                        <span className="text-lg font-bold tabular-nums">{previousBest.reps}</span>
+                                        <span className="text-xs mb-1 text-[var(--text-secondary)]">reps</span>
+                                    </div>
+                                )}
                             </div>
                         )}
-                        {/* AI suggestion replaces formula suggestion */}
-                        {aiSuggestion ? (
+                        {suggestion && (
                             <button
-                                onClick={applyAISuggestion}
-                                className="flex-1 p-3 flex flex-col items-center hover:bg-[var(--bg-dark)] transition-colors active:scale-95 group relative overflow-hidden"
-                            >
-                                <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                <span className="text-[10px] uppercase text-blue-400 font-bold mb-1 flex items-center gap-1">
-                                    Sugerido IA <Brain size={10} />
-                                </span>
-                                <div className="flex items-end gap-1 text-blue-400 group-hover:scale-105 transition-transform">
-                                    <span className="text-2xl font-black tracking-tight leading-none">{aiSuggestion.weight}</span>
-                                    <span className="text-xs mb-0.5 font-bold">kg</span>
-                                    <span className="mx-1 text-[var(--border)]">/</span>
-                                    <span className="text-lg font-bold">{aiSuggestion.reps}</span>
-                                    <span className="text-xs mb-0.5">reps</span>
-                                </div>
-                            </button>
-                        ) : aiLoading ? (
-                            <div className="flex-1 p-3 flex flex-col items-center justify-center">
-                                <Loader2 size={20} className="text-blue-400 animate-spin mb-1" />
-                                <span className="text-[10px] text-blue-400 font-bold">Analizando...</span>
-                            </div>
-                        ) : suggestedWeight ? (
-                            <button
-                                onClick={applySuggestedWeight}
+                                onClick={applySuggestion}
                                 className="flex-1 p-3 flex flex-col items-center hover:bg-[var(--bg-dark)] transition-colors active:scale-95 group relative overflow-hidden"
                             >
                                 <div className="absolute inset-0 bg-[var(--success)]/5 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -811,21 +831,24 @@ export default function Workout() {
                                     Sugerido <Sparkles size={10} />
                                 </span>
                                 <div className="flex items-end gap-1 text-[var(--success)] group-hover:scale-105 transition-transform">
-                                    <span className="text-2xl font-black tracking-tight leading-none">{suggestedWeight}</span>
+                                    <span className="text-2xl font-black tracking-tight leading-none">{suggestion.weight}</span>
                                     <span className="text-xs mb-0.5 font-bold">kg</span>
+                                    <span className="mx-1 text-[var(--border)]">/</span>
+                                    <span className="text-lg font-bold">{suggestion.reps}</span>
+                                    <span className="text-xs mb-0.5">reps</span>
                                 </div>
                             </button>
-                        ) : null}
+                        )}
                     </div>
 
-                    {/* AI Reasoning - collapsible */}
-                    {aiSuggestion?.reasoning && (
+                    {/* Explicación del cálculo - colapsable */}
+                    {suggestion?.rationale && (
                         <details className="text-[10px] text-[var(--text-secondary)] bg-[var(--bg-card)] rounded-lg border border-[var(--border)]">
                             <summary className="p-2 cursor-pointer flex items-center gap-1 select-none">
-                                <Brain size={10} className="text-blue-400" />
-                                <span className="font-bold text-blue-400">Ver analisis IA</span>
+                                <TrendingUp size={10} className="text-[var(--success)]" />
+                                <span className="font-bold text-[var(--success)]">Por qué esta sugerencia</span>
                             </summary>
-                            <p className="px-2 pb-2">{aiSuggestion.reasoning}</p>
+                            <p className="px-2 pb-2">{suggestion.rationale}</p>
                         </details>
                     )}
                     </>
@@ -952,15 +975,32 @@ export default function Workout() {
                                                 )}
                                             </div>
                                             <div className="flex gap-2 flex-wrap">
-                                                {log.sets.map((s, j) => (
-                                                    <div key={j} className="bg-[var(--bg-card)] px-3 py-1.5 rounded-lg border border-[var(--border)] flex items-baseline gap-1 shadow-sm">
-                                                        <span className="font-bold text-[var(--text-primary)]">{s.weight}</span>
-                                                        <span className="text-[10px] text-[var(--text-secondary)]">kg</span>
-                                                        <span className="text-[var(--border)] mx-0.5">/</span>
-                                                        <span className="font-bold text-[var(--text-primary)]">{s.reps}</span>
-                                                        <span className="text-[10px] text-[var(--text-secondary)]">reps</span>
-                                                    </div>
-                                                ))}
+                                                {log.sets.map((s, j) => {
+                                                    const hasRight = s.repsRight != null || s.weightRight != null;
+                                                    const rir = s.rpe != null ? (10 - s.rpe) : null;
+                                                    return (
+                                                        <div key={j} className="bg-[var(--bg-card)] px-3 py-1.5 rounded-lg border border-[var(--border)] flex items-baseline gap-1 shadow-sm">
+                                                            {hasRight ? (
+                                                                <span className="font-bold text-[var(--text-primary)] text-sm">
+                                                                    <span className="text-orange-400 text-[10px]">I </span>{s.weight}×{s.reps}
+                                                                    <span className="text-[var(--border)] mx-1">·</span>
+                                                                    <span className="text-orange-400 text-[10px]">D </span>{s.weightRight ?? s.weight}×{s.repsRight ?? s.reps}
+                                                                </span>
+                                                            ) : (
+                                                                <>
+                                                                    <span className="font-bold text-[var(--text-primary)]">{s.weight}</span>
+                                                                    <span className="text-[10px] text-[var(--text-secondary)]">kg</span>
+                                                                    <span className="text-[var(--border)] mx-0.5">/</span>
+                                                                    <span className="font-bold text-[var(--text-primary)]">{s.reps}</span>
+                                                                    <span className="text-[10px] text-[var(--text-secondary)]">reps</span>
+                                                                </>
+                                                            )}
+                                                            {rir != null && (
+                                                                <span className="text-[9px] text-[var(--primary)] ml-1 font-bold">RIR{rir}</span>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     ))}

@@ -41,27 +41,21 @@ function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetRep
     // Validación de seguridad estricta
     if (gap <= 0 || increase <= 0 || isNaN(gap) || isNaN(increase)) return [];
 
-    // ✅ MEJORA 2: Ajuste automático de progresión si es demasiado agresiva
-    // Para press de banca intermedio, máximo realista es ~1kg/semana
-    const MAX_REALISTIC_INCREASE = 1.0;
+    // Tope de progresión realista: escala con la fuerza actual (~2.5% del 1RM por
+    // semana) con un mínimo de 1kg/sem. Evita estimaciones absurdas con datos
+    // ruidosos sin penalizar levantamientos grandes (sentadilla, peso muerto),
+    // donde 1kg/sem fijo era irrealmente lento.
+    const MAX_REALISTIC_INCREASE = Math.max(1.0, start * 0.025);
     if (increase > MAX_REALISTIC_INCREASE) {
-        console.warn(`⚠️ Progresión de ${increase}kg/sem es muy agresiva. Ajustando a ${MAX_REALISTIC_INCREASE}kg/sem para sostenibilidad.`);
         increase = MAX_REALISTIC_INCREASE;
     }
 
-    // Calcular semanas totales necesarias
+    // Semanas totales necesarias para cubrir el gap al ritmo estimado.
+    // No se infla artificialmente: un objetivo cercano genera un plan corto.
     let totalWeeks = Math.ceil(gap / increase);
+    if (totalWeeks < 1) totalWeeks = 1;
 
-    // ✅ MEJORA 3: Mínimo de semanas para permitir adaptación neuromuscular
-    const MIN_WEEKS_FOR_PHASES = 12;
-    if (totalWeeks < MIN_WEEKS_FOR_PHASES) {
-        console.info(`📊 Plan extendido de ${totalWeeks} a ${MIN_WEEKS_FOR_PHASES} semanas para progresión sostenible.`);
-        totalWeeks = MIN_WEEKS_FOR_PHASES;
-        // Recalcular el incremento semanal ajustado
-        increase = gap / totalWeeks;
-    }
-
-    // Safety check: Si el cálculo da semanas infinitas o absurdas, cortamos
+    // Safety check: cortar planes absurdamente largos
     if (totalWeeks > 100) totalWeeks = 100;
 
     // Usar fases si el plan es >= 8 semanas
@@ -341,7 +335,10 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
             source = 'history';
             const sessions = history.sessions;
             totalSessions = sessions.length;
-            starting1RM = sessions[sessions.length - 1].best1RM;
+            // 1RM actual robusto: mejor de las últimas 3 sesiones (evita que un mal
+            // día hunda el punto de partida o que un pico antiguo lo infle)
+            const recent = sessions.slice(-3);
+            starting1RM = Math.max(...recent.map(s => s.best1RM));
 
             const dataPoints = sessions.map((s, i) => ({ x: i, y: s.best1RM }));
             const regression = linearRegression(dataPoints);
@@ -414,27 +411,27 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
             return { completedAutoWeeks: new Set(), currentReal1RM: 0, realProgressPct: 0 };
         }
 
-        // Get all historical 1RM values sorted by date
-        const best1RMs = history.sessions.map(s => s.best1RM).sort((a, b) => a - b);
-        const maxReal1RM = Math.max(...best1RMs);
-        const latestReal1RM = history.sessions[history.sessions.length - 1].best1RM;
+        // 1RM actual robusto = mejor de las últimas 3 sesiones (mismo criterio que
+        // el punto de partida del plan, para que barra y semanas sean coherentes)
+        const recent = history.sessions.slice(-3);
+        const currentReal1RM = Math.max(...recent.map(s => s.best1RM));
 
-        // Mark weeks as completed if user's BEST historical 1RM exceeds the week's target
+        // Una semana se marca completada si tu 1RM actual ya supera su objetivo
         const autoCompleted = new Set();
         prediction.plan.forEach(weekData => {
-            if (maxReal1RM >= weekData.projected1RM) {
+            if (currentReal1RM >= weekData.projected1RM) {
                 autoCompleted.add(weekData.week);
             }
         });
 
-        // Calculate real progress toward the goal
+        // Progreso real hacia la meta (mismo 1RM que las semanas completadas)
         const realPct = prediction.target1RM > 0
-            ? Math.min(100, Math.max(0, (latestReal1RM / prediction.target1RM) * 100))
+            ? Math.min(100, Math.max(0, (currentReal1RM / prediction.target1RM) * 100))
             : 0;
 
         return {
             completedAutoWeeks: autoCompleted,
-            currentReal1RM: Math.round(latestReal1RM * 10) / 10,
+            currentReal1RM: Math.round(currentReal1RM * 10) / 10,
             realProgressPct: Math.round(realPct)
         };
     }, [history, prediction.plan, prediction.target1RM]);

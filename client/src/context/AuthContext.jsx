@@ -17,8 +17,19 @@ export function AuthProvider({ children }) {
         const savedUser = localStorage.getItem(USER_KEY);
 
         if (savedToken && savedUser) {
+            // Parsear usuario guardado de forma segura: si está corrupto, cerrar sesión
+            let parsedUser = null;
+            try {
+                parsedUser = JSON.parse(savedUser);
+            } catch (e) {
+                localStorage.removeItem(TOKEN_KEY);
+                localStorage.removeItem(USER_KEY);
+                setLoading(false);
+                return;
+            }
+
             setToken(savedToken);
-            setUser(JSON.parse(savedUser));
+            setUser(parsedUser);
 
             // Verify token is still valid
             api.getProfile(savedToken)
@@ -26,9 +37,13 @@ export function AuthProvider({ children }) {
                     setUser(profile);
                     localStorage.setItem(USER_KEY, JSON.stringify(profile));
                 })
-                .catch(() => {
-                    // Token invalid, clear auth
-                    logout();
+                .catch((err) => {
+                    // Solo cerrar sesión si el token es realmente inválido (401/auth).
+                    // En errores de red (backend caído) mantener la sesión guardada.
+                    if (err && err.status === 401) {
+                        logout();
+                    }
+                    // Error de red/transitorio: conservar el usuario almacenado.
                 })
                 .finally(() => setLoading(false));
         } else {
@@ -63,8 +78,12 @@ export function AuthProvider({ children }) {
 
     const updateProfile = async (data) => {
         const updated = await api.updateProfile(token, data);
-        setUser(prev => ({ ...prev, ...updated }));
-        localStorage.setItem(USER_KEY, JSON.stringify({ ...user, ...updated }));
+        setUser(prev => {
+            const merged = { ...prev, ...updated };
+            // Persistir el objeto exacto derivado del estado previo (evita closure obsoleto)
+            localStorage.setItem(USER_KEY, JSON.stringify(merged));
+            return merged;
+        });
         return updated;
     };
 

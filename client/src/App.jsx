@@ -82,6 +82,9 @@ function AppRoutes() {
         <Route path="profile" element={<Profile />} />
         <Route path="goals/new" element={<NewGoal />} />
       </Route>
+
+      {/* Catch-all: redirige URLs desconocidas al inicio */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

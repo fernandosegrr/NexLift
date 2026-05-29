@@ -71,9 +71,11 @@ export default function CreateRoutine() {
           const exerciseData = EXERCISES.find(e => e.id === ex.exerciseId);
           return {
             name: exerciseData?.name || ex.exerciseId,
-            targetSets: exerciseData?.defaultSets || 3,
+            muscleGroup: exerciseData?.muscleGroup,
+            isUnilateral: exerciseData?.isUnilateral || false,
+            targetSets: parseInt(exerciseData?.defaultSets, 10) || 3,
             targetReps: exerciseData?.defaultReps || '8-12',
-            restSeconds: 90,
+            restSeconds: parseInt(exerciseData?.restSeconds, 10) || 90,
             note: ''
           };
         })
@@ -170,8 +172,19 @@ export default function CreateRoutine() {
     if (!manualRoutine.name.trim()) { toast.error('Falta el nombre'); return; }
     if (manualRoutine.days.length === 0) { toast.error('Agrega días'); return; }
     setSaving(true);
+    const payload = {
+      ...manualRoutine,
+      days: manualRoutine.days.map(day => ({
+        ...day,
+        exercises: day.exercises.map(ex => ({
+          ...ex,
+          targetSets: parseInt(ex.targetSets, 10) || 3,
+          restSeconds: parseInt(ex.restSeconds, 10) || 90
+        }))
+      }))
+    };
     try {
-      await api.importRoutine(manualRoutine);
+      await api.importRoutine(payload);
       toast.success(`¡Creada!`);
       setTimeout(() => navigate('/routines'), 1000);
     } catch (error) { toast.error('Error al guardar'); } finally { setSaving(false); }
@@ -207,9 +220,9 @@ export default function CreateRoutine() {
         isRestDay: day.isRestDay || false,
         exercises: (day.exercises || []).map(ex => ({
           name: ex.name || 'Ejercicio',
-          targetSets: ex.targetSets || ex.sets || 3,
+          targetSets: parseInt(ex.targetSets ?? ex.sets, 10) || 3,
           targetReps: ex.targetReps || ex.reps || '8-12',
-          restSeconds: ex.restSeconds || ex.rest || 90,
+          restSeconds: parseInt(ex.restSeconds ?? ex.rest, 10) || 90,
           note: ex.note || ''
         }))
       }))

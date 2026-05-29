@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Save, Plus, Trash2, ArrowUp, ArrowDown, AlertTriangle, GripVertical } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react';
 import { api } from '../services/api';
 
 export default function EditRoutine() {
@@ -38,8 +38,19 @@ export default function EditRoutine() {
         }
 
         setSaving(true);
+        const payload = {
+            ...routine,
+            days: routine.days.map(day => ({
+                ...day,
+                exercises: (day.exercises || []).map(ex => ({
+                    ...ex,
+                    targetSets: parseInt(ex.targetSets, 10) || 3,
+                    restSeconds: parseInt(ex.restSeconds, 10) || 60
+                }))
+            }))
+        };
         try {
-            await api.updateRoutine(id, routine);
+            await api.updateRoutine(id, payload);
             navigate('/routines');
         } catch (error) {
             console.error('Error updating routine:', error);
@@ -107,6 +118,7 @@ export default function EditRoutine() {
         const newDays = [...routine.days];
         newDays[dayIndex].exercises.push({
             name: '',
+            muscleGroup: '',
             targetSets: 3,
             targetReps: '8-12',
             restSeconds: 60,
@@ -150,7 +162,7 @@ export default function EditRoutine() {
 
     if (loading) return (
         <div className="flex items-center justify-center h-[60vh]">
-            <div className="w-10 h-10 border-3 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+            <div className="w-10 h-10 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
         </div>
     );
 

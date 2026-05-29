@@ -11,13 +11,11 @@ client/          → React frontend (Vite)
   src/services/  → API client functions
   src/context/   → React context providers
   src/data/      → Static data (exercises.js)
-server/          → Express.js backend (local dev)
-  src/index.js   → Main server entry
-  prisma/        → Prisma schema & migrations (DEV)
-api/             → Vercel serverless deployment
-  prisma/        → Prisma schema (PROD) — MUST stay in sync with server/prisma
-shared/          → Shared utilities
+server/          → Express.js backend (ÚNICO backend, dev y prod)
+  src/index.js   → Main server entry (sirve también client/dist en prod)
+  prisma/        → Prisma schema & migrations
 ```
+Backend único: `server/src/index.js` es el único backend. El antiguo `api/` (serverless de Vercel) y `shared/` fueron eliminados al migrar el deploy a Docker en VPS.
 
 ## Key Commands
 ```bash
@@ -26,8 +24,9 @@ cd client && npm run dev     # Start frontend
 cd server && npx prisma studio  # View DB data
 ```
 
-## Schema Sync Rule
-Two copies of schema.prisma exist: `server/prisma/schema.prisma` (dev) and `api/prisma/schema.prisma` (prod). **Any schema change must be applied to both files.**
+## Deploy (VPS + EasyPanel + Docker)
+- `Dockerfile` (raíz): build multi-stage → compila el cliente, genera Prisma y arranca `server` (que sirve `client/dist` + API en el mismo puerto).
+- **Variables de entorno obligatorias en EasyPanel:** `DATABASE_URL`, `JWT_SECRET` (el server NO arranca en producción sin `JWT_SECRET`), `NODE_ENV=production`. Opcional: `PORT`.
 
 ## Design System
 - OLED black (`#0a0a0a`), card bg (`#141414`), primary violet (`#8b5cf6`)
@@ -40,7 +39,7 @@ Two copies of schema.prisma exist: `server/prisma/schema.prisma` (dev) and `api/
 ## Images
 No binary storage. Frontend → Base64 → Backend → Catbox.moe API → URL stored in DB.
 
-## Current Version: 1.9.6
+## Current Version: 1.9.9
 
 ## Conventions
 - Spanish UI, Spanish commit messages preferred

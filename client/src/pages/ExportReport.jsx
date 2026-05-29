@@ -43,6 +43,16 @@ function getLocalDateStr(dateObj) {
     return dateObj.toLocaleDateString('en-CA');
 }
 
+// Fix timezone: parse a stored UTC date string by its date part and format as
+// the intended local calendar day (avoids off-by-one shifts in negative-UTC zones).
+function formatLocalDate(dateStr, options = { day: 'numeric', month: 'short' }, locale = 'es-ES') {
+    if (!dateStr) return '';
+    const dateOnly = String(dateStr).split('T')[0];
+    const [year, month, day] = dateOnly.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString(locale, options);
+}
+
 async function loadLogoBase64(retries = 2) {
     for (let i = 0; i < retries; i++) {
         try {
@@ -304,7 +314,9 @@ export default function ExportReport() {
         const cutoffStr = getLocalDateStr(date);
         const isAfterCutoff = (d) => getLocalDateStr(new Date(d)) >= cutoffStr;
 
-        const filteredPRs = data.prs.filter(pr => isAfterCutoff(pr.date)).slice(0, 15);
+        const allPeriodPRs = data.prs.filter(pr => isAfterCutoff(pr.date));
+        const prsCount = allPeriodPRs.length; // true total for the period (before truncating the table)
+        const filteredPRs = allPeriodPRs.slice(0, 15);
         const filteredLogs = data.bodyLogs.filter(l => l.weight && isAfterCutoff(l.date));
         const filteredHistory = data.history.filter(h => isAfterCutoff(h.date));
 
@@ -336,6 +348,10 @@ export default function ExportReport() {
                 sessions.forEach(session => {
                     (session.sets || []).forEach(s => {
                         total += (s.weight || 0) * (s.reps || 0);
+                        // En unilateral cuenta también el volumen del lado derecho
+                        if (s.repsRight != null || s.weightRight != null) {
+                            total += (s.weightRight ?? s.weight ?? 0) * (s.repsRight ?? s.reps ?? 0);
+                        }
                         sets++;
                     });
                 });
@@ -360,6 +376,8 @@ export default function ExportReport() {
                     grouped[name].push(...(session.sets || []).map(s => ({
                         weight: s.weight,
                         reps: s.reps,
+                        weightRight: s.weightRight ?? null,
+                        repsRight: s.repsRight ?? null,
                         rir: s.rpe ? (10 - s.rpe) : null
                     })));
                 });
@@ -409,7 +427,7 @@ export default function ExportReport() {
             .sort((a, b) => new Date(a.date) - new Date(b.date));
 
         const weightChart = filteredLogs.slice().reverse().map(l => ({
-            date: new Date(l.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
+            date: formatLocalDate(l.date, { day: 'numeric', month: 'short' }),
             weight: l.weight
         }));
 
@@ -495,6 +513,7 @@ export default function ExportReport() {
             period: selectedP,
             cutoffStr,
             filteredPRs,
+            prsCount,
             filteredLogs,
             photos,
             weightChart,
@@ -503,7 +522,7 @@ export default function ExportReport() {
             weightChange,
             progressData,
             dailyComparison, // <--- Comparación diaria por día de semana
-            hasData: trainingDays > 0 || totalSessions > 0 || filteredPRs.length > 0 || filteredLogs.length > 0 || (dailyComparison?.exercises?.length > 0)
+            hasData: trainingDays > 0 || totalSessions > 0 || prsCount > 0 || filteredLogs.length > 0 || (dailyComparison?.exercises?.length > 0)
         };
     }, [data, period]);
 
@@ -537,7 +556,7 @@ export default function ExportReport() {
             const stats = [
                 { val: computed.trainingDays, lbl: 'Días Entrenados', col: COLORS.purple },
                 { val: computed.totalSessions, lbl: 'Sesiones Totales', col: [59, 130, 246] },
-                { val: computed.filteredPRs.length, lbl: 'Nuevos PRs', col: COLORS.yellow },
+                { val: computed.prsCount, lbl: 'Nuevos PRs', col: COLORS.yellow },
                 {
                     val: computed.weightChange !== null ? `${computed.weightChange > 0 ? '+' : ''}${computed.weightChange}kg` : '--',
                     lbl: 'Cambio Peso',
@@ -650,7 +669,9 @@ export default function ExportReport() {
                     const formatSets = (sets) => {
                         if (!sets || sets.length === 0) return '—';
                         return sets.map(s => {
-                            let str = `${s.weight}x${s.reps}`;
+                            let str = (s.repsRight != null || s.weightRight != null)
+                                ? `I:${s.weight}x${s.reps} D:${s.weightRight ?? s.weight}x${s.repsRight ?? s.reps}`
+                                : `${s.weight}x${s.reps}`;
                             if (s.rir !== null && s.rir !== undefined) str += ` R${s.rir}`;
                             return str;
                         }).join(', ');
@@ -711,7 +732,7 @@ export default function ExportReport() {
                         `${pr.weight}kg`,
                         `x${pr.reps}`,
                         est1RM,
-                        new Date(pr.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })
+                        formatLocalDate(pr.date, { day: '2-digit', month: '2-digit' })
                     ];
                 });
                 autoTable(doc, {
@@ -844,7 +865,7 @@ export default function ExportReport() {
                             doc.setTextColor(255, 255, 255);
                             doc.setFontSize(7);
                             doc.text(
-                                new Date(photo.date).toLocaleDateString('es-ES'),
+                                formatLocalDate(photo.date, { day: 'numeric', month: 'numeric', year: 'numeric' }),
                                 x + pW / 2, builder.y + pH - 1.5,
                                 { align: 'center' }
                             );
@@ -1042,7 +1063,7 @@ export default function ExportReport() {
                         <div className="grid grid-cols-4 gap-2">
                             <StatBox val={computed.trainingDays} label="Días" color="text-purple-400" />
                             <StatBox val={computed.totalSessions} label="Sesiones" />
-                            <StatBox val={computed.filteredPRs.length} label="PRs" color="text-yellow-400" />
+                            <StatBox val={computed.prsCount} label="PRs" color="text-yellow-400" />
                             <StatBox val={computed.weightChange} label="Peso" isDelta />
                         </div>
 

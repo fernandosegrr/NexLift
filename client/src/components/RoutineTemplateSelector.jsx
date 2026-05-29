@@ -120,7 +120,7 @@ export default function RoutineTemplateSelector({ isOpen, onClose, onSelectTempl
                                                 </div>
                                                 <div className="flex items-center gap-1 text-xs text-[var(--text-secondary)]">
                                                     <Trophy className="w-3 h-3" />
-                                                    {template.days.filter(d => !d.isRestDay).length * 6} ejercicios
+                                                    {template.days.reduce((sum, d) => sum + (d.exercises?.length || 0), 0)} ejercicios
                                                 </div>
                                             </div>
                                         </div>

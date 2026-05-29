@@ -22,8 +22,8 @@ export const ROUTINE_TEMPLATES = [
                     { exerciseId: 'incline-dumbbell-press', order: 1 },
                     { exerciseId: 'overhead-press', order: 2 },
                     { exerciseId: 'lateral-raises', order: 3 },
-                    { exerciseId: 'tricep-pushdown', order: 4 },
-                    { exerciseId: 'overhead-tricep-extension', order: 5 }
+                    { exerciseId: 'tricep-pushdown-rope', order: 4 },
+                    { exerciseId: 'overhead-cable-extension', order: 5 }
                 ]
             },
             {
@@ -45,7 +45,7 @@ export const ROUTINE_TEMPLATES = [
                     { exerciseId: 'squat', order: 0 },
                     { exerciseId: 'romanian-deadlift', order: 1 },
                     { exerciseId: 'leg-press', order: 2 },
-                    { exerciseId: 'leg-curl', order: 3 },
+                    { exerciseId: 'lying-leg-curl', order: 3 },
                     { exerciseId: 'leg-extension', order: 4 },
                     { exerciseId: 'standing-calf-raise', order: 5 }
                 ]
@@ -56,8 +56,8 @@ export const ROUTINE_TEMPLATES = [
                 exercises: [
                     { exerciseId: 'dumbbell-press', order: 0 },
                     { exerciseId: 'incline-bench-press', order: 1 },
-                    { exerciseId: 'dumbbell-shoulder-press', order: 2 },
-                    { exerciseId: 'cable-flyes', order: 3 },
+                    { exerciseId: 'seated-dumbbell-press', order: 2 },
+                    { exerciseId: 'cable-crossover-mid', order: 3 },
                     { exerciseId: 'lateral-raises', order: 4 },
                     { exerciseId: 'skull-crushers', order: 5 }
                 ]
@@ -69,8 +69,8 @@ export const ROUTINE_TEMPLATES = [
                     { exerciseId: 'lat-pulldown', order: 0 },
                     { exerciseId: 't-bar-row', order: 1 },
                     { exerciseId: 'cable-row', order: 2 },
-                    { exerciseId: 'rear-delt-fly', order: 3 },
-                    { exerciseId: 'dumbbell-curl', order: 4 },
+                    { exerciseId: 'rear-delt-fly-machine', order: 3 },
+                    { exerciseId: 'incline-dumbbell-curl', order: 4 },
                     { exerciseId: 'preacher-curl', order: 5 }
                 ]
             },
@@ -78,10 +78,10 @@ export const ROUTINE_TEMPLATES = [
                 dayName: 'Legs (Piernas)',
                 isRestDay: false,
                 exercises: [
-                    { exerciseId: 'front-squat', order: 0 },
+                    { exerciseId: 'hack-squat', order: 0 },
                     { exerciseId: 'hip-thrust', order: 1 },
                     { exerciseId: 'bulgarian-split-squat', order: 2 },
-                    { exerciseId: 'leg-curl', order: 3 },
+                    { exerciseId: 'seated-leg-curl', order: 3 },
                     { exerciseId: 'leg-extension', order: 4 },
                     { exerciseId: 'seated-calf-raise', order: 5 }
                 ]
@@ -106,7 +106,7 @@ export const ROUTINE_TEMPLATES = [
                     { exerciseId: 'overhead-press', order: 2 },
                     { exerciseId: 'lat-pulldown', order: 3 },
                     { exerciseId: 'barbell-curl', order: 4 },
-                    { exerciseId: 'tricep-pushdown', order: 5 }
+                    { exerciseId: 'tricep-pushdown-rope', order: 5 }
                 ]
             },
             {
@@ -116,7 +116,7 @@ export const ROUTINE_TEMPLATES = [
                     { exerciseId: 'squat', order: 0 },
                     { exerciseId: 'romanian-deadlift', order: 1 },
                     { exerciseId: 'leg-press', order: 2 },
-                    { exerciseId: 'leg-curl', order: 3 },
+                    { exerciseId: 'lying-leg-curl', order: 3 },
                     { exerciseId: 'standing-calf-raise', order: 4 },
                     { exerciseId: 'plank', order: 5 }
                 ]
@@ -132,7 +132,7 @@ export const ROUTINE_TEMPLATES = [
                 exercises: [
                     { exerciseId: 'incline-dumbbell-press', order: 0 },
                     { exerciseId: 'pull-ups', order: 1 },
-                    { exerciseId: 'dumbbell-shoulder-press', order: 2 },
+                    { exerciseId: 'seated-dumbbell-press', order: 2 },
                     { exerciseId: 'cable-row', order: 3 },
                     { exerciseId: 'hammer-curl', order: 4 },
                     { exerciseId: 'skull-crushers', order: 5 }
@@ -143,7 +143,7 @@ export const ROUTINE_TEMPLATES = [
                 isRestDay: false,
                 exercises: [
                     { exerciseId: 'deadlift', order: 0 },
-                    { exerciseId: 'lunges', order: 1 },
+                    { exerciseId: 'bulgarian-split-squat', order: 1 },
                     { exerciseId: 'hip-thrust', order: 2 },
                     { exerciseId: 'leg-extension', order: 3 },
                     { exerciseId: 'seated-calf-raise', order: 4 },
@@ -170,7 +170,7 @@ export const ROUTINE_TEMPLATES = [
                     { exerciseId: 'barbell-row', order: 2 },
                     { exerciseId: 'overhead-press', order: 3 },
                     { exerciseId: 'barbell-curl', order: 4 },
-                    { exerciseId: 'tricep-pushdown', order: 5 }
+                    { exerciseId: 'tricep-pushdown-rope', order: 5 }
                 ]
             },
             {
@@ -186,7 +186,7 @@ export const ROUTINE_TEMPLATES = [
                     { exerciseId: 'dumbbell-press', order: 1 },
                     { exerciseId: 'lat-pulldown', order: 2 },
                     { exerciseId: 'lateral-raises', order: 3 },
-                    { exerciseId: 'leg-curl', order: 4 },
+                    { exerciseId: 'lying-leg-curl', order: 4 },
                     { exerciseId: 'plank', order: 5 }
                 ]
             },
@@ -199,12 +199,12 @@ export const ROUTINE_TEMPLATES = [
                 dayName: 'Full Body C',
                 isRestDay: false,
                 exercises: [
-                    { exerciseId: 'front-squat', order: 0 },
+                    { exerciseId: 'hack-squat', order: 0 },
                     { exerciseId: 'incline-bench-press', order: 1 },
                     { exerciseId: 'cable-row', order: 2 },
                     { exerciseId: 'arnold-press', order: 3 },
                     { exerciseId: 'hammer-curl', order: 4 },
-                    { exerciseId: 'crunches', order: 5 }
+                    { exerciseId: 'cable-crunch', order: 5 }
                 ]
             }
         ]
@@ -224,10 +224,10 @@ export const ROUTINE_TEMPLATES = [
                 exercises: [
                     { exerciseId: 'bench-press', order: 0 },
                     { exerciseId: 'incline-dumbbell-press', order: 1 },
-                    { exerciseId: 'decline-bench-press', order: 2 },
-                    { exerciseId: 'cable-flyes', order: 3 },
+                    { exerciseId: 'dips-chest', order: 2 },
+                    { exerciseId: 'cable-crossover-mid', order: 3 },
                     { exerciseId: 'pec-deck', order: 4 },
-                    { exerciseId: 'push-ups', order: 5 }
+                    { exerciseId: 'machine-chest-press', order: 5 }
                 ]
             },
             {
@@ -247,11 +247,11 @@ export const ROUTINE_TEMPLATES = [
                 isRestDay: false,
                 exercises: [
                     { exerciseId: 'overhead-press', order: 0 },
-                    { exerciseId: 'dumbbell-shoulder-press', order: 1 },
+                    { exerciseId: 'seated-dumbbell-press', order: 1 },
                     { exerciseId: 'lateral-raises', order: 2 },
-                    { exerciseId: 'front-raises', order: 3 },
-                    { exerciseId: 'rear-delt-fly', order: 4 },
-                    { exerciseId: 'shrugs', order: 5 }
+                    { exerciseId: 'lu-raises', order: 3 },
+                    { exerciseId: 'rear-delt-fly-machine', order: 4 },
+                    { exerciseId: 'shrugs-dumbbell', order: 5 }
                 ]
             },
             {
@@ -262,7 +262,7 @@ export const ROUTINE_TEMPLATES = [
                     { exerciseId: 'leg-press', order: 1 },
                     { exerciseId: 'romanian-deadlift', order: 2 },
                     { exerciseId: 'leg-extension', order: 3 },
-                    { exerciseId: 'leg-curl', order: 4 },
+                    { exerciseId: 'lying-leg-curl', order: 4 },
                     { exerciseId: 'standing-calf-raise', order: 5 }
                 ]
             },
@@ -273,7 +273,7 @@ export const ROUTINE_TEMPLATES = [
                     { exerciseId: 'barbell-curl', order: 0 },
                     { exerciseId: 'skull-crushers', order: 1 },
                     { exerciseId: 'hammer-curl', order: 2 },
-                    { exerciseId: 'tricep-pushdown', order: 3 },
+                    { exerciseId: 'tricep-pushdown-rope', order: 3 },
                     { exerciseId: 'preacher-curl', order: 4 },
                     { exerciseId: 'dips-triceps', order: 5 }
                 ]

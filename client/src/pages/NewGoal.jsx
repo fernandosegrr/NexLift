@@ -55,7 +55,11 @@ export default function NewGoal() {
         async function fetchData() {
             try {
                 // Fetch exercises from routines (include id for history lookup)
-                const routines = await api.getRoutines();
+                // y el historial completo (1 sola llamada) para contar sesiones por ejercicio
+                const [routines, history] = await Promise.all([
+                    api.getRoutines(),
+                    api.getWorkoutHistory(500)
+                ]);
                 const allExercises = [];
                 const seen = new Set();
                 routines.forEach(r => r.days?.forEach(d => {
@@ -67,6 +71,18 @@ export default function NewGoal() {
                     });
                 }));
                 setExercises(allExercises);
+
+                // Sesiones únicas (por fecha local) por nombre de ejercicio
+                const dateSets = {};
+                (history || []).forEach(w => {
+                    const name = w.exercise?.name?.toLowerCase().trim();
+                    if (!name) return;
+                    if (!dateSets[name]) dateSets[name] = new Set();
+                    dateSets[name].add(new Date(w.date).toLocaleDateString('en-CA'));
+                });
+                const counts = {};
+                Object.keys(dateSets).forEach(n => { counts[n] = dateSets[n].size; });
+                setExerciseSessionCounts(counts);
             } catch (err) {
                 console.error(err);
             } finally {
@@ -138,20 +154,10 @@ export default function NewGoal() {
         setStep(2);
     }
 
-    async function handleExerciseSelect(name) {
+    function handleExerciseSelect(name) {
         setSelectedExercise(name);
-        // Fetch actual session count using exercise-specific history endpoint
-        const ex = exercises.find(e => e.name === name);
-        if (ex) {
-            try {
-                const history = await api.getExerciseHistory(ex.id);
-                const uniqueDates = new Set(history.map(h => new Date(h.date).toISOString().split('T')[0]));
-                setSessionCountForSelected(uniqueDates.size);
-                setExerciseSessionCounts(prev => ({ ...prev, [name.toLowerCase().trim()]: uniqueDates.size }));
-            } catch {
-                setSessionCountForSelected(0);
-            }
-        }
+        // Usa el conteo ya precargado (historial completo cargado al inicio)
+        setSessionCountForSelected(getSessionCount(name));
         setStep(3);
     }
 

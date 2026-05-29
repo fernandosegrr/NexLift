@@ -45,18 +45,21 @@ export default function GoalSection() {
                 };
             }
 
-            const dateKey = new Date(workout.date).toISOString().split('T')[0];
+            // Fecha LOCAL (no UTC) para no partir una sesión nocturna en dos días
+            const dateKey = new Date(workout.date).toLocaleDateString('en-CA');
             if (!grouped[exerciseName].sessions[dateKey]) {
                 grouped[exerciseName].sessions[dateKey] = [];
             }
 
             workout.sets?.forEach(set => {
-                if (set.weight && set.reps) {
-                    grouped[exerciseName].sessions[dateKey].push({
-                        weight: parseFloat(set.weight),
-                        reps: parseInt(set.reps)
-                    });
-                }
+                const w = parseFloat(set.weight);
+                const r = parseInt(set.reps);
+                if (!w || !r) return;
+                // En unilateral usamos el lado débil (el que limita el progreso)
+                const hasRight = set.weightRight != null || set.repsRight != null;
+                const effWeight = hasRight ? Math.min(w, parseFloat(set.weightRight ?? w)) : w;
+                const effReps = hasRight ? Math.min(r, parseInt(set.repsRight ?? r)) : r;
+                grouped[exerciseName].sessions[dateKey].push({ weight: effWeight, reps: effReps });
             });
         });
 
