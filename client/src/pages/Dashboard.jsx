@@ -6,12 +6,14 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import AchievementsStrip from '../components/AchievementsStrip';
 
 export default function Dashboard() {
     const { user } = useAuth();
     const [stats, setStats] = useState(null);
     const [activeRoutine, setActiveRoutine] = useState(null);
     const [consistency, setConsistency] = useState({});
+    const [prs, setPrs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showHeatmap, setShowHeatmap] = useState(false);
     const [loggingRest, setLoggingRest] = useState(false);
@@ -30,10 +32,11 @@ export default function Dashboard() {
 
         async function fetchData() {
             try {
-                const [statsData, activeData, consistencyRes] = await Promise.all([
+                const [statsData, activeData, consistencyRes, prsData] = await Promise.all([
                     api.getOverviewStats(),
                     api.getActiveRoutine(),
-                    api.getConsistency()
+                    api.getConsistency(),
+                    api.getPersonalRecords()
                 ]);
 
                 if (!isMounted) return;
@@ -51,6 +54,7 @@ export default function Dashboard() {
                 setStats(statsData);
                 setActiveRoutine(activeData);
                 setConsistency(map);
+                setPrs(Array.isArray(prsData) ? prsData : []);
             } catch (error) {
                 if (isMounted) {
                     console.error('Dashboard error:', error);
@@ -328,6 +332,22 @@ export default function Dashboard() {
                     </div>
                 ))}
             </div>
+
+            {/* Volumen semanal */}
+            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-[var(--primary)]/20 flex items-center justify-center shrink-0">
+                    <Dumbbell size={20} className="text-[var(--primary)]" />
+                </div>
+                <div className="overflow-hidden">
+                    <p className="text-xs text-[var(--text-secondary)]">Volumen esta semana</p>
+                    <p className="font-bold text-lg">
+                        {(stats?.weeklyVolume || 0).toLocaleString('es')} kg
+                    </p>
+                </div>
+            </div>
+
+            {/* Logros */}
+            <AchievementsStrip stats={stats} prs={prs} />
 
             {/* Consistency Calendar */}
             <div className="bg-[var(--bg-card)] rounded-xl p-4">

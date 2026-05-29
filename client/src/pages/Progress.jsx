@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
     TrendingUp, Calendar, Trophy, Dumbbell, ChevronDown, ChevronRight, Activity,
-    CheckCircle, Search, FileText, Loader2, Flame, X, Clock, Target
+    CheckCircle, Search, FileText, Loader2, Flame, X, Clock, Target, Zap
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, CartesianGrid, Area, AreaChart } from 'recharts';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import GoalSection from '../components/goals/GoalSection';
+import { epley1RM, classifyLift } from '../utils/strength';
 
 // ==========================================
 // CONSTANTS & UTILITIES
@@ -522,6 +523,32 @@ export default function Progress() {
 
     const { progress: exerciseProgress, loading: loadingProgress } = useExerciseProgress(filtersState.selectedExercise);
 
+    // Bodyweight for strength-level classification
+    const [bodyWeight, setBodyWeight] = useState(null);
+
+    // 1RM calculator local state
+    const [calc, setCalc] = useState({ weight: '', reps: '' });
+    const calcResult = epley1RM(calc.weight, calc.reps);
+
+    useEffect(() => {
+        let isMounted = true;
+        api.getLatestWeight()
+            .then(res => { if (isMounted) setBodyWeight(res?.weight || null); })
+            .catch(err => { console.error('Error fetching latest weight:', err); });
+        return () => { isMounted = false; };
+    }, []);
+
+    // Strength levels derived from PRs that match a known standard
+    const strengthLifts = useMemo(() => {
+        return prs
+            .map(pr => {
+                const oneRM = pr.estimated1RM || epley1RM(pr.weight, pr.reps);
+                const info = classifyLift(pr.exerciseName, oneRM, bodyWeight);
+                return info ? { ...info, oneRM } : null;
+            })
+            .filter(Boolean);
+    }, [prs, bodyWeight]);
+
     // Auto-select first exercise if none saved
     useEffect(() => {
         if (exercises.length > 0 && !filtersState.selectedExercise) {
@@ -687,6 +714,7 @@ export default function Progress() {
                     {[
                         { id: 'overview', label: 'General', icon: Activity },
                         { id: 'goals', label: 'Objetivos', icon: Target },
+                        { id: 'strength', label: 'Fuerza', icon: Zap },
                         { id: 'muscles', label: 'Músculos', icon: Dumbbell }
                     ].map(tab => (
                         <button
@@ -845,6 +873,131 @@ export default function Progress() {
             {uiState.activeTab === 'goals' && (
                 <div className="animate-fade-in">
                     <GoalSection />
+                </div>
+            )}
+
+            {/* Strength Tab */}
+            {uiState.activeTab === 'strength' && (
+                <div className="space-y-5 animate-fade-in">
+                    {/* 1RM Calculator */}
+                    <div className="bg-[var(--bg-card)] rounded-2xl p-5 border border-[var(--border)]">
+                        <h3 className="font-bold mb-1 flex items-center gap-2">
+                            <Zap size={18} className="text-[var(--primary)]" />
+                            Calculadora 1RM
+                        </h3>
+                        <p className="text-xs text-[var(--text-secondary)] mb-4">
+                            Estimación de tu repetición máxima (fórmula Epley)
+                        </p>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-[10px] uppercase tracking-wide text-[var(--text-secondary)] mb-1.5">
+                                    Peso (kg)
+                                </label>
+                                <input
+                                    type="number"
+                                    inputMode="decimal"
+                                    min="0"
+                                    value={calc.weight}
+                                    onChange={(e) => setCalc(prev => ({ ...prev, weight: e.target.value }))}
+                                    placeholder="0"
+                                    className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl px-4 py-3 focus:border-[var(--primary)] outline-none text-sm"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] uppercase tracking-wide text-[var(--text-secondary)] mb-1.5">
+                                    Reps
+                                </label>
+                                <input
+                                    type="number"
+                                    inputMode="numeric"
+                                    min="0"
+                                    value={calc.reps}
+                                    onChange={(e) => setCalc(prev => ({ ...prev, reps: e.target.value }))}
+                                    placeholder="0"
+                                    className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl px-4 py-3 focus:border-[var(--primary)] outline-none text-sm"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mt-4 bg-[var(--bg-dark)] rounded-xl p-4 text-center">
+                            <p className="text-[10px] uppercase tracking-wide text-[var(--text-secondary)] mb-1">
+                                1RM estimado
+                            </p>
+                            <p className="text-3xl font-bold text-[var(--primary)]">
+                                {calcResult > 0 ? `${calcResult} kg` : '—'}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Bodyweight missing note */}
+                    {!bodyWeight && (
+                        <div className="bg-[var(--bg-card)] rounded-2xl p-5 border border-[var(--border)] text-center">
+                            <Activity size={40} className="mx-auto text-[var(--text-secondary)] opacity-30 mb-3" />
+                            <p className="text-sm text-[var(--text-secondary)] mb-4">
+                                Registra tu peso corporal para calcular tus niveles de fuerza.
+                            </p>
+                            <Link
+                                to="/body"
+                                className="inline-flex items-center gap-2 bg-[var(--primary)] px-4 py-2.5 rounded-xl text-sm font-medium text-white active:scale-95 transition-all"
+                            >
+                                <TrendingUp size={16} />
+                                Registrar peso
+                            </Link>
+                        </div>
+                    )}
+
+                    {/* Strength Levels */}
+                    {bodyWeight && (
+                        <div className="bg-[var(--bg-card)] rounded-2xl p-5 border border-[var(--border)]">
+                            <h3 className="font-bold mb-1 flex items-center gap-2">
+                                <Trophy size={18} className="text-yellow-500" />
+                                Niveles de Fuerza
+                            </h3>
+                            <p className="text-xs text-[var(--text-secondary)] mb-4">
+                                Según tu peso corporal ({bodyWeight} kg)
+                            </p>
+
+                            <div className="space-y-3">
+                                {strengthLifts.map((lift) => (
+                                    <div key={lift.key} className="bg-[var(--bg-dark)] rounded-xl p-4">
+                                        <div className="flex items-start justify-between gap-3 mb-2">
+                                            <div className="min-w-0">
+                                                <p className="font-semibold text-sm truncate">{lift.key}</p>
+                                                <p className="text-xs text-[var(--text-secondary)]">
+                                                    {Math.round(lift.oneRM)} kg · {lift.ratio}× peso corporal
+                                                </p>
+                                            </div>
+                                            <span className="shrink-0 text-[10px] px-2 py-1 rounded-full border border-[var(--primary)]/40 bg-[var(--primary)]/15 text-[var(--primary)] font-semibold">
+                                                {lift.levelName}
+                                            </span>
+                                        </div>
+
+                                        <div className="relative h-2.5 bg-[var(--bg-card)] rounded-full overflow-hidden">
+                                            <div
+                                                className="absolute inset-y-0 left-0 bg-gradient-to-r from-[var(--primary)] to-purple-400 rounded-full transition-all duration-1000"
+                                                style={{ width: `${lift.pct}%` }}
+                                            />
+                                        </div>
+                                        <p className="text-[10px] text-[var(--text-secondary)] mt-1.5 text-right">
+                                            {lift.isMax
+                                                ? 'Nivel máximo'
+                                                : `${lift.pct}% hacia ${lift.nextLevel}`}
+                                        </p>
+                                    </div>
+                                ))}
+
+                                {strengthLifts.length === 0 && (
+                                    <div className="text-center py-10 bg-[var(--bg-dark)] rounded-xl">
+                                        <Zap size={40} className="mx-auto text-[var(--text-secondary)] opacity-30 mb-3" />
+                                        <p className="text-[var(--text-secondary)] text-sm">
+                                            Aún no hay levantamientos con estándar de fuerza
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

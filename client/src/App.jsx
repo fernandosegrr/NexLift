@@ -1,24 +1,37 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/layout/Layout';
+// Eager: rutas de primer render (landing logueado + login)
 import Dashboard from './pages/Dashboard';
-import Routines from './pages/Routines';
-import RoutineDetail from './pages/RoutineDetail';
-import Workout from './pages/Workout';
-import Import from './pages/Import';
-import Progress from './pages/Progress';
-import Settings from './pages/Settings';
-import EditRoutine from './pages/EditRoutine';
-import EditSession from './pages/EditSession';
-import BodyTracking from './pages/BodyTracking';
-import ExportReport from './pages/ExportReport';
 import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import Profile from './pages/Profile';
-import NewGoal from './pages/NewGoal';
 import { ToastProvider } from './components/ui/Toast';
 import './index.css';
+
+// Lazy: el resto de páginas se cargan al navegar (baja el bundle inicial;
+// ExportReport arrastra jsPDF/html2canvas y Progress/BodyTracking arrastran recharts)
+const Routines = lazy(() => import('./pages/Routines'));
+const RoutineDetail = lazy(() => import('./pages/RoutineDetail'));
+const Workout = lazy(() => import('./pages/Workout'));
+const Import = lazy(() => import('./pages/Import'));
+const Progress = lazy(() => import('./pages/Progress'));
+const Settings = lazy(() => import('./pages/Settings'));
+const EditRoutine = lazy(() => import('./pages/EditRoutine'));
+const EditSession = lazy(() => import('./pages/EditSession'));
+const BodyTracking = lazy(() => import('./pages/BodyTracking'));
+const ExportReport = lazy(() => import('./pages/ExportReport'));
+const Register = lazy(() => import('./pages/Register'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const Profile = lazy(() => import('./pages/Profile'));
+const NewGoal = lazy(() => import('./pages/NewGoal'));
+
+function PageLoader() {
+  return (
+    <div className="min-h-screen bg-[var(--bg-dark)] flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  );
+}
 
 // Protected Route wrapper
 function ProtectedRoute({ children }) {
@@ -60,6 +73,7 @@ function PublicRoute({ children }) {
 
 function AppRoutes() {
   return (
+    <Suspense fallback={<PageLoader />}>
     <Routes>
       {/* Public routes */}
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
@@ -86,6 +100,7 @@ function AppRoutes() {
       {/* Catch-all: redirige URLs desconocidas al inicio */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 }
 

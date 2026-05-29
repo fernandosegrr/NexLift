@@ -39,7 +39,7 @@ cd server && npx prisma studio  # View DB data
 ## Images
 No binary storage. Frontend → Base64 → Backend → Catbox.moe API → URL stored in DB.
 
-## Current Version: 1.9.9
+## Current Version: 2.0.0
 
 ## Conventions
 - Spanish UI, Spanish commit messages preferred

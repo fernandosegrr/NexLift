@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 1.9.9 | **Última actualización:** 28 Mayo 2026
+> **Versión:** 2.0.0 | **Última actualización:** 28 Mayo 2026
 
 ---
 
@@ -436,7 +436,14 @@ Para mantener esta documentación al día:
 
 ## 📋 Changelog Histórico
 
-### v1.9.9 (28 May 2026) - **Current**
+### v2.0.0 (28 May 2026) - **Current**
+*   **PWA REAL:** Añadido service worker (`client/public/sw.js`) → la app es instalable y funciona offline (assets cache-first, navegación network-first con shell offline, API network-first con respaldo). Registrado en `main.jsx` (solo producción).
+*   **PERF:** Code-splitting con `React.lazy`/`Suspense` de las rutas pesadas. El bundle inicial bajó de ~876 KB a ~272 KB (jsPDF/html2canvas y recharts se cargan solo al abrir sus pantallas).
+*   **FEATURE — Logros y rachas:** Sistema de logros derivado de las stats reales (`utils/achievements.js` + `components/AchievementsStrip.jsx`), con medallas, progreso al siguiente logro y notificación al desbloquear. Integrado en el Dashboard.
+*   **FEATURE — Estándares de fuerza:** Nueva pestaña "Fuerza" en Progreso con calculadora de 1RM (Epley) y nivel por ejercicio (Principiante→Élite) según múltiplo de 1RM sobre el peso corporal (`data/strengthStandards.js` + `utils/strength.js`).
+*   **UI:** Dashboard enriquecido (logros + volumen semanal). `background_color` del manifest alineado a OLED.
+
+### v1.9.9 (28 May 2026)
 *   **BACKEND ÚNICO:** Eliminados `api/` (serverless de Vercel), `vercel.json` y `shared/` (código muerto). Ahora hay un solo backend (`server/src/index.js`) y un solo `schema.prisma`. Deploy en VPS con Docker/EasyPanel; `Dockerfile` ajustado.
 *   **SECURITY:** El server no arranca en producción sin `JWT_SECRET` (antes usaba un secreto por defecto público → tokens falsificables). Rate limiting en `login`/`register`/`recover`. `trust proxy` para IP real tras EasyPanel. Validación server-side de peso/reps (0-2000 kg / 0-1000 reps).
 *   **PRs CORRECTOS:** Los récords se recalculan desde los logs reales al crear/editar/eliminar sesiones (antes quedaban récords fantasma al editar a la baja o borrar). El recálculo considera el lado unilateral.
