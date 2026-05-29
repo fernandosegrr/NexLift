@@ -78,13 +78,23 @@ function estimate1RM(set) {
     return e.weight * (1 + e.reps / 30);
 }
 
+// Redondea el peso a una rejilla sensata. Si el peso base ya cae en la rejilla del
+// incremento (barras/discos), se mantiene esa rejilla; si no (poleas/placas con
+// valores raros como 6.8kg), se redondea al medio kilo para no distorsionar el peso real.
+function roundWeight(w, increment, base) {
+    const grid = (Math.abs(base % increment) < 0.01) ? increment : 0.5;
+    return Math.round(w / grid) * grid;
+}
+
 /**
- * Sugerencia de peso y reps por DOBLE PROGRESIÓN con autorregulación por RIR.
- * Analiza la última sesión completa (peso, reps, series y RIR) y decide:
- * - Si llegaste al tope del rango -> sube peso y reinicia reps abajo del rango.
- * - Si te sobró fuerza (RIR alto) -> suma reps manteniendo el peso.
- * - Si fallaste por debajo del rango sin reserva -> descarga ligeramente.
- * - En el resto de casos -> mantén el peso y busca una rep más.
+ * Sugerencia de peso y reps por DOBLE PROGRESIÓN.
+ * Toma como referencia la SERIE DE TRABAJO MÁS FUERTE de la última sesión (mayor
+ * 1RM estimado), no el peso máximo absoluto: así un single de tope o una serie de
+ * calentamiento no sesgan la sugerencia. A ese peso usa las MEJORES reps logradas
+ * (no penaliza la caída de reps por fatiga entre series).
+ * - Si alcanzaste el tope del rango -> sube peso y reinicia reps abajo del rango.
+ * - Si aún no -> mantén el peso y suma reps (1, o 2 si te sobró fuerza con RIR≥3).
+ * Nunca sugiere bajar el peso de trabajo.
  */
 function computeSuggestion(sessions, targetReps, increment) {
     if (!sessions || sessions.length === 0) return null;
@@ -95,42 +105,36 @@ function computeSuggestion(sessions, targetReps, increment) {
         .filter(s => s.weight > 0 && s.reps > 0);
     if (working.length === 0) return null;
 
-    // Peso de trabajo = el más pesado de la sesión; reps = las del set más exigido a ese peso
-    const topWeight = Math.max(...working.map(s => s.weight));
-    const topSets = working.filter(s => Math.abs(s.weight - topWeight) < 0.01);
-    const repsAtTop = Math.min(...topSets.map(s => s.reps));
-    const knownRir = topSets.map(s => s.rir).filter(v => v != null);
-    const rir = knownRir.length ? Math.min(...knownRir) : 2; // 2 = moderado si no se registró
+    // 1RM Epley de una serie ya "efectiva" (lado débil en unilateral)
+    const rm = (s) => s.weight * (1 + s.reps / 30);
 
-    let weight = topWeight;
-    let reps = repsAtTop;
-    let rationale;
+    // Serie de referencia = la de mayor 1RM estimado (la serie de trabajo real)
+    const ref = working.reduce((best, s) => (rm(s) > rm(best) ? s : best), working[0]);
 
-    if (repsAtTop >= hi) {
+    // A ese mismo peso, las MEJORES reps logradas (8 y 7 -> contamos 8)
+    const sameWeight = working.filter(s => Math.abs(s.weight - ref.weight) < 0.01);
+    const refReps = Math.max(...sameWeight.map(s => s.reps));
+    const knownRir = sameWeight.map(s => s.rir).filter(v => v != null);
+    const rir = knownRir.length ? Math.min(...knownRir) : null;
+
+    let weight, reps, rationale;
+
+    if (refReps >= hi) {
         // Tope del rango alcanzado -> progresión de carga, reinicio de reps
-        weight = topWeight + increment;
+        weight = roundWeight(ref.weight + increment, increment, ref.weight);
         reps = lo;
-        rationale = rir >= 1
-            ? `Llegaste a ${repsAtTop} reps con RIR ${rir}: sube a ${weight}kg y reinicia en ${lo}.`
-            : `Completaste el tope de ${hi} reps: sube a ${weight}kg y reinicia en ${lo}.`;
-    } else if (rir <= 0 && repsAtTop < lo) {
-        // Fallo por debajo del rango -> descarga para consolidar
-        weight = Math.max(increment, topWeight - increment);
-        reps = lo;
-        rationale = `Te quedaste por debajo del rango sin reserva: baja a ${weight}kg y consolida técnica.`;
-    } else if (rir >= 2) {
-        // Sobró fuerza -> suma reps manteniendo carga
-        reps = Math.min(hi, repsAtTop + 1);
-        rationale = `Te sobró fuerza (RIR ${rir}): mantén ${weight}kg y busca ${reps} reps.`;
+        rationale = `Alcanzaste ${refReps} reps con ${ref.weight}kg (tope del rango): sube a ${weight}kg y reinicia en ${lo}.`;
     } else {
-        // Progresión normal por reps
-        reps = Math.min(hi, repsAtTop + 1);
-        rationale = `Mantén ${weight}kg y apunta a ${reps} reps (RIR objetivo 1-2).`;
+        // Dentro/por debajo del rango -> mantén carga y suma reps (doble progresión)
+        const bump = (rir != null && rir >= 3) ? 2 : 1; // si sobró mucha fuerza, +2
+        weight = ref.weight;
+        reps = Math.min(hi, refReps + bump);
+        rationale = rir != null
+            ? `Hiciste ${ref.weight}kg × ${refReps} (RIR ${rir}): mantén el peso y apunta a ${reps} reps.`
+            : `Hiciste ${ref.weight}kg × ${refReps}: mantén el peso y apunta a ${reps} reps.`;
     }
 
-    weight = Math.round(weight / 2.5) * 2.5;
     if (weight <= 0 || reps <= 0) return null;
-
     return { weight, reps, rationale, basedOn: sessions.length };
 }
 
@@ -593,13 +597,16 @@ export default function Workout() {
 
     const applySuggestion = useCallback(() => {
         if (isAlreadyLogged || !suggestion) return;
-        setSets(prev => prev.map(s => ({
-            ...s,
-            weight: suggestion.weight.toString(),
-            reps: suggestion.reps.toString()
-        })));
+        const w = suggestion.weight.toString();
+        const r = suggestion.reps.toString();
+        setSets(prev => prev.map(s => {
+            const next = { ...s, weight: w, reps: r };
+            // En unilateral rellenamos también el lado derecho (la sugerencia parte del lado débil)
+            if (isUnilateral) { next.weightR = w; next.repsR = r; }
+            return next;
+        }));
         toast.success('Sugerencia aplicada');
-    }, [isAlreadyLogged, suggestion, toast]);
+    }, [isAlreadyLogged, suggestion, isUnilateral, toast]);
 
     function goToExercise(newIndex) {
         if (newIndex < 0 || newIndex >= workoutState.exercises.length) return;

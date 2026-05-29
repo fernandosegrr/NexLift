@@ -4,13 +4,15 @@ import { Target, Plus, Loader2 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useToast } from '../ui/Toast';
 import GoalCard from './GoalCard';
+import { canonicalExerciseKey, groupHistoryByExercise } from '../../utils/exerciseName';
 
 export default function GoalSection() {
     const navigate = useNavigate();
     const toast = useToast();
     const [goals, setGoals] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [workoutHistory, setWorkoutHistory] = useState({});
+    // Map: clave canónica de ejercicio -> { names, muscleGroup, sessions }
+    const [workoutHistory, setWorkoutHistory] = useState(() => new Map());
 
     useEffect(() => {
         async function loadAll() {
@@ -21,7 +23,8 @@ export default function GoalSection() {
                     api.getWorkoutHistory(500)
                 ]);
                 setGoals(goalsData || []);
-                processHistory(historyData);
+                // Consolida el historial por ejercicio canónico (une variantes del nombre)
+                setWorkoutHistory(groupHistoryByExercise(historyData));
             } catch (err) {
                 console.error('Error loading goals data:', err);
             } finally {
@@ -30,67 +33,6 @@ export default function GoalSection() {
         }
         loadAll();
     }, []);
-
-    function processHistory(history) {
-        const grouped = {};
-
-        history?.forEach(workout => {
-            const exerciseName = workout.exercise?.name?.toLowerCase().trim();
-            if (!exerciseName) return;
-
-            if (!grouped[exerciseName]) {
-                grouped[exerciseName] = {
-                    muscleGroup: workout.exercise?.muscleGroup,
-                    sessions: {}
-                };
-            }
-
-            // Fecha LOCAL (no UTC) para no partir una sesión nocturna en dos días
-            const dateKey = new Date(workout.date).toLocaleDateString('en-CA');
-            if (!grouped[exerciseName].sessions[dateKey]) {
-                grouped[exerciseName].sessions[dateKey] = [];
-            }
-
-            workout.sets?.forEach(set => {
-                const w = parseFloat(set.weight);
-                const r = parseInt(set.reps);
-                if (!w || !r) return;
-                // En unilateral usamos el lado débil (el que limita el progreso)
-                const hasRight = set.weightRight != null || set.repsRight != null;
-                const effWeight = hasRight ? Math.min(w, parseFloat(set.weightRight ?? w)) : w;
-                const effReps = hasRight ? Math.min(r, parseInt(set.repsRight ?? r)) : r;
-                grouped[exerciseName].sessions[dateKey].push({ weight: effWeight, reps: effReps });
-            });
-        });
-
-        // Convert sessions object to sorted array with best 1RM per session
-        Object.keys(grouped).forEach(name => {
-            const sessionsObj = grouped[name].sessions;
-            const sessionsArray = Object.keys(sessionsObj)
-                .sort()
-                .map(dateKey => {
-                    const sets = sessionsObj[dateKey];
-                    const best1RM = Math.max(
-                        ...sets.map(s => s.weight * (1 + s.reps / 30))
-                    );
-                    const bestSet = sets.reduce((best, s) => {
-                        const rm = s.weight * (1 + s.reps / 30);
-                        return rm > (best.weight * (1 + best.reps / 30)) ? s : best;
-                    });
-                    return {
-                        date: dateKey,
-                        best1RM,
-                        weight: bestSet.weight,
-                        reps: bestSet.reps,
-                        setsCount: sets.length
-                    };
-                });
-
-            grouped[name].sessions = sessionsArray;
-        });
-
-        setWorkoutHistory(grouped);
-    }
 
     async function handleDeleteGoal(goalId) {
         try {
@@ -103,24 +45,10 @@ export default function GoalSection() {
     }
 
     function getHistoryForGoal(goalExerciseName) {
-        const normalize = (n) => n
-            .toLowerCase()
-            .replace(/^[a-z]\.?\d+\.?\s*/i, '')
-            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-
-        const normalizedGoalName = normalize(goalExerciseName);
-
-        // Coincidencia directa
-        if (workoutHistory[normalizedGoalName]) return workoutHistory[normalizedGoalName];
-
-        // Buscar con normalizacion robusta (tildes, prefijos, espacios)
-        for (const key of Object.keys(workoutHistory)) {
-            if (normalize(key) === normalizedGoalName) return workoutHistory[key];
-        }
-
-        return null;
+        // El historial est\u00e1 indexado por clave can\u00f3nica; el objetivo se empareja por
+        // la misma clave, as\u00ed que tolera variantes del nombre (abreviaturas, plurales,
+        // sufijos de grupo muscular, tildes, etc.).
+        return workoutHistory.get(canonicalExerciseKey(goalExerciseName)) || null;
     }
 
     function handleUpdateGoal(updatedGoal) {

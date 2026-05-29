@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 2.0.0 | **Última actualización:** 28 Mayo 2026
+> **Versión:** 2.0.1 | **Última actualización:** 29 Mayo 2026
 
 ---
 
@@ -436,7 +436,14 @@ Para mantener esta documentación al día:
 
 ## 📋 Changelog Histórico
 
-### v2.0.0 (28 May 2026) - **Current**
+### v2.0.1 (29 May 2026) - **Current**
+*   **CONSOLIDACIÓN DE EJERCICIOS (`utils/exerciseName.js`):** Nuevo módulo que identifica el "mismo" ejercicio aunque su nombre varíe entre rutinas (abreviaturas "elev."→"elevaciones", plurales, prefijos de orden "A1.", tildes y **sufijos de grupo muscular entre paréntesis** como "(bíceps)"). Conservador: NO fusiona variantes de equipamiento legítimas ("press inclinado (mancuernas)" ≠ "(hammer o smith)"). Funciones: `canonicalExerciseKey`, `normalizeExerciseName`, `groupHistoryByExercise`, `best1RMRecent`, `epley1RM`.
+*   **FIX — Objetivos no mostraban todos los ejercicios:** `NewGoal` construía la lista solo desde la 1ª copia de cada ejercicio en las rutinas (a veces con `muscleGroup` null → invisible al filtrar por músculo). Ahora consolida rutinas + catálogo (`/exercises`, incluye archivados) + historial, resolviendo el grupo muscular con el primer valor no-nulo de cualquier copia. Filtro de músculo case-insensitive + **buscador global** + orden por nº de sesiones.
+*   **FIX — "Faltan datos de fuerza inicial" con historial:** El conteo de sesiones de `NewGoal` y el emparejado de `GoalSection`/`GoalCard` ahora usan la misma clave canónica, así un objetivo encuentra su historial pese a variantes del nombre (p. ej. "curl martillo (bíceps)" hereda el historial de "curl martillo"). Además, al crear un objetivo con historial se **persiste un snapshot de `currentOneRepMax`** (mejor 1RM de las últimas 3 sesiones) como respaldo: la tarjeta nunca vuelve a quedarse sin fuerza inicial aunque falle el emparejado de display.
+*   **FIX — Sugerencias de Workout (Smart Loading):** El algoritmo tomaba el peso máximo absoluto (un single de tope) como peso de trabajo y el **mínimo** de reps, sugiriendo a veces **bajar** el peso (ej.: tras 120×8/120×7 sugería 117.5×8). Ahora la referencia es la **serie de trabajo más fuerte** (mayor 1RM estimado), usa las **mejores** reps a ese peso (no penaliza la fatiga entre series) y nunca propone bajar la carga. Redondeo de peso sensato (mantiene la rejilla del incremento en barras; medio kilo en poleas/placas con valores no redondos). `aplicar sugerencia` ahora rellena también el lado derecho en unilateral.
+*   **UI — Logros (Dashboard):** Rediseño de `AchievementsStrip`: cada medalla muestra **nombre + estado/progreso** (no solo un emoji con tooltip, que no funciona en móvil). Tarjeta de detalle del logro seleccionado (o el próximo a conseguir por defecto) con barra de progreso; toca una medalla para ver cómo desbloquearla.
+
+### v2.0.0 (28 May 2026)
 *   **PWA REAL:** Añadido service worker (`client/public/sw.js`) → la app es instalable y funciona offline (assets cache-first, navegación network-first con shell offline, API network-first con respaldo). Registrado en `main.jsx` (solo producción).
 *   **PERF:** Code-splitting con `React.lazy`/`Suspense` de las rutas pesadas. El bundle inicial bajó de ~876 KB a ~272 KB (jsPDF/html2canvas y recharts se cargan solo al abrir sus pantallas).
 *   **FEATURE — Logros y rachas:** Sistema de logros derivado de las stats reales (`utils/achievements.js` + `components/AchievementsStrip.jsx`), con medallas, progreso al siguiente logro y notificación al desbloquear. Integrado en el Dashboard.

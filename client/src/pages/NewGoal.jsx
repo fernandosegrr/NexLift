@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Target, Dumbbell, ChevronDown, Loader2, AlertCircle, User, Calendar, Zap } from 'lucide-react';
+import { ChevronLeft, Target, Dumbbell, ChevronDown, Loader2, AlertCircle, User, Calendar, Zap, Search } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
+import { canonicalExerciseKey, normalizeExerciseName, groupHistoryByExercise, best1RMRecent } from '../utils/exerciseName';
 
 const MUSCLE_GROUPS = ['Pecho', 'Espalda', 'Hombros', 'Piernas', 'Bíceps', 'Tríceps', 'Core'];
 
@@ -39,8 +40,9 @@ export default function NewGoal() {
     const [targetWeight, setTargetWeight] = useState('');
     const [targetReps, setTargetReps] = useState('5');
     const [exercises, setExercises] = useState([]);
+    const [search, setSearch] = useState('');
     const [sessionCountForSelected, setSessionCountForSelected] = useState(0);
-    const [exerciseSessionCounts, setExerciseSessionCounts] = useState({});
+    const [best1RMForSelected, setBest1RMForSelected] = useState(0);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [needsManualData, setNeedsManualData] = useState(false);
@@ -54,35 +56,52 @@ export default function NewGoal() {
     useEffect(() => {
         async function fetchData() {
             try {
-                // Fetch exercises from routines (include id for history lookup)
-                // y el historial completo (1 sola llamada) para contar sesiones por ejercicio
-                const [routines, history] = await Promise.all([
+                // Rutinas (sin papelera), catálogo completo (incluye archivados) e
+                // historial completo. Consolidamos todo por ejercicio CANÓNICO para no
+                // perder ejercicios por nombres/músculos inconsistentes entre rutinas.
+                const [routines, history, catalog] = await Promise.all([
                     api.getRoutines(),
-                    api.getWorkoutHistory(500)
+                    api.getWorkoutHistory(500),
+                    api.getExercises().catch(() => [])
                 ]);
-                const allExercises = [];
-                const seen = new Set();
-                routines.forEach(r => r.days?.forEach(d => {
-                    d.exercises?.forEach(e => {
-                        if (!seen.has(e.name.toLowerCase())) {
-                            allExercises.push({ name: e.name, muscleGroup: e.muscleGroup, id: e.id });
-                            seen.add(e.name.toLowerCase());
-                        }
-                    });
-                }));
-                setExercises(allExercises);
 
-                // Sesiones únicas (por fecha local) por nombre de ejercicio
-                const dateSets = {};
-                (history || []).forEach(w => {
-                    const name = w.exercise?.name?.toLowerCase().trim();
+                // Historial agrupado por ejercicio canónico (sesiones, 1RM, músculo)
+                const histGroups = groupHistoryByExercise(history);
+
+                // Mapa canónico -> ejercicio mostrable
+                const map = new Map();
+                const addExercise = (name, muscleGroup, fromRoutine) => {
                     if (!name) return;
-                    if (!dateSets[name]) dateSets[name] = new Set();
-                    dateSets[name].add(new Date(w.date).toLocaleDateString('en-CA'));
-                });
-                const counts = {};
-                Object.keys(dateSets).forEach(n => { counts[n] = dateSets[n].size; });
-                setExerciseSessionCounts(counts);
+                    const key = canonicalExerciseKey(name);
+                    if (!key) return;
+                    let e = map.get(key);
+                    if (!e) { e = { key, name, muscleGroup: null, fromRoutine: false }; map.set(key, e); }
+                    // Preferir el nombre tal como aparece en una rutina visible (lo que el usuario ve hoy)
+                    if (fromRoutine && !e.fromRoutine) { e.name = name; e.fromRoutine = true; }
+                    if (!e.muscleGroup && muscleGroup) e.muscleGroup = muscleGroup;
+                };
+
+                routines.forEach(r => r.days?.forEach(d => d.exercises?.forEach(e => addExercise(e.name, e.muscleGroup, true))));
+                (catalog || []).forEach(e => addExercise(e.name, e.muscleGroup, false));
+                (history || []).forEach(w => addExercise(w.exercise?.name, w.exercise?.muscleGroup, false));
+
+                // Enriquecer con sesiones / 1RM del historial agrupado
+                const list = [];
+                for (const e of map.values()) {
+                    const g = histGroups.get(e.key);
+                    const sessionCount = g ? g.sessions.length : 0;
+                    const best1RM = g ? best1RMRecent(g.sessions) : 0;
+                    list.push({
+                        key: e.key,
+                        name: e.name,
+                        muscleGroup: e.muscleGroup || g?.muscleGroup || null,
+                        sessionCount,
+                        best1RM
+                    });
+                }
+                // Más entrenados primero
+                list.sort((a, b) => b.sessionCount - a.sessionCount || a.name.localeCompare(b.name));
+                setExercises(list);
             } catch (err) {
                 console.error(err);
             } finally {
@@ -92,15 +111,17 @@ export default function NewGoal() {
         fetchData();
     }, []);
 
-    const filteredExercises = useMemo(() => {
-        if (!selectedMuscle) return [];
-        return exercises.filter(e => e.muscleGroup === selectedMuscle);
-    }, [exercises, selectedMuscle]);
+    const muscleMatches = (e, muscle) => (e.muscleGroup || '').toLowerCase() === muscle.toLowerCase();
 
-    function getSessionCount(exerciseName) {
-        const normalizedName = exerciseName.toLowerCase().trim();
-        return exerciseSessionCounts[normalizedName] || 0;
-    }
+    const filteredExercises = useMemo(() => {
+        const q = normalizeExerciseName(search);
+        if (q) {
+            // Con búsqueda activa ignoramos el filtro de músculo (robustez: siempre se encuentra)
+            return exercises.filter(e => normalizeExerciseName(e.name).includes(q));
+        }
+        if (!selectedMuscle) return [];
+        return exercises.filter(e => muscleMatches(e, selectedMuscle));
+    }, [exercises, selectedMuscle, search]);
 
     async function handleSubmit() {
         if (!selectedExercise || !targetWeight || !targetReps) return;
@@ -136,6 +157,11 @@ export default function NewGoal() {
                 goalData.currentEightRepMax = currentEightRepMax ? parseFloat(currentEightRepMax) : null;
                 goalData.experienceLevel = experienceLevel;
                 goalData.frequencyPerWeek = frequencyPerWeek;
+            } else if (best1RMForSelected > 0) {
+                // Guardamos un snapshot del 1RM real (mejor de las últimas sesiones) como
+                // respaldo. Así la tarjeta del objetivo nunca queda sin "fuerza inicial"
+                // aunque el emparejado con el historial falle por una variante del nombre.
+                goalData.currentOneRepMax = Math.round(best1RMForSelected * 10) / 10;
             }
 
             await api.createGoal(goalData);
@@ -151,20 +177,24 @@ export default function NewGoal() {
     function handleMuscleSelect(muscle) {
         setSelectedMuscle(muscle);
         setSelectedExercise('');
+        setSearch('');
         setStep(2);
     }
 
-    function handleExerciseSelect(name) {
-        setSelectedExercise(name);
-        // Usa el conteo ya precargado (historial completo cargado al inicio)
-        setSessionCountForSelected(getSessionCount(name));
+    function handleExerciseSelect(ex) {
+        setSelectedExercise(ex.name);
+        // Hereda el músculo real del ejercicio (importante si se llegó por búsqueda global)
+        if (ex.muscleGroup) setSelectedMuscle(ex.muscleGroup);
+        setSessionCountForSelected(ex.sessionCount);
+        setBest1RMForSelected(ex.best1RM);
         setStep(3);
     }
 
     function handleTargetContinue() {
         if (!targetWeight) return;
 
-        if (sessionCountForSelected < 2) {
+        // Solo pedimos datos manuales si NO hay historial utilizable (sesiones + 1RM real)
+        if (sessionCountForSelected < 2 || best1RMForSelected <= 0) {
             setNeedsManualData(true);
             setStep(4);
         } else {
@@ -209,32 +239,60 @@ export default function NewGoal() {
             <div className="px-4 py-6">
                 {/* Steps 1-3 match previous implementation... omitting for brevity if file is overwritten completely */}
                 {step === 1 && (
-                    <div className="grid grid-cols-2 gap-3 animate-fade-in">
-                        {MUSCLE_GROUPS.map(muscle => (
-                            <button
-                                key={muscle}
-                                onClick={() => handleMuscleSelect(muscle)}
-                                disabled={exercises.filter(e => e.muscleGroup === muscle).length === 0}
-                                className={`p-5 rounded-2xl border bg-gradient-to-br ${MUSCLE_COLORS[muscle] || ''} hover:scale-[1.02] disabled:opacity-40`}
-                            >
-                                <Dumbbell className="w-7 h-7 mb-2" />
-                                <p className="font-bold text-white">{muscle}</p>
-                            </button>
-                        ))}
+                    <div className="space-y-4 animate-fade-in">
+                        <div className="grid grid-cols-2 gap-3">
+                            {MUSCLE_GROUPS.map(muscle => {
+                                const count = exercises.filter(e => muscleMatches(e, muscle)).length;
+                                return (
+                                    <button
+                                        key={muscle}
+                                        onClick={() => handleMuscleSelect(muscle)}
+                                        disabled={count === 0}
+                                        className={`p-5 rounded-2xl border bg-gradient-to-br ${MUSCLE_COLORS[muscle] || ''} hover:scale-[1.02] disabled:opacity-40 text-left`}
+                                    >
+                                        <Dumbbell className="w-7 h-7 mb-2" />
+                                        <p className="font-bold text-white">{muscle}</p>
+                                        <p className="text-[11px] text-white/70 mt-0.5">{count} ejercicio{count === 1 ? '' : 's'}</p>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <button
+                            onClick={() => { setSelectedMuscle(''); setSearch(''); setStep(2); }}
+                            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] text-sm text-[var(--text-secondary)] hover:border-purple-500/40 hover:text-white transition-colors"
+                        >
+                            <Search size={16} /> Buscar entre todos mis ejercicios
+                        </button>
                     </div>
                 )}
 
                 {step === 2 && (
-                    <div className="space-y-2 animate-fade-in">
-                        {filteredExercises.map(ex => (
+                    <div className="space-y-3 animate-fade-in">
+                        {/* Buscador (ignora el filtro de músculo cuando se usa) */}
+                        <div className="relative">
+                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+                            <input
+                                autoFocus={!selectedMuscle}
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                placeholder="Buscar ejercicio..."
+                                className="w-full pl-9 pr-3 py-3 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl text-sm focus:border-purple-500 outline-none"
+                            />
+                        </div>
+
+                        {filteredExercises.length === 0 ? (
+                            <div className="text-center py-10 text-[var(--text-secondary)] text-sm">
+                                {search ? 'Ningún ejercicio coincide con la búsqueda.' : 'Escribe para buscar un ejercicio.'}
+                            </div>
+                        ) : filteredExercises.map(ex => (
                             <button
-                                key={ex.name}
-                                onClick={() => handleExerciseSelect(ex.name)}
-                                className="w-full p-4 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl text-left flex justify-between"
+                                key={ex.key}
+                                onClick={() => handleExerciseSelect(ex)}
+                                className="w-full p-4 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl text-left flex justify-between items-center gap-3 hover:border-purple-500/40 transition-colors"
                             >
                                 <span className="font-medium">{ex.name}</span>
-                                <span className={getSessionCount(ex.name) > 0 ? "text-green-400 text-xs" : "text-gray-500 text-xs"}>
-                                    {getSessionCount(ex.name) > 0 ? `${getSessionCount(ex.name)} sesiones` : 'Sin datos'}
+                                <span className={`text-xs shrink-0 ${ex.sessionCount > 0 ? 'text-green-400' : 'text-gray-500'}`}>
+                                    {ex.sessionCount > 0 ? `${ex.sessionCount} ${ex.sessionCount === 1 ? 'sesión' : 'sesiones'}` : 'Sin datos'}
                                 </span>
                             </button>
                         ))}
@@ -295,9 +353,10 @@ export default function NewGoal() {
                 {step === 4 && (
                     <div className="space-y-6 animate-fade-in">
                         <div className="text-center">
-                            <h2 className="text-xl font-bold mb-2">Perfil de Fuerza</h2>
+                            <h2 className="text-xl font-bold mb-2">Fuerza inicial</h2>
                             <p className="text-sm text-[var(--text-secondary)]">
-                                Necesitamos estos datos para calcular tu eficiencia muscular y crear el plan
+                                No encontramos suficiente historial de <span className="text-white font-medium">{selectedExercise}</span>.
+                                Introduce tu fuerza actual y crearemos el plan.
                             </p>
                         </div>
 
