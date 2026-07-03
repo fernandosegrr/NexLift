@@ -4,11 +4,12 @@ import {
     Settings as SettingsIcon, Dumbbell, Check, ChevronDown, Info, History,
     Trash2, Edit3, AlertTriangle, X, User, Lock, Shield, Download, Eye, EyeOff,
     Loader2, ChevronLeft, Save, CheckCircle, AlertCircle, Search, Filter, ChevronRight,
-    Calendar
+    Calendar, Bell, BellOff
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { useAuth } from '../context/AuthContext';
+import { isPushSupported, getCurrentPushSubscription, subscribeToPush, unsubscribeFromPush } from '../utils/push';
 
 const MUSCLE_OPTIONS = [
     'Pecho', 'Espalda', 'Hombros', 'Bíceps', 'Tríceps', 'Piernas', 'Core', 'Otros'
@@ -131,6 +132,34 @@ export default function Settings() {
     const [profileLoading, setProfileLoading] = useState(false);
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
+
+    // Push notifications state (recordatorio de descanso)
+    const [pushSubscribed, setPushSubscribed] = useState(false);
+    const [pushLoading, setPushLoading] = useState(false);
+
+    useEffect(() => {
+        if (!isPushSupported()) return;
+        getCurrentPushSubscription().then(sub => setPushSubscribed(!!sub)).catch(() => {});
+    }, []);
+
+    async function handleTogglePush() {
+        setPushLoading(true);
+        try {
+            if (pushSubscribed) {
+                await unsubscribeFromPush();
+                setPushSubscribed(false);
+                toast.success('Notificaciones desactivadas');
+            } else {
+                await subscribeToPush();
+                setPushSubscribed(true);
+                toast.success('Notificaciones activadas');
+            }
+        } catch (err) {
+            toast.error(err.message || 'No se pudo cambiar el estado de las notificaciones');
+        } finally {
+            setPushLoading(false);
+        }
+    }
 
     // Password state
     const [passwordData, setPasswordData] = useState({
@@ -578,6 +607,31 @@ export default function Settings() {
                             Guardar Cambios
                         </button>
                     </div>
+
+                    {/* Push Notifications Card */}
+                    {isPushSupported() && (
+                        <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border)]">
+                            <div className="flex items-center justify-between">
+                                <h3 className="font-semibold text-white flex items-center gap-2">
+                                    {pushSubscribed ? <Bell size={18} className="text-purple-400" /> : <BellOff size={18} className="text-[var(--text-secondary)]" />}
+                                    Recordatorio de Descanso
+                                </h3>
+                                <button
+                                    onClick={handleTogglePush}
+                                    disabled={pushLoading}
+                                    className={`relative w-12 h-7 rounded-full transition-colors disabled:opacity-50 ${pushSubscribed ? 'bg-purple-500' : 'bg-[var(--bg-dark)] border border-[var(--border)]'}`}
+                                >
+                                    <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${pushSubscribed ? 'translate-x-5' : ''}`} />
+                                </button>
+                            </div>
+                            <p className="text-sm text-[var(--text-secondary)] mt-2">
+                                Recibe un aviso cuando termine tu tiempo de descanso entre series, aunque tengas la app en segundo plano.
+                            </p>
+                            <p className="text-xs text-[var(--text-secondary)]/70 mt-1">
+                                En iPhone solo funciona si añades NexLift a la pantalla de inicio (Compartir → Añadir a pantalla de inicio) — no funciona en una pestaña de Safari.
+                            </p>
+                        </div>
+                    )}
 
                     {/* Export Data Card */}
                     <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border)]">

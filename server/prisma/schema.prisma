@@ -37,12 +37,13 @@ model User {
   lastLogin     DateTime?
   
   // Relaciones
-  routines        Routine[]
-  bodyLogs        BodyLog[]
-  restLogs        RestLog[]
-  personalRecords PersonalRecord[]
-  goals           Goal[]
-  
+  routines          Routine[]
+  bodyLogs          BodyLog[]
+  restLogs          RestLog[]
+  personalRecords   PersonalRecord[]
+  goals             Goal[]
+  pushSubscriptions PushSubscription[]
+
   @@index([email])
   @@index([username])
 }
@@ -197,6 +198,20 @@ model Goal {
   // Relación con usuario
   userId       String
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
+  @@index([userId])
+}
+
+// ==================== PUSH NOTIFICATIONS ====================
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
   @@index([userId])
 }

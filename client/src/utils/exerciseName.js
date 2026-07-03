@@ -129,7 +129,11 @@ export function groupHistoryByExercise(history) {
         });
     });
 
-    // Convierte cada grupo: días -> array ordenado con mejor 1RM por sesión
+    // Convierte cada grupo: días -> array ordenado con mejor 1RM por sesión.
+    // Se conserva también el array `sets` completo del día (no solo el ganador),
+    // porque el "mejor Epley del día" a veces sale de una serie submáxima de
+    // muchas reps y no es representativo de la fuerza cerca de una meta a pocas
+    // reps — ver bestOneRepMaxForTarget().
     for (const g of groups.values()) {
         g.sessions = Object.keys(g._byDate).sort().map(dateKey => {
             const sets = g._byDate[dateKey];
@@ -138,7 +142,7 @@ export function groupHistoryByExercise(history) {
                 const rm = epley1RM(s.weight, s.reps);
                 if (rm > best.rm) best = { weight: s.weight, reps: s.reps, rm };
             }
-            return { date: dateKey, best1RM: best.rm, weight: best.weight, reps: best.reps };
+            return { date: dateKey, best1RM: best.rm, weight: best.weight, reps: best.reps, sets };
         });
         delete g._byDate;
     }
@@ -147,9 +151,41 @@ export function groupHistoryByExercise(history) {
 }
 
 // 1RM "actual" robusto: el mejor de las últimas N sesiones (evita que un mal día
-// hunda el punto de partida o que un pico antiguo lo infle).
+// hunda el punto de partida o que un pico antiguo lo infle). Úsalo para tendencias
+// generales (p. ej. la pendiente de progreso); para juzgar si se CUMPLIÓ una meta
+// concreta usa bestOneRepMaxForTarget, que es más conservador.
 export function best1RMRecent(sessions, n = 3) {
     if (!sessions || !sessions.length) return 0;
     const recent = sessions.slice(-n);
     return Math.max(0, ...recent.map(s => s.best1RM || 0));
+}
+
+// 1RM "cercano a la meta": el mejor Epley entre series con reps <= targetReps + 1,
+// de las últimas N sesiones que SÍ tengan una serie así de cercana al objetivo.
+//
+// Por qué: el Epley de una serie submáxima de muchas reps (p. ej. 100kg x7) puede
+// superar en teoría el de un intento real cercano al máximo (p. ej. 115kg x1 real,
+// a RPE 10) solo porque la fórmula extrapola mucho más lejos. Si esa serie de 7
+// reps ocurrió el mismo día que un intento real de 1 rep, tomar "el mejor Epley
+// del día" se queda con la extrapolación en vez del dato real. Limitar las series
+// elegibles a las cercanas en reps al objetivo evita ese falso positivo y hace que
+// "cumplido" solo dependa de esfuerzos genuinamente cercanos a esa exigencia.
+// Sesiones sin ninguna serie elegible ese día no cuentan como evidencia (ni a
+// favor ni en contra) para esta meta.
+export function bestOneRepMaxForTarget(sessions, targetReps, n = 3) {
+    if (!sessions || !sessions.length) return 0;
+    const maxEligibleReps = (Number(targetReps) || 1) + 1;
+
+    const eligible = [];
+    for (const s of sessions) {
+        const daySets = (s.sets && s.sets.length) ? s.sets : [{ weight: s.weight, reps: s.reps }];
+        const bestEligibleRM = Math.max(
+            0,
+            ...daySets.filter(x => x.reps <= maxEligibleReps).map(x => epley1RM(x.weight, x.reps))
+        );
+        if (bestEligibleRM > 0) eligible.push(bestEligibleRM);
+    }
+
+    const recent = eligible.slice(-n);
+    return recent.length ? Math.max(...recent) : 0;
 }

@@ -6,6 +6,9 @@ import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import webpush from 'web-push';
+import { isSameExercise, groupHistoryByExercise, bestOneRepMaxForTarget, epley1RM } from './utils/exerciseName.js';
+import { deduplicateExercises } from './services/exerciseAgent.js';
 
 dotenv.config();
 
@@ -170,6 +173,58 @@ setInterval(() => {
 }, 15 * 60 * 1000).unref?.();
 
 // ============================================
+// WEB PUSH: temporizador de descanso. En memoria (setTimeout), no persistente —
+// mismo criterio de tamaño que el resto del proyecto (un VPS, sin colas/Redis en
+// ningún otro lado; `shared/` se eliminó justo para evitar complejidad prematura).
+// Límite aceptado: un timer pendiente no sobrevive a un reinicio/redeploy del
+// servidor a mitad del descanso.
+// ============================================
+const VAPID_CONFIGURED = !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+if (VAPID_CONFIGURED) {
+    webpush.setVapidDetails(
+        process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
+        process.env.VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY
+    );
+}
+
+async function scheduleRestReminder(userId, exercise) {
+    if (!VAPID_CONFIGURED) return; // feature no configurada: no-op, no rompe el flujo de logging
+    const restMs = (exercise.restSeconds || 90) * 1000;
+
+    setTimeout(async () => {
+        try {
+            const subs = await prisma.pushSubscription.findMany({ where: { userId } });
+            if (subs.length === 0) return;
+
+            const payload = JSON.stringify({
+                title: 'Descanso terminado',
+                body: `Es hora de tu siguiente serie de ${exercise.name}`,
+                exerciseId: exercise.id
+            });
+
+            for (const sub of subs) {
+                try {
+                    await webpush.sendNotification(
+                        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                        payload
+                    );
+                } catch (err) {
+                    if (err.statusCode === 404 || err.statusCode === 410) {
+                        // Subscripción expirada/inválida: se limpia sola
+                        await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
+                    } else {
+                        console.error('Error sending push notification:', err.message);
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('Error in scheduleRestReminder:', err.message);
+        }
+    }, restMs).unref?.();
+}
+
+// ============================================
 // PERSONAL RECORDS: recálculo derivado de los logs reales
 // Se llama tras crear/editar/eliminar sesiones para que no queden récords fantasma.
 // Considera ambos lados en unilateral (el récord es el mejor esfuerzo de una extremidad).
@@ -251,6 +306,105 @@ function sanitizeSets(rawSets, { unilateral = false } = {}) {
         sets.push(clean);
     }
     return { sets };
+}
+
+// ============================================
+// HELPERS: Smart Loading (port literal de client/src/pages/Workout.jsx:50-139,
+// usado por el Atajo de iOS vía GET /api/shortcuts/next-set). El comportamiento
+// numérico debe coincidir exacto con lo que la PWA ya sugiere en /workout.
+// ============================================
+
+// Parsea el rango de reps objetivo ("8-12", "5", "AMRAP") -> { lo, hi }
+function parseRepRange(targetReps) {
+    const nums = String(targetReps || '').match(/\d+/g);
+    if (!nums) return { lo: 8, hi: 12 };
+    const a = parseInt(nums[0], 10);
+    const b = nums[1] ? parseInt(nums[1], 10) : a;
+    return { lo: Math.min(a, b), hi: Math.max(a, b) };
+}
+
+// Devuelve los valores efectivos de una serie (en unilateral usa el lado débil,
+// que es el que limita la progresión)
+function effectiveWorkoutSet(set) {
+    const w = Number(set.weight) || 0;
+    const r = Number(set.reps) || 0;
+    const hasRight = set.weightRight != null || set.repsRight != null;
+    const wR = set.weightRight != null ? Number(set.weightRight) : w;
+    const rR = set.repsRight != null ? Number(set.repsRight) : r;
+    const rir = set.rpe != null ? (10 - set.rpe) : (set.rir != null ? set.rir : null);
+    return {
+        weight: hasRight ? Math.min(w, wR) : w,
+        reps: hasRight ? Math.min(r, rR) : r,
+        rir
+    };
+}
+
+// Redondea el peso a una rejilla sensata. Si el peso base ya cae en la rejilla del
+// incremento (barras/discos), se mantiene esa rejilla; si no (poleas/placas con
+// valores raros como 6.8kg), se redondea al medio kilo para no distorsionar el peso real.
+function roundWorkoutWeight(w, increment, base) {
+    const grid = (Math.abs(base % increment) < 0.01) ? increment : 0.5;
+    return Math.round(w / grid) * grid;
+}
+
+/**
+ * Sugerencia de peso y reps por DOBLE PROGRESIÓN — idéntico a Workout.jsx.
+ * Toma como referencia la SERIE DE TRABAJO MÁS FUERTE de la última sesión (mayor
+ * 1RM estimado), y a ese peso usa las MEJORES reps logradas. `sessions` debe venir
+ * ordenado por fecha DESC (igual que GET /api/workouts/exercise/:id/history).
+ */
+function computeWorkoutSuggestion(sessions, targetReps, increment) {
+    if (!sessions || sessions.length === 0) return null;
+    const { lo, hi } = parseRepRange(targetReps);
+
+    const working = (sessions[0].sets || [])
+        .map(effectiveWorkoutSet)
+        .filter(s => s.weight > 0 && s.reps > 0);
+    if (working.length === 0) return null;
+
+    const rm = (s) => s.weight * (1 + s.reps / 30);
+    const ref = working.reduce((best, s) => (rm(s) > rm(best) ? s : best), working[0]);
+
+    const sameWeight = working.filter(s => Math.abs(s.weight - ref.weight) < 0.01);
+    const refReps = Math.max(...sameWeight.map(s => s.reps));
+    const knownRir = sameWeight.map(s => s.rir).filter(v => v != null);
+    const rir = knownRir.length ? Math.min(...knownRir) : null;
+
+    let weight, reps, rationale;
+
+    if (refReps >= hi) {
+        weight = roundWorkoutWeight(ref.weight + increment, increment, ref.weight);
+        reps = lo;
+        rationale = `Alcanzaste ${refReps} reps con ${ref.weight}kg (tope del rango): sube a ${weight}kg y reinicia en ${lo}.`;
+    } else {
+        const bump = (rir != null && rir >= 3) ? 2 : 1;
+        weight = ref.weight;
+        reps = Math.min(hi, refReps + bump);
+        rationale = rir != null
+            ? `Hiciste ${ref.weight}kg × ${refReps} (RIR ${rir}): mantén el peso y apunta a ${reps} reps.`
+            : `Hiciste ${ref.weight}kg × ${refReps}: mantén el peso y apunta a ${reps} reps.`;
+    }
+
+    if (weight <= 0 || reps <= 0) return null;
+    return { weight, reps, rationale, basedOn: sessions.length };
+}
+
+// ============================================
+// HELPERS: "Qué día toca" (port literal de client/src/pages/Dashboard.jsx:76-87),
+// usado por GET /api/shortcuts/next-set para resolver el RoutineDay de hoy igual
+// que ya lo hace el Dashboard de la PWA.
+// ============================================
+
+function getTodayName(dateObj = new Date()) {
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    return days[dateObj.getDay()];
+}
+
+function normalizeDay(day) {
+    return day.toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .slice(0, 3);
 }
 
 // ============================================
@@ -517,6 +671,38 @@ app.post('/api/routines/import', authMiddleware, async (req, res) => {
             });
         }
 
+        // Deduplicación de ejercicios (Tarea 4): una sola llamada al LLM (u a su
+        // fallback determinista) para TODO el import, no una por ejercicio. Un
+        // "create" anidado de una Routine/RoutineDay totalmente nueva no puede
+        // hacer "connect" a un Exercise ya existente (cada entrada crea una fila
+        // nueva) — el valor del matching aquí es reusar el NOMBRE canónico, igual
+        // que ya hace recalcPRForExercise/history (matching por nombre, no por id).
+        const flatExercises = [];
+        days.forEach((day, dayIndex) => {
+            (day.exercises || []).forEach((exercise, exIndex) => {
+                flatExercises.push({ dayIndex, exIndex, name: exercise.name });
+            });
+        });
+
+        const canonicalExercises = await prisma.exercise.findMany({
+            where: { routineDay: { routine: { userId: req.userId } } },
+            select: { id: true, name: true, muscleGroup: true },
+            distinct: ['name']
+        });
+
+        const verdicts = await deduplicateExercises(flatExercises, canonicalExercises);
+        const canonicalById = new Map(canonicalExercises.map(ex => [ex.id, ex]));
+        const verdictByFlatIndex = new Map(verdicts.map(v => [v.index, v]));
+
+        let flatIndex = 0;
+        const resolveExerciseName = (exercise) => {
+            const verdict = verdictByFlatIndex.get(flatIndex++);
+            if (verdict?.matchedId) {
+                return canonicalById.get(verdict.matchedId)?.name || normalizeExerciseName(exercise.name);
+            }
+            return verdict?.cleanedName || normalizeExerciseName(exercise.name);
+        };
+
         // Create routine with nested days and exercises
         const routine = await prisma.routine.create({
             data: {
@@ -530,7 +716,7 @@ app.post('/api/routines/import', authMiddleware, async (req, res) => {
                         order: dayIndex,
                         exercises: {
                             create: (day.exercises || []).map((exercise, exIndex) => ({
-                                name: normalizeExerciseName(exercise.name),
+                                name: resolveExerciseName(exercise),
                                 targetSets: exercise.sets || 3,
                                 targetReps: exercise.reps || '8-12',
                                 restSeconds: exercise.rest || null,
@@ -774,6 +960,33 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
             await prisma.routineDay.deleteMany({ where: { id: { in: daysToDelete } } });
         }
 
+        // Deduplicación de ejercicios nuevos (Tarea 4): UNA sola llamada para todo
+        // el PUT, no una por ejercicio. Solo aplica a exercises SIN `id` (genuinamente
+        // nuevos) — el renombrado de un ejercicio existente (con id) ya tiene su
+        // propio flujo de archivo/restauración más abajo y no pasa por aquí.
+        const newExerciseEntries = [];
+        days.forEach((day, dayIdx) => {
+            (day.exercises || []).forEach((ex, exIdx) => {
+                if (!ex.id) newExerciseEntries.push({ dayIdx, exIdx, name: ex.name });
+            });
+        });
+
+        let canonicalExercisesForDedup = [];
+        const dedupVerdictByEntry = new Map();
+        if (newExerciseEntries.length > 0) {
+            canonicalExercisesForDedup = await prisma.exercise.findMany({
+                where: { routineDay: { routine: { userId: req.userId } } },
+                select: { id: true, name: true, muscleGroup: true, routineDayId: true },
+                distinct: ['name']
+            });
+            const verdicts = await deduplicateExercises(newExerciseEntries, canonicalExercisesForDedup);
+            verdicts.forEach((v, i) => {
+                const entry = newExerciseEntries[i];
+                dedupVerdictByEntry.set(`${entry.dayIdx}:${entry.exIdx}`, v);
+            });
+        }
+        const canonicalByIdForDedup = new Map(canonicalExercisesForDedup.map(ex => [ex.id, ex]));
+
         for (let i = 0; i < days.length; i++) {
             const day = days[i];
             let dayId = day.id;
@@ -912,17 +1125,33 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
 
                     } else {
                         const binId = await getRecycleBinDay(req.userId);
-                        console.log(`DEBUG: Checking archive for "${normalizedName}" in bin ${binId}`);
-                        const archivedEx = await prisma.exercise.findFirst({
-                            where: {
-                                routineDayId: binId,
-                                name: { equals: normalizedName, mode: 'insensitive' }
-                            }
-                        });
-                        console.log(`DEBUG: Search result:`, archivedEx ? archivedEx.id : 'null');
+                        const verdict = dedupVerdictByEntry.get(`${i}:${j}`);
+                        const resolvedName = verdict?.matchedId
+                            ? (canonicalByIdForDedup.get(verdict.matchedId)?.name || normalizedName)
+                            : (verdict?.cleanedName || normalizedName);
+
+                        // Si el veredicto (LLM o fallback) apunta a un ejercicio que HOY
+                        // vive en la papelera, restaurarlo (preserva su historial) — igual
+                        // que ya hacía el matching exacto. Si apunta a uno ACTIVO en otro
+                        // día, NO reengancharlo solo (evita sacarlo de donde vive sin que
+                        // el usuario lo pida): se crea uno nuevo con el nombre canónico, que
+                        // igual comparte historial/PRs por nombre con el resto de la app.
+                        let archivedEx = null;
+                        if (verdict?.matchedId) {
+                            const matched = canonicalByIdForDedup.get(verdict.matchedId);
+                            if (matched && matched.routineDayId === binId) archivedEx = matched;
+                        }
+                        if (!archivedEx) {
+                            archivedEx = await prisma.exercise.findFirst({
+                                where: {
+                                    routineDayId: binId,
+                                    name: { equals: resolvedName, mode: 'insensitive' }
+                                }
+                            });
+                        }
 
                         if (archivedEx) {
-                            console.log(`Restoring archived exercise "${normalizedName}" (ID: ${archivedEx.id})`);
+                            console.log(`Restoring archived exercise "${resolvedName}" (ID: ${archivedEx.id})`);
                             await prisma.exercise.update({
                                 where: { id: archivedEx.id },
                                 data: {
@@ -939,7 +1168,7 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
                             await prisma.exercise.create({
                                 data: {
                                     routineDayId: dayId,
-                                    name: normalizedName,
+                                    name: resolvedName,
                                     targetSets: parseInt(ex.targetSets || 3),
                                     targetReps: ex.targetReps || '8-12',
                                     restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
@@ -1190,6 +1419,7 @@ app.post('/api/workouts/log', authMiddleware, async (req, res) => {
 
         // Recalcula el PR del ejercicio desde los logs reales (consistente, incluye unilateral)
         await recalcPRForExercise(exercise.name, req.userId);
+        scheduleRestReminder(req.userId, exercise);
 
         res.status(201).json({
             message: 'Workout logged successfully!',
@@ -1374,6 +1604,276 @@ app.get('/api/workouts/exercise/:exerciseId/history', authMiddleware, async (req
     } catch (error) {
         console.error('Error fetching exercise history:', error);
         res.status(500).json({ error: 'Failed to fetch exercise history' });
+    }
+});
+
+// ============================================
+// ROUTES: iOS Shortcuts
+// Endpoints "amigables para Shortcuts" (JSON plano, sin anidar) para registrar
+// series con fricción mínima desde un Atajo de iOS. Auth: el mismo Bearer JWT de
+// siempre (expira en 365 días, se obtiene una vez con POST /api/auth/login y se
+// pega en el Atajo — no hay mecanismo de auth nuevo).
+// ============================================
+
+// Respuesta base: siempre trae los mismos campos (algunos null según el caso) para
+// que el Atajo pueda ramificar con un solo booleano sin manejar formas distintas.
+function baseShortcutResponse() {
+    return {
+        isRestDay: false,
+        dayComplete: false,
+        noActiveRoutine: false,
+        dayName: null,
+        exerciseId: null,
+        exerciseName: null,
+        muscleGroup: null,
+        targetSets: null,
+        setsLoggedToday: null,
+        targetRepsRange: null,
+        restSeconds: null,
+        isUnilateral: null,
+        suggestedWeight: null,
+        suggestedReps: null,
+        rationale: null
+    };
+}
+
+// Resuelve la fecha objetivo a partir de ?date=YYYY-MM-DD (fecha local del
+// teléfono, la manda el Atajo) o cae al día local DEL SERVIDOR si no se manda
+// (limitación conocida: puede no coincidir con la zona horaria real del usuario).
+function resolveTargetDate(dateParam) {
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+        return new Date(`${dateParam}T00:00:00`);
+    }
+    return new Date();
+}
+
+// GET /api/shortcuts/next-set - Qué ejercicio toca ahora y a qué peso/reps
+app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
+    try {
+        const targetDate = resolveTargetDate(req.query.date);
+        const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+        const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+        const todayName = getTodayName(targetDate);
+
+        const routine = await prisma.routine.findFirst({
+            where: { isActive: true, userId: req.userId },
+            include: {
+                days: {
+                    include: { exercises: { orderBy: { order: 'asc' } } },
+                    orderBy: { order: 'asc' }
+                }
+            }
+        });
+
+        if (!routine) {
+            return res.json({ ...baseShortcutResponse(), noActiveRoutine: true });
+        }
+
+        const todayRoutineDay = routine.days.find(d => normalizeDay(d.dayName) === normalizeDay(todayName));
+
+        if (!todayRoutineDay || todayRoutineDay.isRestDay) {
+            return res.json({ ...baseShortcutResponse(), isRestDay: true, dayName: todayName });
+        }
+
+        const exerciseIds = todayRoutineDay.exercises.map(e => e.id);
+        const todayLogs = exerciseIds.length
+            ? await prisma.workoutLog.findMany({
+                where: { exerciseId: { in: exerciseIds }, date: { gte: startOfDay, lt: endOfDay } },
+                include: { sets: true }
+            })
+            : [];
+        const loggedCountByExercise = {};
+        for (const log of todayLogs) {
+            loggedCountByExercise[log.exerciseId] = (loggedCountByExercise[log.exerciseId] || 0) + log.sets.length;
+        }
+
+        const nextExercise = todayRoutineDay.exercises.find(
+            ex => (loggedCountByExercise[ex.id] || 0) < ex.targetSets
+        );
+
+        if (!nextExercise) {
+            return res.json({ ...baseShortcutResponse(), dayName: todayRoutineDay.dayName, dayComplete: true });
+        }
+
+        const setsLoggedToday = loggedCountByExercise[nextExercise.id] || 0;
+
+        // Historial: mismo criterio que GET /api/workouts/exercise/:exerciseId/history
+        // (match por nombre, insensible a mayúsculas, últimas 20 sesiones)
+        const history = await prisma.workoutLog.findMany({
+            where: {
+                exercise: {
+                    name: { equals: nextExercise.name, mode: 'insensitive' },
+                    routineDay: { routine: { userId: req.userId } }
+                }
+            },
+            include: { sets: { orderBy: { setNumber: 'asc' } } },
+            orderBy: { date: 'desc' },
+            take: 20
+        });
+
+        const base = {
+            ...baseShortcutResponse(),
+            dayName: todayRoutineDay.dayName,
+            exerciseId: nextExercise.id,
+            exerciseName: nextExercise.name,
+            muscleGroup: nextExercise.muscleGroup,
+            targetSets: nextExercise.targetSets,
+            setsLoggedToday,
+            targetRepsRange: nextExercise.targetReps,
+            restSeconds: nextExercise.restSeconds,
+            isUnilateral: nextExercise.isUnilateral
+        };
+
+        if (history.length === 0) {
+            return res.json({ ...base, rationale: 'sin historial' });
+        }
+
+        const increment = nextExercise.muscleGroup === 'Piernas' ? 5 : 2.5;
+        const suggestion = computeWorkoutSuggestion(history, nextExercise.targetReps, increment);
+
+        if (!suggestion) {
+            return res.json({ ...base, rationale: 'sin historial' });
+        }
+
+        res.json({
+            ...base,
+            suggestedWeight: suggestion.weight,
+            suggestedReps: suggestion.reps,
+            rationale: suggestion.rationale
+        });
+    } catch (error) {
+        console.error('Error resolving next-set:', error);
+        res.status(500).json({ error: 'Failed to resolve next set' });
+    }
+});
+
+// POST /api/shortcuts/log-set - Registrar UNA serie (a diferencia de POST
+// /api/workouts/log, que recibe un array de series). Acumula en el WorkoutLog de
+// HOY para ese ejercicio si ya existe uno (evita fragmentar la sesión en varios
+// WorkoutLog cuando el Atajo llama varias veces seguidas).
+app.post('/api/shortcuts/log-set', authMiddleware, async (req, res) => {
+    try {
+        const { exerciseId, weight, reps, rpe, weightRight, repsRight } = req.body;
+
+        if (!exerciseId) {
+            return res.status(400).json({ error: 'Required: exerciseId' });
+        }
+
+        const { sets: cleanSets, error: setsError } = sanitizeSets([{ weight, reps, rpe, weightRight, repsRight }]);
+        if (setsError) return res.status(400).json({ error: setsError });
+        const cleanSet = cleanSets[0];
+
+        const exercise = await prisma.exercise.findFirst({
+            where: { id: exerciseId, routineDay: { routine: { userId: req.userId } } }
+        });
+        if (!exercise) {
+            return res.status(404).json({ error: 'Exercise not found or unauthorized' });
+        }
+
+        const targetDate = resolveTargetDate(req.query.date || req.body.date);
+        const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+        const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+        let workoutLog = await prisma.workoutLog.findFirst({
+            where: { exerciseId, date: { gte: startOfDay, lt: endOfDay } },
+            include: { sets: true }
+        });
+
+        if (workoutLog) {
+            await prisma.setLog.create({
+                data: {
+                    workoutLogId: workoutLog.id,
+                    setNumber: workoutLog.sets.length + 1,
+                    weight: cleanSet.weight,
+                    reps: cleanSet.reps,
+                    rpe: cleanSet.rpe,
+                    weightRight: cleanSet.weightRight ?? null,
+                    repsRight: cleanSet.repsRight ?? null,
+                    completed: cleanSet.completed
+                }
+            });
+            workoutLog = await prisma.workoutLog.findUnique({
+                where: { id: workoutLog.id },
+                include: { sets: true, exercise: true }
+            });
+        } else {
+            workoutLog = await prisma.workoutLog.create({
+                data: {
+                    exerciseId,
+                    date: targetDate,
+                    sets: {
+                        create: [{
+                            setNumber: 1,
+                            weight: cleanSet.weight,
+                            reps: cleanSet.reps,
+                            rpe: cleanSet.rpe,
+                            weightRight: cleanSet.weightRight ?? null,
+                            repsRight: cleanSet.repsRight ?? null,
+                            completed: cleanSet.completed
+                        }]
+                    }
+                },
+                include: { sets: true, exercise: true }
+            });
+        }
+
+        await recalcPRForExercise(exercise.name, req.userId);
+        scheduleRestReminder(req.userId, exercise);
+
+        res.status(201).json({
+            message: 'Set logged successfully!',
+            workoutLog,
+            setsLoggedToday: workoutLog.sets.length,
+            targetSets: exercise.targetSets
+        });
+    } catch (error) {
+        console.error('Error logging set via shortcut:', error);
+        res.status(500).json({ error: 'Failed to log set' });
+    }
+});
+
+// ============================================
+// ROUTES: Push Notifications
+// ============================================
+
+// GET /api/push/vapid-public-key - Clave pública para pushManager.subscribe()
+app.get('/api/push/vapid-public-key', authMiddleware, async (req, res) => {
+    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || null });
+});
+
+// POST /api/push/subscribe - Guarda/actualiza la subscripción de este dispositivo
+app.post('/api/push/subscribe', authMiddleware, async (req, res) => {
+    try {
+        const { endpoint, keys } = req.body;
+        if (!endpoint || !keys?.p256dh || !keys?.auth) {
+            return res.status(400).json({ error: 'Required: endpoint, keys.p256dh, keys.auth' });
+        }
+
+        const subscription = await prisma.pushSubscription.upsert({
+            where: { endpoint },
+            update: { userId: req.userId, p256dh: keys.p256dh, auth: keys.auth },
+            create: { userId: req.userId, endpoint, p256dh: keys.p256dh, auth: keys.auth }
+        });
+
+        res.status(201).json({ message: 'Subscribed', subscription });
+    } catch (error) {
+        console.error('Error saving push subscription:', error);
+        res.status(500).json({ error: 'Failed to save subscription' });
+    }
+});
+
+// DELETE /api/push/subscribe - Elimina la subscripción de este dispositivo
+app.delete('/api/push/subscribe', authMiddleware, async (req, res) => {
+    try {
+        const { endpoint } = req.body;
+        if (!endpoint) {
+            return res.status(400).json({ error: 'Required: endpoint' });
+        }
+        await prisma.pushSubscription.deleteMany({ where: { endpoint, userId: req.userId } });
+        res.json({ message: 'Unsubscribed' });
+    } catch (error) {
+        console.error('Error deleting push subscription:', error);
+        res.status(500).json({ error: 'Failed to delete subscription' });
     }
 });
 
@@ -1975,13 +2475,50 @@ app.get('/api/body/latest', authMiddleware, async (req, res) => {
 // ============================================
 
 // GET /api/goals - Get all goals
+// Verdad de "cumplido" (achievedAt): se calcula aquí de forma perezosa contra el
+// historial real de WorkoutLog/SetLog, nunca se confía en un flag del cliente.
+// Es una puerta de un solo sentido: una vez detectado, se persiste y no se vuelve
+// a evaluar (igual que un PR, es un hecho histórico). Usa bestOneRepMaxForTarget
+// (no best1RMRecent) para no repetir el bug original: una serie submáxima de
+// muchas reps no debe poder "demostrar" que se cumplió una meta exigente en pocas
+// reps solo por extrapolación de Epley — ver exerciseName.js.
 app.get('/api/goals', authMiddleware, async (req, res) => {
     try {
         const goals = await prisma.goal.findMany({
             where: { userId: req.userId },
             orderBy: { createdAt: 'desc' }
         });
-        res.json(goals);
+
+        const pendingGoals = goals.filter(g => !g.achievedAt);
+        let logs = null;
+        if (pendingGoals.length > 0) {
+            logs = await prisma.workoutLog.findMany({
+                where: { exercise: { routineDay: { routine: { userId: req.userId } } } },
+                include: { sets: true, exercise: true }
+            });
+        }
+
+        const resolved = await Promise.all(goals.map(async (goal) => {
+            if (goal.achievedAt) return goal; // ya persistido, hecho histórico, no se re-deriva
+
+            const matching = logs.filter(l => isSameExercise(l.exercise.name, goal.exerciseName));
+            if (matching.length === 0) return goal;
+
+            const grouped = groupHistoryByExercise(matching);
+            const sessions = [...grouped.values()][0]?.sessions || [];
+            if (sessions.length < 2) return goal; // mismo mínimo que usa GoalCard para tener "hasHistory"
+
+            const starting1RM = bestOneRepMaxForTarget(sessions, goal.targetReps, 3);
+            if (starting1RM <= 0) return goal; // sin series cercanas al objetivo, sin evidencia suficiente
+
+            const target1RM = goal.targetReps === 1 ? goal.targetWeight : epley1RM(goal.targetWeight, goal.targetReps);
+            if (starting1RM >= target1RM) {
+                return prisma.goal.update({ where: { id: goal.id }, data: { achievedAt: new Date() } });
+            }
+            return goal;
+        }));
+
+        res.json(resolved);
     } catch (error) {
         console.error('Error fetching goals:', error);
         res.status(500).json({ error: 'Failed to fetch goals' });

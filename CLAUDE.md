@@ -24,9 +24,13 @@ cd client && npm run dev     # Start frontend
 cd server && npx prisma studio  # View DB data
 ```
 
+## Prisma: usar `db push`, nunca `migrate`
+No existe `server/prisma/migrations/` — el schema siempre se ha sincronizado con `npx prisma db push`. Correr `prisma migrate dev`/`migrate deploy` falla con "drift detected" y ofrece resetear TODO el schema (pérdida total de datos) porque no hay historial de migraciones contra el que reconciliar. Para cualquier cambio de schema: `cd server && npx prisma db push` (y `npx prisma generate` aparte si el server estaba corriendo — Windows bloquea el archivo del query engine).
+
 ## Deploy (VPS + EasyPanel + Docker)
 - `Dockerfile` (raíz): build multi-stage → compila el cliente, genera Prisma y arranca `server` (que sirve `client/dist` + API en el mismo puerto).
 - **Variables de entorno obligatorias en EasyPanel:** `DATABASE_URL`, `JWT_SECRET` (el server NO arranca en producción sin `JWT_SECRET`), `NODE_ENV=production`. Opcional: `PORT`.
+- **Variables opcionales (nuevas funciones, degradan sin romper si faltan):** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` (Web Push de recordatorio de descanso — sin ellas, `scheduleRestReminder` es no-op), `OPENAI_API_KEY` (deduplicación de ejercicios al importar rutinas — sin ella, cae al matching determinista por `canonicalExerciseKey`). Ver `server/.env.example`.
 
 ## Design System
 - OLED black (`#0a0a0a`), card bg (`#141414`), primary violet (`#8b5cf6`)
@@ -39,7 +43,7 @@ cd server && npx prisma studio  # View DB data
 ## Images
 No binary storage. Frontend → Base64 → Backend → Catbox.moe API → URL stored in DB.
 
-## Current Version: 2.0.1
+## Current Version: 2.1.0
 
 ## Conventions
 - Spanish UI, Spanish commit messages preferred

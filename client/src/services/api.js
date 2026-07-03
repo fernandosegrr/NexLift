@@ -409,5 +409,35 @@ export const api = {
         });
         if (!res.ok) throw new Error('Failed to update goal week');
         return res.json();
+    },
+
+    // ==========================================
+    // PUSH NOTIFICATIONS
+    // ==========================================
+
+    async getVapidPublicKey() {
+        const res = await authFetch(`${API_URL}/push/vapid-public-key`);
+        if (!res.ok) throw new Error('Failed to fetch VAPID public key');
+        return res.json();
+    },
+
+    async subscribeToPush(subscription) {
+        const res = await authFetch(`${API_URL}/push/subscribe`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(subscription),
+        });
+        if (!res.ok) throw new Error('Failed to subscribe to push');
+        return res.json();
+    },
+
+    async unsubscribeFromPush(endpoint) {
+        const res = await authFetch(`${API_URL}/push/subscribe`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint }),
+        });
+        if (!res.ok) throw new Error('Failed to unsubscribe from push');
+        return res.json();
     }
 };

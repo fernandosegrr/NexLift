@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 2.0.1 | **Última actualización:** 29 Mayo 2026
+> **Versión:** 2.1.0 | **Última actualización:** 2 Julio 2026
 
 ---
 
@@ -351,6 +351,17 @@ model PersonalRecord {
   user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// ==================== WEB PUSH ====================
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+}
+
 // ==================== BODY TRACKING ====================
 model BodyLog {
   id          String   @id @default(cuid())
@@ -436,7 +447,14 @@ Para mantener esta documentación al día:
 
 ## 📋 Changelog Histórico
 
-### v2.0.1 (29 May 2026) - **Current**
+### v2.1.0 (2 Julio 2026) - **Current**
+*   **FEATURE — Atajo de iOS (Shortcuts):** Nuevos endpoints `GET /api/shortcuts/next-set` (resuelve rutina activa → día de hoy [mismo criterio de nombre de día que el Dashboard] → próximo ejercicio sin completar → sugerencia de Smart Loading, todo en JSON plano sin anidar) y `POST /api/shortcuts/log-set` (registra UNA serie; agrupa en el `WorkoutLog` de hoy si ya existe uno para ese ejercicio, en vez de fragmentar). Auth: el mismo Bearer JWT de siempre (365 días), sin mecanismo nuevo — se obtiene una vez con `POST /api/auth/login` y se pega en el Atajo. El algoritmo de Smart Loading (doble progresión + RIR) y la lógica de "qué día toca" (antes solo en `Workout.jsx`/`Dashboard.jsx`) se portaron al backend como funciones puras.
+*   **FEATURE — Notificaciones Web Push (recordatorio de descanso):** Nuevo modelo `PushSubscription`. Al registrar una serie (vía PWA o el Atajo) se agenda un recordatorio (`restSeconds` del ejercicio, 90s por defecto) que envía una notificación push real cuando expira — funciona con la PWA en segundo plano, incluyendo iOS 16.4+ (solo si la app está añadida a la pantalla de inicio, no en pestaña de Safari). Service worker (`sw.js`) con listeners `push`/`notificationclick`. Toggle en Configuración → Cuenta. Timer en memoria (no persistente): no sobrevive a un reinicio del servidor a mitad del descanso — aceptado dado el tamaño del proyecto. Variables opcionales `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`; sin ellas la función queda en no-op.
+*   **FIX CRÍTICO — Objetivos marcaban "cumplido" prematuramente:** `GoalCard.jsx` comparaba el 1RM (Epley) del mejor set de las últimas 3 sesiones contra la meta, sin importar cuántas reps tenía ese set. Una serie submáxima de muchas reps (p. ej. 100kg×7) podía superar por extrapolación una meta exigente a pocas reps (p. ej. 120kg×1) aunque el usuario nunca hubiera probado nada cerca de ese peso a esas reps — confirmado contra datos reales de producción (un caso real: 100kg×7 daba una estimación de 123.3kg superando una meta de 120kg×1, mientras el máximo real probado — 115kg×1 a RPE 10, el mismo día — quedaba descartado por dar un Epley "menor"). Nueva función `bestOneRepMaxForTarget` (en `utils/exerciseName.js`, cliente y servidor): solo cuentan series con reps ≤ target+1. El backend (`GET /api/goals`) ahora calcula y persiste `achievedAt` de forma independiente y autoritativa (nunca confía en un flag del cliente); es una puerta de un solo sentido, como un PR. El checklist manual de semanas sigue sin poder forzar "cumplido" por sí solo.
+*   **FEATURE — Deduplicación de ejercicios vía LLM (`ExerciseAgentService`):** Al importar una rutina JSON (y al añadir un ejercicio nuevo a un día existente), `server/src/services/exerciseAgent.js` hace UNA sola llamada a OpenAI (gpt-4o-mini) por operación para clasificar cada ejercicio entrante contra el catálogo existente del usuario (incluye archivados), evitando duplicados como "Press Banca" / "press de banca" / "Bench Press". Conservador por diseño (nunca fusiona variantes de equipamiento distintas). Sin `OPENAI_API_KEY`, o si la llamada falla/da JSON inválido, cae automáticamente al matching determinista existente (`canonicalExerciseKey`) sin romper el import — un elemento malformado en la respuesta del LLM solo afecta a ese elemento, no a todo el lote.
+*   **CHORE:** `server/.env.example` (no existía) documentando todas las variables. Documentado que el schema de Prisma se sincroniza con `db push` (no hay `migrations/`; `migrate dev` pide resetear todo el schema).
+
+### v2.0.1 (29 May 2026)
 *   **CONSOLIDACIÓN DE EJERCICIOS (`utils/exerciseName.js`):** Nuevo módulo que identifica el "mismo" ejercicio aunque su nombre varíe entre rutinas (abreviaturas "elev."→"elevaciones", plurales, prefijos de orden "A1.", tildes y **sufijos de grupo muscular entre paréntesis** como "(bíceps)"). Conservador: NO fusiona variantes de equipamiento legítimas ("press inclinado (mancuernas)" ≠ "(hammer o smith)"). Funciones: `canonicalExerciseKey`, `normalizeExerciseName`, `groupHistoryByExercise`, `best1RMRecent`, `epley1RM`.
 *   **FIX — Objetivos no mostraban todos los ejercicios:** `NewGoal` construía la lista solo desde la 1ª copia de cada ejercicio en las rutinas (a veces con `muscleGroup` null → invisible al filtrar por músculo). Ahora consolida rutinas + catálogo (`/exercises`, incluye archivados) + historial, resolviendo el grupo muscular con el primer valor no-nulo de cualquier copia. Filtro de músculo case-insensitive + **buscador global** + orden por nº de sesiones.
 *   **FIX — "Faltan datos de fuerza inicial" con historial:** El conteo de sesiones de `NewGoal` y el emparejado de `GoalSection`/`GoalCard` ahora usan la misma clave canónica, así un objetivo encuentra su historial pese a variantes del nombre (p. ej. "curl martillo (bíceps)" hereda el historial de "curl martillo"). Además, al crear un objetivo con historial se **persiste un snapshot de `currentOneRepMax`** (mejor 1RM de las últimas 3 sesiones) como respaldo: la tarjeta nunca vuelve a quedarse sin fuerza inicial aunque falle el emparejado de display.

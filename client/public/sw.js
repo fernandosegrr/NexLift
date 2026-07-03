@@ -4,7 +4,7 @@
 //  - Navegación (HTML): network-first con fallback al shell cacheado (offline)
 //  - API GET: network-first con fallback a la última respuesta cacheada
 //  - Estáticos varios (iconos, manifest, logo): cache-first
-const VERSION = 'v2.0.0';
+const VERSION = 'v2.1.0';
 const STATIC_CACHE = `nexlift-static-${VERSION}`;
 const API_CACHE = `nexlift-api-${VERSION}`;
 const SHELL_URL = '/index.html';
@@ -89,4 +89,36 @@ self.addEventListener('fetch', (event) => {
             )
         );
     }
+});
+
+// Web Push (recordatorio de descanso, Tarea 2). En iOS 16.4+ solo funciona con la
+// PWA añadida a la pantalla de inicio (no en una pestaña de Safari).
+self.addEventListener('push', (event) => {
+    let data = {};
+    try {
+        data = event.data ? event.data.json() : {};
+    } catch (e) {
+        data = {};
+    }
+    const title = data.title || 'NexLift';
+    event.waitUntil(
+        self.registration.showNotification(title, {
+            body: data.body || '',
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            data: { exerciseId: data.exerciseId || null }
+        })
+    );
+});
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+            for (const client of clientList) {
+                if ('focus' in client) return client.focus();
+            }
+            if (clients.openWindow) return clients.openWindow('/');
+        })
+    );
 });

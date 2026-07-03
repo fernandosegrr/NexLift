@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp, TrendingUp, Trash2, Calendar, Target, Zap, Dumbbell, CheckCircle2 } from 'lucide-react';
 import { api } from '../../services/api';
+import { bestOneRepMaxForTarget, best1RMRecent } from '../../utils/exerciseName';
 
 // --- MATH UTILS ---
 
@@ -335,10 +336,13 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
             source = 'history';
             const sessions = history.sessions;
             totalSessions = sessions.length;
-            // 1RM actual robusto: mejor de las últimas 3 sesiones (evita que un mal
-            // día hunda el punto de partida o que un pico antiguo lo infle)
-            const recent = sessions.slice(-3);
-            starting1RM = Math.max(...recent.map(s => s.best1RM));
+            // 1RM de partida: solo cuentan series cercanas en reps a la meta (no
+            // cualquier serie del día) — evita que una serie submáxima de muchas
+            // reps "demuestre" por extrapolación de Epley una meta exigente en
+            // pocas reps que nunca se intentó de verdad. Si nunca se ha probado
+            // nada cerca de esa exigencia (0), se usa el estimado amplio solo
+            // como referencia para armar el plan, nunca para marcar "cumplido".
+            starting1RM = bestOneRepMaxForTarget(sessions, goal.targetReps, 3) || best1RMRecent(sessions, 3);
 
             const dataPoints = sessions.map((s, i) => ({ x: i, y: s.best1RM }));
             const regression = linearRegression(dataPoints);
@@ -372,9 +376,11 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
 
         const limitDiff = target1RM - starting1RM;
 
-        // Si ya superaste la meta
-        if (limitDiff <= 0) {
-            return { hasData: true, achieved: true, confidence, starting1RM, target1RM };
+        // Cumplido si el backend ya lo persistió (verdad de BD, verificada contra
+        // el historial real — ver GET /api/goals) o si el cálculo en vivo de esta
+        // sesión ya lo supera (reactividad inmediata sin esperar un reload).
+        if (goal.achievedAt || limitDiff <= 0) {
+            return { hasData: true, achieved: true, confidence, starting1RM, target1RM, persisted: !!goal.achievedAt };
         }
 
         const effectiveWeeklyIncrease = Math.max(0.1, trendSlope);
@@ -411,10 +417,10 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
             return { completedAutoWeeks: new Set(), currentReal1RM: 0, realProgressPct: 0 };
         }
 
-        // 1RM actual robusto = mejor de las últimas 3 sesiones (mismo criterio que
-        // el punto de partida del plan, para que barra y semanas sean coherentes)
-        const recent = history.sessions.slice(-3);
-        const currentReal1RM = Math.max(...recent.map(s => s.best1RM));
+        // Mismo criterio estricto que el punto de partida del plan (solo series
+        // cercanas en reps a la meta), para que barra, semanas y el badge de
+        // "cumplido" sean siempre coherentes entre sí.
+        const currentReal1RM = bestOneRepMaxForTarget(history.sessions, goal.targetReps, 3) || best1RMRecent(history.sessions, 3);
 
         // Una semana se marca completada si tu 1RM actual ya supera su objetivo
         const autoCompleted = new Set();
@@ -434,7 +440,7 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
             currentReal1RM: Math.round(currentReal1RM * 10) / 10,
             realProgressPct: Math.round(realPct)
         };
-    }, [history, prediction.plan, prediction.target1RM]);
+    }, [history, prediction.plan, prediction.target1RM, goal.targetReps]);
 
     // Filter visible plan: hide both manually and auto-completed weeks
     const visiblePlan = (prediction.plan || []).filter(weekData => {
@@ -563,7 +569,12 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
                         {visiblePlan.length === 0 && (
                             <div className="text-center py-8 text-[var(--text-secondary)]">
                                 <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-500/50" />
-                                <p>¡Has completado todas las semanas planificadas!</p>
+                                {/* Si llegamos aquí, prediction.achieved es false (este bloque solo
+                                    se renderiza cuando !prediction.achieved), así que las semanas se
+                                    ocultaron por checklist manual, no por progreso real verificado.
+                                    No decir "completado" para no repetir la confusión del bug original. */}
+                                <p>Marcaste todas las semanas del checklist como completadas a mano.</p>
+                                <p className="text-xs mt-1">Esto no significa que hayas alcanzado la meta — revisa tu 1RM real arriba.</p>
                             </div>
                         )}
 
