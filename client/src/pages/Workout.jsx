@@ -415,6 +415,7 @@ export default function Workout() {
 
     const [sets, setSets] = useState([]);
     const [isUnilateral, setIsUnilateral] = useState(false);
+    const [completedAt, setCompletedAt] = useState(null);
     const currentExerciseIdRef = useRef(null);
 
     // Custom hooks
@@ -499,14 +500,20 @@ export default function Workout() {
                 return null;
             })
         );
+        // Reemplaza (no solo agrega) el estado de estos ejercicios: si alguno estaba
+        // marcado completado por una sesión vieja (p.ej. una prueba borrada después),
+        // esta pasada con datos frescos del servidor corrige el localStorage stale
+        // en vez de arrastrarlo hasta que expire (24h).
+        const checkedIds = new Set(exerciseList.map(ex => ex.id));
         const completed = results.filter(Boolean);
-        setCompletedExerciseIds(prev => [...new Set([...prev, ...completed])]);
+        setCompletedExerciseIds(prev => [...new Set([...prev.filter(id => !checkedIds.has(id)), ...completed])]);
     }
 
     async function loadExerciseData(exercise, index) {
         currentExerciseIdRef.current = exercise.id;
         // Auto-detect unilateral from exercise DB field
         setIsUnilateral(exercise.isUnilateral || false);
+        setCompletedAt(null);
         try {
             const history = await api.getExerciseHistory(exercise.id);
             if (currentExerciseIdRef.current !== exercise.id) return;
@@ -525,6 +532,7 @@ export default function Workout() {
                         completed: true
                     }));
                     setSets(apiSets);
+                    setCompletedAt(new Date(history[0].date));
                     if (!completedExerciseIds.includes(exercise.id)) {
                         setCompletedExerciseIds(prev => [...prev, exercise.id]);
                     }
@@ -671,8 +679,9 @@ export default function Workout() {
         setUIState(prev => ({ ...prev, saving: true }));
 
         try {
-            await api.logWorkout(currentExercise.id, validSets);
+            const { workoutLog } = await api.logWorkout(currentExercise.id, validSets);
             setCompletedExerciseIds(prev => [...prev, currentExercise.id]);
+            setCompletedAt(workoutLog?.date ? new Date(workoutLog.date) : new Date());
             setWorkoutData(prev => {
                 const updated = { ...prev };
                 delete updated[currentExercise.id];
@@ -799,7 +808,7 @@ export default function Workout() {
                         </div>
                         <div>
                             <p className="font-bold text-[var(--success)] text-sm">Ejercicio Completado</p>
-                            <p className="text-[var(--success)]/80 text-xs">Guardado hoy a las {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                            <p className="text-[var(--success)]/80 text-xs">Guardado hoy a las {(completedAt || new Date()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
                     </div>
                 ) : (previousBest || suggestion) && (

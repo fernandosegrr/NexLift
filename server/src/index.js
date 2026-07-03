@@ -1778,7 +1778,8 @@ app.post('/api/shortcuts/log-set', authMiddleware, async (req, res) => {
             return res.status(404).json({ error: 'Exercise not found or unauthorized' });
         }
 
-        const targetDate = resolveTargetDate(req.query.date || req.body.date);
+        const explicitDate = req.query.date || req.body.date;
+        const targetDate = resolveTargetDate(explicitDate);
         const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
         const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
@@ -1808,7 +1809,12 @@ app.post('/api/shortcuts/log-set', authMiddleware, async (req, res) => {
             workoutLog = await prisma.workoutLog.create({
                 data: {
                     exerciseId,
-                    date: targetDate,
+                    // Con ?date= explícito (backfill) no hay hora real que guardar, se usa
+                    // medianoche del día pedido. Sin override (uso normal en vivo desde el
+                    // Atajo) se guarda la hora real, igual que /api/workouts/log — si no,
+                    // la PWA no puede mostrar la hora real de guardado (siempre caía a
+                    // medianoche) para sets registrados vía Atajo.
+                    date: explicitDate ? targetDate : new Date(),
                     sets: {
                         create: [{
                             setNumber: 1,
