@@ -1637,14 +1637,22 @@ function baseShortcutResponse() {
     };
 }
 
-// Resuelve la fecha objetivo a partir de ?date=YYYY-MM-DD (fecha local del
-// teléfono, la manda el Atajo) o cae al día local DEL SERVIDOR si no se manda
-// (limitación conocida: puede no coincidir con la zona horaria real del usuario).
+// App de un solo usuario, siempre en Ciudad de México — si no viene ?date=
+// explícito, el "hoy" NUNCA debe salir del reloj del servidor (corre en UTC
+// en Docker, se adelanta a México y rompe el día de rutina de noche). Se
+// calcula el día calendario real en America/Mexico_City vía Intl en vez de
+// asumir el TZ del proceso.
+const APP_TIMEZONE = 'America/Mexico_City';
+
 function resolveTargetDate(dateParam) {
     if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
         return new Date(`${dateParam}T00:00:00`);
     }
-    return new Date();
+    const todayInMexico = new Intl.DateTimeFormat('en-CA', {
+        timeZone: APP_TIMEZONE,
+        year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(new Date());
+    return new Date(`${todayInMexico}T00:00:00`);
 }
 
 // GET /api/shortcuts/next-set - Qué ejercicio toca ahora y a qué peso/reps
