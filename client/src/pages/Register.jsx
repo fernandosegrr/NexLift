@@ -56,8 +56,8 @@ export default function Register() {
 
         try {
             await register({
-                username: formData.username,
-                email: formData.email,
+                username: formData.username.trim(),
+                email: formData.email.trim(),
                 password: formData.password,
                 firstName: formData.firstName,
                 lastName: formData.lastName,

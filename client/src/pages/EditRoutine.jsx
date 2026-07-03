@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Save, Plus, Trash2, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react';
 import { api } from '../services/api';
+import { useToast } from '../components/ui/Toast';
 
 export default function EditRoutine() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const toast = useToast();
     const [routine, setRoutine] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -24,6 +26,7 @@ export default function EditRoutine() {
                 setKnownExercises(uniqueNames.sort());
             } catch (error) {
                 console.error('Error:', error);
+                toast.error('Error al cargar la rutina');
             } finally {
                 setLoading(false);
             }
@@ -33,7 +36,21 @@ export default function EditRoutine() {
 
     const handleSave = async () => {
         if (!routine.name.trim()) {
-            alert('La rutina necesita un nombre');
+            toast.error('La rutina necesita un nombre');
+            return;
+        }
+
+        const emptyDay = routine.days.find(day => !day.isRestDay && (day.exercises || []).length === 0);
+        if (emptyDay) {
+            toast.error(`"${emptyDay.dayName || 'Día'}" no tiene ejercicios. Agrega al menos uno o márcalo como descanso.`);
+            return;
+        }
+
+        const invalidSets = routine.days.some(day =>
+            (day.exercises || []).some(ex => isNaN(parseInt(ex.targetSets, 10)))
+        );
+        if (invalidSets) {
+            toast.error('Hay ejercicios con series inválidas. Revisa los números.');
             return;
         }
 
@@ -51,10 +68,11 @@ export default function EditRoutine() {
         };
         try {
             await api.updateRoutine(id, payload);
+            toast.success('Rutina actualizada');
             navigate('/routines');
         } catch (error) {
             console.error('Error updating routine:', error);
-            alert('Error al guardar. Intenta de nuevo.');
+            toast.error('Error al guardar. Intenta de nuevo.');
         } finally {
             setSaving(false);
         }

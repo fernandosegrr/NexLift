@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -26,10 +27,26 @@ if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
 // Catbox upload function (inline to avoid external dependencies)
 const CATBOX_API = 'https://catbox.moe/user/api.php';
 
+// Sniff de los primeros bytes: antes se forzaba Content-Type: image/jpeg sin
+// comprobar que los bytes decodificados fueran realmente una imagen, así que
+// cualquier binario podía subirse a Catbox disfrazado de foto.
+function looksLikeImage(buffer) {
+    if (buffer.length < 12) return false;
+    if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) return true; // JPEG
+    if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) return true; // PNG
+    if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) return true; // GIF
+    if (buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return true; // WebP
+    return false;
+}
+
 async function uploadBase64ToCatbox(base64Data, extension = 'jpg') {
     try {
         const base64Clean = base64Data.replace(/^data:image\/\w+;base64,/, '');
         const buffer = Buffer.from(base64Clean, 'base64');
+        if (!looksLikeImage(buffer)) {
+            console.error('Catbox upload rejected: contenido no parece una imagen válida');
+            return null;
+        }
         const filename = `nexlift_${Date.now()}.${extension}`;
 
         // Create form data manually for fetch
@@ -48,8 +65,15 @@ async function uploadBase64ToCatbox(base64Data, extension = 'jpg') {
         });
 
         if (!response.ok) throw new Error(`Catbox upload failed: ${response.status}`);
-        const url = await response.text();
-        return url.trim();
+        const url = (await response.text()).trim();
+        // No confiar a ciegas en lo que Catbox devuelva como texto — si alguna vez
+        // responde con una página de error en vez de una URL, eso NO debe guardarse
+        // como avatarUrl/photoUrl y servirse después como <img src>.
+        if (!/^https:\/\/files\.catbox\.moe\/.+/.test(url)) {
+            console.error('Catbox upload rejected: respuesta inesperada', url.slice(0, 100));
+            return null;
+        }
+        return url;
     } catch (error) {
         console.error('Catbox upload error:', error.message);
         return null;
@@ -57,7 +81,7 @@ async function uploadBase64ToCatbox(base64Data, extension = 'jpg') {
 }
 
 // Auth middleware (inline to avoid external dependencies)
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -66,7 +90,18 @@ function authMiddleware(req, res, next) {
 
     const token = authHeader.substring(7);
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+        // tokenVersion: cambiar contraseña o la pregunta de seguridad la incrementa,
+        // así un token filtrado deja de servir apenas el dueño real "arregla" la
+        // cuenta — sin esto, un JWT de 365 días robado seguía siendo válido aunque
+        // se cambiara la contraseña.
+        const user = await prisma.user.findUnique({
+            where: { id: decoded.userId },
+            select: { isActive: true, tokenVersion: true }
+        });
+        if (!user || !user.isActive || user.tokenVersion !== (decoded.tokenVersion || 0)) {
+            return res.status(401).json({ error: 'Token inválido o expirado' });
+        }
         req.userId = decoded.userId;
         next();
     } catch (error) {
@@ -86,7 +121,21 @@ const PORT = process.env.PORT || 3001;
 app.set('trust proxy', 1);
 
 // Middleware
-app.use(cors());
+// CORS: el frontend en producción se sirve del MISMO origen que esta API
+// (express.static más abajo), así que no necesita CORS en absoluto — solo hace
+// falta para el dev server de Vite (puerto distinto) y para cualquier origen
+// cross-origin explícito que se agregue vía CORS_ORIGIN (coma-separado). Los
+// Atajos de iOS llaman por HTTP directo, no por fetch de navegador: CORS no les
+// aplica. Antes: cors() sin opciones reflejaba cualquier Origin.
+const corsAllowlist = (process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+    origin: corsAllowlist.length > 0 ? corsAllowlist : (process.env.NODE_ENV === 'production' ? false : true)
+}));
+// contentSecurityPolicy desactivado: la CSP por defecto de helmet asume assets
+// propios servidos con nonces/hashes que este build de Vite no genera — activarla
+// tal cual rompería el bundle. Las demás cabeceras (X-Frame-Options, nosniff, etc.)
+// sí quedan activas y son las que de verdad faltaban.
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '10mb' }));
 
 // Serve static files from client/dist (for production)
@@ -111,13 +160,16 @@ function normalizeExerciseName(name) {
         .replace(/\s+/g, ' '); // Normaliza espacios múltiples
 }
 
-async function getRecycleBinDay(userId) {
-    let routine = await prisma.routine.findFirst({
+// `client` opcional: pasar un `tx` de prisma.$transaction cuando se llama desde
+// dentro de una transacción (ver DELETE/PUT /api/routines/:id), para que el
+// archivado de ejercicios sea parte de la misma transacción atómica.
+async function getRecycleBinDay(userId, client = prisma) {
+    let routine = await client.routine.findFirst({
         where: { userId, name: "ARCHIVED_HISTORY_DO_NOT_DELETE", isActive: false }
     });
 
     if (!routine) {
-        routine = await prisma.routine.create({
+        routine = await client.routine.create({
             data: {
                 userId,
                 name: "ARCHIVED_HISTORY_DO_NOT_DELETE",
@@ -127,12 +179,12 @@ async function getRecycleBinDay(userId) {
         });
     }
 
-    let day = await prisma.routineDay.findFirst({
+    let day = await client.routineDay.findFirst({
         where: { routineId: routine.id }
     });
 
     if (!day) {
-        day = await prisma.routineDay.create({
+        day = await client.routineDay.create({
             data: {
                 routineId: routine.id,
                 dayName: "Bin",
@@ -148,9 +200,16 @@ async function getRecycleBinDay(userId) {
 // Una sola instancia en Docker; si se escala, migrar a Redis.
 // ============================================
 const rateLimitStore = new Map();
-function rateLimit({ windowMs = 15 * 60 * 1000, max = 12 } = {}) {
+// keyFn opcional: por defecto limita por IP+ruta; algunas rutas (recuperación de
+// contraseña) también necesitan un segundo límite por CUENTA objetivo, para que
+// un atacante con IPs rotativas no pueda evadirlo probando contra un solo usuario.
+function rateLimit({ windowMs = 15 * 60 * 1000, max = 12, keyFn } = {}) {
     return (req, res, next) => {
-        const key = `${req.ip}:${req.path}`;
+        // Salvaguarda: sin esto, un Map en memoria sin tope crece sin límite entre
+        // barridos de 15 min si llegan muchas claves distintas (IPs/rutas/cuentas).
+        if (rateLimitStore.size > 50000) rateLimitStore.clear();
+
+        const key = keyFn ? keyFn(req) : `${req.ip}:${req.path}`;
         const now = Date.now();
         const entry = rateLimitStore.get(key);
         if (!entry || now > entry.resetAt) {
@@ -239,7 +298,13 @@ async function recalcPRForExercise(exerciseName, userId) {
                 routineDay: { routine: { userId } }
             }
         },
-        include: { sets: true }
+        include: { sets: true },
+        // orderBy explícito: sin esto, ante un empate exacto de est1RM el desempate
+        // (comparación estricta `>` de abajo) dependía del orden arbitrario en que
+        // Postgres devolviera las filas — la fecha del PR podía "saltar" entre
+        // recálculos. Con orden ascendente, la ocurrencia MÁS ANTIGUA gana el empate,
+        // de forma determinista.
+        orderBy: { date: 'asc' }
     });
 
     let best = null; // { weight, reps, est1RM, date }
@@ -306,6 +371,26 @@ function sanitizeSets(rawSets, { unilateral = false } = {}) {
         sets.push(clean);
     }
     return { sets };
+}
+
+// Valida/normaliza las métricas de composición corporal. Antes se guardaban con
+// un parseFloat sin ningún límite (un NaN o un valor absurdo como bodyFat: -50 se
+// persistía tal cual y se graficaba así) — mismo criterio de rango que sanitizeSets.
+const BODY_METRIC_RANGES = {
+    weight: [0, 500], bmi: [0, 100], bodyFat: [0, 100], muscleMass: [0, 300],
+    bmr: [0, 10000], bodyWater: [0, 100], visceralFat: [0, 100], boneMass: [0, 50], protein: [0, 100]
+};
+function sanitizeBodyMetrics(body) {
+    const clean = {};
+    for (const [key, [min, max]] of Object.entries(BODY_METRIC_RANGES)) {
+        if (body[key] == null || body[key] === '') { clean[key] = null; continue; }
+        const val = parseFloat(body[key]);
+        if (!Number.isFinite(val) || val < min || val > max) {
+            return { error: `${key} inválido (rango esperado ${min}-${max})` };
+        }
+        clean[key] = val;
+    }
+    return { clean };
 }
 
 // ============================================
@@ -408,6 +493,68 @@ function normalizeDay(day) {
 }
 
 // ============================================
+// HELPERS: Zona horaria — app de un solo usuario, siempre en Ciudad de México.
+// TODA fecha "de calendario" (qué día es hoy, dónde empieza/termina un día) debe
+// resolverse aquí. El contenedor corre en UTC (Docker/Alpine sin TZ fijada), así
+// que new Date()/getFullYear()/getMonth()/getDate()/getDay() usados directo quedan
+// desalineados hasta 6 horas: cualquier cosa registrada después de las 6pm hora de
+// CDMX caía en el "día" siguiente. Usado por: racha y heatmap (stats/overview,
+// stats/consistency), los endpoints de Atajos iOS, y el filtro por día de semana.
+// ============================================
+const APP_TIMEZONE = 'America/Mexico_City';
+
+// "YYYY-MM-DD" del día calendario de CDMX que contiene `date`.
+function mexicoCityDateStr(date = new Date()) {
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: APP_TIMEZONE,
+        year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(date);
+}
+
+// Offset UTC de CDMX (minutos, negativo = detrás de UTC) en el instante `date`.
+// Se calcula en vivo vía Intl en vez de fijar -06:00 a mano, para no romper si
+// México reactivara el horario de verano.
+function mexicoCityUtcOffsetMinutes(date = new Date()) {
+    const part = new Intl.DateTimeFormat('en-US', { timeZone: APP_TIMEZONE, timeZoneName: 'shortOffset' })
+        .formatToParts(date).find(p => p.type === 'timeZoneName')?.value || 'GMT-6';
+    const match = part.match(/GMT([+-])(\d+)(?::(\d+))?/);
+    if (!match) return -360;
+    const sign = match[1] === '-' ? -1 : 1;
+    return sign * (parseInt(match[2], 10) * 60 + (match[3] ? parseInt(match[3], 10) : 0));
+}
+
+// Límites reales [inicio, fin) del día calendario de CDMX que contiene `date`,
+// como instantes UTC — para filtrar columnas DateTime con gte/lt correctamente.
+function mexicoCityDayBounds(date = new Date()) {
+    const dateStr = mexicoCityDateStr(date);
+    const offsetMin = mexicoCityUtcOffsetMinutes(date);
+    const sign = offsetMin <= 0 ? '-' : '+';
+    const abs = Math.abs(offsetMin);
+    const offsetStr = `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+    const start = new Date(`${dateStr}T00:00:00${offsetStr}`);
+    return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000), dateStr };
+}
+
+// Día de la semana (0=domingo) de un "YYYY-MM-DD", sin ambigüedad de zona horaria
+// (ancla a mediodía UTC antes de leer getUTCDay, así nunca cruza al día vecino).
+function dayOfWeekFromDateStr(dateStr) {
+    return new Date(`${dateStr}T12:00:00Z`).getUTCDay();
+}
+
+// Resuelve el día objetivo para los endpoints de Atajos: ?date=YYYY-MM-DD explícito
+// (backfill, se interpreta como medianoche de CDMX de ese día) o el día calendario
+// real de CDMX ahora mismo. Devuelve esa medianoche como instante UTC real — ya
+// sirve directo como límite inferior de "hoy" (ver next-set/log-set).
+function resolveTargetDate(dateParam) {
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+        // Ancla a mediodía UTC de esa fecha para que, al leer el día calendario de
+        // CDMX de ese instante, nunca se cruce al día anterior/siguiente.
+        return mexicoCityDayBounds(new Date(`${dateParam}T12:00:00Z`)).start;
+    }
+    return mexicoCityDayBounds(new Date()).start;
+}
+
+// ============================================
 // ROUTES: Routine Import
 // ============================================
 
@@ -418,10 +565,18 @@ function normalizeDay(day) {
 // POST /api/auth/register
 app.post('/api/auth/register', rateLimit(), async (req, res) => {
     try {
-        const { username, email, password, firstName, lastName, phone, birthDate, securityQuestion, securityAnswer } = req.body;
+        let { username, email, password, firstName, lastName, phone, birthDate, securityQuestion, securityAnswer } = req.body;
+        username = username?.trim();
+        email = email?.trim();
 
         if (!username || !email || !password || !firstName || !lastName) {
             return res.status(400).json({ error: 'Campos requeridos: username, email, password, firstName, lastName' });
+        }
+        if (password.length < 8) {
+            return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+        }
+        if (securityAnswer && securityAnswer.trim().length < 2) {
+            return res.status(400).json({ error: 'La respuesta de seguridad es demasiado corta' });
         }
 
         const existing = await prisma.user.findFirst({
@@ -449,10 +604,11 @@ app.post('/api/auth/register', rateLimit(), async (req, res) => {
                 securityQuestion: securityQuestion || null,
                 securityAnswerHash
             },
-            select: { id: true, username: true, email: true, firstName: true, lastName: true, phone: true, birthDate: true, avatarUrl: true, createdAt: true }
+            select: { id: true, username: true, email: true, firstName: true, lastName: true, phone: true, birthDate: true, avatarUrl: true, createdAt: true, tokenVersion: true }
         });
 
-        const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '365d' });
+        const token = jwt.sign({ userId: user.id, tokenVersion: user.tokenVersion }, JWT_SECRET, { expiresIn: '365d' });
+        delete user.tokenVersion;
         res.status(201).json({ user, token });
     } catch (error) {
         console.error('Register error:', error);
@@ -463,7 +619,8 @@ app.post('/api/auth/register', rateLimit(), async (req, res) => {
 // POST /api/auth/login
 app.post('/api/auth/login', rateLimit(), async (req, res) => {
     try {
-        const { username, password } = req.body;
+        let { username, password } = req.body;
+        username = username?.trim();
 
         if (!username || !password) {
             return res.status(400).json({ error: 'Username y password requeridos' });
@@ -484,7 +641,7 @@ app.post('/api/auth/login', rateLimit(), async (req, res) => {
 
         await prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } });
 
-        const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '365d' });
+        const token = jwt.sign({ userId: user.id, tokenVersion: user.tokenVersion }, JWT_SECRET, { expiresIn: '365d' });
         res.json({
             user: { id: user.id, username: user.username, email: user.email, firstName: user.firstName, lastName: user.lastName, phone: user.phone, birthDate: user.birthDate, avatarUrl: user.avatarUrl, createdAt: user.createdAt },
             token
@@ -537,11 +694,14 @@ app.put('/api/auth/profile', authMiddleware, async (req, res) => {
 });
 
 // PUT /api/auth/password - Change password
-app.put('/api/auth/password', authMiddleware, async (req, res) => {
+app.put('/api/auth/password', authMiddleware, rateLimit({ max: 8 }), async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
         if (!currentPassword || !newPassword) {
             return res.status(400).json({ error: 'Contraseña actual y nueva requeridas' });
+        }
+        if (newPassword.length < 8) {
+            return res.status(400).json({ error: 'La contraseña nueva debe tener al menos 8 caracteres' });
         }
 
         const user = await prisma.user.findUnique({ where: { id: req.userId } });
@@ -549,8 +709,15 @@ app.put('/api/auth/password', authMiddleware, async (req, res) => {
         if (!valid) return res.status(401).json({ error: 'Contraseña actual incorrecta' });
 
         const passwordHash = await bcrypt.hash(newPassword, 10);
-        await prisma.user.update({ where: { id: req.userId }, data: { passwordHash } });
-        res.json({ message: 'Contraseña actualizada' });
+        // Incrementar tokenVersion invalida cualquier otro JWT filtrado — se firma
+        // uno nuevo abajo para que ESTA sesión (la que sí demostró conocer la
+        // contraseña actual) no se cierre sola.
+        const updated = await prisma.user.update({
+            where: { id: req.userId },
+            data: { passwordHash, tokenVersion: { increment: 1 } }
+        });
+        const token = jwt.sign({ userId: updated.id, tokenVersion: updated.tokenVersion }, JWT_SECRET, { expiresIn: '365d' });
+        res.json({ message: 'Contraseña actualizada', token });
     } catch (error) {
         console.error('Change password error:', error);
         res.status(500).json({ error: 'Error al cambiar contraseña' });
@@ -560,7 +727,7 @@ app.put('/api/auth/password', authMiddleware, async (req, res) => {
 // POST /api/auth/recover/question - Get security question
 app.post('/api/auth/recover/question', rateLimit(), async (req, res) => {
     try {
-        const { username } = req.body;
+        const username = req.body.username?.trim();
         const user = await prisma.user.findFirst({
             where: { OR: [{ username: username?.toLowerCase() }, { email: username?.toLowerCase() }] },
             select: { securityQuestion: true }
@@ -576,9 +743,20 @@ app.post('/api/auth/recover/question', rateLimit(), async (req, res) => {
 });
 
 // POST /api/auth/recover/verify - Verify answer and reset password
-app.post('/api/auth/recover/verify', rateLimit(), async (req, res) => {
+// Doble límite: por IP (rateLimit() de siempre) Y por CUENTA objetivo — sin el
+// segundo, alguien con IPs rotativas podía forzar-bruta la respuesta de seguridad
+// contra un único username sin ningún cooldown de cuenta.
+app.post('/api/auth/recover/verify', rateLimit(), rateLimit({
+    windowMs: 30 * 60 * 1000,
+    max: 5,
+    keyFn: (req) => `recover-account:${(req.body.username || '').toLowerCase().trim()}`
+}), async (req, res) => {
     try {
-        const { username, answer, newPassword } = req.body;
+        const username = req.body.username?.trim();
+        const { answer, newPassword } = req.body;
+        if (!newPassword || newPassword.length < 8) {
+            return res.status(400).json({ error: 'La contraseña nueva debe tener al menos 8 caracteres' });
+        }
         const user = await prisma.user.findFirst({
             where: { OR: [{ username: username?.toLowerCase() }, { email: username?.toLowerCase() }] }
         });
@@ -586,11 +764,13 @@ app.post('/api/auth/recover/verify', rateLimit(), async (req, res) => {
             return res.status(404).json({ error: 'Usuario no encontrado' });
         }
 
-        const valid = await bcrypt.compare(answer.toLowerCase().trim(), user.securityAnswerHash);
+        const valid = await bcrypt.compare((answer || '').toLowerCase().trim(), user.securityAnswerHash);
         if (!valid) return res.status(401).json({ error: 'Respuesta incorrecta' });
 
         const passwordHash = await bcrypt.hash(newPassword, 10);
-        await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+        // También invalida cualquier token viejo (robado o no) — quien acaba de
+        // restablecer la contraseña por esta vía debe volver a iniciar sesión.
+        await prisma.user.update({ where: { id: user.id }, data: { passwordHash, tokenVersion: { increment: 1 } } });
         res.json({ message: 'Contraseña restablecida exitosamente' });
     } catch (error) {
         console.error('Reset password error:', error);
@@ -599,18 +779,30 @@ app.post('/api/auth/recover/verify', rateLimit(), async (req, res) => {
 });
 
 // PUT /api/auth/security-question - Update security question
-app.put('/api/auth/security-question', authMiddleware, async (req, res) => {
+// Antes solo pedía un JWT válido — un token robado (XSS, dispositivo compartido)
+// alcanzaba para reescribir en silencio el único mecanismo de recuperación de la
+// cuenta. Ahora exige la contraseña actual, igual que PUT /api/auth/password.
+app.put('/api/auth/security-question', authMiddleware, rateLimit({ max: 8 }), async (req, res) => {
     try {
-        const { question, answer } = req.body;
-        if (!question || !answer) {
-            return res.status(400).json({ error: 'Pregunta y respuesta requeridas' });
+        const { currentPassword, question, answer } = req.body;
+        if (!currentPassword || !question || !answer) {
+            return res.status(400).json({ error: 'Contraseña actual, pregunta y respuesta requeridas' });
         }
+        if (answer.trim().length < 2) {
+            return res.status(400).json({ error: 'La respuesta de seguridad es demasiado corta' });
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: req.userId } });
+        const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!valid) return res.status(401).json({ error: 'Contraseña actual incorrecta' });
+
         const securityAnswerHash = await bcrypt.hash(answer.toLowerCase().trim(), 10);
-        await prisma.user.update({
+        const updated = await prisma.user.update({
             where: { id: req.userId },
-            data: { securityQuestion: question, securityAnswerHash }
+            data: { securityQuestion: question, securityAnswerHash, tokenVersion: { increment: 1 } }
         });
-        res.json({ message: 'Pregunta de seguridad actualizada' });
+        const token = jwt.sign({ userId: updated.id, tokenVersion: updated.tokenVersion }, JWT_SECRET, { expiresIn: '365d' });
+        res.json({ message: 'Pregunta de seguridad actualizada', token });
     } catch (error) {
         console.error('Update security question error:', error);
         res.status(500).json({ error: 'Error al actualizar pregunta de seguridad' });
@@ -629,14 +821,12 @@ app.post('/api/auth/avatar', authMiddleware, async (req, res) => {
         // Upload to Catbox
         let avatarUrl = null;
         if (avatar.startsWith('data:image') || avatar.length > 500) {
-            try {
-                console.log('📸 Uploading avatar to Catbox...');
-                avatarUrl = await uploadBase64ToCatbox(avatar, 'jpg');
-                console.log('✅ Avatar uploaded:', avatarUrl);
-            } catch (uploadError) {
-                console.error('❌ Catbox upload failed:', uploadError.message);
-                return res.status(500).json({ error: 'Error al subir imagen' });
+            console.log('📸 Uploading avatar to Catbox...');
+            avatarUrl = await uploadBase64ToCatbox(avatar, 'jpg');
+            if (!avatarUrl) {
+                return res.status(400).json({ error: 'No se pudo subir la imagen (formato inválido o error del servicio)' });
             }
+            console.log('✅ Avatar uploaded:', avatarUrl);
         } else {
             avatarUrl = avatar;
         }
@@ -879,27 +1069,30 @@ app.delete('/api/routines/:id', authMiddleware, async (req, res) => {
             return res.status(404).json({ error: 'Routine not found' });
         }
 
-        // PRE-DELETE: Archive exercises with history
-        const routineDays = await prisma.routineDay.findMany({
-            where: { routineId: req.params.id },
-            include: { exercises: { select: { id: true } } }
-        });
+        // Envuelto en transacción: archivar-lo-que-tiene-historial y luego borrar la
+        // rutina eran pasos independientes antes — si algo fallaba a la mitad, podía
+        // quedar a medio archivar. También cierra la ventana de carrera contra un
+        // WorkoutLog nuevo llegando (p.ej. desde un Atajo) entre el conteo y el borrado.
+        await prisma.$transaction(async (tx) => {
+            const routineDays = await tx.routineDay.findMany({
+                where: { routineId: req.params.id },
+                include: { exercises: { select: { id: true } } }
+            });
 
-        for (const day of routineDays) {
-            for (const ex of day.exercises) {
-                const logCount = await prisma.workoutLog.count({ where: { exerciseId: ex.id } });
-                if (logCount > 0) {
-                    const binId = await getRecycleBinDay(req.userId);
-                    await prisma.exercise.update({
-                        where: { id: ex.id },
-                        data: { routineDayId: binId }
-                    });
+            for (const day of routineDays) {
+                for (const ex of day.exercises) {
+                    const logCount = await tx.workoutLog.count({ where: { exerciseId: ex.id } });
+                    if (logCount > 0) {
+                        const binId = await getRecycleBinDay(req.userId, tx);
+                        await tx.exercise.update({
+                            where: { id: ex.id },
+                            data: { routineDayId: binId }
+                        });
+                    }
                 }
             }
-        }
 
-        await prisma.routine.delete({
-            where: { id: req.params.id }
+            await tx.routine.delete({ where: { id: req.params.id } });
         });
         res.json({ message: 'Routine deleted successfully' });
     } catch (error) {
@@ -912,7 +1105,6 @@ app.delete('/api/routines/:id', authMiddleware, async (req, res) => {
 app.put('/api/routines/:id', authMiddleware, async (req, res) => {
     try {
         const routineId = req.params.id;
-        console.log(`DEBUG: PUT routine ${routineId}`);
         const { name, description, days } = req.body;
 
         // Verify ownership
@@ -922,42 +1114,6 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
 
         if (!existingRoutine) {
             return res.status(404).json({ error: 'Routine not found' });
-        }
-
-        // 1. Update basic info
-        await prisma.routine.update({
-            where: { id: routineId },
-            data: { name, description }
-        });
-
-        // 2. Handle Days
-        const existingDays = await prisma.routineDay.findMany({
-            where: { routineId },
-            select: { id: true }
-        });
-        const incomingDayIds = days.filter(d => d.id).map(d => d.id);
-        const daysToDelete = existingDays.filter(d => !incomingDayIds.includes(d.id)).map(d => d.id);
-
-        if (daysToDelete.length > 0) {
-            // SAFE DELETE DAYS: Archive exercises with logs first
-            const days = await prisma.routineDay.findMany({
-                where: { id: { in: daysToDelete } },
-                include: { exercises: { select: { id: true } } }
-            });
-
-            for (const d of days) {
-                for (const ex of d.exercises) {
-                    const logCount = await prisma.workoutLog.count({ where: { exerciseId: ex.id } });
-                    if (logCount > 0) {
-                        const binId = await getRecycleBinDay(req.userId);
-                        await prisma.exercise.update({
-                            where: { id: ex.id },
-                            data: { routineDayId: binId }
-                        });
-                    }
-                }
-            }
-            await prisma.routineDay.deleteMany({ where: { id: { in: daysToDelete } } });
         }
 
         // Deduplicación de ejercicios nuevos (Tarea 4): UNA sola llamada para todo
@@ -987,206 +1143,249 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
         }
         const canonicalByIdForDedup = new Map(canonicalExercisesForDedup.map(ex => [ex.id, ex]));
 
-        for (let i = 0; i < days.length; i++) {
-            const day = days[i];
-            let dayId = day.id;
+        // Toda la escritura (info básica, días, ejercicios) va en UNA transacción:
+        // antes eran ~decenas de prisma.X sueltos, y si algo fallaba a la mitad (p.ej.
+        // la carrera de conteo-de-logs-luego-borrado, o un targetSets corrupto) la
+        // rutina quedaba parcialmente actualizada con un 500 genérico. La búsqueda
+        // de dedup (llamada externa, puede tardar) se queda FUERA a propósito para
+        // no sostener la transacción abierta esperando una respuesta de red.
+        const updatedRoutine = await prisma.$transaction(async (tx) => {
+            // 1. Update basic info
+            await tx.routine.update({
+                where: { id: routineId },
+                data: { name, description }
+            });
 
-            if (dayId) {
-                await prisma.routineDay.update({
-                    where: { id: dayId },
-                    data: {
-                        dayName: day.dayName,
-                        isRestDay: day.isRestDay || false,
-                        order: i
-                    }
-                });
-            } else {
-                const newDay = await prisma.routineDay.create({
-                    data: {
-                        routineId,
-                        dayName: day.dayName,
-                        isRestDay: day.isRestDay || false,
-                        order: i
-                    }
-                });
-                dayId = newDay.id;
-            }
+            // 2. Handle Days
+            const existingDaysList = await tx.routineDay.findMany({
+                where: { routineId },
+                select: { id: true }
+            });
+            const incomingDayIds = days.filter(d => d.id).map(d => d.id);
+            const daysToDelete = existingDaysList.filter(d => !incomingDayIds.includes(d.id)).map(d => d.id);
 
-            // 3. Handle Exercises
-            if (day.exercises && Array.isArray(day.exercises)) {
-                const existingExercises = await prisma.exercise.findMany({
-                    where: { routineDayId: dayId },
-                    select: { id: true }
+            if (daysToDelete.length > 0) {
+                // SAFE DELETE DAYS: Archive exercises with logs first
+                const staleDays = await tx.routineDay.findMany({
+                    where: { id: { in: daysToDelete } },
+                    include: { exercises: { select: { id: true } } }
                 });
-                const incomingExIds = day.exercises.filter(e => e.id).map(e => e.id);
-                const exToDelete = existingExercises.filter(e => !incomingExIds.includes(e.id)).map(e => e.id);
 
-                if (exToDelete.length > 0) {
-                    for (const exId of exToDelete) {
-                        const logCount = await prisma.workoutLog.count({ where: { exerciseId: exId } });
+                for (const d of staleDays) {
+                    for (const ex of d.exercises) {
+                        const logCount = await tx.workoutLog.count({ where: { exerciseId: ex.id } });
                         if (logCount > 0) {
-                            // Safe Delete: Has history, move to archive
-                            console.log(`Archiving deleted exercise ${exId} to preserve history`);
-                            const binId = await getRecycleBinDay(req.userId);
-                            await prisma.exercise.update({
-                                where: { id: exId },
+                            const binId = await getRecycleBinDay(req.userId, tx);
+                            await tx.exercise.update({
+                                where: { id: ex.id },
                                 data: { routineDayId: binId }
                             });
-                        } else {
-                            // True Delete: No history
-                            await prisma.exercise.delete({ where: { id: exId } });
                         }
                     }
                 }
+                await tx.routineDay.deleteMany({ where: { id: { in: daysToDelete } } });
+            }
 
-                for (let j = 0; j < day.exercises.length; j++) {
-                    const ex = day.exercises[j];
-                    const normalizedName = normalizeExerciseName(ex.name);
+            for (let i = 0; i < days.length; i++) {
+                const day = days[i];
+                let dayId = day.id;
 
-                    if (ex.id) {
-                        const currentExercise = await prisma.exercise.findUnique({
-                            where: { id: ex.id },
-                            select: { name: true }
-                        });
+                if (dayId) {
+                    await tx.routineDay.update({
+                        where: { id: dayId },
+                        data: {
+                            dayName: day.dayName,
+                            isRestDay: day.isRestDay || false,
+                            order: i
+                        }
+                    });
+                } else {
+                    const newDay = await tx.routineDay.create({
+                        data: {
+                            routineId,
+                            dayName: day.dayName,
+                            isRestDay: day.isRestDay || false,
+                            order: i
+                        }
+                    });
+                    dayId = newDay.id;
+                }
 
-                        const currentName = currentExercise ? normalizeExerciseName(currentExercise.name) : '';
+                // 3. Handle Exercises
+                if (day.exercises && Array.isArray(day.exercises)) {
+                    const existingExercises = await tx.exercise.findMany({
+                        where: { routineDayId: dayId },
+                        select: { id: true }
+                    });
+                    const incomingExIds = day.exercises.filter(e => e.id).map(e => e.id);
+                    const exToDelete = existingExercises.filter(e => !incomingExIds.includes(e.id)).map(e => e.id);
 
-                        if (currentName !== normalizedName) {
-                            // Check for history
-                            const logCount = await prisma.workoutLog.count({
-                                where: { exerciseId: ex.id }
-                            });
-                            console.log(`DEBUG: Rename "${currentName}" -> "${normalizedName}". LogCount: ${logCount}`);
-
+                    if (exToDelete.length > 0) {
+                        for (const exId of exToDelete) {
+                            const logCount = await tx.workoutLog.count({ where: { exerciseId: exId } });
                             if (logCount > 0) {
-                                // Has history: Move current to Recycle Bin
-                                console.log(`Archiving exercise "${currentExercise.name}" due to rename/replace to "${normalizedName}"`);
-                                const binId = await getRecycleBinDay(req.userId);
-
-                                await prisma.exercise.update({
-                                    where: { id: ex.id },
+                                // Safe Delete: Has history, move to archive
+                                const binId = await getRecycleBinDay(req.userId, tx);
+                                await tx.exercise.update({
+                                    where: { id: exId },
                                     data: { routineDayId: binId }
                                 });
+                            } else {
+                                // True Delete: No history
+                                await tx.exercise.delete({ where: { id: exId } });
+                            }
+                        }
+                    }
 
-                                // Check if NEW name exists in Archive to RESTORE instead of Create
-                                const archivedEx = await prisma.exercise.findFirst({
-                                    where: {
-                                        routineDayId: binId,
-                                        name: normalizedName
-                                    }
+                    for (let j = 0; j < day.exercises.length; j++) {
+                        const ex = day.exercises[j];
+                        const normalizedName = normalizeExerciseName(ex.name);
+                        // Fallback consistente: sin esto, un targetSets vacío/no numérico
+                        // se guardaba como NaN y rompía en silencio la detección de "día
+                        // completo" (next-set/Atajos) hasta corregirlo a mano.
+                        const cleanTargetSets = parseInt(ex.targetSets) || 3;
+
+                        if (ex.id) {
+                            const currentExercise = await tx.exercise.findUnique({
+                                where: { id: ex.id },
+                                select: { name: true }
+                            });
+
+                            const currentName = currentExercise ? normalizeExerciseName(currentExercise.name) : '';
+
+                            if (currentName !== normalizedName) {
+                                // Check for history
+                                const logCount = await tx.workoutLog.count({
+                                    where: { exerciseId: ex.id }
                                 });
 
-                                if (archivedEx) {
-                                    console.log(`Restoring archived exercise "${normalizedName}" (ID: ${archivedEx.id})`);
-                                    await prisma.exercise.update({
-                                        where: { id: archivedEx.id },
-                                        data: {
-                                            routineDayId: dayId,
-                                            targetSets: parseInt(ex.targetSets),
-                                            targetReps: ex.targetReps,
-                                            restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
-                                            note: ex.note,
-                                            isUnilateral: ex.isUnilateral !== undefined ? ex.isUnilateral : false,
-                                            order: j
+                                if (logCount > 0) {
+                                    // Has history: Move current to Recycle Bin
+                                    const binId = await getRecycleBinDay(req.userId, tx);
+
+                                    await tx.exercise.update({
+                                        where: { id: ex.id },
+                                        data: { routineDayId: binId }
+                                    });
+
+                                    // Check if NEW name exists in Archive to RESTORE instead of Create
+                                    const archivedEx = await tx.exercise.findFirst({
+                                        where: {
+                                            routineDayId: binId,
+                                            name: normalizedName
                                         }
                                     });
-                                } else {
-                                    // Make new if not found in archive
-                                    await prisma.exercise.create({
-                                        data: {
-                                            routineDayId: dayId,
-                                            name: normalizedName,
-                                            targetSets: parseInt(ex.targetSets),
-                                            targetReps: ex.targetReps,
-                                            restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
-                                            note: ex.note,
-                                            isUnilateral: ex.isUnilateral !== undefined ? ex.isUnilateral : false,
-                                            order: j
-                                        }
-                                    });
+
+                                    if (archivedEx) {
+                                        await tx.exercise.update({
+                                            where: { id: archivedEx.id },
+                                            data: {
+                                                routineDayId: dayId,
+                                                targetSets: cleanTargetSets,
+                                                targetReps: ex.targetReps,
+                                                restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
+                                                note: ex.note,
+                                                isUnilateral: ex.isUnilateral !== undefined ? ex.isUnilateral : false,
+                                                order: j
+                                            }
+                                        });
+                                    } else {
+                                        // Make new if not found in archive
+                                        await tx.exercise.create({
+                                            data: {
+                                                routineDayId: dayId,
+                                                name: normalizedName,
+                                                targetSets: cleanTargetSets,
+                                                targetReps: ex.targetReps,
+                                                restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
+                                                note: ex.note,
+                                                isUnilateral: ex.isUnilateral !== undefined ? ex.isUnilateral : false,
+                                                order: j
+                                            }
+                                        });
+                                    }
+                                    continue; // Skip the standard update
                                 }
-                                continue; // Skip the standard update
                             }
-                        }
 
-                        // Update existing (No history or name didn't change)
-                        await prisma.exercise.update({
-                            where: { id: ex.id },
-                            data: {
-                                name: normalizedName,
-                                targetSets: parseInt(ex.targetSets),
-                                targetReps: ex.targetReps,
-                                restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
-                                note: ex.note,
-                                isUnilateral: ex.isUnilateral !== undefined ? ex.isUnilateral : false,
-                                order: j
-                            }
-                        });
-
-                    } else {
-                        const binId = await getRecycleBinDay(req.userId);
-                        const verdict = dedupVerdictByEntry.get(`${i}:${j}`);
-                        const resolvedName = verdict?.matchedId
-                            ? (canonicalByIdForDedup.get(verdict.matchedId)?.name || normalizedName)
-                            : (verdict?.cleanedName || normalizedName);
-
-                        // Si el veredicto (LLM o fallback) apunta a un ejercicio que HOY
-                        // vive en la papelera, restaurarlo (preserva su historial) — igual
-                        // que ya hacía el matching exacto. Si apunta a uno ACTIVO en otro
-                        // día, NO reengancharlo solo (evita sacarlo de donde vive sin que
-                        // el usuario lo pida): se crea uno nuevo con el nombre canónico, que
-                        // igual comparte historial/PRs por nombre con el resto de la app.
-                        let archivedEx = null;
-                        if (verdict?.matchedId) {
-                            const matched = canonicalByIdForDedup.get(verdict.matchedId);
-                            if (matched && matched.routineDayId === binId) archivedEx = matched;
-                        }
-                        if (!archivedEx) {
-                            archivedEx = await prisma.exercise.findFirst({
-                                where: {
-                                    routineDayId: binId,
-                                    name: { equals: resolvedName, mode: 'insensitive' }
-                                }
-                            });
-                        }
-
-                        if (archivedEx) {
-                            console.log(`Restoring archived exercise "${resolvedName}" (ID: ${archivedEx.id})`);
-                            await prisma.exercise.update({
-                                where: { id: archivedEx.id },
+                            // Update existing (No history or name didn't change)
+                            await tx.exercise.update({
+                                where: { id: ex.id },
                                 data: {
-                                    routineDayId: dayId,
-                                    targetSets: parseInt(ex.targetSets || 3),
-                                    targetReps: ex.targetReps || '8-12',
+                                    name: normalizedName,
+                                    targetSets: cleanTargetSets,
+                                    targetReps: ex.targetReps,
                                     restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
                                     note: ex.note,
                                     isUnilateral: ex.isUnilateral !== undefined ? ex.isUnilateral : false,
                                     order: j
                                 }
                             });
+
                         } else {
-                            await prisma.exercise.create({
-                                data: {
-                                    routineDayId: dayId,
-                                    name: resolvedName,
-                                    targetSets: parseInt(ex.targetSets || 3),
-                                    targetReps: ex.targetReps || '8-12',
-                                    restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
-                                    note: ex.note,
-                                    isUnilateral: ex.isUnilateral !== undefined ? ex.isUnilateral : false,
-                                    order: j
-                                }
-                            });
+                            const binId = await getRecycleBinDay(req.userId, tx);
+                            const verdict = dedupVerdictByEntry.get(`${i}:${j}`);
+                            const resolvedName = verdict?.matchedId
+                                ? (canonicalByIdForDedup.get(verdict.matchedId)?.name || normalizedName)
+                                : (verdict?.cleanedName || normalizedName);
+
+                            // Si el veredicto (LLM o fallback) apunta a un ejercicio que HOY
+                            // vive en la papelera, restaurarlo (preserva su historial) — igual
+                            // que ya hacía el matching exacto. Si apunta a uno ACTIVO en otro
+                            // día, NO reengancharlo solo (evita sacarlo de donde vive sin que
+                            // el usuario lo pida): se crea uno nuevo con el nombre canónico, que
+                            // igual comparte historial/PRs por nombre con el resto de la app.
+                            let archivedEx = null;
+                            if (verdict?.matchedId) {
+                                const matched = canonicalByIdForDedup.get(verdict.matchedId);
+                                if (matched && matched.routineDayId === binId) archivedEx = matched;
+                            }
+                            if (!archivedEx) {
+                                archivedEx = await tx.exercise.findFirst({
+                                    where: {
+                                        routineDayId: binId,
+                                        name: { equals: resolvedName, mode: 'insensitive' }
+                                    }
+                                });
+                            }
+
+                            if (archivedEx) {
+                                await tx.exercise.update({
+                                    where: { id: archivedEx.id },
+                                    data: {
+                                        routineDayId: dayId,
+                                        targetSets: cleanTargetSets,
+                                        targetReps: ex.targetReps || '8-12',
+                                        restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
+                                        note: ex.note,
+                                        isUnilateral: ex.isUnilateral !== undefined ? ex.isUnilateral : false,
+                                        order: j
+                                    }
+                                });
+                            } else {
+                                await tx.exercise.create({
+                                    data: {
+                                        routineDayId: dayId,
+                                        name: resolvedName,
+                                        targetSets: cleanTargetSets,
+                                        targetReps: ex.targetReps || '8-12',
+                                        restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
+                                        note: ex.note,
+                                        isUnilateral: ex.isUnilateral !== undefined ? ex.isUnilateral : false,
+                                        order: j
+                                    }
+                                });
+                            }
                         }
                     }
                 }
             }
-        }
 
-        const updatedRoutine = await prisma.routine.findUnique({
-            where: { id: routineId },
-            include: { days: { include: { exercises: { orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } } }
-        });
+            return tx.routine.findUnique({
+                where: { id: routineId },
+                include: { days: { include: { exercises: { orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } } }
+            });
+        }, { timeout: 20000 }); // rutinas grandes con muchos ejercicios pueden tardar más que el default de 5s
 
         res.json(updatedRoutine);
     } catch (error) {
@@ -1500,7 +1699,7 @@ app.get('/api/workouts/history', authMiddleware, async (req, res) => {
         let filtered = logs;
         if (dayOfWeek !== undefined && dayOfWeek !== '') {
             const dow = parseInt(dayOfWeek);
-            filtered = logs.filter(log => new Date(log.date).getDay() === dow);
+            filtered = logs.filter(log => dayOfWeekFromDateStr(mexicoCityDateStr(log.date)) === dow);
         }
 
         res.json(filtered);
@@ -1637,29 +1836,11 @@ function baseShortcutResponse() {
     };
 }
 
-// App de un solo usuario, siempre en Ciudad de México — si no viene ?date=
-// explícito, el "hoy" NUNCA debe salir del reloj del servidor (corre en UTC
-// en Docker, se adelanta a México y rompe el día de rutina de noche). Se
-// calcula el día calendario real en America/Mexico_City vía Intl en vez de
-// asumir el TZ del proceso.
-const APP_TIMEZONE = 'America/Mexico_City';
-
-function resolveTargetDate(dateParam) {
-    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-        return new Date(`${dateParam}T00:00:00`);
-    }
-    const todayInMexico = new Intl.DateTimeFormat('en-CA', {
-        timeZone: APP_TIMEZONE,
-        year: 'numeric', month: '2-digit', day: '2-digit'
-    }).format(new Date());
-    return new Date(`${todayInMexico}T00:00:00`);
-}
-
 // GET /api/shortcuts/next-set - Qué ejercicio toca ahora y a qué peso/reps
 app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
     try {
         const targetDate = resolveTargetDate(req.query.date);
-        const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+        const startOfDay = targetDate; // ya es medianoche real de CDMX (ver resolveTargetDate)
         const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
         const todayName = getTodayName(targetDate);
 
@@ -1780,40 +1961,46 @@ app.post('/api/shortcuts/log-set', authMiddleware, async (req, res) => {
 
         const explicitDate = req.query.date || req.body.date;
         const targetDate = resolveTargetDate(explicitDate);
-        const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+        const startOfDay = targetDate; // ya es medianoche real de CDMX (ver resolveTargetDate)
         const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
-        let workoutLog = await prisma.workoutLog.findFirst({
-            where: { exerciseId, date: { gte: startOfDay, lt: endOfDay } },
-            include: { sets: true }
-        });
+        // Envuelto en transacción: encontrar-o-crear el WorkoutLog de "hoy" no es
+        // atómico entre dos llamadas casi simultáneas del Atajo (p.ej. un reintento
+        // tras timeout) sin esto — ambas podrían ver "no existe" y crear un log
+        // duplicado, fragmentando la sesión que este endpoint existe para evitar.
+        const workoutLog = await prisma.$transaction(async (tx) => {
+            let log = await tx.workoutLog.findFirst({
+                where: { exerciseId, date: { gte: startOfDay, lt: endOfDay } },
+                include: { sets: true }
+            });
 
-        if (workoutLog) {
-            await prisma.setLog.create({
-                data: {
-                    workoutLogId: workoutLog.id,
-                    setNumber: workoutLog.sets.length + 1,
-                    weight: cleanSet.weight,
-                    reps: cleanSet.reps,
-                    rpe: cleanSet.rpe,
-                    weightRight: cleanSet.weightRight ?? null,
-                    repsRight: cleanSet.repsRight ?? null,
-                    completed: cleanSet.completed
-                }
-            });
-            workoutLog = await prisma.workoutLog.findUnique({
-                where: { id: workoutLog.id },
-                include: { sets: true, exercise: true }
-            });
-        } else {
-            workoutLog = await prisma.workoutLog.create({
+            if (log) {
+                await tx.setLog.create({
+                    data: {
+                        workoutLogId: log.id,
+                        setNumber: log.sets.length + 1,
+                        weight: cleanSet.weight,
+                        reps: cleanSet.reps,
+                        rpe: cleanSet.rpe,
+                        weightRight: cleanSet.weightRight ?? null,
+                        repsRight: cleanSet.repsRight ?? null,
+                        completed: cleanSet.completed
+                    }
+                });
+                return tx.workoutLog.findUnique({
+                    where: { id: log.id },
+                    include: { sets: true, exercise: true }
+                });
+            }
+
+            return tx.workoutLog.create({
                 data: {
                     exerciseId,
                     // Con ?date= explícito (backfill) no hay hora real que guardar, se usa
-                    // medianoche del día pedido. Sin override (uso normal en vivo desde el
-                    // Atajo) se guarda la hora real, igual que /api/workouts/log — si no,
-                    // la PWA no puede mostrar la hora real de guardado (siempre caía a
-                    // medianoche) para sets registrados vía Atajo.
+                    // medianoche real de CDMX del día pedido. Sin override (uso normal en
+                    // vivo desde el Atajo) se guarda la hora real, igual que
+                    // /api/workouts/log — si no, la PWA no puede mostrar la hora real de
+                    // guardado (siempre caía a medianoche) para sets registrados vía Atajo.
                     date: explicitDate ? targetDate : new Date(),
                     sets: {
                         create: [{
@@ -1829,7 +2016,7 @@ app.post('/api/shortcuts/log-set', authMiddleware, async (req, res) => {
                 },
                 include: { sets: true, exercise: true }
             });
-        }
+        });
 
         await recalcPRForExercise(exercise.name, req.userId);
         scheduleRestReminder(req.userId, exercise);
@@ -2031,8 +2218,8 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
         });
 
         // Get last 30 days workout count for streak calculation
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const todayBounds = mexicoCityDayBounds();
+        const thirtyDaysAgo = new Date(todayBounds.start.getTime() - 30 * 24 * 60 * 60 * 1000);
 
         const recentWorkouts = await prisma.workoutLog.findMany({
             where: {
@@ -2049,10 +2236,10 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
             select: { date: true }
         });
 
-        // Calculate unique training days
+        // Calculate unique training days (día calendario de CDMX, no UTC)
         const uniqueDays = new Set([
-            ...recentWorkouts.map(w => w.date.toISOString().split('T')[0]),
-            ...recentRestLogs.map(r => r.date.toISOString().split('T')[0])
+            ...recentWorkouts.map(w => mexicoCityDateStr(w.date)),
+            ...recentRestLogs.map(r => mexicoCityDateStr(r.date))
         ]);
 
         // Get active routine to detect scheduled rest days
@@ -2080,12 +2267,10 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
         // Calculate current streak (up to 365 days)
         // Scheduled rest days count as streak continuity automatically
         let streak = 0;
-        const today = new Date();
         for (let i = 0; i < 365; i++) {
-            const checkDate = new Date(today);
-            checkDate.setDate(checkDate.getDate() - i);
-            const dateStr = checkDate.toISOString().split('T')[0];
-            const dayOfWeek = checkDate.getDay();
+            const checkDate = new Date(todayBounds.start.getTime() - i * 24 * 60 * 60 * 1000);
+            const dateStr = mexicoCityDateStr(checkDate);
+            const dayOfWeek = dayOfWeekFromDateStr(dateStr);
 
             if (uniqueDays.has(dateStr)) {
                 streak++;
@@ -2098,8 +2283,7 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
         }
 
         // Get volume this week
-        const weekAgo = new Date();
-        weekAgo.setDate(weekAgo.getDate() - 7);
+        const weekAgo = new Date(todayBounds.start.getTime() - 7 * 24 * 60 * 60 * 1000);
 
         const weekSets = await prisma.setLog.findMany({
             where: {
@@ -2131,8 +2315,7 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
 // GET /api/stats/consistency - Get consistency data (calendar heatmap)
 app.get('/api/stats/consistency', authMiddleware, async (req, res) => {
     try {
-        const threeSixtyFiveDaysAgo = new Date();
-        threeSixtyFiveDaysAgo.setDate(threeSixtyFiveDaysAgo.getDate() - 365);
+        const threeSixtyFiveDaysAgo = new Date(mexicoCityDayBounds().start.getTime() - 365 * 24 * 60 * 60 * 1000);
 
         const workouts = await prisma.workoutLog.findMany({
             where: {
@@ -2175,19 +2358,19 @@ app.get('/api/stats/consistency', authMiddleware, async (req, res) => {
             ...restLogs.map(r => r.date)
         ];
 
-        // Add auto-rest events for scheduled rest days (last 365 days)
+        // Add auto-rest events for scheduled rest days (last 365 days) — día
+        // calendario de CDMX, no UTC (ver HELPERS: Zona horaria)
         const loggedDates = new Set([
-            ...workouts.map(w => w.date.toISOString().split('T')[0]),
-            ...restLogs.map(r => r.date.toISOString().split('T')[0])
+            ...workouts.map(w => mexicoCityDateStr(w.date)),
+            ...restLogs.map(r => mexicoCityDateStr(r.date))
         ]);
 
         if (restDaySet.size > 0) {
-            const today = new Date();
+            const todayStart = mexicoCityDayBounds().start;
             for (let i = 0; i < 365; i++) {
-                const checkDate = new Date(today);
-                checkDate.setDate(checkDate.getDate() - i);
-                const dateStr = checkDate.toISOString().split('T')[0];
-                if (!loggedDates.has(dateStr) && restDaySet.has(checkDate.getDay())) {
+                const checkDate = new Date(todayStart.getTime() - i * 24 * 60 * 60 * 1000);
+                const dateStr = mexicoCityDateStr(checkDate);
+                if (!loggedDates.has(dateStr) && restDaySet.has(dayOfWeekFromDateStr(dateStr))) {
                     allEvents.push(checkDate);
                 }
             }
@@ -2308,6 +2491,9 @@ app.post('/api/body/log', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: 'Se requiere peso, foto o datos de composición corporal' });
         }
 
+        const { clean: cleanMetrics, error: metricsError } = sanitizeBodyMetrics({ weight, bmi, bodyFat, muscleMass, bmr, bodyWater, visceralFat, boneMass, protein });
+        if (metricsError) return res.status(400).json({ error: metricsError });
+
         // Upload photo to Catbox if it's base64
         let photoUrl = null;
         if (photo) {
@@ -2331,17 +2517,9 @@ app.post('/api/body/log', authMiddleware, async (req, res) => {
         const bodyLog = await prisma.bodyLog.create({
             data: {
                 userId: req.userId,
-                weight: weight ? parseFloat(weight) : null,
                 photoUrl,
                 note: note || null,
-                bmi: bmi ? parseFloat(bmi) : null,
-                bodyFat: bodyFat ? parseFloat(bodyFat) : null,
-                muscleMass: muscleMass ? parseFloat(muscleMass) : null,
-                bmr: bmr ? parseFloat(bmr) : null,
-                bodyWater: bodyWater ? parseFloat(bodyWater) : null,
-                visceralFat: visceralFat ? parseFloat(visceralFat) : null,
-                boneMass: boneMass ? parseFloat(boneMass) : null,
-                protein: protein ? parseFloat(protein) : null
+                ...cleanMetrics
             }
         });
 
@@ -2429,6 +2607,9 @@ app.post('/api/body', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: 'Weight or photo required' });
         }
 
+        const { clean: cleanMetrics, error: metricsError } = sanitizeBodyMetrics({ weight });
+        if (metricsError) return res.status(400).json({ error: metricsError });
+
         // Upload photo to Catbox if it's base64
         let photoUrl = null;
         if (photo) {
@@ -2449,7 +2630,7 @@ app.post('/api/body', authMiddleware, async (req, res) => {
         const bodyLog = await prisma.bodyLog.create({
             data: {
                 userId: req.userId,
-                weight: weight ? parseFloat(weight) : null,
+                weight: cleanMetrics.weight,
                 photoUrl,
                 note: note || null
             }

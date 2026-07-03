@@ -112,7 +112,7 @@ const securityQuestions = [
 export default function Settings() {
     const navigate = useNavigate();
     const toast = useToast();
-    const { user, token, refreshProfile } = useAuth();
+    const { user, token, refreshProfile, updateToken } = useAuth();
 
     // Tab state
     const [activeSection, setActiveSection] = useState('profile');
@@ -168,7 +168,7 @@ export default function Settings() {
     const [showPasswords, setShowPasswords] = useState(false);
 
     // Security question state
-    const [securityData, setSecurityData] = useState({ question: '', answer: '' });
+    const [securityData, setSecurityData] = useState({ question: '', answer: '', currentPassword: '' });
 
     // Delete modal
     const [deletingSession, setDeletingSession] = useState(null);
@@ -299,7 +299,10 @@ export default function Settings() {
         }
         setProfileLoading(true);
         try {
-            await api.changePassword(token, passwordData.currentPassword, passwordData.newPassword);
+            const result = await api.changePassword(token, passwordData.currentPassword, passwordData.newPassword);
+            // Cambiar la contraseña invalida todos los tokens previos en el backend;
+            // persistir el token nuevo que devuelve para no cerrar la sesión actual.
+            if (result?.token) updateToken(result.token);
             setSuccess('Contraseña cambiada');
             setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
             setTimeout(() => setSuccess(''), 3000);
@@ -317,12 +320,20 @@ export default function Settings() {
         if (!securityData.question || !securityData.answer) {
             setError('Pregunta y respuesta requeridas'); return;
         }
+        if (!securityData.currentPassword) {
+            setError('Ingresa tu contraseña actual para confirmar'); return;
+        }
         setProfileLoading(true);
         try {
-            await api.updateSecurityQuestion(token, securityData.question, securityData.answer);
-            await refreshProfile();
+            const result = await api.updateSecurityQuestion(token, securityData.question, securityData.answer, securityData.currentPassword);
+            // Igual que al cambiar contraseña: esto invalida los tokens previos,
+            // así que persistimos el token nuevo para no cerrar la sesión actual.
+            // Se pasa explícito a refreshProfile porque el `token` del contexto
+            // todavía no se actualizó en este mismo tick (setState es async).
+            if (result?.token) updateToken(result.token);
+            await refreshProfile(result?.token);
             setSuccess('Pregunta actualizada');
-            setSecurityData(prev => ({ ...prev, answer: '' }));
+            setSecurityData(prev => ({ ...prev, answer: '', currentPassword: '' }));
             setTimeout(() => setSuccess(''), 3000);
         } catch (err) {
             setError(err.message);
@@ -694,7 +705,7 @@ export default function Settings() {
                         />
                         <button
                             type="submit"
-                            disabled={profileLoading || passwordData.newPassword !== passwordData.confirmPassword}
+                            disabled={profileLoading || passwordData.newPassword !== passwordData.confirmPassword || passwordData.newPassword.length < 8}
                             className="w-full py-3 bg-gradient-to-r from-red-500 to-orange-500 text-white font-medium rounded-xl disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-red-500/25"
                         >
                             {profileLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
@@ -731,9 +742,22 @@ export default function Settings() {
                             className="w-full px-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white focus:border-teal-500 focus:outline-none"
                             required
                         />
+                        <div className="relative">
+                            <input
+                                type={showPasswords ? 'text' : 'password'}
+                                value={securityData.currentPassword}
+                                onChange={(e) => setSecurityData(s => ({ ...s, currentPassword: e.target.value }))}
+                                placeholder="Contraseña actual (para confirmar)"
+                                className="w-full px-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white pr-10 focus:border-teal-500 focus:outline-none"
+                                required
+                            />
+                            <button type="button" onClick={() => setShowPasswords(!showPasswords)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]">
+                                {showPasswords ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
                         <button
                             type="submit"
-                            disabled={profileLoading || !securityData.question || !securityData.answer}
+                            disabled={profileLoading || !securityData.question || !securityData.answer || !securityData.currentPassword}
                             className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-medium rounded-xl disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25"
                         >
                             {profileLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}

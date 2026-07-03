@@ -85,6 +85,7 @@ export default function EditSession() {
         setSaving(true);
         try {
             await api.updateWorkoutSession(logId, validSets);
+            clearWorkoutCache();
             toast.success('Sesión actualizada');
             navigate('/settings');
         } catch (error) {
@@ -92,6 +93,18 @@ export default function EditSession() {
             toast.error('Error al guardar');
         } finally {
             setSaving(false);
+        }
+    }
+
+    // Invalida el cache local de Workout.jsx (localStorage `workout_${dayId}`, TTL 24h)
+    // para que si el usuario reabre el entreno de hoy no vea series desactualizadas.
+    // No sabemos el dayId aquí, así que limpiamos todas las entradas de workout_*.
+    function clearWorkoutCache() {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('workout_')) {
+                localStorage.removeItem(key);
+            }
         }
     }
 

@@ -478,7 +478,8 @@ export default function CreateRoutine() {
 
             <button
               onClick={handleSaveManual}
-              className="fixed bottom-6 left-4 right-4 z-40 py-4 bg-[var(--primary)] text-white font-bold rounded-xl shadow-xl shadow-[var(--primary)]/20 active:scale-95 transition-transform flex items-center justify-center gap-2"
+              disabled={saving}
+              className="fixed bottom-6 left-4 right-4 z-40 py-4 bg-[var(--primary)] text-white font-bold rounded-xl shadow-xl shadow-[var(--primary)]/20 disabled:opacity-50 active:scale-95 transition-transform flex items-center justify-center gap-2"
             >
               {saving ? 'Guardando...' : <><Save size={20} /> Guardar Rutina</>}
             </button>

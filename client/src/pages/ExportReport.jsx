@@ -43,6 +43,13 @@ function getLocalDateStr(dateObj) {
     return dateObj.toLocaleDateString('en-CA');
 }
 
+// Trunca por grafemas (no por code units UTF-16) para no partir un emoji o
+// caracter combinado a la mitad al cortar nombres largos en el PDF.
+function truncateText(str, maxLength) {
+    if (!str) return str;
+    return Array.from(str).slice(0, maxLength).join('');
+}
+
 // Fix timezone: parse a stored UTC date string by its date part and format as
 // the intended local calendar day (avoids off-by-one shifts in negative-UTC zones).
 function formatLocalDate(dateStr, options = { day: 'numeric', month: 'short' }, locale = 'es-ES') {
@@ -645,7 +652,7 @@ export default function ExportReport() {
                     builder.y += 6;
 
                     const prRows = dc.todayPRs.map(pr => [
-                        pr.exerciseName?.substring(0, 30),
+                        truncateText(pr.exerciseName, 30),
                         `${pr.weight}kg x ${pr.reps}`
                     ]);
                     autoTable(doc, {
@@ -678,7 +685,7 @@ export default function ExportReport() {
                     };
 
                     const compRows = dc.exercises.map(ex => [
-                        ex.name.substring(0, 22),
+                        truncateText(ex.name, 22),
                         formatSets(ex.today),
                         formatSets(ex.lastWeek)
                     ]);
@@ -728,7 +735,7 @@ export default function ExportReport() {
                 const rows = computed.filteredPRs.map(pr => {
                     const est1RM = pr.estimated1RM ? `~${Math.round(pr.estimated1RM)}` : '--';
                     return [
-                        pr.exerciseName?.substring(0, 28),
+                        truncateText(pr.exerciseName, 28),
                         `${pr.weight}kg`,
                         `x${pr.reps}`,
                         est1RM,
@@ -757,7 +764,7 @@ export default function ExportReport() {
                 builder.printSectionTitle('PROGRESO POR EJERCICIO', 60);
 
                 const deltaRows = computed.progressData.map(ex => [
-                    ex.name.substring(0, 28),
+                    truncateText(ex.name, 28),
                     `${ex.firstWeight}x${ex.firstReps}`,
                     `${ex.lastWeight}x${ex.lastReps}`,
                     ex.deltaWeight > 0 ? `+${ex.deltaWeight}` : ex.deltaWeight < 0 ? `${ex.deltaWeight}` : '0',

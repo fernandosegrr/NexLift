@@ -19,7 +19,7 @@ export default function Login() {
         setLoading(true);
 
         try {
-            await login(username, password);
+            await login(username.trim(), password);
             navigate('/');
         } catch (err) {
             setError(err.message || 'Error al iniciar sesión');

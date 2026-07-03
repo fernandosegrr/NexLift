@@ -4,12 +4,13 @@ import {
     Settings, LogOut, Camera, Award, Dumbbell, Scale, Crown, X,
     Mail, Phone, Calendar
 } from 'lucide-react';
+import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ui/Toast';
 
 export default function Profile() {
     const navigate = useNavigate();
-    const { user, token, logout, refreshProfile } = useAuth();
+    const { user, logout, refreshProfile } = useAuth();
     const toast = useToast();
     const fileInputRef = useRef(null);
 
@@ -61,19 +62,7 @@ export default function Profile() {
 
         try {
             const compressedBase64 = await compressImage(file, 400);
-            const res = await fetch(
-                import.meta.env.PROD ? '/api/auth/avatar' : 'http://localhost:3001/api/auth/avatar',
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ avatar: compressedBase64 })
-                }
-            );
-
-            if (!res.ok) throw new Error('Failed to upload avatar');
+            await api.updateAvatar(compressedBase64);
             await refreshProfile();
             toast.success('Foto actualizada');
         } catch (err) {

@@ -6,10 +6,12 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/ui/Toast';
 import AchievementsStrip from '../components/AchievementsStrip';
 
 export default function Dashboard() {
     const { user } = useAuth();
+    const toast = useToast();
     const [stats, setStats] = useState(null);
     const [activeRoutine, setActiveRoutine] = useState(null);
     const [consistency, setConsistency] = useState({});
@@ -58,6 +60,7 @@ export default function Dashboard() {
             } catch (error) {
                 if (isMounted) {
                     console.error('Dashboard error:', error);
+                    toast.error('Error al cargar el dashboard');
                 }
             } finally {
                 if (isMounted) {
@@ -171,18 +174,25 @@ export default function Dashboard() {
         if (loggingRest) return;
         setLoggingRest(true);
 
+        const previousConsistency = consistency;
+        const previousStats = stats;
+
+        // Update Optimista
+        setConsistency(prev => ({
+            ...prev,
+            [todayStr]: (prev[todayStr] || 0) + 1
+        }));
+
         try {
             await api.logRestDay();
-
-            setConsistency(prev => ({
-                ...prev,
-                [todayStr]: (prev[todayStr] || 0) + 1
-            }));
-
             const statsData = await api.getOverviewStats();
             setStats(statsData);
         } catch (error) {
+            // Rollback si falla
             console.error('Failed to log rest:', error);
+            setConsistency(previousConsistency);
+            setStats(previousStats);
+            toast.error('Error de conexión, no se pudo registrar el descanso');
         } finally {
             setLoggingRest(false);
         }

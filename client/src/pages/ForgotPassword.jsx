@@ -20,8 +20,10 @@ export default function ForgotPassword() {
         setError('');
         setLoading(true);
 
+        const trimmedUsername = username.trim();
         try {
-            const { question: q } = await api.getSecurityQuestion(username);
+            const { question: q } = await api.getSecurityQuestion(trimmedUsername);
+            setUsername(trimmedUsername);
             setQuestion(q);
             setStep(2);
         } catch (err) {

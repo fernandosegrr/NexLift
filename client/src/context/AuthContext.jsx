@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../services/api';
+import { unsubscribeFromPush } from '../utils/push';
 
 const AuthContext = createContext(null);
 
@@ -70,6 +71,11 @@ export function AuthProvider({ children }) {
     };
 
     const logout = () => {
+        // Best-effort: revocar la suscripción push de este dispositivo para que la
+        // siguiente persona que inicie sesión no siga recibiendo notificaciones de
+        // la cuenta anterior. Nunca debe bloquear ni fallar el logout.
+        unsubscribeFromPush().catch(() => {});
+
         setUser(null);
         setToken(null);
         localStorage.removeItem(TOKEN_KEY);
@@ -87,12 +93,25 @@ export function AuthProvider({ children }) {
         return updated;
     };
 
-    const refreshProfile = async () => {
-        if (!token) return;
-        const profile = await api.getProfile(token);
+    const refreshProfile = async (tokenOverride) => {
+        // Acepta un token explícito para el caso en que se llama justo después de
+        // updateToken() en el mismo tick: el `token` del closure aún no se actualizó
+        // (setState es asíncrono), así que sin el override se usaría el token viejo.
+        const effectiveToken = tokenOverride || token;
+        if (!effectiveToken) return;
+        const profile = await api.getProfile(effectiveToken);
         setUser(profile);
         localStorage.setItem(USER_KEY, JSON.stringify(profile));
         return profile;
+    };
+
+    // Persiste un token nuevo exactamente igual que login(), sin tocar user/otros
+    // datos. Usado cuando el backend rota el token (p.ej. al cambiar contraseña o
+    // pregunta de seguridad, que invalida los tokens previos) para que la sesión
+    // actual no se cierre sola.
+    const updateToken = (newToken) => {
+        setToken(newToken);
+        localStorage.setItem(TOKEN_KEY, newToken);
     };
 
     const value = {
@@ -104,7 +123,8 @@ export function AuthProvider({ children }) {
         register,
         logout,
         updateProfile,
-        refreshProfile
+        refreshProfile,
+        updateToken
     };
 
     return (

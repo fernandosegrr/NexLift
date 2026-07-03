@@ -27,9 +27,15 @@ model User {
   // Recuperación (pregunta de seguridad)
   securityQuestion  String?
   securityAnswerHash String?
-  
+
   // Estado
   isActive      Boolean   @default(true)
+
+  // Revocación de sesión: cambiar contraseña o pregunta de seguridad la incrementa,
+  // invalidando todos los JWT emitidos antes de ese momento (authMiddleware la
+  // compara contra la que trae el token). Los tokens duran 365 días y no hay otro
+  // mecanismo para revocar uno filtrado.
+  tokenVersion  Int       @default(0)
   
   // Timestamps
   createdAt     DateTime  @default(now())
@@ -89,6 +95,9 @@ model Exercise {
   routineDayId String
   routineDay   RoutineDay   @relation(fields: [routineDayId], references: [id], onDelete: Cascade)
   workoutLogs  WorkoutLog[]
+
+  @@index([routineDayId])
+  @@index([name])
 }
 
 // ==================== WORKOUTS ====================
@@ -97,9 +106,16 @@ model WorkoutLog {
   id          String    @id @default(cuid())
   date        DateTime  @default(now())
   exerciseId  String
-  exercise    Exercise  @relation(fields: [exerciseId], references: [id])
+  // onDelete explícito (antes implícito vía default de Postgres): un ejercicio con
+  // historial NUNCA se borra de verdad (ver getRecycleBinDay/archivo en index.js) —
+  // Restrict lo hace imposible también a nivel de base de datos, en vez de depender
+  // de que nadie "corrija" una relación que parecía incompleta agregando Cascade.
+  exercise    Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
   sets        SetLog[]
   notes       String?
+
+  @@index([exerciseId])
+  @@index([date])
 }
 
 model SetLog {

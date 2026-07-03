@@ -46,12 +46,15 @@ function getBMIRange(bmi) {
     return { label: 'Obesidad', color: 'text-red-400', bg: 'bg-red-500/20' };
 }
 
-// Helper: Calculate change over period
+// Helper: Calculate change over period. Returns the delta plus the actual elapsed
+// days between the two compared entries, since the closest reference log available
+// may be much further away than `days` (e.g. only one old entry from 6 months ago).
 function calculateChange(logs, field, days = 30) {
     const filtered = logs.filter(l => l[field] != null);
     if (filtered.length < 2) return null;
 
-    const latest = filtered[0][field];
+    const latestLog = filtered[0];
+    const latest = latestLog[field];
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
     const cutoffTime = cutoffDate.getTime();
@@ -70,7 +73,8 @@ function calculateChange(logs, field, days = 30) {
     }
 
     if (!reference) return null;
-    return (latest - reference[field]).toFixed(1);
+    const elapsedDays = Math.round((new Date(latestLog.date).getTime() - new Date(reference.date).getTime()) / (1000 * 60 * 60 * 24));
+    return { value: (latest - reference[field]).toFixed(1), days: elapsedDays };
 }
 
 // Fix timezone: parse date string as local, not UTC
@@ -297,8 +301,8 @@ export default function BodyTracking() {
                         <span className="text-sm font-normal text-[var(--text-secondary)] ml-1">kg</span>
                     </p>
                     {stats.weightChange && (
-                        <p className={`text-xs mt-1 ${parseFloat(stats.weightChange) > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {parseFloat(stats.weightChange) > 0 ? '+' : ''}{stats.weightChange} kg (30d)
+                        <p className={`text-xs mt-1 ${parseFloat(stats.weightChange.value) > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {parseFloat(stats.weightChange.value) > 0 ? '+' : ''}{stats.weightChange.value} kg ({Math.abs(stats.weightChange.days - 30) <= 3 ? '~30d' : `${stats.weightChange.days}d`})
                         </p>
                     )}
                 </div>

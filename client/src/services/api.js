@@ -7,13 +7,24 @@ function getAuthHeaders() {
     return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
+// Helper: fetch() envuelto para distinguir fallos de red (offline, DNS, timeout)
+// de respuestas HTTP normales. Un fetch() que revienta se ve igual que cualquier
+// otro error en el catch del caller si no se etiqueta aquí.
+async function safeFetch(url, options = {}) {
+    try {
+        return await fetch(url, options);
+    } catch (e) {
+        throw new Error('No se pudo conectar con el servidor. Revisa tu conexión.');
+    }
+}
+
 // Helper: Fetch with auth
 async function authFetch(url, options = {}) {
     const headers = {
         ...getAuthHeaders(),
         ...(options.headers || {})
     };
-    const res = await fetch(url, { ...options, headers });
+    const res = await safeFetch(url, { ...options, headers });
 
     // Token expirado/inválido: limpiar sesión y redirigir al login
     if (res.status === 401) {
@@ -266,7 +277,7 @@ export const api = {
     // ==========================================
 
     async login(username, password) {
-        const res = await fetch(`${API_URL}/auth/login`, {
+        const res = await safeFetch(`${API_URL}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password }),
@@ -277,7 +288,7 @@ export const api = {
     },
 
     async register(userData) {
-        const res = await fetch(`${API_URL}/auth/register`, {
+        const res = await safeFetch(`${API_URL}/auth/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(userData),
@@ -288,7 +299,7 @@ export const api = {
     },
 
     async getProfile(token) {
-        const res = await fetch(`${API_URL}/auth/me`, {
+        const res = await safeFetch(`${API_URL}/auth/me`, {
             headers: { 'Authorization': `Bearer ${token}` },
         });
         if (!res.ok) {
@@ -301,7 +312,7 @@ export const api = {
     },
 
     async updateProfile(token, data) {
-        const res = await fetch(`${API_URL}/auth/profile`, {
+        const res = await safeFetch(`${API_URL}/auth/profile`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -313,8 +324,18 @@ export const api = {
         return res.json();
     },
 
+    async updateAvatar(avatarBase64) {
+        const res = await authFetch(`${API_URL}/auth/avatar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ avatar: avatarBase64 }),
+        });
+        if (!res.ok) throw new Error('Failed to upload avatar');
+        return res.json();
+    },
+
     async changePassword(token, currentPassword, newPassword) {
-        const res = await fetch(`${API_URL}/auth/password`, {
+        const res = await safeFetch(`${API_URL}/auth/password`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -328,7 +349,7 @@ export const api = {
     },
 
     async getSecurityQuestion(username) {
-        const res = await fetch(`${API_URL}/auth/recover/question`, {
+        const res = await safeFetch(`${API_URL}/auth/recover/question`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username }),
@@ -339,7 +360,7 @@ export const api = {
     },
 
     async recoverPassword(username, answer, newPassword) {
-        const res = await fetch(`${API_URL}/auth/recover/verify`, {
+        const res = await safeFetch(`${API_URL}/auth/recover/verify`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, answer, newPassword }),
@@ -349,14 +370,14 @@ export const api = {
         return data;
     },
 
-    async updateSecurityQuestion(token, question, answer) {
-        const res = await fetch(`${API_URL}/auth/security-question`, {
+    async updateSecurityQuestion(token, question, answer, currentPassword) {
+        const res = await safeFetch(`${API_URL}/auth/security-question`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ question, answer }),
+            body: JSON.stringify({ question, answer, currentPassword }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to update security question');
