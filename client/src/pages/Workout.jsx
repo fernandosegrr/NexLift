@@ -190,6 +190,50 @@ function useExerciseHistory(exerciseId, targetReps, muscleGroup) {
     return { previousBest, suggestion, loading };
 }
 
+// Hook para el temporizador visual de descanso (respaldo cliente de la notificación
+// push de scheduleRestReminder, que no es fiable en iOS Safari/PWA). Cuenta hacia
+// atrás desde `seconds` y se puede reiniciar llamando a start() de nuevo.
+function useRestTimer() {
+    const [secondsLeft, setSecondsLeft] = useState(null); // null = sin temporizador activo
+    const [isDone, setIsDone] = useState(false);
+    const intervalRef = useRef(null);
+
+    const clear = useCallback(() => {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+        }
+    }, []);
+
+    const start = useCallback((seconds) => {
+        clear();
+        if (!seconds || seconds <= 0) return;
+        setIsDone(false);
+        setSecondsLeft(seconds);
+        intervalRef.current = setInterval(() => {
+            setSecondsLeft(prev => {
+                if (prev === null || prev <= 1) {
+                    clear();
+                    setIsDone(true);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+    }, [clear]);
+
+    const stop = useCallback(() => {
+        clear();
+        setSecondsLeft(null);
+        setIsDone(false);
+    }, [clear]);
+
+    // Limpieza al desmontar
+    useEffect(() => clear, [clear]);
+
+    return { secondsLeft, isDone, start, stop };
+}
+
 // ==================== COMPONENTES UI ====================
 
 const SkeletonLoader = () => (
@@ -420,6 +464,7 @@ export default function Workout() {
 
     // Custom hooks
     const { workoutData, setWorkoutData, completedExerciseIds, setCompletedExerciseIds, saveToStorage, clearStorage } = useWorkoutPersistence(dayId);
+    const restTimer = useRestTimer();
 
     const currentExercise = workoutState.exercises[workoutState.currentIndex];
     const { previousBest, suggestion } = useExerciseHistory(currentExercise?.id, currentExercise?.targetReps, currentExercise?.muscleGroup);
@@ -514,6 +559,11 @@ export default function Workout() {
         // Auto-detect unilateral from exercise DB field
         setIsUnilateral(exercise.isUnilateral || false);
         setCompletedAt(null);
+        // El descanso NO se cancela al cambiar de ejercicio: guardar una serie avanza
+        // automáticamente al siguiente ejercicio ~300ms después (más abajo), y sigues
+        // descansando mientras ves esa pantalla — cancelar aquí mataba el timer casi
+        // apenas aparecía. Solo se detiene al terminar, al tocar la X, o al salir del
+        // entreno (cleanup del hook).
         try {
             const history = await api.getExerciseHistory(exercise.id);
             if (currentExerciseIdRef.current !== exercise.id) return;
@@ -607,12 +657,20 @@ export default function Workout() {
         if (isAlreadyLogged || !suggestion) return;
         const w = suggestion.weight.toString();
         const r = suggestion.reps.toString();
-        setSets(prev => prev.map(s => {
-            const next = { ...s, weight: w, reps: r };
+        setSets(prev => {
+            // Rellena solo la primera serie vacía (sin peso Y sin reps) para no
+            // pisar series que el usuario ya completó a mano. Si no hay ninguna
+            // vacía, no hace nada.
+            const idx = prev.findIndex(s => !s.weight && !s.reps);
+            if (idx === -1) return prev;
+            const updated = [...prev];
+            const next = { ...updated[idx], weight: w, reps: r };
             // En unilateral rellenamos también el lado derecho (la sugerencia parte del lado débil)
             if (isUnilateral) { next.weightR = w; next.repsR = r; }
-            return next;
-        }));
+            next.completed = true;
+            updated[idx] = next;
+            return updated;
+        });
         toast.success('Sugerencia aplicada');
     }, [isAlreadyLogged, suggestion, isUnilateral, toast]);
 
@@ -690,6 +748,7 @@ export default function Workout() {
 
             toast.success('¡Guardado!');
             if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+            restTimer.start(currentExercise.restSeconds || 90);
 
             if (workoutState.currentIndex < workoutState.exercises.length - 1) {
                 setTimeout(() => goToExercise(workoutState.currentIndex + 1), 300);
@@ -726,6 +785,36 @@ export default function Workout() {
 
     return (
         <div className="min-h-[calc(100vh-80px)] max-w-lg mx-auto bg-[var(--bg-main)] px-4 py-4">
+
+            {/* Temporizador de descanso - respaldo visual de la notificación push (poco fiable en iOS PWA) */}
+            {restTimer.secondsLeft !== null && (
+                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-slide-down">
+                    <div className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-xl border backdrop-blur-sm transition-colors ${restTimer.isDone
+                        ? 'bg-[var(--success)]/90 border-[var(--success)] text-white'
+                        : 'bg-[var(--bg-card)]/95 border-[var(--primary)]/40 text-[var(--text-primary)]'
+                        }`}>
+                        {restTimer.isDone ? (
+                            <>
+                                <Check size={16} strokeWidth={3} />
+                                <span className="font-bold text-sm">¡Listo para la siguiente serie!</span>
+                            </>
+                        ) : (
+                            <>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Descansa</span>
+                                <span className="font-black text-lg tabular-nums leading-none">
+                                    {Math.floor(restTimer.secondsLeft / 60)}:{String(restTimer.secondsLeft % 60).padStart(2, '0')}
+                                </span>
+                            </>
+                        )}
+                        <button
+                            onClick={restTimer.stop}
+                            className="ml-1 p-1 -mr-1 rounded-full hover:bg-white/10 transition-colors active:scale-90"
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Header - Al inicio, se desplaza con el contenido */}
             <div className="flex items-center justify-between mb-6">

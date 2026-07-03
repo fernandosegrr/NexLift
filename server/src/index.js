@@ -247,41 +247,121 @@ if (VAPID_CONFIGURED) {
     );
 }
 
+// Envía un push a todas las suscripciones de un usuario, limpiando las que ya
+// expiraron/son inválidas (404/410). Compartido por scheduleRestReminder y
+// checkReengagementReminders.
+async function sendPushToUser(userId, payload) {
+    const subs = await prisma.pushSubscription.findMany({ where: { userId } });
+    for (const sub of subs) {
+        try {
+            await webpush.sendNotification(
+                { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                payload
+            );
+        } catch (err) {
+            if (err.statusCode === 404 || err.statusCode === 410) {
+                // Subscripción expirada/inválida: se limpia sola
+                await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
+            } else {
+                console.error('Error sending push notification:', err.message);
+            }
+        }
+    }
+    return subs.length;
+}
+
 async function scheduleRestReminder(userId, exercise) {
     if (!VAPID_CONFIGURED) return; // feature no configurada: no-op, no rompe el flujo de logging
     const restMs = (exercise.restSeconds || 90) * 1000;
 
     setTimeout(async () => {
         try {
-            const subs = await prisma.pushSubscription.findMany({ where: { userId } });
-            if (subs.length === 0) return;
-
-            const payload = JSON.stringify({
+            await sendPushToUser(userId, JSON.stringify({
                 title: 'Descanso terminado',
                 body: `Es hora de tu siguiente serie de ${exercise.name}`,
                 exerciseId: exercise.id
-            });
-
-            for (const sub of subs) {
-                try {
-                    await webpush.sendNotification(
-                        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-                        payload
-                    );
-                } catch (err) {
-                    if (err.statusCode === 404 || err.statusCode === 410) {
-                        // Subscripción expirada/inválida: se limpia sola
-                        await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
-                    } else {
-                        console.error('Error sending push notification:', err.message);
-                    }
-                }
-            }
+            }));
         } catch (err) {
             console.error('Error in scheduleRestReminder:', err.message);
         }
     }, restMs).unref?.();
 }
+
+// ============================================
+// RE-ENGAGEMENT: si el usuario lleva varios días sin entrenar y ahora mismo es
+// alrededor de su hora habitual de gym (inferida de su propio historial), le
+// manda un push. Se revisa cada 30 min; nunca más de uno por día por usuario
+// (lastReengagementNotifiedAt). Mismo criterio de tamaño que el resto del
+// proyecto: setInterval en memoria, sin colas ni cron externo.
+// ============================================
+const REENGAGEMENT_INACTIVE_DAYS = 3;
+
+// Hora del día (0-23, CDMX) más frecuente en las últimas sesiones reales del
+// usuario. null si no hay historial suficiente para inferir un patrón confiable.
+async function computeUsualGymHour(userId) {
+    const recentLogs = await prisma.workoutLog.findMany({
+        where: { exercise: { routineDay: { routine: { userId } } } },
+        orderBy: { date: 'desc' },
+        take: 40,
+        select: { date: true }
+    });
+    if (recentLogs.length < 5) return null;
+
+    const hourCounts = {};
+    for (const log of recentLogs) {
+        const hour = mexicoCityHour(log.date);
+        hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+    }
+    let bestHour = null, bestCount = 0;
+    for (const hour of Object.keys(hourCounts)) {
+        if (hourCounts[hour] > bestCount) { bestCount = hourCounts[hour]; bestHour = parseInt(hour, 10); }
+    }
+    return bestHour;
+}
+
+async function checkReengagementReminders() {
+    if (!VAPID_CONFIGURED) return;
+    try {
+        const now = new Date();
+        const nowHour = mexicoCityHour(now);
+        const todayStr = mexicoCityDateStr(now);
+
+        const users = await prisma.user.findMany({
+            where: { isActive: true },
+            select: { id: true, lastReengagementNotifiedAt: true }
+        });
+
+        for (const user of users) {
+            if (user.lastReengagementNotifiedAt && mexicoCityDateStr(user.lastReengagementNotifiedAt) === todayStr) {
+                continue; // ya se le avisó hoy
+            }
+
+            const lastLog = await prisma.workoutLog.findFirst({
+                where: { exercise: { routineDay: { routine: { userId: user.id } } } },
+                orderBy: { date: 'desc' },
+                select: { date: true }
+            });
+            if (!lastLog) continue; // sin historial todavía: nada que "retomar"
+
+            const daysSince = Math.floor((now.getTime() - lastLog.date.getTime()) / (24 * 60 * 60 * 1000));
+            if (daysSince < REENGAGEMENT_INACTIVE_DAYS) continue;
+
+            const usualHour = await computeUsualGymHour(user.id);
+            if (usualHour === null || usualHour !== nowHour) continue;
+
+            const sent = await sendPushToUser(user.id, JSON.stringify({
+                title: '¿No vas a entrenar hoy?',
+                body: `Llevas ${daysSince} días sin registrar un entreno — normalmente a esta hora ya andas en el gym.`
+            }));
+            if (sent === 0) continue; // sin suscripciones activas, no cuenta como "avisado"
+
+            await prisma.user.update({ where: { id: user.id }, data: { lastReengagementNotifiedAt: now } });
+        }
+    } catch (err) {
+        console.error('Error checking re-engagement reminders:', err.message);
+    }
+}
+setInterval(checkReengagementReminders, 30 * 60 * 1000).unref?.();
 
 // ============================================
 // PERSONAL RECORDS: recálculo derivado de los logs reales
@@ -552,6 +632,15 @@ function resolveTargetDate(dateParam) {
         return mexicoCityDayBounds(new Date(`${dateParam}T12:00:00Z`)).start;
     }
     return mexicoCityDayBounds(new Date()).start;
+}
+
+// Hora del día (0-23) de un instante, en CDMX — usado para inferir la hora
+// habitual de entrenar del usuario (ver checkReengagementReminders).
+function mexicoCityHour(date = new Date()) {
+    const h = parseInt(new Intl.DateTimeFormat('en-US', {
+        timeZone: APP_TIMEZONE, hour: '2-digit', hour12: false
+    }).format(date), 10);
+    return h === 24 ? 0 : h; // algunos runtimes devuelven "24" para medianoche
 }
 
 // ============================================
@@ -2739,13 +2828,31 @@ app.post('/api/goals', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
+        const cleanWeight = parseFloat(targetWeight);
+        const cleanReps = parseInt(targetReps);
+
+        // Evita crear el mismo objetivo dos veces (mismo ejercicio+peso+reps, sin
+        // cumplir todavía) — se encontró un caso real de esto sin ningún aviso.
+        const duplicate = await prisma.goal.findFirst({
+            where: {
+                userId: req.userId,
+                exerciseName: { equals: exerciseName, mode: 'insensitive' },
+                targetWeight: cleanWeight,
+                targetReps: cleanReps,
+                achievedAt: null
+            }
+        });
+        if (duplicate) {
+            return res.status(409).json({ error: 'Ya tienes un objetivo activo para ese ejercicio con ese peso y esas reps' });
+        }
+
         const goal = await prisma.goal.create({
             data: {
                 userId: req.userId,
                 exerciseName,
                 muscleGroup: muscleGroup || null,
-                targetWeight: parseFloat(targetWeight),
-                targetReps: parseInt(targetReps),
+                targetWeight: cleanWeight,
+                targetReps: cleanReps,
                 currentOneRepMax: currentOneRepMax ? parseFloat(currentOneRepMax) : null,
                 currentEightRepMax: currentEightRepMax ? parseFloat(currentEightRepMax) : null,
                 experienceLevel: experienceLevel || null,

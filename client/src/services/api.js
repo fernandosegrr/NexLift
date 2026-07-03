@@ -400,8 +400,9 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(goalData),
         });
-        if (!res.ok) throw new Error('Failed to create goal');
-        return res.json();
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create goal');
+        return data;
     },
 
     async deleteGoal(goalId) {

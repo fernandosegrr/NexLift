@@ -168,7 +168,7 @@ export default function NewGoal() {
             toast.success('Objetivo creado');
             navigate('/progress');
         } catch (err) {
-            toast.error('Error al crear objetivo');
+            toast.error(err.message || 'Error al crear objetivo');
         } finally {
             setSaving(false);
         }

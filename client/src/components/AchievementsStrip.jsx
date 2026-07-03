@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useRef, useState } from 'react';
-import { Award, Check, Lock } from 'lucide-react';
+import { Award, Check, Lock, X } from 'lucide-react';
 import { computeAchievements } from '../utils/achievements';
 import { useToast } from './ui/Toast';
 
@@ -15,11 +15,17 @@ export default function AchievementsStrip({ stats, prs = [] }) {
         [achievements]
     );
 
-    // Logro mostrado en el detalle: el que toque el usuario, o por defecto el próximo a conseguir.
-    const [selectedId, setSelectedId] = useState(null);
+    // Logro mostrado en el detalle superior: por defecto el próximo a conseguir.
     const detail = useMemo(
-        () => achievements.find(a => a.id === selectedId) || next || unlocked[unlocked.length - 1] || null,
-        [achievements, selectedId, next, unlocked]
+        () => next || unlocked[unlocked.length - 1] || null,
+        [next, unlocked]
+    );
+
+    // Logro tocado por el usuario: abre el modal con el detalle completo.
+    const [modalId, setModalId] = useState(null);
+    const modalAchievement = useMemo(
+        () => achievements.find(a => a.id === modalId) || null,
+        [achievements, modalId]
     );
 
     // Notifica logros recién desbloqueados (compara contra lo ya visto en localStorage).
@@ -99,8 +105,8 @@ export default function AchievementsStrip({ stats, prs = [] }) {
                     return (
                         <button
                             key={a.id}
-                            onClick={() => setSelectedId(a.id)}
-                            className={`relative flex flex-col items-center gap-1 rounded-xl p-2.5 border transition-all ${a.unlocked
+                            onClick={() => setModalId(a.id)}
+                            className={`relative flex flex-col items-center gap-1 rounded-xl p-2.5 border transition-all active:scale-95 ${a.unlocked
                                 ? 'bg-yellow-500/10 border-yellow-500/30'
                                 : 'bg-[var(--bg-dark)] border-[var(--border)]'
                                 } ${isSel ? 'ring-2 ring-[var(--primary)]' : ''}`}
@@ -124,6 +130,75 @@ export default function AchievementsStrip({ stats, prs = [] }) {
                     );
                 })}
             </div>
+
+            {/* Modal de detalle: se abre al tocar una medalla */}
+            {modalAchievement && (
+                <div
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end animate-fade-in"
+                    onClick={() => setModalId(null)}
+                >
+                    <div
+                        className="bg-[var(--bg-card)] w-full max-h-[80vh] rounded-t-3xl overflow-hidden flex flex-col shadow-2xl animate-slide-up"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between p-5 border-b border-[var(--border)]">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0 ${modalAchievement.unlocked ? 'bg-yellow-500/15' : 'bg-[var(--bg-dark)]'}`}>
+                                    <span className={modalAchievement.unlocked ? '' : 'grayscale opacity-40'}>{modalAchievement.emoji}</span>
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="font-bold text-lg text-[var(--text-primary)] truncate">{modalAchievement.title}</h3>
+                                    <p className="text-xs text-[var(--text-secondary)] mt-0.5">Logro</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setModalId(null)}
+                                className="p-2 bg-[var(--bg-dark)] rounded-full hover:bg-[var(--border)] transition-colors active:scale-90 shrink-0"
+                            >
+                                <X size={20} className="text-[var(--text-secondary)]" />
+                            </button>
+                        </div>
+
+                        <div className="p-5 overflow-y-auto overscroll-contain">
+                            <p className="text-sm text-[var(--text-secondary)] mb-4">{modalAchievement.desc}</p>
+
+                            {modalAchievement.unlocked ? (
+                                <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-xl p-3">
+                                    <span className="w-8 h-8 rounded-full bg-green-500 text-black flex items-center justify-center shrink-0">
+                                        <Check size={16} strokeWidth={3} />
+                                    </span>
+                                    <div>
+                                        <p className="font-bold text-green-400 text-sm">Conseguido</p>
+                                        <p className="text-xs text-[var(--text-secondary)]">
+                                            {modalAchievement.current}/{modalAchievement.target} — objetivo cumplido
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-[var(--bg-dark)]/50 rounded-xl p-3 border border-[var(--border)]">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs font-bold text-[var(--text-secondary)] flex items-center gap-1">
+                                            <Lock size={11} /> Progreso
+                                        </span>
+                                        <span className="text-sm font-bold text-[var(--text-primary)] tabular-nums">
+                                            {modalAchievement.current}/{modalAchievement.target}
+                                        </span>
+                                    </div>
+                                    <div className="h-2 w-full bg-[var(--bg-card)] rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full transition-all duration-700"
+                                            style={{ width: `${modalAchievement.pct}%` }}
+                                        />
+                                    </div>
+                                    <p className="text-[11px] text-[var(--text-secondary)] mt-2">
+                                        Te faltan {Math.max(0, modalAchievement.target - modalAchievement.current)} para conseguirlo.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

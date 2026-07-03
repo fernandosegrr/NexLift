@@ -36,6 +36,10 @@ model User {
   // compara contra la que trae el token). Los tokens duran 365 días y no hay otro
   // mecanismo para revocar uno filtrado.
   tokenVersion  Int       @default(0)
+
+  // Recordatorio de re-enganche: último día (CDMX) en que se le mandó el push de
+  // "¿no vas a entrenar hoy?" — evita mandarlo más de una vez por día.
+  lastReengagementNotifiedAt DateTime?
   
   // Timestamps
   createdAt     DateTime  @default(now())
