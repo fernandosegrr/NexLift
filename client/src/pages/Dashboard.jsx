@@ -281,12 +281,12 @@ export default function Dashboard() {
                                         to={`/workout/${nextDay.id}`}
                                         className="flex items-center justify-between bg-white/20 backdrop-blur-md rounded-xl p-4 hover:bg-white/30 active:scale-[0.98] transition-all border border-white/10"
                                     >
-                                        <div>
+                                        <div className="flex-1 min-w-0">
                                             <p className="text-white/70 text-xs font-medium">SIGUIENTE SESIÓN</p>
-                                            <p className="text-white font-bold text-lg mt-1">{nextDay.dayName}</p>
+                                            <p className="text-white font-bold text-lg mt-1 break-words">{nextDay.dayName}</p>
                                             <p className="text-white/80 text-sm">{nextDay.exercises?.length} ejercicios</p>
                                         </div>
-                                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-xl">
+                                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-xl shrink-0 ml-3">
                                             <Play size={22} className="text-[var(--primary)] ml-1" fill="currentColor" />
                                         </div>
                                     </Link>
