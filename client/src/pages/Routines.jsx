@@ -285,7 +285,16 @@ function RoutineCard({
                                     </button>
                                 )}
                                 <Link
+                                    to={`/routines/${routine.id}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="p-2 text-[var(--text-secondary)] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+                                    title="Ver detalle (incluye mesociclos)"
+                                >
+                                    <ChevronRight size={18} />
+                                </Link>
+                                <Link
                                     to={`/routines/${routine.id}/edit`}
+                                    onClick={(e) => e.stopPropagation()}
                                     className="p-2 text-[var(--text-secondary)] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
                                 >
                                     <Pencil size={18} />

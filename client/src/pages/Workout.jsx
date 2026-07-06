@@ -87,6 +87,22 @@ function roundWeight(w, increment, base) {
     return Math.round(w / grid) * grid;
 }
 
+// Ajusta el rango de reps objetivo según la fase del bloque activo (si hay uno) —
+// idéntico a server/src/index.js. NO modifica el rango guardado del ejercicio, solo
+// el usado para ESTA sugerencia: intensificación lo reduce a la mitad (más peso,
+// menos reps), acumulación sube el techo 50% (más reps antes de subir peso).
+// Descarga/personalizado/sin bloque activo: rango sin cambios.
+function adjustRepRangeForPhase(lo, hi, phase) {
+    if (phase === 'intensification') {
+        const newLo = Math.max(1, Math.round(lo * 0.5));
+        return { lo: newLo, hi: Math.max(newLo, Math.round(hi * 0.5)) };
+    }
+    if (phase === 'accumulation') {
+        return { lo, hi: Math.round(hi * 1.5) };
+    }
+    return { lo, hi };
+}
+
 /**
  * Sugerencia de peso y reps por DOBLE PROGRESIÓN.
  * Toma como referencia la SERIE DE TRABAJO MÁS FUERTE de la última sesión (mayor
@@ -97,9 +113,10 @@ function roundWeight(w, increment, base) {
  * - Si aún no -> mantén el peso y suma reps (1, o 2 si te sobró fuerza con RIR≥3).
  * Nunca sugiere bajar el peso de trabajo.
  */
-function computeSuggestion(sessions, targetReps, increment) {
+function computeSuggestion(sessions, targetReps, increment, phase = null) {
     if (!sessions || sessions.length === 0) return null;
-    const { lo, hi } = parseRepRange(targetReps);
+    const parsedRange = parseRepRange(targetReps);
+    const { lo, hi } = adjustRepRangeForPhase(parsedRange.lo, parsedRange.hi, phase);
 
     const working = (sessions[0].sets || [])
         .map(effectiveSet)
@@ -136,11 +153,11 @@ function computeSuggestion(sessions, targetReps, increment) {
     }
 
     if (weight <= 0 || reps <= 0) return null;
-    return { weight, reps, rationale, basedOn: sessions.length };
+    return { weight, reps, rationale, basedOn: sessions.length, phase };
 }
 
 // Hook para gestión de historial de ejercicio (mejor marca previa + sugerencia calculada)
-function useExerciseHistory(exerciseId, targetReps, muscleGroup, isDeload) {
+function useExerciseHistory(exerciseId, targetReps, muscleGroup, phase) {
     const [previousBest, setPreviousBest] = useState(null);
     const [suggestion, setSuggestion] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -176,12 +193,13 @@ function useExerciseHistory(exerciseId, targetReps, muscleGroup, isDeload) {
                 setPreviousBest(best);
 
                 const increment = muscleGroup === 'Piernas' ? 5 : 2.5;
-                const raw = computeSuggestion(sessions, targetReps, increment);
-                // Descarga: reduce el peso sugerido ~10% (misma rejilla de redondeo
-                // que la sugerencia normal). No toca `rationale` — el aviso visible
-                // vive aparte, en el banner/badge de la UI.
-                const adjusted = (raw && isDeload)
-                    ? { ...raw, weight: roundWeight(raw.weight * 0.9, increment, raw.weight), isDeload: true }
+                // El rango de reps ya se ajusta DENTRO de computeSuggestion según la
+                // fase (acumulación/intensificación). Descarga es la única que además
+                // reduce el peso final ~10% (misma rejilla de redondeo) — no toca
+                // `rationale`, el aviso visible vive aparte, en el banner/badge de la UI.
+                const raw = computeSuggestion(sessions, targetReps, increment, phase);
+                const adjusted = (raw && phase === 'deload')
+                    ? { ...raw, weight: roundWeight(raw.weight * 0.9, increment, raw.weight) }
                     : raw;
                 setSuggestion(adjusted);
             } catch {
@@ -193,7 +211,7 @@ function useExerciseHistory(exerciseId, targetReps, muscleGroup, isDeload) {
                 if (currentRequestRef.current === requestId) setLoading(false);
             }
         })();
-    }, [exerciseId, targetReps, muscleGroup, isDeload]);
+    }, [exerciseId, targetReps, muscleGroup, phase]);
 
     return { previousBest, suggestion, loading };
 }
@@ -472,6 +490,41 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
         prevProps.previousBest === nextProps.previousBest;
 });
 
+// Aviso visible por fase de bloque activo (requisito explícito: ajuste automático
+// pero siempre con aviso, nunca silencioso). Solo 'deload' usa el color warning —
+// las otras dos son fases normales de entrenamiento, no una alerta. Clases de
+// Tailwind escritas completas y literales a propósito (no interpoladas) — el
+// compilador de Tailwind no genera clases construidas en runtime.
+const PHASE_BANNER = {
+    deload: {
+        title: 'Semana de descarga',
+        desc: 'Sugerencias reducidas ~10% para facilitar la recuperación',
+        Icon: AlertTriangle,
+        wrapperClass: 'bg-[var(--warning)]/10 border-[var(--warning)]/20',
+        iconBoxClass: 'bg-[var(--warning)] text-black',
+        titleClass: 'text-[var(--warning)]',
+        descClass: 'text-[var(--warning)]/80'
+    },
+    intensification: {
+        title: 'Semana de intensificación',
+        desc: 'Menos repeticiones, más peso en la sugerencia — buscando fuerza real',
+        Icon: TrendingUp,
+        wrapperClass: 'bg-[var(--primary)]/10 border-[var(--primary)]/20',
+        iconBoxClass: 'bg-[var(--primary)] text-white',
+        titleClass: 'text-[var(--primary)]',
+        descClass: 'text-[var(--primary)]/80'
+    },
+    accumulation: {
+        title: 'Semana de acumulación',
+        desc: 'Más repeticiones por serie en la sugerencia — construyendo volumen',
+        Icon: Dumbbell,
+        wrapperClass: 'bg-[var(--primary)]/10 border-[var(--primary)]/20',
+        iconBoxClass: 'bg-[var(--primary)] text-white',
+        titleClass: 'text-[var(--primary)]',
+        descClass: 'text-[var(--primary)]/80'
+    }
+};
+
 // ==================== COMPONENTE PRINCIPAL ====================
 
 export default function Workout() {
@@ -484,7 +537,7 @@ export default function Workout() {
         exercises: [],
         currentIndex: 0,
         dayName: '',
-        isDeload: false,
+        phase: null, // fase del bloque activo de la rutina: 'accumulation'|'intensification'|'deload'|'custom'|null
         loading: true
     });
 
@@ -505,7 +558,7 @@ export default function Workout() {
     const restTimer = useRestTimer();
 
     const currentExercise = workoutState.exercises[workoutState.currentIndex];
-    const { previousBest, suggestion } = useExerciseHistory(currentExercise?.id, currentExercise?.targetReps, currentExercise?.muscleGroup, workoutState.isDeload);
+    const { previousBest, suggestion } = useExerciseHistory(currentExercise?.id, currentExercise?.targetReps, currentExercise?.muscleGroup, workoutState.phase);
 
     // Valores computados
     const isAlreadyLogged = useMemo(() =>
@@ -551,7 +604,7 @@ export default function Workout() {
                         ...prev,
                         exercises: day.exercises,
                         dayName: day.dayName,
-                        isDeload: !!routine.isDeload
+                        phase: routine.phase || null
                     }));
                     await checkCompletedExercises(day.exercises);
                     if (day.exercises.length > 0) {
@@ -960,14 +1013,14 @@ export default function Workout() {
 
             {/* Banner de Estado (Bloqueado/Sugerencias) */}
             <div className="mb-6 space-y-3 ml-4">
-                {workoutState.isDeload && (
-                    <div className="bg-[var(--warning)]/10 border border-[var(--warning)]/20 rounded-2xl p-4 flex items-center gap-3 animate-fade-in">
-                        <div className="bg-[var(--warning)] p-2 rounded-full text-black shadow-sm shrink-0">
-                            <AlertTriangle size={16} strokeWidth={2.5} />
+                {workoutState.phase && PHASE_BANNER[workoutState.phase] && (
+                    <div className={`${PHASE_BANNER[workoutState.phase].wrapperClass} border rounded-2xl p-4 flex items-center gap-3 animate-fade-in`}>
+                        <div className={`${PHASE_BANNER[workoutState.phase].iconBoxClass} p-2 rounded-full shadow-sm shrink-0`}>
+                            {(() => { const Icon = PHASE_BANNER[workoutState.phase].Icon; return <Icon size={16} strokeWidth={2.5} />; })()}
                         </div>
                         <div>
-                            <p className="font-bold text-[var(--warning)] text-sm">Semana de descarga</p>
-                            <p className="text-[var(--warning)]/80 text-xs">Sugerencias reducidas ~10% para facilitar la recuperación</p>
+                            <p className={`font-bold text-sm ${PHASE_BANNER[workoutState.phase].titleClass}`}>{PHASE_BANNER[workoutState.phase].title}</p>
+                            <p className={`text-xs ${PHASE_BANNER[workoutState.phase].descClass}`}>{PHASE_BANNER[workoutState.phase].desc}</p>
                         </div>
                     </div>
                 )}
@@ -1007,24 +1060,34 @@ export default function Workout() {
                                 )}
                             </div>
                         )}
-                        {suggestion && (
-                            <button
-                                onClick={applySuggestion}
-                                className="flex-1 p-3 flex flex-col items-center hover:bg-[var(--bg-dark)] transition-colors active:scale-95 group relative overflow-hidden"
-                            >
-                                <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity ${suggestion.isDeload ? 'bg-[var(--warning)]/5' : 'bg-[var(--success)]/5'}`} />
-                                <span className={`text-[10px] uppercase font-bold mb-1 flex items-center gap-1 ${suggestion.isDeload ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
-                                    {suggestion.isDeload ? 'Descarga' : 'Sugerido'} <Sparkles size={10} />
-                                </span>
-                                <div className={`flex items-end gap-1 group-hover:scale-105 transition-transform ${suggestion.isDeload ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
-                                    <span className="text-2xl font-black tracking-tight leading-none">{suggestion.weight}</span>
-                                    <span className="text-xs mb-0.5 font-bold">kg</span>
-                                    <span className="mx-1 text-[var(--border)]">/</span>
-                                    <span className="text-lg font-bold">{suggestion.reps}</span>
-                                    <span className="text-xs mb-0.5">reps</span>
-                                </div>
-                            </button>
-                        )}
+                        {suggestion && (() => {
+                            const label = suggestion.phase === 'deload' ? 'Descarga'
+                                : suggestion.phase === 'intensification' ? 'Intensificación'
+                                : suggestion.phase === 'accumulation' ? 'Acumulación'
+                                : 'Sugerido';
+                            const isWarning = suggestion.phase === 'deload';
+                            const isPhaseColored = suggestion.phase === 'intensification' || suggestion.phase === 'accumulation';
+                            const tintClass = isWarning ? 'bg-[var(--warning)]/5' : isPhaseColored ? 'bg-[var(--primary)]/5' : 'bg-[var(--success)]/5';
+                            const textClass = isWarning ? 'text-[var(--warning)]' : isPhaseColored ? 'text-[var(--primary)]' : 'text-[var(--success)]';
+                            return (
+                                <button
+                                    onClick={applySuggestion}
+                                    className="flex-1 p-3 flex flex-col items-center hover:bg-[var(--bg-dark)] transition-colors active:scale-95 group relative overflow-hidden"
+                                >
+                                    <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity ${tintClass}`} />
+                                    <span className={`text-[10px] uppercase font-bold mb-1 flex items-center gap-1 ${textClass}`}>
+                                        {label} <Sparkles size={10} />
+                                    </span>
+                                    <div className={`flex items-end gap-1 group-hover:scale-105 transition-transform ${textClass}`}>
+                                        <span className="text-2xl font-black tracking-tight leading-none">{suggestion.weight}</span>
+                                        <span className="text-xs mb-0.5 font-bold">kg</span>
+                                        <span className="mx-1 text-[var(--border)]">/</span>
+                                        <span className="text-lg font-bold">{suggestion.reps}</span>
+                                        <span className="text-xs mb-0.5">reps</span>
+                                    </div>
+                                </button>
+                            );
+                        })()}
                     </div>
 
                     {/* Explicación del cálculo - colapsable */}

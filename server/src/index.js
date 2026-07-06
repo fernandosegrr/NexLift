@@ -691,20 +691,38 @@ function detectPlateauForExercise(workoutLogs) {
     return recentBest <= olderBest;
 }
 
-// Fuente única de verdad para "está esta rutina en descarga ahora mismo". Prioridad
-// fija: un bloque de fase 'deload' activo manda siempre; si no hay bloques (o el
-// activo no es de descarga), cae al mecanismo adaptativo standalone. NINGÚN otro
-// lugar del código debe recalcular esto por su cuenta — todo lector nuevo debe
-// llamar a esta función.
+// Fuente única de verdad para "en qué fase está esta rutina ahora mismo". Prioridad
+// fija: un bloque activo (cualquier fase) manda siempre; si no hay ninguno, cae al
+// mecanismo adaptativo standalone (que solo conoce 'deload', no hay forma de
+// "acumular/intensificar automáticamente" sin un bloque configurado — ver discusión
+// con el usuario). NINGÚN otro lugar del código debe recalcular esto por su cuenta —
+// todo lector nuevo (suggestion, UI, lo que sea) debe llamar a esta función.
 function getRoutinePhaseStatus(routine) {
     const activeBlock = getActiveBlock(routine.blocks || []);
-    if (activeBlock?.phase === 'deload') {
-        return { isDeload: true, source: 'block', block: activeBlock };
+    if (activeBlock) {
+        return { isDeload: activeBlock.phase === 'deload', source: 'block', phase: activeBlock.phase, block: activeBlock };
     }
     if (routine.adaptiveDeloadUntil && routine.adaptiveDeloadUntil > new Date()) {
-        return { isDeload: true, source: 'adaptive', until: routine.adaptiveDeloadUntil };
+        return { isDeload: true, source: 'adaptive', phase: 'deload', until: routine.adaptiveDeloadUntil };
     }
-    return { isDeload: false, source: null };
+    return { isDeload: false, source: null, phase: null };
+}
+
+// Ajusta el rango de reps objetivo según la fase activa — NO modifica el rango
+// guardado del ejercicio (Exercise.targetReps), solo el usado para ESTA sugerencia:
+// - intensificación: rango a la mitad (menos reps -> exige más peso para llegar al tope)
+// - acumulación: techo del rango +50% (más reps antes de subir peso)
+// - descarga/personalizado/sin bloque activo: rango sin cambios (descarga solo ajusta
+//   el peso final, ver computeWorkoutSuggestion)
+function adjustRepRangeForPhase(lo, hi, phase) {
+    if (phase === 'intensification') {
+        const newLo = Math.max(1, Math.round(lo * 0.5));
+        return { lo: newLo, hi: Math.max(newLo, Math.round(hi * 0.5)) };
+    }
+    if (phase === 'accumulation') {
+        return { lo, hi: Math.round(hi * 1.5) };
+    }
+    return { lo, hi };
 }
 
 /**
@@ -713,9 +731,10 @@ function getRoutinePhaseStatus(routine) {
  * 1RM estimado), y a ese peso usa las MEJORES reps logradas. `sessions` debe venir
  * ordenado por fecha DESC (igual que GET /api/workouts/exercise/:id/history).
  */
-function computeWorkoutSuggestion(sessions, targetReps, increment) {
+function computeWorkoutSuggestion(sessions, targetReps, increment, phase = null) {
     if (!sessions || sessions.length === 0) return null;
-    const { lo, hi } = parseRepRange(targetReps);
+    const parsedRange = parseRepRange(targetReps);
+    const { lo, hi } = adjustRepRangeForPhase(parsedRange.lo, parsedRange.hi, phase);
 
     const working = (sessions[0].sets || [])
         .map(effectiveWorkoutSet)
@@ -1250,7 +1269,8 @@ app.get('/api/routines', authMiddleware, async (req, res) => {
         // marcada isActive.
         res.json(routines.map(r => {
             const activeBlock = getActiveBlock(r.blocks);
-            return { ...r, activeBlock, currentWeek: currentWeekInBlock(activeBlock), isDeload: getRoutinePhaseStatus(r).isDeload };
+            const phaseStatus = getRoutinePhaseStatus(r);
+            return { ...r, activeBlock, currentWeek: currentWeekInBlock(activeBlock), isDeload: phaseStatus.isDeload, phase: phaseStatus.phase };
         }));
     } catch (error) {
         console.error('Error fetching routines:', error);
@@ -1309,7 +1329,8 @@ app.get('/api/routines/active', authMiddleware, async (req, res) => {
         });
         if (!routine) return res.json(routine);
         const activeBlock = getActiveBlock(routine.blocks);
-        res.json({ ...routine, activeBlock, currentWeek: currentWeekInBlock(activeBlock), isDeload: getRoutinePhaseStatus(routine).isDeload });
+        const phaseStatus = getRoutinePhaseStatus(routine);
+        res.json({ ...routine, activeBlock, currentWeek: currentWeekInBlock(activeBlock), isDeload: phaseStatus.isDeload, phase: phaseStatus.phase });
     } catch (error) {
         console.error('Error fetching active routine:', error);
         res.status(500).json({ error: 'Failed to fetch active routine' });
@@ -1346,7 +1367,8 @@ app.get('/api/routines/:id', authMiddleware, async (req, res) => {
         }
 
         const activeBlock = getActiveBlock(routine.blocks);
-        res.json({ ...routine, activeBlock, currentWeek: currentWeekInBlock(activeBlock), isDeload: getRoutinePhaseStatus(routine).isDeload });
+        const phaseStatus = getRoutinePhaseStatus(routine);
+        res.json({ ...routine, activeBlock, currentWeek: currentWeekInBlock(activeBlock), isDeload: phaseStatus.isDeload, phase: phaseStatus.phase });
     } catch (error) {
         console.error('Error fetching routine:', error);
         res.status(500).json({ error: 'Failed to fetch routine' });
@@ -2372,7 +2394,8 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
             targetRepsRange: nextExercise.targetReps,
             restSeconds: nextExercise.restSeconds,
             isUnilateral: nextExercise.isUnilateral,
-            isDeload: phaseStatus.isDeload
+            isDeload: phaseStatus.isDeload,
+            phase: phaseStatus.phase
         };
 
         if (history.length === 0) {
@@ -2380,7 +2403,7 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
         }
 
         const increment = nextExercise.muscleGroup === 'Piernas' ? 5 : 2.5;
-        const suggestion = computeWorkoutSuggestion(history, nextExercise.targetReps, increment);
+        const suggestion = computeWorkoutSuggestion(history, nextExercise.targetReps, increment, phaseStatus.phase);
 
         if (!suggestion) {
             return res.json({ ...base, rationale: 'sin historial' });
