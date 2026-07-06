@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
+import { Portal } from '../components/ui/Portal';
 import { useAuth } from '../context/AuthContext';
 import { isPushSupported, getCurrentPushSubscription, subscribeToPush, unsubscribeFromPush } from '../utils/push';
 
@@ -1036,6 +1037,7 @@ export default function Settings() {
 
             {/* Delete Modal */}
             {deletingSession && (
+                <Portal>
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => !deleting && setDeletingSession(null)}>
                     <div className="bg-[var(--bg-card)]/95 backdrop-blur-md rounded-2xl p-6 max-w-sm w-full border border-[var(--border)]" onClick={e => e.stopPropagation()}>
                         <button onClick={() => !deleting && setDeletingSession(null)} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[var(--bg-dark)] flex items-center justify-center text-[var(--text-secondary)]">
@@ -1058,6 +1060,7 @@ export default function Settings() {
                         </div>
                     </div>
                 </div>
+                </Portal>
             )}
         </div>
     );

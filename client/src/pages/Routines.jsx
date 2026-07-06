@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
+import { Portal } from '../components/ui/Portal';
 
 export default function Routines() {
     // Estado unificado para evitar re-renders innecesarios
@@ -370,35 +371,37 @@ function EmptyState() {
 
 function DeleteModal({ routineName, onCancel, onConfirm }) {
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" onClick={onCancel}>
-            <div
-                className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-scale-in"
-                onClick={e => e.stopPropagation()}
-            >
-                <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4 mx-auto">
-                    <AlertTriangle className="text-red-500" size={24} />
-                </div>
+        <Portal>
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" onClick={onCancel}>
+                <div
+                    className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-scale-in"
+                    onClick={e => e.stopPropagation()}
+                >
+                    <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4 mx-auto">
+                        <AlertTriangle className="text-red-500" size={24} />
+                    </div>
 
-                <h3 className="text-xl font-bold text-center mb-2">¿Eliminar Rutina?</h3>
-                <p className="text-center text-[var(--text-secondary)] text-sm mb-6">
-                    Estás a punto de borrar <span className="text-white font-medium">"{routineName}"</span>. Esta acción no se puede deshacer.
-                </p>
+                    <h3 className="text-xl font-bold text-center mb-2">¿Eliminar Rutina?</h3>
+                    <p className="text-center text-[var(--text-secondary)] text-sm mb-6">
+                        Estás a punto de borrar <span className="text-white font-medium">"{routineName}"</span>. Esta acción no se puede deshacer.
+                    </p>
 
-                <div className="grid grid-cols-2 gap-3">
-                    <button
-                        onClick={onCancel}
-                        className="py-3 rounded-xl font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-dark)] transition-colors"
-                    >
-                        Cancelar
-                    </button>
-                    <button
-                        onClick={onConfirm}
-                        className="py-3 rounded-xl font-bold bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-900/20 active:scale-95 transition-all"
-                    >
-                        Sí, eliminar
-                    </button>
+                    <div className="grid grid-cols-2 gap-3">
+                        <button
+                            onClick={onCancel}
+                            className="py-3 rounded-xl font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-dark)] transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            onClick={onConfirm}
+                            className="py-3 rounded-xl font-bold bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-900/20 active:scale-95 transition-all"
+                        >
+                            Sí, eliminar
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </Portal>
     );
 }

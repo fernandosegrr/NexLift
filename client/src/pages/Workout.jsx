@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
+import { Portal } from '../components/ui/Portal';
 
 // ==================== CUSTOM HOOKS ====================
 
@@ -197,6 +198,12 @@ function useRestTimer() {
     const [secondsLeft, setSecondsLeft] = useState(null); // null = sin temporizador activo
     const [isDone, setIsDone] = useState(false);
     const intervalRef = useRef(null);
+    // Timestamp absoluto de fin, no un contador de ticks: los navegadores
+    // móviles pausan/limitan setInterval en segundo plano, así que un contador
+    // que solo resta 1 por tick se queda "congelado" en vez de reflejar el
+    // tiempo real transcurrido al volver. Con un endTime fijo, recalculamos
+    // contra Date.now() en cada tick y también al recuperar foco/visibilidad.
+    const endTimeRef = useRef(null);
 
     const clear = useCallback(() => {
         if (intervalRef.current) {
@@ -205,28 +212,51 @@ function useRestTimer() {
         }
     }, []);
 
+    const recompute = useCallback(() => {
+        if (endTimeRef.current === null) return;
+        const remaining = Math.max(0, Math.round((endTimeRef.current - Date.now()) / 1000));
+        if (remaining <= 0) {
+            clear();
+            endTimeRef.current = null;
+            setSecondsLeft(0);
+            setIsDone(true);
+        } else {
+            setSecondsLeft(remaining);
+        }
+    }, [clear]);
+
     const start = useCallback((seconds) => {
         clear();
         if (!seconds || seconds <= 0) return;
         setIsDone(false);
+        endTimeRef.current = Date.now() + seconds * 1000;
         setSecondsLeft(seconds);
-        intervalRef.current = setInterval(() => {
-            setSecondsLeft(prev => {
-                if (prev === null || prev <= 1) {
-                    clear();
-                    setIsDone(true);
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-    }, [clear]);
+        intervalRef.current = setInterval(recompute, 1000);
+    }, [clear, recompute]);
 
     const stop = useCallback(() => {
         clear();
+        endTimeRef.current = null;
         setSecondsLeft(null);
         setIsDone(false);
     }, [clear]);
+
+    // Al volver de segundo plano (app minimizada, pantalla bloqueada, cambio de
+    // pestaña), recalcula de inmediato en vez de esperar al siguiente tick del
+    // interval — que pudo no haber corrido en absoluto mientras no era visible.
+    useEffect(() => {
+        function handleResume() {
+            if (document.visibilityState === 'visible') recompute();
+        }
+        document.addEventListener('visibilitychange', handleResume);
+        window.addEventListener('focus', recompute);
+        window.addEventListener('pageshow', recompute); // iOS Safari bfcache
+        return () => {
+            document.removeEventListener('visibilitychange', handleResume);
+            window.removeEventListener('focus', recompute);
+            window.removeEventListener('pageshow', recompute);
+        };
+    }, [recompute]);
 
     // Limpieza al desmontar
     useEffect(() => clear, [clear]);
@@ -607,6 +637,34 @@ export default function Workout() {
     }
 
     // Handlers
+
+    // Descanso entre SERIES del mismo ejercicio: se dispara al marcar una serie
+    // como completada (no al terminar el ejercicio completo). El timer visual es
+    // la fuente principal; el push de respaldo se pide al backend en paralelo,
+    // sin bloquear la UI si falla (no es crítico, solo un aviso de refuerzo).
+    const triggerSetCompleted = useCallback(() => {
+        if (!currentExercise) return;
+        restTimer.start(currentExercise.restSeconds || 90);
+        api.scheduleRestReminder(currentExercise.id).catch(() => {});
+    }, [currentExercise, restTimer]);
+
+    // Detecta cuándo una fila pasa a completada para disparar triggerSetCompleted.
+    // Esto NO puede hacerse leyendo una variable seteada dentro del updater de
+    // setSets(prev => ...) e inspeccionada justo después de llamarlo — React no
+    // ejecuta ese updater de forma síncrona en ese punto, lo difiere a la fase de
+    // render, así que esa variable seguiría teniendo su valor inicial. Comparar
+    // contra el snapshot anterior en un efecto, que sí corre después de que React
+    // confirma el estado nuevo, es la forma correcta.
+    const prevSetsSnapshotRef = useRef({ exerciseId: null, sets: [] });
+    useEffect(() => {
+        const snapshot = prevSetsSnapshotRef.current;
+        if (currentExercise && snapshot.exerciseId === currentExercise.id) {
+            const justCompletedSomeSet = sets.some((s, i) => !snapshot.sets[i]?.completed && s.completed);
+            if (justCompletedSomeSet) triggerSetCompleted();
+        }
+        prevSetsSnapshotRef.current = { exerciseId: currentExercise?.id ?? null, sets };
+    }, [sets, currentExercise, triggerSetCompleted]);
+
     const updateSet = useCallback((index, field, value) => {
         if (isAlreadyLogged) return;
         // Validación básica para evitar negativos
@@ -617,12 +675,12 @@ export default function Workout() {
             const updated = [...prev];
             // Crear nuevo objeto para forzar re-render
             const newSet = { ...updated[index], [field]: value };
-            
+
             // Auto-complete: marcar como completado si tiene peso Y reps
             const hasWeight = field === 'weight' ? value !== '' : newSet.weight !== '';
             const hasReps = field === 'reps' ? value !== '' : newSet.reps !== '';
             newSet.completed = hasWeight && hasReps;
-            
+
             updated[index] = newSet;
             return updated;
         });
@@ -633,9 +691,9 @@ export default function Workout() {
         setSets(prev => {
             const updated = [...prev];
             // CREAR NUEVO OBJETO (no mutar) para forzar re-render
-            updated[index] = { 
-                ...updated[index], 
-                completed: !updated[index].completed 
+            updated[index] = {
+                ...updated[index],
+                completed: !updated[index].completed
             };
             return updated;
         });
@@ -677,8 +735,9 @@ export default function Workout() {
     function goToExercise(newIndex) {
         if (newIndex < 0 || newIndex >= workoutState.exercises.length) return;
 
-        // Scroll al inicio suavemente
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // Scroll al inicio suavemente. El contenedor con scroll real es <main>
+        // (ver Layout.jsx), no window — window.scrollTo aquí no hacía nada.
+        document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
 
         const currentExId = currentExercise.id;
         const updatedWorkoutData = { ...workoutData, [currentExId]: sets };
@@ -748,7 +807,9 @@ export default function Workout() {
 
             toast.success('¡Guardado!');
             if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
-            restTimer.start(currentExercise.restSeconds || 90);
+            // El timer ya arrancó al completar la última serie (updateSet/
+            // toggleComplete) — reiniciarlo aquí sería redundante y cortaría
+            // el descanso que ya lleva corriendo.
 
             if (workoutState.currentIndex < workoutState.exercises.length - 1) {
                 setTimeout(() => goToExercise(workoutState.currentIndex + 1), 300);
@@ -1036,6 +1097,7 @@ export default function Workout() {
 
             {/* History Modal */}
             {uiState.showHistory && (
+                <Portal>
                 <div
                     className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end animate-fade-in"
                     onClick={() => setUIState(prev => ({ ...prev, showHistory: false }))}
@@ -1114,6 +1176,7 @@ export default function Workout() {
                         </div>
                     </div>
                 </div>
+                </Portal>
             )}
         </div>
     );

@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import webpush from 'web-push';
+import { v2 as cloudinary } from 'cloudinary';
 import { isSameExercise, groupHistoryByExercise, bestOneRepMaxForTarget, epley1RM } from './utils/exerciseName.js';
 import { deduplicateExercises } from './services/exerciseAgent.js';
 
@@ -27,9 +28,22 @@ if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
 // Catbox upload function (inline to avoid external dependencies)
 const CATBOX_API = 'https://catbox.moe/user/api.php';
 
+// Cloudinary: CDN de imágenes con SLA real, a diferencia de Catbox (host gratuito
+// anónimo sin garantías). Opcional — si no está configurado, todo sigue cayendo a
+// Catbox como antes. Activar con CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET (ver
+// server/.env.example).
+const CLOUDINARY_CONFIGURED = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+if (CLOUDINARY_CONFIGURED) {
+    cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET
+    });
+}
+
 // Sniff de los primeros bytes: antes se forzaba Content-Type: image/jpeg sin
 // comprobar que los bytes decodificados fueran realmente una imagen, así que
-// cualquier binario podía subirse a Catbox disfrazado de foto.
+// cualquier binario podía subirse disfrazado de foto.
 function looksLikeImage(buffer) {
     if (buffer.length < 12) return false;
     if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) return true; // JPEG
@@ -39,45 +53,74 @@ function looksLikeImage(buffer) {
     return false;
 }
 
-async function uploadBase64ToCatbox(base64Data, extension = 'jpg') {
+async function uploadToCloudinary(base64Data) {
     try {
-        const base64Clean = base64Data.replace(/^data:image\/\w+;base64,/, '');
-        const buffer = Buffer.from(base64Clean, 'base64');
-        if (!looksLikeImage(buffer)) {
-            console.error('Catbox upload rejected: contenido no parece una imagen válida');
-            return null;
-        }
-        const filename = `nexlift_${Date.now()}.${extension}`;
-
-        // Create form data manually for fetch
-        const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
-        const body = Buffer.concat([
-            Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="reqtype"\r\n\r\nfileupload\r\n`),
-            Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="fileToUpload"; filename="${filename}"\r\nContent-Type: image/jpeg\r\n\r\n`),
-            buffer,
-            Buffer.from(`\r\n--${boundary}--\r\n`)
-        ]);
-
-        const response = await fetch(CATBOX_API, {
-            method: 'POST',
-            headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
-            body
+        const result = await cloudinary.uploader.upload(base64Data, {
+            folder: 'nexlift',
+            resource_type: 'image'
         });
-
-        if (!response.ok) throw new Error(`Catbox upload failed: ${response.status}`);
-        const url = (await response.text()).trim();
-        // No confiar a ciegas en lo que Catbox devuelva como texto — si alguna vez
-        // responde con una página de error en vez de una URL, eso NO debe guardarse
-        // como avatarUrl/photoUrl y servirse después como <img src>.
-        if (!/^https:\/\/files\.catbox\.moe\/.+/.test(url)) {
-            console.error('Catbox upload rejected: respuesta inesperada', url.slice(0, 100));
-            return null;
-        }
-        return url;
+        return result.secure_url;
     } catch (error) {
-        console.error('Catbox upload error:', error.message);
+        console.error('Cloudinary upload error:', error.message);
         return null;
     }
+}
+
+async function uploadBase64ToCatbox(base64Data, extension = 'jpg') {
+    const base64Clean = base64Data.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Clean, 'base64');
+    if (!looksLikeImage(buffer)) {
+        console.error('Catbox upload rejected: contenido no parece una imagen válida');
+        return null;
+    }
+    const filename = `nexlift_${Date.now()}.${extension}`;
+
+    // Create form data manually for fetch
+    const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
+    const body = Buffer.concat([
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="reqtype"\r\n\r\nfileupload\r\n`),
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="fileToUpload"; filename="${filename}"\r\nContent-Type: image/jpeg\r\n\r\n`),
+        buffer,
+        Buffer.from(`\r\n--${boundary}--\r\n`)
+    ]);
+
+    // Catbox es gratuito, anónimo y sin SLA — un fallo aislado (blip de red,
+    // timeout puntual) es más probable que un fallo real de la imagen, así que
+    // vale la pena reintentar un par de veces antes de darlo por perdido.
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+            const response = await fetch(CATBOX_API, {
+                method: 'POST',
+                headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+                body,
+                signal: AbortSignal.timeout(15000)
+            });
+
+            if (!response.ok) throw new Error(`Catbox upload failed: ${response.status}`);
+            const url = (await response.text()).trim();
+            // No confiar a ciegas en lo que Catbox devuelva como texto — si alguna vez
+            // responde con una página de error en vez de una URL, eso NO debe guardarse
+            // como avatarUrl/photoUrl y servirse después como <img src>.
+            if (!/^https:\/\/files\.catbox\.moe\/.+/.test(url)) {
+                throw new Error(`respuesta inesperada: ${url.slice(0, 100)}`);
+            }
+            return url;
+        } catch (error) {
+            console.error(`Catbox upload error (intento ${attempt}/${MAX_ATTEMPTS}):`, error.message);
+            if (attempt === MAX_ATTEMPTS) return null;
+            await new Promise(resolve => setTimeout(resolve, attempt * 800));
+        }
+    }
+    return null;
+}
+
+// Punto único de subida de fotos: usa Cloudinary si está configurado (más
+// confiable), si no cae a Catbox. Todos los endpoints de foto (avatar, cuerpo,
+// progreso) pasan por aquí para que el cambio de proveedor sea transparente.
+async function uploadPhoto(base64Data) {
+    if (CLOUDINARY_CONFIGURED) return uploadToCloudinary(base64Data);
+    return uploadBase64ToCatbox(base64Data, 'jpg');
 }
 
 // Auth middleware (inline to avoid external dependencies)
@@ -907,11 +950,11 @@ app.post('/api/auth/avatar', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: 'Avatar requerido' });
         }
 
-        // Upload to Catbox
+        // Upload
         let avatarUrl = null;
         if (avatar.startsWith('data:image') || avatar.length > 500) {
-            console.log('📸 Uploading avatar to Catbox...');
-            avatarUrl = await uploadBase64ToCatbox(avatar, 'jpg');
+            console.log('📸 Uploading avatar...');
+            avatarUrl = await uploadPhoto(avatar);
             if (!avatarUrl) {
                 return res.status(400).json({ error: 'No se pudo subir la imagen (formato inválido o error del servicio)' });
             }
@@ -1707,7 +1750,11 @@ app.post('/api/workouts/log', authMiddleware, async (req, res) => {
 
         // Recalcula el PR del ejercicio desde los logs reales (consistente, incluye unilateral)
         await recalcPRForExercise(exercise.name, req.userId);
-        scheduleRestReminder(req.userId, exercise);
+        // El aviso de descanso ya no se programa aquí: el frontend lo pide por
+        // cada serie individual vía POST /api/workouts/rest-reminder en cuanto
+        // se marca completada, en vez de una sola vez al guardar todo el
+        // ejercicio junto (dejarlo aquí también duplicaría el aviso de la
+        // última serie).
 
         res.status(201).json({
             message: 'Workout logged successfully!',
@@ -1716,6 +1763,32 @@ app.post('/api/workouts/log', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Error logging workout:', error);
         res.status(500).json({ error: 'Failed to log workout' });
+    }
+});
+
+// POST /api/workouts/rest-reminder - Programa el push de "descanso terminado"
+// para UNA serie, sin tocar WorkoutLog/SetLog. Existe aparte de POST
+// /api/workouts/log porque ese endpoint recibe TODAS las series de un
+// ejercicio en una sola llamada (batch) — este endpoint deja que el frontend
+// dispare el aviso por cada serie individual que se marca completada, sin
+// tener que rediseñar cómo se persisten los datos.
+app.post('/api/workouts/rest-reminder', authMiddleware, async (req, res) => {
+    try {
+        const { exerciseId } = req.body;
+        if (!exerciseId) {
+            return res.status(400).json({ error: 'Required: exerciseId' });
+        }
+        const exercise = await prisma.exercise.findFirst({
+            where: { id: exerciseId, routineDay: { routine: { userId: req.userId } } }
+        });
+        if (!exercise) {
+            return res.status(404).json({ error: 'Exercise not found or unauthorized' });
+        }
+        scheduleRestReminder(req.userId, exercise);
+        res.status(202).json({ message: 'Rest reminder scheduled' });
+    } catch (error) {
+        console.error('Error scheduling rest reminder:', error);
+        res.status(500).json({ error: 'Failed to schedule rest reminder' });
     }
 });
 
@@ -2573,34 +2646,32 @@ app.get('/api/body/logs', authMiddleware, async (req, res) => {
 app.post('/api/body/log', authMiddleware, async (req, res) => {
     try {
         const { weight, photo, note, bmi, bodyFat, muscleMass, bmr, bodyWater, visceralFat, boneMass, protein } = req.body;
-
-        // Acepta peso, foto O cualquier métrica de composición corporal
-        const hasData = weight || photo || bmi || bodyFat || muscleMass || bmr || bodyWater || visceralFat || boneMass || protein;
-        if (!hasData) {
-            return res.status(400).json({ error: 'Se requiere peso, foto o datos de composición corporal' });
-        }
+        const hasPhoto = !!photo;
 
         const { clean: cleanMetrics, error: metricsError } = sanitizeBodyMetrics({ weight, bmi, bodyFat, muscleMass, bmr, bodyWater, visceralFat, boneMass, protein });
         if (metricsError) return res.status(400).json({ error: metricsError });
+        const hasNonPhotoData = Object.values(cleanMetrics).some(v => v != null);
 
-        // Upload photo to Catbox if it's base64
+        if (!hasNonPhotoData && !hasPhoto) {
+            return res.status(400).json({ error: 'Se requiere peso, foto o datos de composición corporal' });
+        }
+
+        // Upload de la foto si viene en base64. uploadPhoto nunca lanza (captura
+        // sus propios errores y devuelve null) — antes esto se silenciaba del
+        // todo: se guardaba el registro igual con photoUrl: null y se
+        // respondía 201 "guardado" aunque la foto nunca subiera.
         let photoUrl = null;
-        if (photo) {
-            if (photo.startsWith('data:image') || photo.length > 500) {
-                // It's base64 data, upload to Catbox
-                try {
-                    console.log('📸 Uploading photo to Catbox...');
-                    photoUrl = await uploadBase64ToCatbox(photo, 'jpg');
-                    console.log('✅ Photo uploaded:', photoUrl);
-                } catch (uploadError) {
-                    console.error('❌ Catbox upload failed:', uploadError.message);
-                    // Continue without photo rather than failing entire request
-                    photoUrl = null;
-                }
-            } else {
-                // Already a URL
-                photoUrl = photo;
-            }
+        if (hasPhoto) {
+            photoUrl = (photo.startsWith('data:image') || photo.length > 500)
+                ? await uploadPhoto(photo)
+                : photo; // ya era una URL
+        }
+        const photoFailed = hasPhoto && !photoUrl;
+
+        // La foto era el único dato y falló: no crear un registro vacío, avisar
+        // para que se reintente.
+        if (photoFailed && !hasNonPhotoData) {
+            return res.status(502).json({ error: 'No se pudo subir la foto. Intenta de nuevo.' });
         }
 
         const bodyLog = await prisma.bodyLog.create({
@@ -2614,7 +2685,8 @@ app.post('/api/body/log', authMiddleware, async (req, res) => {
 
         res.status(201).json({
             message: 'Body log saved!',
-            bodyLog: { ...bodyLog, photo: bodyLog.photoUrl }
+            bodyLog: { ...bodyLog, photo: bodyLog.photoUrl },
+            photoFailed // true solo si había más datos y solo falló la foto
         });
     } catch (error) {
         console.error('Error saving body log:', error);
@@ -2699,16 +2771,16 @@ app.post('/api/body', authMiddleware, async (req, res) => {
         const { clean: cleanMetrics, error: metricsError } = sanitizeBodyMetrics({ weight });
         if (metricsError) return res.status(400).json({ error: metricsError });
 
-        // Upload photo to Catbox if it's base64
+        // Upload photo if it's base64
         let photoUrl = null;
         if (photo) {
             if (photo.startsWith('data:image') || photo.length > 500) {
                 try {
-                    console.log('📸 Uploading photo to Catbox (legacy)...');
-                    photoUrl = await uploadBase64ToCatbox(photo, 'jpg');
+                    console.log('📸 Uploading photo (legacy)...');
+                    photoUrl = await uploadPhoto(photo);
                     console.log('✅ Photo uploaded:', photoUrl);
                 } catch (uploadError) {
-                    console.error('❌ Catbox upload failed:', uploadError.message);
+                    console.error('❌ Photo upload failed:', uploadError.message);
                     photoUrl = null;
                 }
             } else {

@@ -7,6 +7,7 @@ import {
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ui/Toast';
+import { Portal } from '../components/ui/Portal';
 
 export default function Profile() {
     const navigate = useNavigate();
@@ -211,36 +212,38 @@ export default function Profile() {
 
             {/* Avatar Modal */}
             {showAvatarModal && user.avatarUrl && (
-                <div
-                    className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm"
-                    onClick={() => setShowAvatarModal(false)}
-                >
-                    <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
-                        <button
-                            onClick={() => setShowAvatarModal(false)}
-                            className="absolute -top-12 right-0 text-white/70 hover:text-white transition-colors p-2"
-                        >
-                            <X size={32} />
-                        </button>
-                        <img
-                            src={user.avatarUrl}
-                            alt={user.firstName}
-                            className="w-full h-auto rounded-2xl shadow-2xl border border-[var(--border)]"
-                        />
-                        <div className="mt-6 flex justify-center">
+                <Portal>
+                    <div
+                        className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm"
+                        onClick={() => setShowAvatarModal(false)}
+                    >
+                        <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
                             <button
-                                onClick={() => {
-                                    setShowAvatarModal(false);
-                                    handleAvatarClick();
-                                }}
-                                className="flex items-center gap-2 px-6 py-3 bg-[var(--primary)] text-white rounded-full font-medium hover:bg-purple-700 transition-colors shadow-lg shadow-purple-500/25"
+                                onClick={() => setShowAvatarModal(false)}
+                                className="absolute -top-12 right-0 text-white/70 hover:text-white transition-colors p-2"
                             >
-                                <Camera size={20} />
-                                Cambiar Foto
+                                <X size={32} />
                             </button>
+                            <img
+                                src={user.avatarUrl}
+                                alt={user.firstName}
+                                className="w-full h-auto rounded-2xl shadow-2xl border border-[var(--border)]"
+                            />
+                            <div className="mt-6 flex justify-center">
+                                <button
+                                    onClick={() => {
+                                        setShowAvatarModal(false);
+                                        handleAvatarClick();
+                                    }}
+                                    className="flex items-center gap-2 px-6 py-3 bg-[var(--primary)] text-white rounded-full font-medium hover:bg-purple-700 transition-colors shadow-lg shadow-purple-500/25"
+                                >
+                                    <Camera size={20} />
+                                    Cambiar Foto
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </Portal>
             )}
         </div>
     );

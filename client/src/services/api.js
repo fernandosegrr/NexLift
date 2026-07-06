@@ -156,6 +156,16 @@ export const api = {
         return res.json();
     },
 
+    async scheduleRestReminder(exerciseId) {
+        const res = await authFetch(`${API_URL}/workouts/rest-reminder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ exerciseId }),
+        });
+        if (!res.ok) throw new Error('Failed to schedule rest reminder');
+        return res.json();
+    },
+
     async logRestDay(note = null) {
         const res = await authFetch(`${API_URL}/workouts/log-rest`, {
             method: 'POST',
@@ -268,8 +278,9 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
         });
-        if (!res.ok) throw new Error('Failed to save body data');
-        return res.json();
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'Failed to save body data');
+        return result;
     },
 
     // ==========================================

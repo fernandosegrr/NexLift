@@ -7,6 +7,7 @@
 import { useState, useMemo } from 'react';
 import { Search, X, Plus, ChevronDown, ChevronRight, Dumbbell } from 'lucide-react';
 import MuscleIcon, { getMuscleColor, MUSCLE_LIST } from './ui/MuscleIcon';
+import { Portal } from './ui/Portal';
 import { EXERCISES, MUSCLE_GROUPS, searchExercises, getExercisesByMuscle, getMuscleGroup } from '../data/exercises';
 
 export default function ExerciseLibrary({
@@ -218,23 +219,25 @@ export function ExerciseLibraryModal({ isOpen, onClose, onSelectExercise }) {
     if (!isOpen) return null;
 
     return (
-        <div
-            className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
-            onClick={onClose}
-        >
+        <Portal>
             <div
-                className="w-full sm:max-w-md sm:rounded-xl rounded-t-2xl overflow-hidden animate-slide-up"
-                onClick={e => e.stopPropagation()}
+                className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
+                onClick={onClose}
             >
-                <ExerciseLibrary
-                    isOpen={true}
-                    onClose={onClose}
-                    onSelectExercise={(exercise) => {
-                        onSelectExercise(exercise);
-                        onClose();
-                    }}
-                />
+                <div
+                    className="w-full sm:max-w-md sm:rounded-xl rounded-t-2xl overflow-hidden animate-slide-up"
+                    onClick={e => e.stopPropagation()}
+                >
+                    <ExerciseLibrary
+                        isOpen={true}
+                        onClose={onClose}
+                        onSelectExercise={(exercise) => {
+                            onSelectExercise(exercise);
+                            onClose();
+                        }}
+                    />
+                </div>
             </div>
-        </div>
+        </Portal>
     );
 }

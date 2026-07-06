@@ -9,6 +9,7 @@ import { X, Dumbbell, Calendar, Trophy, ChevronRight, Sparkles } from 'lucide-re
 import { ROUTINE_TEMPLATES, getTemplate } from '../data/routineTemplates';
 import { EXERCISES } from '../data/exercises';
 import MuscleIcon from './ui/MuscleIcon';
+import { Portal } from './ui/Portal';
 
 // Mapeo de ejercicio ID a nombre
 const getExerciseName = (exerciseId) => {
@@ -51,6 +52,7 @@ export default function RoutineTemplateSelector({ isOpen, onClose, onSelectTempl
     };
 
     return (
+        <Portal>
         <div
             className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 animate-fade-in"
             onClick={onClose}
@@ -191,6 +193,7 @@ export default function RoutineTemplateSelector({ isOpen, onClose, onSelectTempl
                 </div>
             </div>
         </div>
+        </Portal>
     );
 }
 

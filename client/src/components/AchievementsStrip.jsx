@@ -2,6 +2,7 @@ import { useMemo, useEffect, useRef, useState } from 'react';
 import { Award, Check, Lock, X } from 'lucide-react';
 import { computeAchievements } from '../utils/achievements';
 import { useToast } from './ui/Toast';
+import { Portal } from './ui/Portal';
 
 const SEEN_KEY = 'nexlift_achievements_seen';
 
@@ -133,6 +134,7 @@ export default function AchievementsStrip({ stats, prs = [] }) {
 
             {/* Modal de detalle: se abre al tocar una medalla */}
             {modalAchievement && (
+                <Portal>
                 <div
                     className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end animate-fade-in"
                     onClick={() => setModalId(null)}
@@ -198,6 +200,7 @@ export default function AchievementsStrip({ stats, prs = [] }) {
                         </div>
                     </div>
                 </div>
+                </Portal>
             )}
         </div>
     );

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
+import { Portal } from '../components/ui/Portal';
 import { ROUTINE_TEMPLATES, getTemplate } from '../data/routineTemplates';
 import { EXERCISES, searchExercises, getExercisesByMuscle } from '../data/exercises';
 import MuscleIcon, { MUSCLE_LIST } from '../components/ui/MuscleIcon';
@@ -565,6 +566,7 @@ export default function CreateRoutine() {
 
       {/* ========== EXERCISE LIBRARY MODAL (FULL SCREEN MOBILE) ========== */}
       {showExerciseLibrary && (
+        <Portal>
         <div className="fixed inset-0 bg-black z-50 flex flex-col animate-in slide-in-from-bottom-5">
           {/* Modal Header */}
           <div className="p-4 border-b border-white/10 flex items-center gap-3 shrink-0 bg-[var(--bg-base)]">
@@ -641,6 +643,7 @@ export default function CreateRoutine() {
             )}
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );

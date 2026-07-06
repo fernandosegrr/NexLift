@@ -7,6 +7,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, CartesianGrid, Area, AreaChart } from 'recharts';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
+import { Portal } from '../components/ui/Portal';
 import GoalSection from '../components/goals/GoalSection';
 import { epley1RM, classifyLift } from '../utils/strength';
 
@@ -356,6 +357,7 @@ function ExerciseSelector({ exercises, selected, onSelect, loading }) {
             </button>
 
             {showModal && (
+                <Portal>
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end animate-fade-in" onClick={() => setShowModal(false)}>
                     <div className="bg-[var(--bg-card)] w-full max-h-[80vh] rounded-t-3xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
                         <div className="p-4 border-b border-[var(--border)] sticky top-0 bg-[var(--bg-card)] z-10">
@@ -427,6 +429,7 @@ function ExerciseSelector({ exercises, selected, onSelect, loading }) {
                         </div>
                     </div>
                 </div>
+                </Portal>
             )}
         </>
     );

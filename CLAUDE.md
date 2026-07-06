@@ -30,11 +30,14 @@ No existe `server/prisma/migrations/` — el schema siempre se ha sincronizado c
 ## Deploy (VPS + EasyPanel + Docker)
 - `Dockerfile` (raíz): build multi-stage → compila el cliente, genera Prisma y arranca `server` (que sirve `client/dist` + API en el mismo puerto).
 - **Variables de entorno obligatorias en EasyPanel:** `DATABASE_URL`, `JWT_SECRET` (el server NO arranca en producción sin `JWT_SECRET`), `NODE_ENV=production`. Opcional: `PORT`.
-- **Variables opcionales (nuevas funciones, degradan sin romper si faltan):** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` (Web Push de recordatorio de descanso — sin ellas, `scheduleRestReminder` es no-op), `OPENAI_API_KEY` (deduplicación de ejercicios al importar rutinas — sin ella, cae al matching determinista por `canonicalExerciseKey`). Ver `server/.env.example`.
+- **Variables opcionales (nuevas funciones, degradan sin romper si faltan):** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` (Web Push de recordatorio de descanso — sin ellas, `scheduleRestReminder` es no-op), `OPENAI_API_KEY` (deduplicación de ejercicios al importar rutinas — sin ella, cae al matching determinista por `canonicalExerciseKey`), `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET` (avatar/fotos de progreso — sin ellas, `uploadPhoto()` cae a Catbox como antes). Ver `server/.env.example`.
 
 ## Design System
 - OLED black (`#0a0a0a`), card bg (`#141414`), primary violet (`#8b5cf6`)
 - All UI is mobile-first, dark theme only
+
+## Modales: siempre con `<Portal>`
+Cualquier overlay `fixed inset-0` (modal, visor de foto, selector) DEBE envolverse en `client/src/components/ui/Portal.jsx` (`createPortal` a `document.body`). Razón: las animaciones de entrada (`animate-fade-in`/`slide-up`/`scale-in`, en `index.css`) usan `transform` con `animation-fill-mode: forwards`, que deja el elemento marcado como transformado para siempre (aunque visualmente no se note) — eso convierte a cualquier ancestro animado en el *containing block* de sus descendientes `position: fixed`, sacándolos de "fijo al viewport" y dejándolos posicionados como si fueran parte del contenido con scroll. Sin `Portal`, un modal nuevo se ve bien al probarlo sin scroll y se rompe (aparece cientos de píxeles fuera de pantalla) en cuanto la página tiene scroll real.
 
 ## Date Handling
 - DB stores UTC. Frontend must convert to local for display.
@@ -47,14 +50,15 @@ No existe `server/prisma/migrations/` — el schema siempre se ha sincronizado c
 - Rate limiting en memoria (`rateLimit()` en `index.js`) — soporta un `keyFn` opcional para limitar por cuenta además de por IP (usado en recuperación de contraseña).
 
 ## Recordatorios (Web Push)
-- `scheduleRestReminder`: aviso de fin de descanso tras registrar una serie (además hay un temporizador visual en `Workout.jsx` como respaldo, porque el push no es fiable en iOS Safari/PWA).
+- `scheduleRestReminder`: aviso de fin de descanso. Se dispara por CADA serie individual marcada completada en `Workout.jsx` (vía `POST /api/workouts/rest-reminder`, llamado desde un único `useEffect` en `Workout.jsx` que compara el estado de `sets` contra un snapshot del render anterior — no desde `updateSet`/`toggleComplete` directamente, porque leer una variable seteada dentro del updater de `setSets(prev => ...)` justo después de llamarlo NO funciona: React difiere la ejecución del updater a la fase de render). El endpoint es independiente de `POST /api/workouts/log` (que guarda TODAS las series de un ejercicio en una sola llamada) precisamente para no tener que rediseñar cómo se persisten los datos solo para poder avisar por serie.
+- El temporizador visual en pantalla (`useRestTimer`, `Workout.jsx`) es la fuente principal (el push es respaldo, poco fiable en iOS Safari/PWA) y se basa en un timestamp absoluto (`Date.now() + segundos`), no un contador de ticks — recalcula contra la hora real en cada tick y al volver de segundo plano (`visibilitychange`/`focus`/`pageshow`), para no quedarse "congelado" mientras la app estuvo en background.
 - `checkReengagementReminders` (revisa cada 30 min): infiere la hora habitual de gym del usuario desde su historial real y manda "¿no vas a entrenar hoy?" si lleva 3+ días sin registrar nada, esa hora, máximo una vez al día (`User.lastReengagementNotifiedAt`).
-- Ambos son no-op si `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` no están configuradas.
+- Todo lo anterior es no-op si `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` no están configuradas. El service worker (`sw.js`) usa `tag: rest-${exerciseId}` + `renotify: true` para que un aviso nuevo del mismo ejercicio reemplace al anterior en vez de apilarse.
 
 ## Images
-No binary storage. Frontend → Base64 → Backend → Catbox.moe API → URL stored in DB.
+No binary storage. Frontend → Base64 → Backend → `uploadPhoto()` → URL stored in DB. `uploadPhoto()` (server/src/index.js) uses Cloudinary if `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET` are configured (más confiable, con SLA), si no cae a la API de Catbox.moe (host anónimo gratuito, sin garantías — reintenta 3 veces antes de darlo por fallido). Migración de fotos existentes en Catbox hacia Cloudinary: `server/migrate-catbox-to-cloudinary.mjs` (correr una vez que las credenciales de Cloudinary estén en `.env`).
 
-## Current Version: 2.2.0
+## Current Version: 2.3.0
 
 ## Conventions
 - Spanish UI, Spanish commit messages preferred

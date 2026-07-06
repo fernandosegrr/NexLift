@@ -3,6 +3,7 @@ import { Scale, Camera, TrendingUp, Plus, X, Check, Activity, Droplet, Dumbbell,
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from 'recharts';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
+import { Portal } from '../components/ui/Portal';
 
 // Compress image to max 1200px and 85% quality
 async function compressImage(file, maxSize = 1200, quality = 0.85) {
@@ -202,7 +203,7 @@ export default function BodyTracking() {
 
         setSaving(true);
         try {
-            await api.logBodyData({
+            const result = await api.logBodyData({
                 weight: weight ? parseFloat(weight) : null,
                 photo: photoData,
                 note: note || null,
@@ -216,11 +217,15 @@ export default function BodyTracking() {
                 protein: protein ? parseFloat(protein) : null
             });
 
-            toast.success('¡Datos guardados!');
+            if (result.photoFailed) {
+                toast.error('Datos guardados, pero la foto no se pudo subir. Intenta subirla de nuevo.');
+            } else {
+                toast.success('¡Datos guardados!');
+            }
             clearForm();
             fetchData();
         } catch (error) {
-            toast.error('Error al guardar');
+            toast.error(error.message || 'Error al guardar');
         } finally {
             setSaving(false);
         }
@@ -699,35 +704,37 @@ export default function BodyTracking() {
 
             {/* Photo Modal */}
             {showPhotoModal && selectedPhoto && (
-                <div
-                    className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 animate-fade-in"
-                    onClick={() => setShowPhotoModal(false)}
-                >
-                    <div className="max-w-md w-full" onClick={e => e.stopPropagation()}>
-                        <img
-                            src={selectedPhoto.photo}
-                            alt="Progreso"
-                            className="w-full rounded-xl"
-                        />
-                        <div className="text-center mt-3">
-                            <p className="text-white font-medium">
-                                {formatLocalDate(selectedPhoto.date, { day: 'numeric', month: 'long', year: 'numeric' })}
-                            </p>
-                            {selectedPhoto.weight && (
-                                <p className="text-[var(--primary)] text-lg font-bold mt-1">{selectedPhoto.weight.toFixed(1)} kg</p>
-                            )}
-                            {selectedPhoto.note && (
-                                <p className="text-[var(--text-secondary)] text-sm mt-1">{selectedPhoto.note}</p>
-                            )}
+                <Portal>
+                    <div
+                        className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 animate-fade-in"
+                        onClick={() => setShowPhotoModal(false)}
+                    >
+                        <div className="max-w-md w-full" onClick={e => e.stopPropagation()}>
+                            <img
+                                src={selectedPhoto.photo}
+                                alt="Progreso"
+                                className="w-full rounded-xl"
+                            />
+                            <div className="text-center mt-3">
+                                <p className="text-white font-medium">
+                                    {formatLocalDate(selectedPhoto.date, { day: 'numeric', month: 'long', year: 'numeric' })}
+                                </p>
+                                {selectedPhoto.weight && (
+                                    <p className="text-[var(--primary)] text-lg font-bold mt-1">{selectedPhoto.weight.toFixed(1)} kg</p>
+                                )}
+                                {selectedPhoto.note && (
+                                    <p className="text-[var(--text-secondary)] text-sm mt-1">{selectedPhoto.note}</p>
+                                )}
+                            </div>
+                            <button
+                                onClick={() => setShowPhotoModal(false)}
+                                className="w-full mt-4 bg-[var(--bg-card)] text-white py-3 rounded-xl font-medium hover:bg-[var(--border)] transition-colors"
+                            >
+                                Cerrar
+                            </button>
                         </div>
-                        <button
-                            onClick={() => setShowPhotoModal(false)}
-                            className="w-full mt-4 bg-[var(--bg-card)] text-white py-3 rounded-xl font-medium hover:bg-[var(--border)] transition-colors"
-                        >
-                            Cerrar
-                        </button>
                     </div>
-                </div>
+                </Portal>
             )}
         </div>
     );

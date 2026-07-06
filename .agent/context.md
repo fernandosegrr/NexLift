@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 2.2.0 | **Última actualización:** 3 Julio 2026
+> **Versión:** 2.3.0 | **Última actualización:** 6 Julio 2026
 
 ---
 
@@ -27,7 +27,7 @@
 ```
 Frontend:  React 18 + Vite + Tailwind CSS 4 + Recharts
 Backend:   Express.js + Prisma ORM + PostgreSQL
-Fotos:     Catbox.moe (almacenamiento gratuito ilimitado)
+Fotos:     Cloudinary (si está configurado) con fallback a Catbox.moe (uploadPhoto())
 Deploy:    VPS (Ubuntu + EasyPanel + Docker) | Local
 Formatos:  PDF (jsPDF + html2canvas) | JSON (Backup/Restore)
 ```
@@ -81,7 +81,7 @@ Página crítica para registrar el entrenamiento del día. Ha recibido actualiza
   - "Ver historial": Modal con sesiones pasadas.
   - Guardado por ejercicio (granularidad) y finalización global.
   - Persistencia local: `useWorkoutPersistence` guarda en `localStorage` cada keystroke para evitar pérdida de datos si se cierra la app.
-  - **Temporizador de descanso visual** (`useRestTimer`, v2.2.0): cuenta regresiva en pantalla tras guardar una serie, respaldo del push de `scheduleRestReminder` (poco fiable en iOS Safari/PWA). Persiste a través del auto-avance de ejercicio — solo se detiene al terminar, al tocar la X, o al salir del entreno.
+  - **Temporizador de descanso visual** (`useRestTimer`, v2.2.0, corregido a fondo en v2.3.0): cuenta regresiva en pantalla al marcar CADA serie individual como completada (no solo al terminar el ejercicio) — respaldo del push de `scheduleRestReminder` (poco fiable en iOS Safari/PWA), que ahora también se dispara por serie vía `POST /api/workouts/rest-reminder`. Basado en timestamp absoluto (no un contador de ticks), así que se recalcula correctamente al volver de segundo plano en vez de quedarse congelado. Persiste a través del auto-avance de ejercicio — solo se detiene al terminar, al tocar la X, o al salir del entreno.
 
 **API usada:**
 - `GET /api/routines` - Obtener estructura del día
@@ -144,9 +144,9 @@ Seguimiento de composición corporal completo (Actualizado v1.9.2):
   - *Básico:* Peso, Foto.
   - *Avanzado (Expandible):* Grasa %, Agua %, Músculo kg, Hueso, Visceral, Proteína, BMR, BMI.
 - **Galería de Fotos:**
-  - Integración con Catbox.moe.
+  - Sube a Cloudinary si está configurado (v2.3.0), si no cae a Catbox.moe (`uploadPhoto()` en el backend).
   - Grid de fotos ordenadas cronológicamente.
-  - Comparador visual (Modal).
+  - Comparador visual (Modal, envuelto en `Portal` desde v2.3.0 — ver Gotcha #3).
 - **Gráficos:** Tabs para alternar entre Peso, Grasa Corporal y Masa Muscular a lo largo del tiempo.
 
 **API usada:**
@@ -495,9 +495,15 @@ Desde v1.9.9 hay **un solo backend**: `server/src/index.js`. Existe una sola cop
 ### 3. Imágenes
 No almacenamos binarios.
 1.  Frontend recibe archivo -> Convierte a Base64.
-2.  Backend recibe Base64 -> Sube a Catbox API -> Recibe URL.
-3.  DB guarda `https://files.catbox.moe/xyz.jpg`.
-4.  Backend valida (v2.2.0) que el contenido decodificado sea realmente una imagen (firma de bytes) antes de subirlo, y que la URL de respuesta de Catbox tenga el formato esperado antes de guardarla.
+2.  Backend recibe Base64 -> `uploadPhoto()` -> Recibe URL.
+3.  `uploadPhoto()` (v2.3.0) usa Cloudinary si `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET` están configuradas (servicio con SLA real); si no, cae a la API de Catbox.moe (host anónimo gratuito, sin garantías) con 3 reintentos antes de darlo por fallido.
+4.  DB guarda la URL resultante (`https://res.cloudinary.com/...` o `https://files.catbox.moe/...`).
+5.  Backend valida que el contenido decodificado sea realmente una imagen (firma de bytes) antes de subirlo a Catbox, y que la URL de respuesta tenga el formato esperado antes de guardarla.
+6.  Si la foto falla y era el único dato del registro (v2.3.0), no se crea un registro vacío — se responde error para reintentar. Si había más datos (peso, métricas), se guardan igual y se marca `photoFailed: true` en la respuesta para que el frontend avise sin perder lo demás.
+7.  Migración de fotos ya alojadas en Catbox hacia Cloudinary: `server/migrate-catbox-to-cloudinary.mjs` (correr una vez con las credenciales de Cloudinary en `.env`; seguro de re-correr, solo toca lo que siga en Catbox).
+
+### 3.1. Modales y `position: fixed`
+Cualquier overlay `fixed inset-0` (modal, visor de foto) DEBE ir envuelto en `client/src/components/ui/Portal.jsx` (`createPortal` a `document.body`). Causa raíz (v2.3.0): las animaciones de entrada (`animate-fade-in`/`slide-up`/`scale-in` en `index.css`) usan `transform` con `animation-fill-mode: forwards`, que dejan el elemento "transformado" para siempre a ojos del navegador (aunque visualmente sea un no-op) — y cualquier ancestro con un `transform` computado distinto de `none` se convierte en el *containing block* de sus descendientes `position: fixed`, sacándolos de "fijo al viewport" y dejándolos posicionados como si fueran parte del contenido con scroll (aparecen centenares de píxeles fuera de pantalla en cuanto la página tiene scroll real). Confirmado en vivo midiendo el `getBoundingClientRect()` de un modal roto antes del fix. `Portal` es agnóstico a la causa exacta: saca el modal del árbol afectado por completo.
 
 ### 4. Sin tests automatizados
 No existe ninguna suite de tests. Cualquier cambio a lógica de fechas, PRs, rutinas o autenticación debe probarse a mano (levantar `server`+`client`, probar en navegador contra datos reales) antes de darlo por bueno — no hay red de seguridad que atrape una regresión. El bug de zona horaria de v2.2.0 es el ejemplo directo de lo que pasa sin esto: se "arregló" 3 veces en sitios distintos antes de resolverse por completo.
@@ -517,7 +523,18 @@ Para mantener esta documentación al día:
 
 ## 📋 Changelog Histórico
 
-### v2.2.0 (3 Julio 2026) - **Current**
+### v2.3.0 (6 Julio 2026) - **Current**
+Origen: 4 problemas de experiencia real reportados por el usuario (scroll que salta, foto de progreso que no se guarda, timer de descanso entre ejercicios en vez de series, notificaciones que se apilan), investigados y corregidos uno por uno con verificación en vivo contra la cuenta de producción.
+
+*   **FIX CRÍTICO — Scroll salta al inicio al abrir modales:** causa raíz no era la sospechada inicialmente (ni scroll-anchoring del navegador, ni `autoFocus`): las animaciones de entrada (`animate-fade-in`/`slide-up`/`scale-in`, `index.css`) usan `transform` con `animation-fill-mode: forwards`, que deja el elemento marcado como transformado para siempre (aunque visualmente sea idéntico a `transform: none`) — y **cualquier ancestro con un `transform` computado distinto de `none` se convierte en el containing block de sus descendientes `position: fixed`**, sacándolos de "fijo al viewport". Confirmado midiendo en vivo el `getBoundingClientRect()` de un modal roto (aparecía cientos de píxeles fuera de pantalla). Nuevo componente `client/src/components/ui/Portal.jsx` (`createPortal` a `document.body`) aplicado en los 10 overlays `fixed inset-0` de la app (BodyTracking, Routines, Profile, AchievementsStrip, Progress, ExerciseLibrary, RoutineTemplateSelector, Workout, Settings, Import). También corregido `Workout.jsx` `goToExercise()`: llamaba `window.scrollTo()`, que nunca hacía nada porque `<main>` (no `window`) es el contenedor real con scroll (ver Layout.jsx).
+*   **FIX — Foto de progreso se guardaba "vacía" sin avisar:** si la subida a Catbox fallaba, el backend igual creaba el registro (`photoUrl: null`) y respondía éxito — confirmado con un registro real encontrado en producción, fechado el mismo día del reporte, completamente vacío. Ahora `POST /api/body/log` distingue dos casos: si la foto era el único dato y falla, responde error (502) sin crear el registro; si había más datos (peso, métricas), los guarda igual y marca `photoFailed: true` para que el frontend avise sin perder lo demás. Se añadió timeout (15s) y 3 reintentos a la subida.
+*   **FEATURE — Migración de fotos a Cloudinary:** `uploadPhoto()` (nuevo, sustituye las 3 llamadas directas a `uploadBase64ToCatbox`) usa Cloudinary si está configurado (`CLOUDINARY_CLOUD_NAME`/`API_KEY`/`API_SECRET`), con fallback a Catbox si no. Script `server/migrate-catbox-to-cloudinary.mjs` migró el avatar y las 4 fotos de progreso existentes de la cuenta real, verificadas cargando correctamente tras el cambio.
+*   **FIX CRÍTICO — Timer de descanso entre EJERCICIOS en vez de SERIES:** `restTimer.start()` solo se llamaba una vez en todo `Workout.jsx`, dentro de `handlePrimaryAction()` (botón "Guardar", que junta TODAS las series de un ejercicio en una sola llamada a la API) — estructuralmente nunca podía ser "entre series" porque no existía ningún disparo a nivel de serie individual. Se agregó detección de la transición "serie no completada → completada" vía un único `useEffect` que compara `sets` contra un snapshot del render anterior (intentarlo leyendo una variable seteada dentro del updater de `setSets(prev => ...)` justo después de llamarlo NO funciona — React difiere la ejecución de ese updater a la fase de render, así que esa variable seguiría en su valor inicial; encontrado y corregido durante la verificación en vivo). Nuevo endpoint `POST /api/workouts/rest-reminder` (solo programa el push, sin tocar `WorkoutLog`/`SetLog`) para no tener que rediseñar cómo se persisten los datos.
+*   **FIX — Timer se quedaba congelado tras segundo plano:** `useRestTimer` decrementaba un contador simple vía `setInterval` — los navegadores móviles pausan esos timers en background, así que no reflejaba el tiempo real transcurrido al volver. Reescrito para basarse en un timestamp absoluto (`Date.now() + segundos`), recalculado en cada tick y también en `visibilitychange`/`focus`/`pageshow`. Verificado simulando 60s de background (adelantando `Date.now()`): el countdown saltó correctamente en vez de seguir congelado.
+*   **FIX — Notificaciones push se apilaban/aparecían viejas:** `sw.js` no tenía `tag` en `showNotification()`. Agregado `tag: rest-${exerciseId}` + `renotify: true` para que un aviso nuevo del mismo ejercicio reemplace al anterior (con nueva alerta) en vez de acumularse — más necesario aún ahora que los avisos son por serie en vez de por ejercicio.
+*   **Verificado end-to-end** contra la cuenta real de producción: scroll en los modales de BodyTracking y Routines (con cancelación explícita del modal de borrar rutina activa, sin tocar el dato real), ciclo completo de guardar-y-borrar una serie de prueba para confirmar el timer y la ausencia de duplicados en push, subida de foto fallida (imagen inválida, sin crear registro) y exitosa (imagen sintética, no del usuario), y la migración de las 5 fotos reales a Cloudinary. Todos los registros de prueba se limpiaron después (confirmado explícitamente con el usuario antes de cada borrado sobre datos reales).
+
+### v2.2.0 (3 Julio 2026)
 Origen: auditoría completa de código (solo lectura) seguida de una corrección exhaustiva, y luego una auditoría de experiencia real usando la cuenta de producción con datos reales (265 sesiones).
 
 *   **FIX CRÍTICO — Zona horaria (UTC vs. Ciudad de México), causa raíz compartida:** el contenedor corre en UTC pero la app es de un solo usuario, siempre en CDMX (UTC-6). Los fixes de v2.1.0 (Atajos iOS) solo cerraron dos síntomas puntuales; el mismo patrón seguía vivo en **5 sitios**: la racha y el heatmap (`stats/overview`, `stats/consistency` agrupaban por día vía `.toISOString()`, siempre UTC), la ventana de "hoy" de los endpoints de Atajos (`resolveTargetDate`/`startOfDay`/`endOfDay` seguían usando accesores locales del contenedor en el camino de `?date=` explícito), y el filtro por día de semana del historial. Todo se centralizó en helpers nuevos y compartidos en `server/src/index.js`: `mexicoCityDateStr`, `mexicoCityDayBounds`, `mexicoCityHour`, `dayOfWeekFromDateStr`. Cualquier código nuevo que agrupe/filtre por día debe usarlos — no repetir el patrón viejo.

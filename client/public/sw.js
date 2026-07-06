@@ -101,11 +101,18 @@ self.addEventListener('push', (event) => {
         data = {};
     }
     const title = data.title || 'NexLift';
+    // tag: una notificación nueva del mismo ejercicio reemplaza a la anterior en
+    // vez de apilarse (antes, series seguidas del mismo ejercicio dejaban avisos
+    // viejos acumulados). renotify: sin esto, reemplazar una notificación con el
+    // mismo tag es silencioso (no vibra/suena) — y sí queremos que vuelva a
+    // avisar, es un aviso de "se acabó tu descanso".
     event.waitUntil(
         self.registration.showNotification(title, {
             body: data.body || '',
             icon: '/icon-192.png',
             badge: '/icon-192.png',
+            tag: data.exerciseId ? `rest-${data.exerciseId}` : 'rest-generic',
+            renotify: true,
             data: { exerciseId: data.exerciseId || null }
         })
     );
