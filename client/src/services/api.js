@@ -143,6 +143,42 @@ export const api = {
         return res.json();
     },
 
+    async createRoutineBlock(routineId, block) {
+        const res = await authFetch(`${API_URL}/routines/${routineId}/blocks`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(block),
+        });
+        if (!res.ok) throw new Error('Failed to create routine block');
+        return res.json();
+    },
+
+    async updateRoutineBlock(routineId, blockId, block) {
+        const res = await authFetch(`${API_URL}/routines/${routineId}/blocks/${blockId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(block),
+        });
+        if (!res.ok) throw new Error('Failed to update routine block');
+        return res.json();
+    },
+
+    async deleteRoutineBlock(routineId, blockId) {
+        const res = await authFetch(`${API_URL}/routines/${routineId}/blocks/${blockId}`, {
+            method: 'DELETE',
+        });
+        if (!res.ok) throw new Error('Failed to delete routine block');
+        return res.json();
+    },
+
+    async startRoutineBlock(routineId, blockId) {
+        const res = await authFetch(`${API_URL}/routines/${routineId}/blocks/${blockId}/start`, {
+            method: 'POST',
+        });
+        if (!res.ok) throw new Error('Failed to start routine block');
+        return res.json();
+    },
+
     // ==========================================
     // WORKOUTS
     // ==========================================

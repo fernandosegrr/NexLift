@@ -9,6 +9,13 @@ import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
 
+const BLOCK_PHASE_LABELS = {
+    accumulation: 'Acumulación',
+    intensification: 'Intensificación',
+    deload: 'Descarga',
+    custom: 'Personalizado'
+};
+
 export default function Routines() {
     // Estado unificado para evitar re-renders innecesarios
     const [routines, setRoutines] = useState([]);
@@ -237,6 +244,11 @@ function RoutineCard({
                         <span className="w-1 h-1 rounded-full bg-[var(--border)]"></span>
                         <span>{totalExercises} ejercicios</span>
                     </div>
+                    {routine.activeBlock && (
+                        <p className="text-[10px] text-[var(--primary)] font-medium mt-1">
+                            {BLOCK_PHASE_LABELS[routine.activeBlock.phase] || routine.activeBlock.phase} · Semana {routine.currentWeek} de {routine.activeBlock.durationWeeks}
+                        </p>
+                    )}
                 </div>
 
                 {/* Chevron animated */}

@@ -239,6 +239,28 @@ async function getRecycleBinDay(userId, client = prisma) {
 }
 
 // ============================================
+// MESOCICLOS (RoutineBlock) — bloques de periodización opcionales por rutina
+// ============================================
+const ROUTINE_BLOCK_PHASES = ['accumulation', 'intensification', 'deload', 'custom'];
+
+// Bloque activo = el de `startedAt` no-nulo más reciente. Calculado en lectura a
+// propósito (no un `isActive` guardado): arrancar un bloque nuevo reemplaza al
+// viejo sin ningún paso de limpieza, y no hay invariante "a lo más un activo" que
+// mantener a mano en cada escritura.
+function getActiveBlock(blocks) {
+    const started = (blocks || []).filter(b => b.startedAt != null);
+    if (!started.length) return null;
+    return started.reduce((latest, b) => (b.startedAt > latest.startedAt ? b : latest), started[0]);
+}
+
+// Semana actual dentro de un bloque (1-indexed), o null si el bloque no ha arrancado.
+function currentWeekInBlock(block, now = new Date()) {
+    if (!block?.startedAt) return null;
+    const daysSince = Math.floor((now.getTime() - block.startedAt.getTime()) / (24 * 60 * 60 * 1000));
+    return Math.floor(daysSince / 7) + 1;
+}
+
+// ============================================
 // RATE LIMITING (en memoria) para endpoints sensibles de auth
 // Una sola instancia en Docker; si se escala, migrar a Redis.
 // ============================================
@@ -407,6 +429,91 @@ async function checkReengagementReminders() {
 setInterval(checkReengagementReminders, 30 * 60 * 1000).unref?.();
 
 // ============================================
+// DESCARGA ADAPTATIVA — combina volumen semanal a la baja + varios ejercicios en
+// plateau a la vez para activar (Routine.adaptiveDeloadUntil) una reducción
+// automática de la sugerencia de peso. Solo aplica a rutinas SIN un bloque de fase
+// 'deload' propio (ver getRoutinePhaseStatus) — si ya hay uno, ese manda.
+// ============================================
+const ADAPTIVE_DELOAD_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // no re-evaluar antes de 7 días
+const ADAPTIVE_DELOAD_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;   // duración de la ventana de descarga
+const ADAPTIVE_DELOAD_VOLUME_DROP_RATIO = 0.85;              // volumen actual < 85% del anterior
+const ADAPTIVE_DELOAD_MIN_PLATEAUS = 3;                      // "varios" ejercicios a la vez
+
+// Números de primera aproximación, sin validar contra datos reales de uso — ver
+// Riesgos en el plan. Ajustar aquí (únicos dos lugares que los usan) si en la
+// práctica disparan de más o de menos.
+async function maybeEvaluateAdaptiveDeload(routine, userId) {
+    const now = new Date();
+
+    // Cooldown: ya evaluado hace poco, o ya está dentro de una ventana activa.
+    if (routine.lastAdaptiveCheckAt && (now - routine.lastAdaptiveCheckAt) < ADAPTIVE_DELOAD_COOLDOWN_MS) return;
+    if (routine.adaptiveDeloadUntil && routine.adaptiveDeloadUntil > now) return;
+    // Si la rutina ya tiene su propio bloque de descarga activo, el mecanismo
+    // standalone no aplica (evita que ambas fuentes "compitan").
+    const activeBlock = getActiveBlock(routine.blocks || []);
+    if (activeBlock?.phase === 'deload') return;
+
+    const todayBounds = mexicoCityDayBounds(now);
+    const weekAgo = new Date(todayBounds.start.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const twoWeeksAgo = new Date(todayBounds.start.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    const [currentWeekSets, previousWeekSets] = await Promise.all([
+        prisma.setLog.findMany({
+            where: { workoutLog: { date: { gte: weekAgo }, exercise: { routineDay: { routine: { userId } } } } }
+        }),
+        prisma.setLog.findMany({
+            where: { workoutLog: { date: { gte: twoWeeksAgo, lt: weekAgo }, exercise: { routineDay: { routine: { userId } } } } }
+        })
+    ]);
+    const currentWeekVolume = currentWeekSets.reduce((acc, s) => acc + s.weight * s.reps, 0);
+    const previousWeekVolume = previousWeekSets.reduce((acc, s) => acc + s.weight * s.reps, 0);
+    // Sin semana previa real (p.ej. cuenta nueva, o volvió de vacaciones), no hay
+    // "declive" que juzgar — evita leer ausencia de datos como señal de descarga.
+    const volumeDeclined = previousWeekVolume > 0 && currentWeekVolume < previousWeekVolume * ADAPTIVE_DELOAD_VOLUME_DROP_RATIO;
+
+    // El conteo de plateau es la señal más cara (N queries, una por ejercicio) — solo
+    // se calcula si la señal de volumen ya se cumplió, para no gastarla en vano.
+    let plateauedCount = 0;
+    if (volumeDeclined) {
+        const exerciseIds = (routine.days || []).flatMap(d => (d.exercises || []).map(e => e.id));
+        for (const exerciseId of exerciseIds) {
+            const logs = await prisma.workoutLog.findMany({
+                where: { exerciseId },
+                include: { sets: true },
+                orderBy: { date: 'asc' }
+            });
+            if (detectPlateauForExercise(logs)) plateauedCount++;
+        }
+    }
+
+    const data = { lastAdaptiveCheckAt: now };
+    if (volumeDeclined && plateauedCount >= ADAPTIVE_DELOAD_MIN_PLATEAUS) {
+        data.adaptiveDeloadUntil = new Date(now.getTime() + ADAPTIVE_DELOAD_WINDOW_MS);
+    }
+    await prisma.routine.update({ where: { id: routine.id }, data });
+}
+
+async function checkAdaptiveDeloadForAllUsers() {
+    try {
+        const routines = await prisma.routine.findMany({
+            where: { isActive: true, userId: { not: null }, name: { not: 'ARCHIVED_HISTORY_DO_NOT_DELETE' } },
+            include: {
+                blocks: true,
+                days: { include: { exercises: { select: { id: true } } } }
+            }
+        });
+        for (const routine of routines) {
+            await maybeEvaluateAdaptiveDeload(routine, routine.userId);
+        }
+    } catch (err) {
+        console.error('Error checking adaptive deload:', err.message);
+    }
+}
+// Señal semanal y lenta por diseño — a diferencia del recordatorio de reenganche
+// (cada 30 min), no hace falta granularidad fina, así que corre 1x/día.
+setInterval(checkAdaptiveDeloadForAllUsers, 24 * 60 * 60 * 1000).unref?.();
+
+// ============================================
 // PERSONAL RECORDS: recálculo derivado de los logs reales
 // Se llama tras crear/editar/eliminar sesiones para que no queden récords fantasma.
 // Considera ambos lados en unilateral (el récord es el mejor esfuerzo de una extremidad).
@@ -553,6 +660,51 @@ function effectiveWorkoutSet(set) {
 function roundWorkoutWeight(w, increment, base) {
     const grid = (Math.abs(base % increment) < 0.01) ? increment : 0.5;
     return Math.round(w / grid) * grid;
+}
+
+// Plateau para UN ejercicio (por id) — usado por el trigger adaptativo de descarga.
+// A diferencia del cliente (exerciseName.js), aquí NO hace falta consolidar variantes
+// de nombre: cada Exercise ya tiene un id estable dentro de la rutina activa, así que
+// se agrupa directo por WorkoutLogs de ese id. Mismo criterio que detectPlateau:
+// últimas min(6, N) sesiones (día local CDMX), mitad reciente no supera a la antigua,
+// requiere >=4 sesiones para tener señal.
+function detectPlateauForExercise(workoutLogs) {
+    const byDay = new Map();
+    for (const log of workoutLogs) {
+        const dayKey = mexicoCityDateStr(log.date);
+        let best = byDay.get(dayKey) || 0;
+        for (const set of log.sets) {
+            const eff = effectiveWorkoutSet(set);
+            if (eff.weight <= 0 || eff.reps <= 0) continue;
+            const rm = (eff.reps > 1 && eff.reps < 37) ? eff.weight * (1 + eff.reps / 30) : eff.weight;
+            if (rm > best) best = rm;
+        }
+        byDay.set(dayKey, best);
+    }
+    const sessions = [...byDay.keys()].sort().map(day => byDay.get(day));
+    if (sessions.length < 4) return false;
+
+    const window = sessions.slice(-Math.min(6, sessions.length));
+    const splitAt = Math.floor(window.length / 2);
+    const olderBest = Math.max(0, ...window.slice(0, splitAt));
+    const recentBest = Math.max(0, ...window.slice(splitAt));
+    return recentBest <= olderBest;
+}
+
+// Fuente única de verdad para "está esta rutina en descarga ahora mismo". Prioridad
+// fija: un bloque de fase 'deload' activo manda siempre; si no hay bloques (o el
+// activo no es de descarga), cae al mecanismo adaptativo standalone. NINGÚN otro
+// lugar del código debe recalcular esto por su cuenta — todo lector nuevo debe
+// llamar a esta función.
+function getRoutinePhaseStatus(routine) {
+    const activeBlock = getActiveBlock(routine.blocks || []);
+    if (activeBlock?.phase === 'deload') {
+        return { isDeload: true, source: 'block', block: activeBlock };
+    }
+    if (routine.adaptiveDeloadUntil && routine.adaptiveDeloadUntil > new Date()) {
+        return { isDeload: true, source: 'adaptive', until: routine.adaptiveDeloadUntil };
+    }
+    return { isDeload: false, source: null };
 }
 
 /**
@@ -1088,11 +1240,18 @@ app.get('/api/routines', authMiddleware, async (req, res) => {
                         exercises: { orderBy: { order: 'asc' } }
                     },
                     orderBy: { order: 'asc' }
-                }
+                },
+                blocks: { orderBy: { order: 'asc' } }
             },
             orderBy: { createdAt: 'desc' }
         });
-        res.json(routines);
+        // activeBlock/currentWeek calculados aquí (no solo en /active): Workout.jsx
+        // busca el día por dayId iterando TODAS las rutinas del usuario, no solo la
+        // marcada isActive.
+        res.json(routines.map(r => {
+            const activeBlock = getActiveBlock(r.blocks);
+            return { ...r, activeBlock, currentWeek: currentWeekInBlock(activeBlock), isDeload: getRoutinePhaseStatus(r).isDeload };
+        }));
     } catch (error) {
         console.error('Error fetching routines:', error);
         res.status(500).json({ error: 'Failed to fetch routines' });
@@ -1144,10 +1303,13 @@ app.get('/api/routines/active', authMiddleware, async (req, res) => {
                         }
                     },
                     orderBy: { order: 'asc' }
-                }
+                },
+                blocks: { orderBy: { order: 'asc' } }
             }
         });
-        res.json(routine);
+        if (!routine) return res.json(routine);
+        const activeBlock = getActiveBlock(routine.blocks);
+        res.json({ ...routine, activeBlock, currentWeek: currentWeekInBlock(activeBlock), isDeload: getRoutinePhaseStatus(routine).isDeload });
     } catch (error) {
         console.error('Error fetching active routine:', error);
         res.status(500).json({ error: 'Failed to fetch active routine' });
@@ -1174,7 +1336,8 @@ app.get('/api/routines/:id', authMiddleware, async (req, res) => {
                         }
                     },
                     orderBy: { order: 'asc' }
-                }
+                },
+                blocks: { orderBy: { order: 'asc' } }
             }
         });
 
@@ -1182,7 +1345,8 @@ app.get('/api/routines/:id', authMiddleware, async (req, res) => {
             return res.status(404).json({ error: 'Routine not found' });
         }
 
-        res.json(routine);
+        const activeBlock = getActiveBlock(routine.blocks);
+        res.json({ ...routine, activeBlock, currentWeek: currentWeekInBlock(activeBlock), isDeload: getRoutinePhaseStatus(routine).isDeload });
     } catch (error) {
         console.error('Error fetching routine:', error);
         res.status(500).json({ error: 'Failed to fetch routine' });
@@ -1523,6 +1687,138 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Error updating routine:', error);
         res.status(500).json({ error: 'Failed to update routine' });
+    }
+});
+
+// ============================================
+// ROUTES: Mesociclos (RoutineBlock)
+// ============================================
+
+// GET /api/routines/:id/blocks - Listar bloques de una rutina
+app.get('/api/routines/:id/blocks', authMiddleware, async (req, res) => {
+    try {
+        const routine = await prisma.routine.findFirst({
+            where: { id: req.params.id, userId: req.userId }
+        });
+        if (!routine) return res.status(404).json({ error: 'Routine not found' });
+
+        const blocks = await prisma.routineBlock.findMany({
+            where: { routineId: req.params.id },
+            orderBy: { order: 'asc' }
+        });
+        res.json(blocks);
+    } catch (error) {
+        console.error('Error fetching routine blocks:', error);
+        res.status(500).json({ error: 'Failed to fetch routine blocks' });
+    }
+});
+
+// POST /api/routines/:id/blocks - Crear un bloque nuevo
+app.post('/api/routines/:id/blocks', authMiddleware, async (req, res) => {
+    try {
+        const routine = await prisma.routine.findFirst({
+            where: { id: req.params.id, userId: req.userId }
+        });
+        if (!routine) return res.status(404).json({ error: 'Routine not found' });
+
+        const { name, phase, order, durationWeeks } = req.body;
+        if (!name) return res.status(400).json({ error: 'Required: name' });
+        if (phase && !ROUTINE_BLOCK_PHASES.includes(phase)) {
+            return res.status(400).json({ error: `phase must be one of: ${ROUTINE_BLOCK_PHASES.join(', ')}` });
+        }
+
+        const block = await prisma.routineBlock.create({
+            data: {
+                routineId: req.params.id,
+                name,
+                phase: phase || 'custom',
+                order: Number.isInteger(order) ? order : 0,
+                durationWeeks: durationWeeks ? parseInt(durationWeeks) : 4
+            }
+        });
+        res.status(201).json(block);
+    } catch (error) {
+        console.error('Error creating routine block:', error);
+        res.status(500).json({ error: 'Failed to create routine block' });
+    }
+});
+
+// PUT /api/routines/:id/blocks/:blockId - Editar un bloque
+app.put('/api/routines/:id/blocks/:blockId', authMiddleware, async (req, res) => {
+    try {
+        const routine = await prisma.routine.findFirst({
+            where: { id: req.params.id, userId: req.userId }
+        });
+        if (!routine) return res.status(404).json({ error: 'Routine not found' });
+
+        const existing = await prisma.routineBlock.findFirst({
+            where: { id: req.params.blockId, routineId: req.params.id }
+        });
+        if (!existing) return res.status(404).json({ error: 'Block not found' });
+
+        const { name, phase, order, durationWeeks } = req.body;
+        if (phase && !ROUTINE_BLOCK_PHASES.includes(phase)) {
+            return res.status(400).json({ error: `phase must be one of: ${ROUTINE_BLOCK_PHASES.join(', ')}` });
+        }
+
+        const block = await prisma.routineBlock.update({
+            where: { id: req.params.blockId },
+            data: {
+                name: name ?? existing.name,
+                phase: phase ?? existing.phase,
+                order: Number.isInteger(order) ? order : existing.order,
+                durationWeeks: durationWeeks ? parseInt(durationWeeks) : existing.durationWeeks
+            }
+        });
+        res.json(block);
+    } catch (error) {
+        console.error('Error updating routine block:', error);
+        res.status(500).json({ error: 'Failed to update routine block' });
+    }
+});
+
+// DELETE /api/routines/:id/blocks/:blockId - Borrar un bloque
+app.delete('/api/routines/:id/blocks/:blockId', authMiddleware, async (req, res) => {
+    try {
+        const routine = await prisma.routine.findFirst({
+            where: { id: req.params.id, userId: req.userId }
+        });
+        if (!routine) return res.status(404).json({ error: 'Routine not found' });
+
+        const existing = await prisma.routineBlock.findFirst({
+            where: { id: req.params.blockId, routineId: req.params.id }
+        });
+        if (!existing) return res.status(404).json({ error: 'Block not found' });
+
+        await prisma.routineBlock.delete({ where: { id: req.params.blockId } });
+        res.json({ message: 'Block deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting routine block:', error);
+        res.status(500).json({ error: 'Failed to delete routine block' });
+    }
+});
+
+// POST /api/routines/:id/blocks/:blockId/start - Arrancar un bloque (lo vuelve el activo)
+app.post('/api/routines/:id/blocks/:blockId/start', authMiddleware, async (req, res) => {
+    try {
+        const routine = await prisma.routine.findFirst({
+            where: { id: req.params.id, userId: req.userId }
+        });
+        if (!routine) return res.status(404).json({ error: 'Routine not found' });
+
+        const existing = await prisma.routineBlock.findFirst({
+            where: { id: req.params.blockId, routineId: req.params.id }
+        });
+        if (!existing) return res.status(404).json({ error: 'Block not found' });
+
+        const block = await prisma.routineBlock.update({
+            where: { id: req.params.blockId },
+            data: { startedAt: new Date() }
+        });
+        res.json(block);
+    } catch (error) {
+        console.error('Error starting routine block:', error);
+        res.status(500).json({ error: 'Failed to start routine block' });
     }
 });
 
@@ -2012,13 +2308,16 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
                 days: {
                     include: { exercises: { orderBy: { order: 'asc' } } },
                     orderBy: { order: 'asc' }
-                }
+                },
+                blocks: true
             }
         });
 
         if (!routine) {
             return res.json({ ...baseShortcutResponse(), noActiveRoutine: true });
         }
+
+        const phaseStatus = getRoutinePhaseStatus(routine);
 
         const todayRoutineDay = routine.days.find(d => normalizeDay(d.dayName) === normalizeDay(todayName));
 
@@ -2072,7 +2371,8 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
             setsLoggedToday,
             targetRepsRange: nextExercise.targetReps,
             restSeconds: nextExercise.restSeconds,
-            isUnilateral: nextExercise.isUnilateral
+            isUnilateral: nextExercise.isUnilateral,
+            isDeload: phaseStatus.isDeload
         };
 
         if (history.length === 0) {
@@ -2086,9 +2386,16 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
             return res.json({ ...base, rationale: 'sin historial' });
         }
 
+        // Descarga: reduce el peso sugerido ~10% (misma rejilla de redondeo que la
+        // sugerencia normal), sin tocar `rationale` — lo consume el Atajo de iOS
+        // externo y no se controla cómo parsea ese string.
+        const suggestedWeight = phaseStatus.isDeload
+            ? roundWorkoutWeight(suggestion.weight * 0.9, increment, suggestion.weight)
+            : suggestion.weight;
+
         res.json({
             ...base,
-            suggestedWeight: suggestion.weight,
+            suggestedWeight,
             suggestedReps: suggestion.reps,
             rationale: suggestion.rationale
         });

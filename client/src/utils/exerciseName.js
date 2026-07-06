@@ -189,3 +189,27 @@ export function bestOneRepMaxForTarget(sessions, targetReps, n = 3) {
     const recent = eligible.slice(-n);
     return recent.length ? Math.max(...recent) : 0;
 }
+
+// Plateau: la mejor marca de la mitad reciente de la ventana no SUPERA a la de la
+// mitad antigua (un empate cuenta como estancamiento, no como progreso). Ventana =
+// últimas min(windowSize, count) sesiones; split floor/ceil (6->3+3, 5->2+3, 4->2+2).
+// Requiere >=minSessions sesiones totales para tener señal (si no, isPlateaued=false).
+export function detectPlateau(sessions, { minSessions = 4, windowSize = 6 } = {}) {
+    if (!sessions || sessions.length < minSessions) {
+        return { isPlateaued: false, sessionsConsidered: sessions?.length || 0, olderBest1RM: 0, recentBest1RM: 0 };
+    }
+    const window = sessions.slice(-Math.min(windowSize, sessions.length));
+    const splitAt = Math.floor(window.length / 2);
+    const olderHalf = window.slice(0, splitAt);
+    const recentHalf = window.slice(splitAt);
+
+    const olderBest1RM = Math.max(0, ...olderHalf.map(s => s.best1RM || 0));
+    const recentBest1RM = Math.max(0, ...recentHalf.map(s => s.best1RM || 0));
+
+    return {
+        isPlateaued: recentBest1RM <= olderBest1RM,
+        sessionsConsidered: window.length,
+        olderBest1RM,
+        recentBest1RM
+    };
+}

@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Flame, Target, Trophy, Calendar, Play,
-    ChevronRight, Dumbbell, TrendingUp, Coffee, CheckCircle2, Loader2, ArrowRight
+    ChevronRight, Dumbbell, TrendingUp, Coffee, CheckCircle2, Loader2, ArrowRight, AlertTriangle
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import AchievementsStrip from '../components/AchievementsStrip';
+import { canonicalExerciseKey, groupHistoryByExercise, detectPlateau } from '../utils/exerciseName';
 
 export default function Dashboard() {
     const { user } = useAuth();
@@ -16,6 +17,7 @@ export default function Dashboard() {
     const [activeRoutine, setActiveRoutine] = useState(null);
     const [consistency, setConsistency] = useState({});
     const [prs, setPrs] = useState([]);
+    const [workoutHistory, setWorkoutHistory] = useState(() => new Map());
     const [loading, setLoading] = useState(true);
     const [showHeatmap, setShowHeatmap] = useState(false);
     const [loggingRest, setLoggingRest] = useState(false);
@@ -34,11 +36,12 @@ export default function Dashboard() {
 
         async function fetchData() {
             try {
-                const [statsData, activeData, consistencyRes, prsData] = await Promise.all([
+                const [statsData, activeData, consistencyRes, prsData, historyData] = await Promise.all([
                     api.getOverviewStats(),
                     api.getActiveRoutine(),
                     api.getConsistency(),
-                    api.getPersonalRecords()
+                    api.getPersonalRecords(),
+                    api.getWorkoutHistory(500)
                 ]);
 
                 if (!isMounted) return;
@@ -57,6 +60,7 @@ export default function Dashboard() {
                 setActiveRoutine(activeData);
                 setConsistency(map);
                 setPrs(Array.isArray(prsData) ? prsData : []);
+                setWorkoutHistory(groupHistoryByExercise(historyData));
             } catch (error) {
                 if (isMounted) {
                     console.error('Dashboard error:', error);
@@ -105,6 +109,14 @@ export default function Dashboard() {
             exercises: []
         };
     }, [activeRoutine]);
+
+    // Cuántos PRs están en plateau (sin mejora en sus últimas 4-6 sesiones)
+    const plateauCount = useMemo(() => {
+        return prs.reduce((count, pr) => {
+            const group = workoutHistory.get(canonicalExerciseKey(pr.exerciseName));
+            return detectPlateau(group?.sessions).isPlateaued ? count + 1 : count;
+        }, 0);
+    }, [prs, workoutHistory]);
 
     const { last30Days, localStreak, isTodayLogged } = useMemo(() => {
         const days = [];
@@ -355,6 +367,23 @@ export default function Dashboard() {
                     </p>
                 </div>
             </div>
+
+            {/* Aviso de ejercicios en plateau */}
+            {plateauCount > 0 && (
+                <Link
+                    to="/progress"
+                    className="bg-[var(--warning)]/10 border border-[var(--warning)]/20 rounded-xl p-3 flex items-center gap-3 hover:bg-[var(--warning)]/15 transition-colors"
+                >
+                    <AlertTriangle size={18} className="text-[var(--warning)] shrink-0" />
+                    <div className="flex-1">
+                        <p className="text-[var(--warning)] font-bold text-sm">
+                            {plateauCount} ejercicio{plateauCount > 1 ? 's' : ''} sin mejora reciente
+                        </p>
+                        <p className="text-xs text-[var(--text-secondary)]">Toca para ver el detalle en Progreso</p>
+                    </div>
+                    <ChevronRight size={16} className="text-[var(--text-secondary)] shrink-0" />
+                </Link>
+            )}
 
             {/* Logros */}
             <AchievementsStrip stats={stats} prs={prs} />

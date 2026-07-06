@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 2.3.0 | **Última actualización:** 6 Julio 2026
+> **Versión:** 2.4.0 | **Última actualización:** 6 Julio 2026
 
 ---
 
@@ -76,7 +76,7 @@ Página crítica para registrar el entrenamiento del día. Ha recibido actualiza
   - Feedback visual inmediato al completar (verde/check).
   - Badge de "PR" animado si se rompe un récord.
 - **Acciones:**
-  - Tocar la insignia "SUGERIDO" rellena la primera serie vacía con el peso/reps sugeridos (v2.2.0 — antes no hacía nada pese a parecer tappable).
+  - Tocar la insignia "SUGERIDO" (o "DESCARGA" durante una semana de descarga, v2.4.0 — ver Roadmap/Lógica de Negocio) rellena la primera serie vacía con el peso/reps sugeridos (v2.2.0 — antes no hacía nada pese a parecer tappable).
   - "Copiar peso a todo": Facilita el llenado rápido.
   - "Ver historial": Modal con sesiones pasadas.
   - Guardado por ejercicio (granularidad) y finalización global.
@@ -235,11 +235,16 @@ NexLift utiliza matemáticas estándar de powerlifting:
     Doble progresión con autorregulación por RIR sobre la última sesión completa. Sugiere peso y reps.
     *Ejemplo: si hiciste 100kg x 12 (tope del rango 8-12) con RIR 2, sugerirá 102.5kg x 8 (sube carga, reinicia reps). Si hiciste 100kg x 9 con RIR 3, sugerirá 100kg x 10 (suma una rep).*
 
-### 🗺️ Roadmap: cerrar el círculo del "entrenador inteligente"
-Ya existen todos los datos (historial completo por ejercicio, RIR, 1RM estimado) para dejar de ser solo un registro pasivo. Orden sugerido, de menor a mayor esfuerzo:
-1.  **Detección de plateau** (sin cambio de schema): comparar el mejor 1RM estimado de las últimas 4-6 sesiones por ejercicio; si no sube, marcarlo (Dashboard/Progreso).
-2.  **Sugerencia de descarga** (schema pequeño, p. ej. `Routine.deloadEveryWeeks`): volumen semanal a la baja + varios ejercicios en plateau a la vez → bajar automáticamente la sugerencia esa semana.
-3.  **Mesociclos/bloques reales** (la más grande): rutina como bloques con nombre/duración (acumulación → intensificación → descarga) en vez de un split fijo indefinido. Solo si 1 y 2 no bastan.
+### 4. Entrenador inteligente (v2.4.0) — plateau, mesociclos, descarga adaptativa
+Las 3 fases del roadmap original se construyeron juntas en una sola pasada (no de forma incremental como se planteó originalmente), en orden de menor a mayor riesgo: primero la función pura de plateau (sin schema), luego el modelo de bloques (schema + CRUD, sin conectar comportamiento), y al final el mecanismo de descarga conectado a los dos algoritmos de sugerencia.
+
+1.  **Detección de plateau** — `detectPlateau(sessions)` en `client/src/utils/exerciseName.js`: toma las últimas min(6, N) sesiones, las divide en mitad antigua/reciente, y marca plateau si el mejor 1RM de la mitad reciente no supera al de la antigua (empate cuenta como estancamiento). Requiere >=4 sesiones para tener señal. 100% cliente — `Progress.jsx` (`useProgressData`) y `Dashboard.jsx` agregaron `api.getWorkoutHistory(500)` a sus fetches existentes y corren `groupHistoryByExercise` una vez; no hay endpoint de servidor dedicado. Badge "Estancado" en `PRCard` (tab General y Músculos de Progress) y tarjeta agregada en Dashboard ("N ejercicios sin mejora reciente") si el conteo > 0.
+    - **Gotcha:** `PersonalRecord.exerciseName` se guarda solo con `.toLowerCase()` (no la normalización canónica completa) — cualquier cruce entre un PR y el historial agrupado debe pasar por `canonicalExerciseKey(pr.exerciseName)`, nunca comparar el string crudo, o el match falla en silencio ante acentos/plurales/paréntesis.
+2.  **Mesociclos (`RoutineBlock`)** — modelo nuevo, opcional por rutina (cero bloques = comportamiento idéntico a antes). `startedAt` (no un `isActive` separado) determina el bloque activo: el de `startedAt` no-nulo más reciente, calculado en lectura vía `getActiveBlock()` — evita mantener a mano la invariante "a lo más un activo". `phase` es un string libre (`accumulation`/`intensification`/`deload`/`custom`), no un enum de Prisma (el proyecto no tenía ninguno, y con solo `db push` un string es más fácil de extender). `durationWeeks` es informativo (para "Semana N de M"), nunca un corte duro. CRUD completo: `GET/POST/PUT/DELETE /api/routines/:id/blocks` + `POST .../blocks/:blockId/start`. UI: sección de bloques en `EditRoutine.jsx` (cada bloque se guarda al instante con su propio botón, no con el "Guardar" general de la rutina) y tira de bloques + "Iniciar siguiente bloque" en `RoutineDetail.jsx`.
+3.  **Descarga adaptativa** — `getRoutinePhaseStatus(routine)` en `server/src/index.js` es la ÚNICA función que decide "¿está esta rutina en descarga ahora mismo?", con prioridad fija: (a) si hay un bloque activo con `phase='deload'`, manda ese; (b) si no, cae a `Routine.adaptiveDeloadUntil` (ventana de 7 días, para rutinas SIN bloques configurados). El trigger adaptativo (`maybeEvaluateAdaptiveDeload`, corre 1x/día vía `setInterval`, mismo patrón que `checkReengagementReminders`) combina dos señales — volumen semanal actual <85% del anterior, Y >=3 ejercicios de la rutina en plateau simultáneo (nunca una señal sola) — con cooldown de 7 días entre evaluaciones (`Routine.lastAdaptiveCheckAt`). Cuando `isDeload` es verdadero, el peso sugerido se reduce ~10% (constante fija, sin UI de ajuste) en **ambos** algoritmos de Smart Loading — `computeSuggestion` (cliente, `Workout.jsx`) y `computeWorkoutSuggestion` (servidor, `/api/shortcuts/next-set`) — sin tocar el string `rationale` del servidor (lo consume un Atajo de iOS externo). Aviso visible en `Workout.jsx`: banner "Semana de descarga" + el badge de sugerencia cambia de "SUGERIDO" (verde) a "DESCARGA" (color `--warning`).
+    - **Riesgo conocido, aceptado:** los umbrales (15% de declive, 3 plateaus, 7 días) son de primera aproximación, sin validar contra datos reales de uso — ajustar las constantes en `server/src/index.js` (`ADAPTIVE_DELOAD_*`) si en la práctica disparan de más o de menos.
+    - **Gotcha de duplicación:** `detectPlateauForExercise` (servidor) es una segunda implementación de la regla de plateau, deliberadamente distinta a la del cliente — agrupa por `exerciseId` directo (no por nombre canónico), porque dentro de una sola rutina activa no hace falta consolidar variantes de nombre. Si se corrige un bug en la regla de plateau, corregir en los dos lados.
+    - Verificado en vivo con overrides temporales (nunca datos de prueba permanentes): multiplicador de peso confirmado en ambos algoritmos, y el flujo end-to-end (DB → `getRoutinePhaseStatus` → API → UI) confirmado escribiendo `adaptiveDeloadUntil` directo y revirtiéndolo después.
 
 ---
 
@@ -305,8 +310,31 @@ model Routine {
   userId      String?      // opcional para migración
   user        User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
   days        RoutineDay[]
+  blocks      RoutineBlock[] // Mesociclos (v2.4.0) — opcional, ver getActiveBlock() en index.js
+
+  // Descarga adaptativa (v2.4.0) — solo aplica si NO hay bloque con phase='deload'
+  // activo (ver getRoutinePhaseStatus). adaptiveDeloadUntil: ventana de 7 días con
+  // sugerencias reducidas. lastAdaptiveCheckAt: cooldown de 7 días entre evaluaciones.
+  adaptiveDeloadUntil DateTime?
+  lastAdaptiveCheckAt DateTime?
 
   @@index([userId])
+}
+
+// Mesociclo/bloque de periodización (v2.4.0). Opcional por rutina — cero bloques
+// se comporta igual que antes. Bloque activo = el de `startedAt` no-nulo más
+// reciente (calculado en lectura, no un `isActive` guardado).
+model RoutineBlock {
+  id            String    @id @default(cuid())
+  name          String
+  phase         String    @default("custom") // 'accumulation' | 'intensification' | 'deload' | 'custom'
+  order         Int       @default(0)
+  durationWeeks Int       @default(4)
+  startedAt     DateTime?
+  routineId     String
+  routine       Routine   @relation(fields: [routineId], references: [id], onDelete: Cascade)
+
+  @@index([routineId])
 }
 
 model RoutineDay {
@@ -523,7 +551,15 @@ Para mantener esta documentación al día:
 
 ## 📋 Changelog Histórico
 
-### v2.3.0 (6 Julio 2026) - **Current**
+### v2.4.0 (6 Julio 2026) - **Current**
+Origen: las 3 fases del roadmap "entrenador inteligente" (plateau, mesociclos, descarga adaptativa), construidas juntas en una sola pasada por decisión explícita del usuario, en vez de una a la vez como sugería el roadmap original.
+
+*   **FEATURE — Detección de plateau:** `detectPlateau()` (nuevo, `client/src/utils/exerciseName.js`) marca un ejercicio si su mejor 1RM estimado no mejoró entre la mitad antigua y la mitad reciente de sus últimas 4-6 sesiones. Badge "Estancado" en `PRCard` de Progress (tabs General y Músculos) y tarjeta agregada en Dashboard. 100% cliente, sin endpoint nuevo — reutiliza el patrón de `GoalSection.jsx` (`getWorkoutHistory(500)` + `groupHistoryByExercise`). Gotcha encontrado y resuelto: `PersonalRecord.exerciseName` se guarda solo en minúsculas, así que el cruce con el historial agrupado usa `canonicalExerciseKey`, no un match de string crudo.
+*   **FEATURE — Mesociclos:** nuevo modelo `RoutineBlock` (opcional por rutina), con CRUD completo (`server/src/index.js`) y UI en `EditRoutine.jsx` (crear/editar/reordenar, guardado inmediato por bloque) y `RoutineDetail.jsx` (ver bloques, "Semana N de M", botón "Iniciar siguiente bloque"). Bloque activo = el de `startedAt` no-nulo más reciente, sin necesidad de mantener un flag `isActive` aparte.
+*   **FEATURE — Descarga adaptativa:** combina volumen semanal a la baja (<85% de la semana anterior) con varios ejercicios en plateau simultáneo (>=3) para activar una reducción automática (~10%) del peso sugerido, en los dos algoritmos de Smart Loading (cliente y servidor) a la vez. `getRoutinePhaseStatus()` es la única fuente de verdad de "¿está esto en descarga?", con prioridad fija entre un bloque de fase `deload` y el mecanismo adaptativo standalone (`Routine.adaptiveDeloadUntil`). Aviso visible en `Workout.jsx` (banner + badge recoloreado), nunca un ajuste silencioso.
+*   **Verificado end-to-end** contra la cuenta real de producción: badges de plateau con datos reales (4 ejercicios detectados), CRUD completo de bloques (crear, iniciar, avance de semana, reordenar, borrar — con limpieza de los bloques de prueba después), multiplicador de descarga confirmado en ambos algoritmos de sugerencia con overrides temporales de código (nunca datos permanentes), y el flujo real end-to-end (escritura directa de `adaptiveDeloadUntil`, revertida después) confirmando que el banner aparece sin ningún override.
+
+### v2.3.0 (6 Julio 2026)
 Origen: 4 problemas de experiencia real reportados por el usuario (scroll que salta, foto de progreso que no se guarda, timer de descanso entre ejercicios en vez de series, notificaciones que se apilan), investigados y corregidos uno por uno con verificación en vivo contra la cuenta de producción.
 
 *   **FIX CRÍTICO — Scroll salta al inicio al abrir modales:** causa raíz no era la sospechada inicialmente (ni scroll-anchoring del navegador, ni `autoFocus`): las animaciones de entrada (`animate-fade-in`/`slide-up`/`scale-in`, `index.css`) usan `transform` con `animation-fill-mode: forwards`, que deja el elemento marcado como transformado para siempre (aunque visualmente sea idéntico a `transform: none`) — y **cualquier ancestro con un `transform` computado distinto de `none` se convierte en el containing block de sus descendientes `position: fixed`**, sacándolos de "fijo al viewport". Confirmado midiendo en vivo el `getBoundingClientRect()` de un modal roto (aparecía cientos de píxeles fuera de pantalla). Nuevo componente `client/src/components/ui/Portal.jsx` (`createPortal` a `document.body`) aplicado en los 10 overlays `fixed inset-0` de la app (BodyTracking, Routines, Profile, AchievementsStrip, Progress, ExerciseLibrary, RoutineTemplateSelector, Workout, Settings, Import). También corregido `Workout.jsx` `goToExercise()`: llamaba `window.scrollTo()`, que nunca hacía nada porque `<main>` (no `window`) es el contenedor real con scroll (ver Layout.jsx).

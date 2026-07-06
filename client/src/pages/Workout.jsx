@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, Save, Trophy, History, X, ChevronLeft, ChevronRight,
-    Target, ArrowRight, TrendingUp, Sparkles, Dumbbell
+    Target, ArrowRight, TrendingUp, Sparkles, Dumbbell, AlertTriangle
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
@@ -140,7 +140,7 @@ function computeSuggestion(sessions, targetReps, increment) {
 }
 
 // Hook para gestión de historial de ejercicio (mejor marca previa + sugerencia calculada)
-function useExerciseHistory(exerciseId, targetReps, muscleGroup) {
+function useExerciseHistory(exerciseId, targetReps, muscleGroup, isDeload) {
     const [previousBest, setPreviousBest] = useState(null);
     const [suggestion, setSuggestion] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -176,7 +176,14 @@ function useExerciseHistory(exerciseId, targetReps, muscleGroup) {
                 setPreviousBest(best);
 
                 const increment = muscleGroup === 'Piernas' ? 5 : 2.5;
-                setSuggestion(computeSuggestion(sessions, targetReps, increment));
+                const raw = computeSuggestion(sessions, targetReps, increment);
+                // Descarga: reduce el peso sugerido ~10% (misma rejilla de redondeo
+                // que la sugerencia normal). No toca `rationale` — el aviso visible
+                // vive aparte, en el banner/badge de la UI.
+                const adjusted = (raw && isDeload)
+                    ? { ...raw, weight: roundWeight(raw.weight * 0.9, increment, raw.weight), isDeload: true }
+                    : raw;
+                setSuggestion(adjusted);
             } catch {
                 if (currentRequestRef.current === requestId) {
                     setPreviousBest(null);
@@ -186,7 +193,7 @@ function useExerciseHistory(exerciseId, targetReps, muscleGroup) {
                 if (currentRequestRef.current === requestId) setLoading(false);
             }
         })();
-    }, [exerciseId, targetReps, muscleGroup]);
+    }, [exerciseId, targetReps, muscleGroup, isDeload]);
 
     return { previousBest, suggestion, loading };
 }
@@ -477,6 +484,7 @@ export default function Workout() {
         exercises: [],
         currentIndex: 0,
         dayName: '',
+        isDeload: false,
         loading: true
     });
 
@@ -497,7 +505,7 @@ export default function Workout() {
     const restTimer = useRestTimer();
 
     const currentExercise = workoutState.exercises[workoutState.currentIndex];
-    const { previousBest, suggestion } = useExerciseHistory(currentExercise?.id, currentExercise?.targetReps, currentExercise?.muscleGroup);
+    const { previousBest, suggestion } = useExerciseHistory(currentExercise?.id, currentExercise?.targetReps, currentExercise?.muscleGroup, workoutState.isDeload);
 
     // Valores computados
     const isAlreadyLogged = useMemo(() =>
@@ -542,7 +550,8 @@ export default function Workout() {
                     setWorkoutState(prev => ({
                         ...prev,
                         exercises: day.exercises,
-                        dayName: day.dayName
+                        dayName: day.dayName,
+                        isDeload: !!routine.isDeload
                     }));
                     await checkCompletedExercises(day.exercises);
                     if (day.exercises.length > 0) {
@@ -951,6 +960,17 @@ export default function Workout() {
 
             {/* Banner de Estado (Bloqueado/Sugerencias) */}
             <div className="mb-6 space-y-3 ml-4">
+                {workoutState.isDeload && (
+                    <div className="bg-[var(--warning)]/10 border border-[var(--warning)]/20 rounded-2xl p-4 flex items-center gap-3 animate-fade-in">
+                        <div className="bg-[var(--warning)] p-2 rounded-full text-black shadow-sm shrink-0">
+                            <AlertTriangle size={16} strokeWidth={2.5} />
+                        </div>
+                        <div>
+                            <p className="font-bold text-[var(--warning)] text-sm">Semana de descarga</p>
+                            <p className="text-[var(--warning)]/80 text-xs">Sugerencias reducidas ~10% para facilitar la recuperación</p>
+                        </div>
+                    </div>
+                )}
                 {isAlreadyLogged ? (
                     <div className="bg-[var(--success)]/10 border border-[var(--success)]/20 rounded-2xl p-4 flex items-center gap-3 animate-fade-in">
                         <div className="bg-[var(--success)] p-2 rounded-full text-white shadow-sm">
@@ -992,11 +1012,11 @@ export default function Workout() {
                                 onClick={applySuggestion}
                                 className="flex-1 p-3 flex flex-col items-center hover:bg-[var(--bg-dark)] transition-colors active:scale-95 group relative overflow-hidden"
                             >
-                                <div className="absolute inset-0 bg-[var(--success)]/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                <span className="text-[10px] uppercase text-[var(--success)] font-bold mb-1 flex items-center gap-1">
-                                    Sugerido <Sparkles size={10} />
+                                <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity ${suggestion.isDeload ? 'bg-[var(--warning)]/5' : 'bg-[var(--success)]/5'}`} />
+                                <span className={`text-[10px] uppercase font-bold mb-1 flex items-center gap-1 ${suggestion.isDeload ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
+                                    {suggestion.isDeload ? 'Descarga' : 'Sugerido'} <Sparkles size={10} />
                                 </span>
-                                <div className="flex items-end gap-1 text-[var(--success)] group-hover:scale-105 transition-transform">
+                                <div className={`flex items-end gap-1 group-hover:scale-105 transition-transform ${suggestion.isDeload ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
                                     <span className="text-2xl font-black tracking-tight leading-none">{suggestion.weight}</span>
                                     <span className="text-xs mb-0.5 font-bold">kg</span>
                                     <span className="mx-1 text-[var(--border)]">/</span>

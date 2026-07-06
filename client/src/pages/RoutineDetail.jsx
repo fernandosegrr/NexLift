@@ -1,12 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Play, Calendar, Dumbbell, Clock, Pencil } from 'lucide-react';
+import { ArrowLeft, Play, Calendar, Dumbbell, Clock, Pencil, Layers, ChevronRight } from 'lucide-react';
 import { api } from '../services/api';
+import { useToast } from '../components/ui/Toast';
+
+const BLOCK_PHASE_LABELS = {
+    accumulation: 'Acumulación',
+    intensification: 'Intensificación',
+    deload: 'Descarga',
+    custom: 'Personalizado'
+};
 
 export default function RoutineDetail() {
     const { id } = useParams();
+    const toast = useToast();
     const [routine, setRoutine] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [startingBlock, setStartingBlock] = useState(false);
 
     useEffect(() => {
         async function fetchRoutine() {
@@ -21,6 +31,26 @@ export default function RoutineDetail() {
         }
         fetchRoutine();
     }, [id]);
+
+    const sortedBlocks = [...(routine?.blocks || [])].sort((a, b) => a.order - b.order);
+    const activeIndex = sortedBlocks.findIndex(b => b.id === routine?.activeBlock?.id);
+    const nextBlock = activeIndex === -1 ? sortedBlocks[0] : sortedBlocks[activeIndex + 1];
+
+    async function handleStartNextBlock() {
+        if (!nextBlock) return;
+        setStartingBlock(true);
+        try {
+            await api.startRoutineBlock(id, nextBlock.id);
+            const refreshed = await api.getRoutine(id);
+            setRoutine(refreshed);
+            toast.success(`Bloque "${nextBlock.name}" iniciado`);
+        } catch (error) {
+            console.error('Error starting block:', error);
+            toast.error('Error al iniciar el bloque');
+        } finally {
+            setStartingBlock(false);
+        }
+    }
 
     if (loading) {
         return (
@@ -70,6 +100,47 @@ export default function RoutineDetail() {
                     <p className="text-[var(--text-secondary)] mt-1">{routine.description}</p>
                 )}
             </div>
+
+            {/* Mesociclos (bloques) — solo si la rutina tiene alguno configurado */}
+            {sortedBlocks.length > 0 && (
+                <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)] space-y-3">
+                    <div className="flex items-center gap-2">
+                        <Layers size={16} className="text-[var(--primary)]" />
+                        <h3 className="font-bold text-sm">Mesociclos</h3>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {sortedBlocks.map(block => {
+                            const isActive = block.id === routine.activeBlock?.id;
+                            return (
+                                <span
+                                    key={block.id}
+                                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold tracking-wide ${isActive
+                                        ? 'bg-[var(--primary)]/20 text-[var(--primary)]'
+                                        : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] border border-[var(--border)]'
+                                        }`}
+                                >
+                                    {block.name} · {BLOCK_PHASE_LABELS[block.phase] || block.phase}
+                                </span>
+                            );
+                        })}
+                    </div>
+                    {routine.activeBlock && (
+                        <p className="text-xs text-[var(--text-secondary)]">
+                            Semana {routine.currentWeek} de {routine.activeBlock.durationWeeks} — {routine.activeBlock.name}
+                        </p>
+                    )}
+                    {nextBlock && (
+                        <button
+                            onClick={handleStartNextBlock}
+                            disabled={startingBlock}
+                            className="w-full flex items-center justify-center gap-2 py-2.5 bg-[var(--primary)]/10 border border-[var(--primary)]/30 rounded-lg text-sm font-medium text-[var(--primary)] hover:bg-[var(--primary)]/15 transition-colors disabled:opacity-50"
+                        >
+                            <ChevronRight size={16} />
+                            {startingBlock ? 'Iniciando...' : `Iniciar "${nextBlock.name}"`}
+                        </button>
+                    )}
+                </div>
+            )}
 
             {/* Days */}
             <div className="space-y-4">

@@ -68,12 +68,42 @@ model Routine {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   days        RoutineDay[]
-  
+  blocks      RoutineBlock[]
+
+  // Descarga adaptativa (solo se usa si la rutina NO tiene bloques con
+  // phase='deload' configurados — ver getRoutinePhaseStatus en index.js).
+  // adaptiveDeloadUntil: mientras esté en el futuro, las sugerencias de peso
+  // se reducen. lastAdaptiveCheckAt: cooldown de 7 días entre evaluaciones del
+  // trigger (volumen a la baja + varios ejercicios en plateau), mismo patrón
+  // que User.lastReengagementNotifiedAt.
+  adaptiveDeloadUntil DateTime?
+  lastAdaptiveCheckAt DateTime?
+
   // Relación con usuario (opcional para migración)
   userId      String?
   user        User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@index([userId])
+}
+
+// Mesociclo/bloque de periodización (opcional — una rutina sin bloques se
+// comporta exactamente igual que antes). El bloque "activo" es el de `startedAt`
+// no-nulo más reciente, calculado en lectura (ver getActiveBlock en index.js) —
+// evita mantener a mano la invariante "a lo más un bloque activo" en cada escritura.
+// `durationWeeks` es informativo (para mostrar "semana N de M"), nunca un corte
+// duro: reordenar bloques o que uno se extienda más de lo planeado no afecta el
+// tiempo transcurrido de un bloque ya arrancado.
+model RoutineBlock {
+  id            String    @id @default(cuid())
+  name          String
+  phase         String    @default("custom") // 'accumulation' | 'intensification' | 'deload' | 'custom'
+  order         Int       @default(0)
+  durationWeeks Int       @default(4)
+  startedAt     DateTime?
+  routineId     String
+  routine       Routine   @relation(fields: [routineId], references: [id], onDelete: Cascade)
+
+  @@index([routineId])
 }
 
 model RoutineDay {

@@ -10,6 +10,7 @@ import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
 import GoalSection from '../components/goals/GoalSection';
 import { epley1RM, classifyLift } from '../utils/strength';
+import { canonicalExerciseKey, groupHistoryByExercise, detectPlateau } from '../utils/exerciseName';
 
 // ==========================================
 // CONSTANTS & UTILITIES
@@ -70,6 +71,8 @@ function useProgressData() {
         consistency: {},
         prs: [],
         exercises: [],
+        // Map: clave canónica de ejercicio -> { names, muscleGroup, sessions } (ver exerciseName.js)
+        workoutHistory: new Map(),
         loading: true
     });
 
@@ -78,11 +81,12 @@ function useProgressData() {
 
         async function fetchAllData() {
             try {
-                const [statsData, consistencyRes, prsData, routinesData] = await Promise.all([
+                const [statsData, consistencyRes, prsData, routinesData, historyData] = await Promise.all([
                     api.getOverviewStats(),
                     api.getConsistency(),
                     api.getPersonalRecords(),
-                    api.getRoutines()
+                    api.getRoutines(),
+                    api.getWorkoutHistory(500)
                 ]);
 
                 if (!isMounted) return;
@@ -113,6 +117,7 @@ function useProgressData() {
                     consistency: consistencyMap,
                     prs: prsData,
                     exercises: allExercises,
+                    workoutHistory: groupHistoryByExercise(historyData),
                     loading: false
                 });
             } catch (error) {
@@ -435,7 +440,7 @@ function ExerciseSelector({ exercises, selected, onSelect, loading }) {
     );
 }
 
-function PRCard({ pr, rank }) {
+function PRCard({ pr, rank, historyGroup }) {
     const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
     const isTop3 = rank <= 3;
     const muscle = getMuscleGroup(pr.exerciseName, null);
@@ -443,6 +448,8 @@ function PRCard({ pr, rank }) {
 
     // Mostrar 1RM estimado si existe
     const estimated1RM = pr.estimated1RM ? Math.round(pr.estimated1RM) : null;
+
+    const plateau = detectPlateau(historyGroup?.sessions);
 
     return (
         <div className={`relative bg-[var(--bg-card)] rounded-xl p-4 border transition-all hover:border-[var(--primary)]/30 ${isTop3
@@ -464,6 +471,14 @@ function PRCard({ pr, rank }) {
                         <span className={`text-[9px] px-1.5 py-0.5 rounded border ${colors.bg} ${colors.text} ${colors.border}`}>
                             {muscle}
                         </span>
+                        {plateau.isPlateaued && (
+                            <span
+                                title={`Sin mejora en ${plateau.sessionsConsidered} sesiones (${Math.round(plateau.olderBest1RM)}kg → ${Math.round(plateau.recentBest1RM)}kg est. 1RM)`}
+                                className="text-[9px] px-1.5 py-0.5 rounded border border-[var(--warning)]/40 bg-[var(--warning)]/15 text-[var(--warning)] font-semibold"
+                            >
+                                Estancado
+                            </span>
+                        )}
                     </div>
                     {/* Relative Time */}
                     <div className="flex items-center gap-1 text-[var(--text-secondary)]">
@@ -510,7 +525,7 @@ function CustomTooltip({ active, payload, label }) {
 
 export default function Progress() {
     const toast = useToast();
-    const { stats, consistency, prs, exercises, loading } = useProgressData();
+    const { stats, consistency, prs, exercises, workoutHistory, loading } = useProgressData();
 
     const [uiState, setUIState] = useState({
         activeTab: 'overview',
@@ -847,7 +862,12 @@ export default function Progress() {
 
                         <div className="space-y-2.5">
                             {displayedPRs.map((pr, i) => (
-                                <PRCard key={`${pr.exerciseName}-${i}`} pr={pr} rank={i + 1} />
+                                <PRCard
+                                    key={`${pr.exerciseName}-${i}`}
+                                    pr={pr}
+                                    rank={i + 1}
+                                    historyGroup={workoutHistory.get(canonicalExerciseKey(pr.exerciseName))}
+                                />
                             ))}
                             {displayedPRs.length === 0 && (
                                 <div className="text-center py-10 bg-[var(--bg-dark)] rounded-xl">
@@ -1034,24 +1054,35 @@ export default function Progress() {
 
                                 {uiState.expandedMuscle === muscle && (
                                     <div className="px-4 pb-4 space-y-2 animate-fade-in bg-[var(--bg-dark)]/30 pt-2">
-                                        {musclePs.map((pr, i) => (
-                                            <button
-                                                key={i}
-                                                onClick={() => {
-                                                    setFiltersState(prev => ({ ...prev, selectedExercise: pr.exerciseName }));
-                                                    setUIState(prev => ({ ...prev, activeTab: 'overview' }));
-                                                }}
-                                                className="w-full flex items-center justify-between bg-[var(--bg-dark)] hover:bg-[var(--border)] rounded-lg p-3 transition-all active:scale-98 min-h-[44px]"
-                                            >
-                                                <span className="text-sm truncate pr-3">{pr.exerciseName}</span>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-sm font-mono" style={{ color: colors.hex }}>
-                                                        {pr.weight}kg × {pr.reps}
+                                        {musclePs.map((pr, i) => {
+                                            const plateau = detectPlateau(workoutHistory.get(canonicalExerciseKey(pr.exerciseName))?.sessions);
+                                            return (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => {
+                                                        setFiltersState(prev => ({ ...prev, selectedExercise: pr.exerciseName }));
+                                                        setUIState(prev => ({ ...prev, activeTab: 'overview' }));
+                                                    }}
+                                                    className="w-full flex items-center justify-between bg-[var(--bg-dark)] hover:bg-[var(--border)] rounded-lg p-3 transition-all active:scale-98 min-h-[44px]"
+                                                >
+                                                    <span className="text-sm truncate pr-3 flex items-center gap-1.5">
+                                                        {pr.exerciseName}
+                                                        {plateau.isPlateaued && (
+                                                            <span
+                                                                title={`Estancado: sin mejora en ${plateau.sessionsConsidered} sesiones`}
+                                                                className="w-1.5 h-1.5 rounded-full bg-[var(--warning)] shrink-0"
+                                                            />
+                                                        )}
                                                     </span>
-                                                    <ChevronRight size={14} className="text-[var(--text-secondary)]" />
-                                                </div>
-                                            </button>
-                                        ))}
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-sm font-mono" style={{ color: colors.hex }}>
+                                                            {pr.weight}kg × {pr.reps}
+                                                        </span>
+                                                        <ChevronRight size={14} className="text-[var(--text-secondary)]" />
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
