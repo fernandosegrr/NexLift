@@ -1,146 +1,136 @@
 # 🏋️ NexLift
 
 > **Tu compañero de gimnasio inteligente**  
-> Gestiona tus rutinas, registra tu progreso y supera tus límites.
+> Registra tu entrenamiento y deja que el entrenador adaptativo calcule peso, reps y cuándo tocar descarga.
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.9.3-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-2.4.1-blue?style=flat-square)
 
 ---
 
 ## 📱 Descripción
 
-**NexLift** es una Progressive Web App diseñada para levantadores de pesas serios. Olvida las notas de celular desordenadas; NexLift te ofrece una experiencia nativa para trackear cada serie, repetición y RPE, calculando automáticamente tus récords personales y mostrándote gráficas de evolución.
+**NexLift** es una Progressive Web App (PWA) de tracking de gimnasio, mobile-first y con tema OLED oscuro. Se diferencia de una libreta de notas por su **periodización matemática**: en cada serie sugiere peso y reps con doble progresión autorregulada por RIR, detecta cuándo un ejercicio se estanca, organiza el entrenamiento en mesociclos (acumulación / intensificación / descarga) y activa una descarga automática cuando el volumen cae y varios ejercicios se estancan a la vez.
 
-Diseñada con un enfoque **Mobile-First**, funciona perfectamente en tu celular dentro del gimnasio.
+Funciona instalada como app nativa (offline-first) y también admite registrar series desde un **Atajo de iOS**, sin abrir la app.
 
 ---
 
 ## ✨ Características Principales
 
-### 🔐 Sistema de Autenticación (v1.8)
-- **Registro completo:** Nombre, email, usuario, contraseña
-- **Login persistente:** Sin expiraciones molestas
-- **Recuperación de cuenta:** Pregunta de seguridad
-- **Perfil personalizado:** Avatar, datos personales
+### 🔐 Autenticación
+- Registro, login persistente (JWT de 365 días) y recuperación de cuenta por pregunta de seguridad.
+- Revocación real de sesión: cambiar la contraseña o la pregunta de seguridad invalida todos los tokens emitidos antes.
 
-### 🎯 Gestión de Rutinas
-- **Importación JSON Simplificada:** Carga rutinas complejas en segundos
-- **Rutina Activa:** Define tu foco actual y organiza tus semanas
-- **Días de Descanso:** Planifica tu recuperación
-- **Edición In-App:** Modifica ejercicios, series y reps directamente
+### 🎯 Rutinas y Mesociclos
+- Crear rutinas a mano, desde plantillas (PPL, Arnold, Full Body...) o importando JSON/texto.
+- Deduplicación de ejercicios al importar vía LLM (opcional) para evitar duplicados como "Press Banca" / "press de banca".
+- **Mesociclos:** organiza una rutina en bloques de Acumulación, Intensificación, Descarga o personalizados, con duración en semanas e inicio manual del siguiente bloque.
+- Papelera de historial: un ejercicio con series registradas nunca se borra de verdad al editar o eliminar una rutina.
 
-### 📝 Tracking de Entrenamiento
-- **Registro Preciso:** Peso (kg), Repeticiones y RIR/RPE
-- **Ghost Mode 👻:** Visualiza tu mejor desempeño histórico
-- **Notas por Ejercicio:** Guarda tips técnicos
+### 🧠 Entrenador Inteligente
+- **Sugerencia de carga (Smart Loading):** doble progresión con autorregulación por RIR sobre la última sesión completa — sube peso y reinicia reps al llegar al tope del rango, suma reps si sobró margen, ajusta si hubo fallo. 100% cálculo local, sin IA.
+- **Detección de plateau:** marca un ejercicio como estancado si su mejor 1RM estimado no mejora entre la mitad antigua y la reciente de sus últimas sesiones.
+- **Descarga adaptativa:** si el volumen semanal cae por debajo del 85% del anterior y 3+ ejercicios están en plateau al mismo tiempo, la rutina entra en una ventana de descarga automática con la carga sugerida reducida — siempre avisado con un banner visible, nunca en silencio.
+- La fase activa de un mesociclo ajusta en tiempo real el rango de reps usado para sugerir (más reps en acumulación, más peso/menos reps en intensificación).
+
+### 📲 Atajo de iOS (Shortcuts)
+- Registra una serie sin abrir la app: un Atajo consulta la sugerencia del próximo ejercicio y guarda la serie contra la misma cuenta.
+- Compatible con sesiones parciales: si ya registraste algunas series por el Atajo, la app las muestra editables junto con las que faltan, sin fragmentar el registro del día.
+
+### 🔔 Notificaciones Push
+- Aviso de fin de descanso al completar cada serie (con el nombre del ejercicio correcto si tocaba cambiar de ejercicio).
+- Recordatorio de "¿no vas a entrenar hoy?" si llevas 3+ días sin registrar actividad, a tu hora habitual de gym.
+- Totalmente opcional — sin claves VAPID configuradas, la app funciona igual, solo sin push.
 
 ### 📊 Análisis y Progreso
-- **Dashboard Interactivo:** Resumen semanal y racha actual
-- **Calendario de Asistencia:** Heatmap estilo GitHub (últimos 30 días)
-- **Métricas de Volumen:** % de Cumplimiento basado en constancia
-- **Desglose Muscular:** Analiza grupos musculares priorizados
-- **Evolución 1RM:** Gráficas estimando tu 1RM teórico
-- **Récords Personales:** Tracking automático de PRs 🏆
+- Dashboard con racha, heatmap de consistencia estilo GitHub, PRs del mes y logros con progreso real (no solo un ícono).
+- Evolución de 1RM estimado, distribución de volumen por grupo muscular, cumplimiento semanal.
+- **Objetivos (Goals):** planes de periodización (Fuerza/Hipertrofia) generados desde tu 1RM real o uno manual.
 
 ### 🏋️ Body Tracking
-- **Registro de Peso Corporal:** Seguimiento diario/semanal
-- **Composición Corporal:** 8 métricas de báscula inteligente
-- **Fotos de Progreso:** Almacenamiento en Catbox.moe (v1.8)
-- **Gráficas de Evolución:** Visualiza cambios en el tiempo
+- Peso corporal + 8 métricas de báscula inteligente (grasa, agua, músculo, hueso, visceral, proteína, BMI, BMR).
+- Fotos de progreso: suben a Cloudinary si está configurado, con fallback automático a Catbox.moe.
 
-### 📄 Exportación de Reportes (PDF)
-- **Reportes Profesionales:** Genera PDFs con todo tu progreso
-- **Períodos Configurables:** Semanal, Mensual, Trimestral, Anual
-- **Contenido Incluido:**
-  - Estadísticas del período
-  - Rutina activa completa
-  - Récords personales del período
-  - Progreso por ejercicio
-  - Evolución del peso corporal
-  - Fotos de progreso
+### 📄 Reportes PDF
+- Exportación con rango configurable (7/30/90 días): resumen ejecutivo, tabla de PRs, detalle diario de volumen, composición corporal y galería de fotos.
 
-### 🎨 Interfaz de Usuario
-- **Modo Oscuro OLED:** Interfaz perfecta para gimnasios
-- **Toast Notifications:** Feedback elegante en cada acción
-- **Animaciones Fluidas:** Transiciones y micro-interacciones premium
-- **Celebración de PRs:** Animaciones especiales al romper récords
+### 🎨 PWA
+- OLED negro puro, instalable desde el navegador, funciona offline (assets cache-first, navegación y API network-first con respaldo).
 
 ---
 
 ## 🛠️ Stack Tecnológico
 
-| Área | Tecnología | Descripción |
-|------|------------|-------------|
-| **Frontend** | React 18 | UI basada en componentes |
-| **Build Tool** | Vite 7 | Desarrollo ultrarrápido |
-| **Estilos** | Tailwind CSS 4 | Framework utility-first |
-| **Iconos** | Lucide React | Iconografía moderna |
-| **Gráficos** | Recharts | Visualización de datos |
-| **PDF** | jsPDF + autoTable | Generación de reportes |
-| **Backend** | Express.js / Vercel Functions | API REST |
-| **Base de Datos** | PostgreSQL | BD relacional robusta |
-| **ORM** | Prisma | Acceso a datos type-safe |
-| **Auth** | JWT + bcrypt | Autenticación segura |
-| **Storage** | Catbox.moe | Hosting de fotos |
+| Área | Tecnología |
+|------|------------|
+| Frontend | React 19 + Vite 7 |
+| Estilos | Tailwind CSS 4 |
+| Gráficos | Recharts |
+| Reportes PDF | jsPDF + html2canvas |
+| Backend | Express.js — **único backend**, sirve la API y `client/dist` en el mismo puerto |
+| Base de datos | PostgreSQL + Prisma ORM |
+| Auth | JWT + bcryptjs |
+| Fotos | Cloudinary (opcional) con fallback a Catbox.moe |
+| Notificaciones | web-push / VAPID (opcional) |
+| Dedup. de ejercicios | OpenAI gpt-4o-mini (opcional, con fallback determinista) |
+| Deploy | Docker en VPS (EasyPanel) |
+
+---
+
+## 🏗️ Estructura del Proyecto
+
+```
+NexLift/
+├── client/                    # React SPA (Vite)
+│   ├── src/
+│   │   ├── components/        # goals/, layout/, ui/ + componentes sueltos
+│   │   ├── context/            # AuthContext
+│   │   ├── pages/               # Dashboard, Workout, Routines, Progress, BodyTracking, Settings...
+│   │   ├── services/            # api.js — cliente HTTP con auth
+│   │   ├── utils/                # Epley, canonicalización de nombres, detección de plateau...
+│   │   └── data/                  # exercises.js
+│   └── public/                 # sw.js (service worker), manifest, íconos
+├── server/                    # Express — ÚNICO backend (desarrollo y producción)
+│   ├── src/index.js            # API + helpers de fecha CDMX + sirve client/dist en prod
+│   ├── prisma/schema.prisma     # Schema (se sincroniza con `db push`, sin carpeta migrations/)
+│   └── scripts/ + *.mjs          # Mantenimiento: migración de fotos a Cloudinary, fix de RIR del Atajo...
+├── .agent/
+│   └── context.md              # Documentación exhaustiva para IA — fuente de verdad técnica
+├── CLAUDE.md                   # Guía para Claude Code (arquitectura, convenciones, gotchas)
+└── Dockerfile                  # Build multi-stage: compila client, genera Prisma, arranca server
+```
 
 ---
 
 ## 🚀 Despliegue
 
-### Opción 1: Vercel (Serverless)
-Optimizado para **Vercel** con PostgreSQL (Neon, Supabase, Railway).
+Único método soportado: **VPS + Docker** (EasyPanel o equivalente). El `Dockerfile` de la raíz compila el cliente, genera el cliente de Prisma y arranca `server/src/index.js`, que sirve la API y el build del frontend en el mismo puerto.
 
+### Variables de entorno
+
+**Obligatorias:**
 ```env
 DATABASE_URL="postgresql://usuario:password@host:port/database"
-JWT_SECRET="tu-clave-secreta-muy-larga-y-segura"
+JWT_SECRET="clave-secreta-larga-y-aleatoria"
+NODE_ENV=production
 ```
+El servidor **no arranca en producción** sin `JWT_SECRET`.
 
-### Opción 2: Easypanel / VPS (Docker)
-También soporta despliegue en **VPS con Easypanel** usando Docker.
+**Opcionales** (funciones nuevas que degradan sin romper nada si faltan):
+```env
+VAPID_PUBLIC_KEY=       # Recordatorio de descanso / re-enganche vía Web Push
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=mailto:tu-email@ejemplo.com
 
-1. Conecta tu repositorio de GitHub en Easypanel
-2. Selecciona **Dockerfile** como método de build
-3. Configura las variables de entorno
-4. Deploy
+OPENAI_API_KEY=         # Deduplicación de ejercicios al importar rutinas
 
-### Estructura del Proyecto
+CLOUDINARY_CLOUD_NAME=  # Fotos de avatar/progreso (si faltan, cae a Catbox.moe)
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
 ```
-NexLift/
-├── api/                  # Serverless Functions (Vercel)
-│   ├── prisma/           # Schema de BD
-│   └── index.js          # Entry point API
-├── client/               # React SPA
-│   ├── src/
-│   │   ├── components/   # Componentes reutilizables
-│   │   ├── contexts/     # AuthContext (v1.8)
-│   │   ├── pages/        # 15 páginas
-│   │   └── services/     # API client con auth
-│   └── public/           # Assets estáticos
-├── server/               # Servidor local de desarrollo
-│   ├── prisma/           # Schema de BD
-│   ├── scripts/          # Scripts de mantenimiento
-│   └── src/index.js      # API Express
-├── shared/               # Código compartido (v1.8)
-│   ├── middleware/       # Auth middleware
-│   ├── utils/            # Password, Catbox
-│   └── routes/           # Rutas modulares
-├── .agent/               # Documentación para IA
-│   └── context.md        # Contexto completo del proyecto
-└── vercel.json           # Configuración Vercel
-```
-
-### ⚠️ Nota Importante: Sincronización de Schemas
-
-Este proyecto tiene **dos schemas de Prisma** que deben mantenerse sincronizados:
-
-| Archivo | Uso |
-|---------|-----|
-| `server/prisma/schema.prisma` | Desarrollo local |
-| `api/prisma/schema.prisma` | Producción (Vercel) |
-
-**Si agregas o modificas modelos/campos, actualiza AMBOS archivos.**
+Plantilla completa en [`server/.env.example`](server/.env.example).
 
 ---
 
@@ -178,11 +168,11 @@ Este proyecto tiene **dos schemas de Prisma** que deben mantenerse sincronizados
 git clone https://github.com/fernandosegrr/NexLift.git
 cd NexLift
 
-# Backend (servidor Express)
+# Backend (Express)
 cd server
 npm install
 npx prisma generate
-npx prisma migrate dev
+npx prisma db push   # NUNCA `prisma migrate` — no hay carpeta migrations/, ver .agent/context.md
 npm run dev
 
 # Frontend (en otra terminal)
@@ -195,52 +185,40 @@ npm run dev
 - Frontend: http://localhost:5173
 - Backend: http://localhost:3001
 
+> ⚠️ No hay suite de tests automatizados. Cualquier cambio a lógica de fechas, PRs, rutinas o autenticación debe probarse a mano (navegador, datos reales) antes de darse por bueno.
+
 ---
 
 ## 📜 Changelog
 
-### v1.9.3 (13 Ene 2026) - Advanced Periodization
-- **Goals V2**: Algoritmo matemático puro (Fuerza/Hipertrofia), Test week, Validación.
-- **Vercel Sync**: Deploy serverless totalmente funcional.
+Historial completo y detallado (con causa raíz de cada fix) en [`.agent/context.md`](.agent/context.md). Resumen de versiones recientes:
 
-### v1.9.0 - v1.9.2 (Ene 2026)
-- **PDF Export V2**: Tablas dinámicas y datos ASCII.
-- **Routine Wizard**: Creador de rutinas unificado.
-- **UX**: Mejoras en dashboard y workout logs.
+### v2.4.1 (7 Jul 2026) — Fixes de Atajo de iOS y notificaciones
+Las sesiones parciales del Atajo ya no bloquean completar el ejercicio a mano, el RIR enviado por el Atajo se guardaba invertido (corregido, con script de corrección retroactiva), el aviso de descanso ahora menciona el ejercicio siguiente correcto al cambiar de ejercicio, se eliminaron notificaciones duplicadas al completar varias series de golpe, y un aviso "fantasma" al recargar la página quedó corregido.
 
-### v1.8.0 - Multi-User Auth System (9 Ene 2026)
-**El cambio más grande en la historia del proyecto**
+### v2.4.0 (6 Jul 2026) — Entrenador inteligente
+Detección de plateau, mesociclos (`RoutineBlock`: acumulación / intensificación / descarga) y descarga adaptativa automática cuando cae el volumen semanal y varios ejercicios se estancan a la vez.
 
-#### 🔐 Autenticación Completa
-- Sistema JWT con tokens persistentes
-- Login, Register, Forgot Password
-- Pregunta de seguridad para recuperación
-- Perfil de usuario editable
-- AuthContext + ProtectedRoute
+### v2.3.0 (6 Jul 2026) — UX real de gimnasio
+Fix crítico de modales que se salían de pantalla en cuanto había scroll (nuevo componente `Portal`), fotos de progreso migradas a Cloudinary con fallback a Catbox, temporizador de descanso real por serie (antes solo saltaba entre ejercicios), timer resistente a que el navegador pause timers en segundo plano, y notificaciones que ya no se apilan.
 
-#### 🏗️ Arquitectura Multi-Tenant
-- Modelo `User` en Prisma
-- userId en todas las tablas
-- Filtrado por usuario en TODAS las queries
-- Ownership verification en UPDATE/DELETE
+### v2.2.0 (3 Jul 2026) — Auditoría de seguridad e integridad
+Fix de raíz del bug de zona horaria (UTC del contenedor vs. Ciudad de México) centralizado en un solo lugar tras aparecer en 5 endpoints distintos, revocación real de sesión, rate limiting por cuenta además de por IP, protección explícita del historial contra borrado en cascada, recordatorio de re-enganche, y una decena de fricciones de UX encontradas usando la app con datos reales.
 
-#### 📸 Sistema de Fotos Catbox
-- Upload automático a catbox.moe
-- Eliminación de base64 en DB
-- Script de migración incluido
+### v2.1.0 (2 Jul 2026) — Atajo de iOS y Web Push
+Endpoints para registrar series desde un Atajo de iOS sin abrir la app, notificaciones push de fin de descanso, y deduplicación de ejercicios al importar rutinas vía LLM.
 
-#### 📁 Código Compartido
-- `shared/` con routes, middleware, utils
-- Schema centralizado
+### v2.0.x (Mayo 2026) — PWA real y backend único
+Service worker instalable y offline, code-splitting del bundle, sistema de logros y estándares de fuerza, y consolidación en un solo backend (se eliminaron el backend serverless de Vercel y el código compartido duplicado; deploy exclusivo en VPS + Docker desde entonces).
 
-### v1.7.x - Bug Fixes & Normalization
-- Corrección de "Mejor anterior"
-- Normalización de ejercicios
-- Fix timezone
+<details>
+<summary>Versiones anteriores (v1.x)</summary>
 
-### v1.6.x - Data Integrity
-- Fórmula Epley unificada
-- onDelete: Restrict
+- **v1.9.x:** Papelera de historial para ejercicios con logs, sugerencia de carga calculada localmente (se retiró la IA de esa función puntual), soporte de ejercicios unilaterales, historial ilimitado con filtros.
+- **v1.8.0:** Sistema multi-usuario con JWT, fotos vía Catbox.moe.
+- **v1.6.x – v1.7.x:** Fórmula de Epley unificada, protección de logs contra borrado en cascada, normalización de nombres de ejercicio, primer fix de timezone.
+
+</details>
 
 ---
 
