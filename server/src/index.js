@@ -335,21 +335,43 @@ async function sendPushToUser(userId, payload) {
     return subs.length;
 }
 
-async function scheduleRestReminder(userId, exercise) {
+// Recordatorios pendientes por usuario+ejercicio, para poder cancelar uno
+// viejo si llega uno nuevo antes de que dispare (ver scheduleRestReminder).
+const pendingRestReminders = new Map(); // key: `${userId}:${exerciseId}`
+
+async function scheduleRestReminder(userId, exercise, nextExerciseName) {
     if (!VAPID_CONFIGURED) return; // feature no configurada: no-op, no rompe el flujo de logging
+
+    // Si se completan 2+ series casi juntas (ej. registrando series olvidadas de
+    // golpe), cada una llama esta función — sin esto, cada llamada agendaba su
+    // propio setTimeout independiente y el usuario recibía un push por cada una.
+    // Cancelar el pendiente de la misma clave colapsa la ráfaga en un solo aviso,
+    // contado desde la serie más reciente.
+    const key = `${userId}:${exercise.id}`;
+    const existingTimeout = pendingRestReminders.get(key);
+    if (existingTimeout) clearTimeout(existingTimeout);
+
     const restMs = (exercise.restSeconds || 90) * 1000;
 
-    setTimeout(async () => {
+    const timeout = setTimeout(async () => {
+        pendingRestReminders.delete(key);
         try {
+            // Si la serie que se acaba de completar era la última de este
+            // ejercicio, el descanso es para el ejercicio SIGUIENTE, no este.
+            const body = nextExerciseName
+                ? `Es hora de tu siguiente serie de ${nextExerciseName}`
+                : `Es hora de tu siguiente serie de ${exercise.name}`;
             await sendPushToUser(userId, JSON.stringify({
                 title: 'Descanso terminado',
-                body: `Es hora de tu siguiente serie de ${exercise.name}`,
+                body,
                 exerciseId: exercise.id
             }));
         } catch (err) {
             console.error('Error in scheduleRestReminder:', err.message);
         }
-    }, restMs).unref?.();
+    }, restMs);
+    timeout.unref?.();
+    pendingRestReminders.set(key, timeout);
 }
 
 // ============================================
@@ -2092,7 +2114,7 @@ app.post('/api/workouts/log', authMiddleware, async (req, res) => {
 // tener que rediseñar cómo se persisten los datos.
 app.post('/api/workouts/rest-reminder', authMiddleware, async (req, res) => {
     try {
-        const { exerciseId } = req.body;
+        const { exerciseId, nextExerciseName } = req.body;
         if (!exerciseId) {
             return res.status(400).json({ error: 'Required: exerciseId' });
         }
@@ -2102,7 +2124,7 @@ app.post('/api/workouts/rest-reminder', authMiddleware, async (req, res) => {
         if (!exercise) {
             return res.status(404).json({ error: 'Exercise not found or unauthorized' });
         }
-        scheduleRestReminder(req.userId, exercise);
+        scheduleRestReminder(req.userId, exercise, nextExerciseName || null);
         res.status(202).json({ message: 'Rest reminder scheduled' });
     } catch (error) {
         console.error('Error scheduling rest reminder:', error);
@@ -2440,7 +2462,14 @@ app.post('/api/shortcuts/log-set', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: 'Required: exerciseId' });
         }
 
-        const { sets: cleanSets, error: setsError } = sanitizeSets([{ weight, reps, rpe, weightRight, repsRight }]);
+        // El Atajo pregunta "RIR?" y manda ese número crudo (0-4) bajo el nombre
+        // `rpe` — pero el resto de la app (guardado manual en Workout.jsx) guarda
+        // en SetLog.rpe el valor invertido `10 - RIR`, no el RIR crudo, y lo
+        // revierte igual al leer. Sin esta conversión, la PWA relee un valor fuera
+        // del rango 0-3 de sus botones de RIR y lo muestra como "sin registrar".
+        const convertedRpe = rpe != null && Number.isFinite(parseFloat(rpe)) ? 10 - parseFloat(rpe) : null;
+
+        const { sets: cleanSets, error: setsError } = sanitizeSets([{ weight, reps, rpe: convertedRpe, weightRight, repsRight }]);
         if (setsError) return res.status(400).json({ error: setsError });
         const cleanSet = cleanSets[0];
 

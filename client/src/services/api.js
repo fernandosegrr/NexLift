@@ -192,11 +192,11 @@ export const api = {
         return res.json();
     },
 
-    async scheduleRestReminder(exerciseId) {
+    async scheduleRestReminder(exerciseId, nextExerciseName = null) {
         const res = await authFetch(`${API_URL}/workouts/rest-reminder`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ exerciseId }),
+            body: JSON.stringify({ exerciseId, nextExerciseName }),
         });
         if (!res.ok) throw new Error('Failed to schedule rest reminder');
         return res.json();

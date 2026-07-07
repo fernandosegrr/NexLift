@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 2.4.0 | **Última actualización:** 6 Julio 2026
+> **Versión:** 2.4.1 | **Última actualización:** 7 Julio 2026
 
 ---
 
@@ -82,6 +82,8 @@ Página crítica para registrar el entrenamiento del día. Ha recibido actualiza
   - Guardado por ejercicio (granularidad) y finalización global.
   - Persistencia local: `useWorkoutPersistence` guarda en `localStorage` cada keystroke para evitar pérdida de datos si se cierra la app.
   - **Temporizador de descanso visual** (`useRestTimer`, v2.2.0, corregido a fondo en v2.3.0): cuenta regresiva en pantalla al marcar CADA serie individual como completada (no solo al terminar el ejercicio) — respaldo del push de `scheduleRestReminder` (poco fiable en iOS Safari/PWA), que ahora también se dispara por serie vía `POST /api/workouts/rest-reminder`. Basado en timestamp absoluto (no un contador de ticks), así que se recalcula correctamente al volver de segundo plano en vez de quedarse congelado. Persiste a través del auto-avance de ejercicio — solo se detiene al terminar, al tocar la X, o al salir del entreno.
+  - **Aviso de descanso correcto al cambiar de ejercicio** (v2.4.1): si la serie recién completada era la última del ejercicio actual, `triggerSetCompleted` resuelve el ejercicio SIGUIENTE en la lista del día y manda su nombre (`nextExerciseName`) al backend, que lo usa para componer el texto del push en vez de repetir el nombre del ejercicio que ya se terminó.
+  - **Sesiones parciales del Atajo de iOS** (v2.4.1): si el Atajo ya registró algunas series de un ejercicio hoy (menos que `targetSets`), `Workout.jsx` las muestra pre-llenadas + filas vacías para las restantes, todo editable — ya no bloquea el ejercicio como "completo" solo por tener algún log de hoy. Al guardar, actualiza (`PUT`) ese mismo `WorkoutLog` en vez de crear uno nuevo, para no fragmentar el día.
 
 **API usada:**
 - `GET /api/routines` - Obtener estructura del día
@@ -538,6 +540,13 @@ Cualquier overlay `fixed inset-0` (modal, visor de foto) DEBE ir envuelto en `cl
 ### 4. Sin tests automatizados
 No existe ninguna suite de tests. Cualquier cambio a lógica de fechas, PRs, rutinas o autenticación debe probarse a mano (levantar `server`+`client`, probar en navegador contra datos reales) antes de darlo por bueno — no hay red de seguridad que atrape una regresión. El bug de zona horaria de v2.2.0 es el ejemplo directo de lo que pasa sin esto: se "arregló" 3 veces en sitios distintos antes de resolverse por completo.
 
+### 5. Atajo de iOS: sesiones parciales y convención de RIR (v2.4.1)
+`POST /api/shortcuts/log-set` registra UNA serie a la vez, acumulando en el `WorkoutLog` de hoy si ya existe uno — un ejercicio puede entonces tener un log de hoy con MENOS series que `Exercise.targetSets`. `Workout.jsx` (`checkCompletedExercises`/`loadExerciseData`) debe comparar `sets.length` contra `targetSets`, no solo "¿existe un log hoy?", para decidir si el ejercicio está de verdad completo o solo parcialmente registrado (en cuyo caso se muestra editable, con las series ya guardadas + filas vacías para el resto). Al terminar de llenarlo a mano, se usa `PUT /api/workouts/:logId` (reemplaza todas las series, mismo endpoint que `EditSession.jsx`) sobre ESE log — nunca `POST /api/workouts/log`, que siempre crea uno nuevo y fragmentaría el día en 2.
+
+`SetLog.rpe` no guarda el RIR crudo pese al comentario del schema (`// RIR`) — guarda `10 - RIR` (ida y vuelta en `Workout.jsx`: `rpe: 10 - rir` al guardar, `rir: 10 - rpe` al leer). El Atajo pregunta "RIR?" directo (0-4, confirmado con capturas reales del Atajo del usuario) y lo manda bajo el nombre `rpe` — el endpoint debe aplicarle la misma conversión antes de guardar, o el valor queda invertido y no calza con ningún botón de RIR (0-3) en la UI. Datos ya guardados mal antes de este fix: `server/fix-shortcut-rir.mjs` (dry-run por defecto, `--apply` para escribir), identifica candidatos por rango (`rpe <= 6` solo puede venir del Atajo sin convertir, nunca del flujo manual).
+
+**Gotcha encontrado verificando este fix (no reportado, pero mismo sistema):** `loadExerciseData` compara `sets` contra `prevSetsSnapshotRef` para detectar "una serie se acaba de completar" y disparar el aviso de descanso. Si `setSets(...)` carga series YA completadas (del historial de hoy o del caché de `localStorage`) sin sincronizar `prevSetsSnapshotRef` en la misma pasada, el efecto las interpreta como transiciones recién ocurridas y dispara un aviso fantasma (timer reiniciado + push real) solo por abrir o revisitar la página — confirmado en vivo antes del fix (petición a `/api/workouts/rest-reminder` disparándose sin ninguna interacción del usuario). Cualquier rama que precargue `sets` con datos preexistentes debe actualizar el ref a juego.
+
 ---
 
 ## 📝 Guía para Modificar Documentación
@@ -553,7 +562,17 @@ Para mantener esta documentación al día:
 
 ## 📋 Changelog Histórico
 
-### v2.4.0 (6 Julio 2026) - **Current**
+### v2.4.1 (7 Julio 2026) - **Current**
+Origen: 3 fricciones reales reportadas por el usuario tras usar el Atajo de iOS y el sistema de descanso/notificaciones de v2.1-v2.3 en entrenamientos reales, más 1 encontrada durante la verificación en vivo de esos mismos fixes (mismo sistema, no reportada).
+
+*   **FIX — Atajo de iOS bloqueaba agregar series a mano tras registrar 1 sola:** `Workout.jsx` (`checkCompletedExercises`/`loadExerciseData`) trataba "existe un log de hoy" como "ejercicio completo", sin comparar contra `Exercise.targetSets` — como el Atajo registra 1 serie a la vez, esto bloqueaba el resto del ejercicio con solo 1/N series hechas. Ahora se reconcilia: si `sets.length < targetSets`, se muestran las series ya guardadas (editables) + filas vacías para las restantes. Al guardar, usa `PUT /api/workouts/:logId` (reemplaza todas las series de ESE log, mismo endpoint que `EditSession.jsx`) en vez de `POST /api/workouts/log` (que siempre crea un log nuevo) — evita fragmentar el día en 2 `WorkoutLog` para el mismo ejercicio.
+*   **FIX — RIR no se reflejaba en series registradas por el Atajo:** confirmado con capturas reales del Atajo del usuario — pregunta "RIR?" (crudo, 0-4) y lo manda bajo el nombre `rpe`, pero el resto de la app guarda ahí `10 - RIR`, no el valor crudo. `POST /api/shortcuts/log-set` ahora aplica esa misma conversión antes de guardar. Corrección retroactiva de series ya guardadas mal: `server/fix-shortcut-rir.mjs` (dry-run por defecto; identifica candidatos por `rpe <= 6`, rango que el flujo manual nunca produce).
+*   **FIX — Notificación de descanso no distinguía cambio de ejercicio:** `scheduleRestReminder` siempre mencionaba el ejercicio ACTUAL, incluso cuando la serie recién completada era la última de ese ejercicio y lo que seguía era otro distinto. `Workout.jsx` ahora detecta si fue la última serie y, de ser así, manda el nombre del ejercicio SIGUIENTE (`nextExerciseName`) al backend para componer el texto correcto.
+*   **FIX — Doble notificación al completar 2+ series de golpe:** `scheduleRestReminder` no tenía ninguna deduplicación — cada llamada agendaba un `setTimeout` 100% independiente, así que registrar varias series olvidadas de golpe mandaba un push por cada una (el `tag` del service worker solo deduplica la notificación VISIBLE, no evita que el servidor mande varias). Nuevo `Map` en memoria (`pendingRestReminders`, clave `userId:exerciseId`) cancela cualquier recordatorio pendiente de la misma clave antes de agendar uno nuevo.
+*   **FIX — Aviso fantasma solo por cargar/revisitar un ejercicio ya guardado hoy (encontrado en vivo, no reportado):** el mismo mecanismo de detección "¿una serie se acaba de completar?" (comparación contra `prevSetsSnapshotRef`) se disparaba también al simplemente CARGAR un ejercicio con series ya completadas (desde el historial de hoy o desde `localStorage`), porque el snapshot no se sincronizaba con esos datos precargados — confirmado en vivo viendo un POST a `/api/workouts/rest-reminder` dispararse sin ninguna interacción real. Ahora `loadExerciseData` sincroniza `prevSetsSnapshotRef` en la misma pasada que `setSets(...)` en sus 3 ramas con datos preexistentes.
+*   **Verificado en vivo contra la cuenta real de producción:** simulación del Atajo (`POST /api/shortcuts/log-set` con RIR crudo) contra un ejercicio real sin log hoy, confirmando en el navegador las 3 filas (no 1), el RIR correcto resaltado, edición habilitada, guardado vía PUT y exactamente 1 `WorkoutLog` final (sin fragmentación); ráfaga de 3 completados de serie casi simultáneos confirmando el dedup del servidor (`cancelledPrevious: false → true → true`) y el `nextExerciseName` correcto en la última; recarga de página confirmando la ausencia del aviso fantasma tras el fix (antes disparaba, después no). Dato de prueba (pesos de 1kg, claramente falsos) borrado inmediatamente después de cada verificación; PR real del ejercicio (100kg) confirmado sin alterar.
+
+### v2.4.0 (6 Julio 2026)
 Origen: las 3 fases del roadmap "entrenador inteligente" (plateau, mesociclos, descarga adaptativa), construidas juntas en una sola pasada por decisión explícita del usuario, en vez de una a la vez como sugería el roadmap original.
 
 *   **FEATURE — Detección de plateau:** `detectPlateau()` (nuevo, `client/src/utils/exerciseName.js`) marca un ejercicio si su mejor 1RM estimado no mejoró entre la mitad antigua y la mitad reciente de sus últimas 4-6 sesiones. Badge "Estancado" en `PRCard` de Progress (tabs General y Músculos) y tarjeta agregada en Dashboard. 100% cliente, sin endpoint nuevo — reutiliza el patrón de `GoalSection.jsx` (`getWorkoutHistory(500)` + `groupHistoryByExercise`). Gotcha encontrado y resuelto: `PersonalRecord.exerciseName` se guarda solo en minúsculas, así que el cruce con el historial agrupado usa `canonicalExerciseKey`, no un match de string crudo.

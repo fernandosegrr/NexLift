@@ -551,6 +551,10 @@ export default function Workout() {
     const [sets, setSets] = useState([]);
     const [isUnilateral, setIsUnilateral] = useState(false);
     const [completedAt, setCompletedAt] = useState(null);
+    // Id del WorkoutLog de hoy a "resumir" (ej. una serie ya registrada por el
+    // Atajo de iOS) — cuando tiene valor, Guardar hace PUT sobre ese log en vez
+    // de crear uno nuevo, para no fragmentar la sesión del día. Ver loadExerciseData.
+    const [resumeLogId, setResumeLogId] = useState(null);
     const currentExerciseIdRef = useRef(null);
 
     // Custom hooks
@@ -629,7 +633,11 @@ export default function Workout() {
                     const history = await api.getExerciseHistory(ex.id);
                     if (history?.length > 0) {
                         const logDate = new Date(history[0].date).toLocaleDateString('sv');
-                        if (logDate === today) return ex.id;
+                        // No basta con "hay un log hoy": el Atajo de iOS registra 1 serie
+                        // a la vez, así que un log de hoy puede ser una sesión PARCIAL
+                        // (menos series que exercise.targetSets) que todavía debe quedar
+                        // editable, no marcada como completada.
+                        if (logDate === today && (history[0].sets?.length || 0) >= ex.targetSets) return ex.id;
                     }
                 } catch (error) {
                     console.error('Error checking exercise:', error);
@@ -651,6 +659,7 @@ export default function Workout() {
         // Auto-detect unilateral from exercise DB field
         setIsUnilateral(exercise.isUnilateral || false);
         setCompletedAt(null);
+        setResumeLogId(null);
         // El descanso NO se cancela al cambiar de ejercicio: guardar una serie avanza
         // automáticamente al siguiente ejercicio ~300ms después (más abajo), y sigues
         // descansando mientras ves esa pantalla — cancelar aquí mataba el timer casi
@@ -665,19 +674,47 @@ export default function Workout() {
                 const logDate = new Date(history[0].date).toLocaleDateString('sv');
 
                 if (logDate === today) {
-                    const apiSets = history[0].sets.map(s => ({
+                    const loggedSets = history[0].sets.map(s => ({
                         weight: s.weight.toString(),
                         reps: s.reps.toString(),
                         weightR: s.weightRight?.toString() || '',
                         repsR: s.repsRight?.toString() || '',
-                        rir: s.rpe ? (10 - s.rpe) : null,
+                        rir: s.rpe != null ? (10 - s.rpe) : null,
                         completed: true
                     }));
-                    setSets(apiSets);
-                    setCompletedAt(new Date(history[0].date));
-                    if (!completedExerciseIds.includes(exercise.id)) {
-                        setCompletedExerciseIds(prev => [...prev, exercise.id]);
+
+                    if (loggedSets.length >= exercise.targetSets) {
+                        // Sesión de hoy completa (todas las series de la meta) — bloqueada,
+                        // como siempre.
+                        setSets(loggedSets);
+                        // Sincroniza el snapshot ANTES de que el efecto de detección corra:
+                        // sin esto, el snapshot sigue en su valor inicial ([]) cuando estos
+                        // sets (ya completados) llegan, así que el efecto lee "todo pasó de
+                        // no-completado a completado" y dispara triggerSetCompleted() como si
+                        // el usuario acabara de terminar la serie — un aviso/timer fantasma
+                        // solo por cargar o revisitar un ejercicio ya guardado hoy.
+                        prevSetsSnapshotRef.current = { exerciseId: exercise.id, sets: loggedSets };
+                        setCompletedAt(new Date(history[0].date));
+                        if (!completedExerciseIds.includes(exercise.id)) {
+                            setCompletedExerciseIds(prev => [...prev, exercise.id]);
+                        }
+                        return;
                     }
+
+                    // Sesión parcial (ej. 1 serie registrada por el Atajo de iOS): se
+                    // muestran las series ya guardadas + filas vacías hasta completar
+                    // targetSets, todo editable — sin marcar completedExerciseIds. Al
+                    // guardar, handlePrimaryAction usa resumeLogId para actualizar este
+                    // mismo WorkoutLog (PUT) en vez de crear uno nuevo y fragmentar el día.
+                    const emptySets = Array.from({ length: exercise.targetSets - loggedSets.length }, () => ({
+                        weight: '', reps: '', rir: null, completed: false
+                    }));
+                    const mergedSets = [...loggedSets, ...emptySets];
+                    setSets(mergedSets);
+                    // Mismo motivo que arriba: evita que las series YA guardadas (por el
+                    // Atajo) se lean como "recién completadas" al cargar.
+                    prevSetsSnapshotRef.current = { exerciseId: exercise.id, sets: mergedSets };
+                    setResumeLogId(history[0].id);
                     return;
                 }
             }
@@ -686,7 +723,12 @@ export default function Workout() {
         }
 
         if (workoutData[exercise.id]) {
-            setSets(workoutData[exercise.id]);
+            // Puede traer filas ya marcadas completed:true (se guardó localStorage a medio
+            // llenar antes de cambiar de ejercicio) — mismo motivo que arriba, sincroniza el
+            // snapshot para no releerlas como "recién completadas" al volver.
+            const cachedSets = workoutData[exercise.id];
+            setSets(cachedSets);
+            prevSetsSnapshotRef.current = { exerciseId: exercise.id, sets: cachedSets };
         } else {
             const newSets = Array.from({ length: exercise.targetSets }, () => ({
                 weight: '',
@@ -707,8 +749,14 @@ export default function Workout() {
     const triggerSetCompleted = useCallback(() => {
         if (!currentExercise) return;
         restTimer.start(currentExercise.restSeconds || 90);
-        api.scheduleRestReminder(currentExercise.id).catch(() => {});
-    }, [currentExercise, restTimer]);
+        // Si esta era la última serie de este ejercicio, el descanso que empieza
+        // ahora es en realidad para el ejercicio SIGUIENTE — el recordatorio debe
+        // mencionar ese, no el actual (ej. terminar búlgaras y que avise "sigue con
+        // femoral", no "sigue con búlgaras").
+        const isLastSet = sets.every(s => s.completed);
+        const nextExercise = isLastSet ? workoutState.exercises[workoutState.currentIndex + 1] : null;
+        api.scheduleRestReminder(currentExercise.id, nextExercise?.name).catch(() => {});
+    }, [currentExercise, restTimer, sets, workoutState.exercises, workoutState.currentIndex]);
 
     // Detecta cuándo una fila pasa a completada para disparar triggerSetCompleted.
     // Esto NO puede hacerse leyendo una variable seteada dentro del updater de
@@ -858,7 +906,13 @@ export default function Workout() {
         setUIState(prev => ({ ...prev, saving: true }));
 
         try {
-            const { workoutLog } = await api.logWorkout(currentExercise.id, validSets);
+            // Si esta sesión de hoy quedó parcialmente registrada (ej. el Atajo de
+            // iOS guardó 1 serie), actualizamos ESE MISMO WorkoutLog en vez de crear
+            // uno nuevo — si no, el día quedaría fragmentado en 2 logs para el mismo
+            // ejercicio.
+            const { workoutLog } = resumeLogId
+                ? await api.updateWorkoutSession(resumeLogId, validSets)
+                : await api.logWorkout(currentExercise.id, validSets);
             setCompletedExerciseIds(prev => [...prev, currentExercise.id]);
             setCompletedAt(workoutLog?.date ? new Date(workoutLog.date) : new Date());
             setWorkoutData(prev => {
