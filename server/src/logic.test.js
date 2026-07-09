@@ -5,7 +5,7 @@ import {
     resolveTargetDate, getTodayName, normalizeDay,
     getActiveBlock, currentWeekInBlock, getRoutinePhaseStatus, adjustRepRangeForPhase,
     parseRepRange, roundWorkoutWeight, computeWorkoutSuggestion, detectPlateauForExercise,
-    convertShortcutRir
+    convertShortcutRir, pickNextSplitDay
 } from './logic.js';
 
 describe('helpers CDMX (zona horaria)', () => {
@@ -264,5 +264,32 @@ describe('getRoutinePhaseStatus', () => {
         const routine = { blocks: [], adaptiveDeloadUntil: new Date(Date.now() - 100000) };
         const status = getRoutinePhaseStatus(routine);
         assert.equal(status.isDeload, false);
+    });
+});
+
+describe('pickNextSplitDay (rotación de la Rutina diaria con IA)', () => {
+    it('sin historial reciente: el primer label de la lista', () => {
+        assert.equal(pickNextSplitDay(['Push', 'Pull', 'Legs'], []), 'Push');
+    });
+
+    it('rota al siguiente label después del último entrenado', () => {
+        assert.equal(pickNextSplitDay(['Push', 'Pull', 'Legs'], ['Push']), 'Pull');
+        assert.equal(pickNextSplitDay(['Push', 'Pull', 'Legs'], ['Pull']), 'Legs');
+    });
+
+    it('da la vuelta al llegar al final de la lista', () => {
+        assert.equal(pickNextSplitDay(['Push', 'Pull', 'Legs'], ['Legs']), 'Push');
+    });
+
+    it('solo importa el ÚLTIMO label reciente, no todo el historial', () => {
+        assert.equal(pickNextSplitDay(['Push', 'Pull', 'Legs'], ['Legs', 'Push', 'Pull']), 'Legs');
+    });
+
+    it('un label reciente que ya no existe en splitLabels (perfil reconfigurado) cae al primero', () => {
+        assert.equal(pickNextSplitDay(['Upper A', 'Lower A'], ['Push']), 'Upper A');
+    });
+
+    it('lista de splits vacía devuelve null', () => {
+        assert.equal(pickNextSplitDay([], ['Push']), null);
     });
 });

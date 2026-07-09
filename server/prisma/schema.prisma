@@ -61,6 +61,7 @@ model User {
   pushSubscriptions PushSubscription[]
   pendingReminders  PendingReminder[]
   suggestionLogs    SuggestionLog[]
+  trainingProfile   TrainingProfile?
 
   @@index([email])
   @@index([username])
@@ -73,6 +74,9 @@ model Routine {
   name        String
   description String?
   isActive    Boolean      @default(false)
+  // 'manual' (default, todas las rutinas existentes) | 'ai' (generada/gestionada
+  // por el entrenador de rutina diaria con IA — ver server/src/services/aiRoutineService.js).
+  source      String       @default("manual")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   days        RoutineDay[]
@@ -119,6 +123,11 @@ model RoutineDay {
   dayName     String
   isRestDay   Boolean    @default(false)
   order       Int        @default(0)
+  // Solo poblado en días generados por IA (ej. "Push") — permite saber qué
+  // split se entrenó recientemente sin parsear `dayName` (que para estos días
+  // es la fecha ISO del día, no un nombre de día de la semana). Null en
+  // cualquier RoutineDay manual.
+  splitLabel  String?
   routineId   String
   routine     Routine    @relation(fields: [routineId], references: [id], onDelete: Cascade)
   exercises   Exercise[]
@@ -314,4 +323,23 @@ model SuggestionLog {
 
   @@index([userId])
   @@index([exerciseId])
+}
+
+// ==================== RUTINA DIARIA CON IA ====================
+
+// Cuestionario de la Rutina diaria con IA (1:1 por usuario) — objetivo, días
+// disponibles, equipo y experiencia. Alimenta tanto el camino con LLM
+// (server/src/services/aiRoutineAgent.js) como el fallback 100% determinista
+// (server/src/data/splitTemplates.js) cuando no hay OPENAI_API_KEY.
+model TrainingProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal            String   // 'hypertrophy' | 'strength' | 'general' — mismo vocabulario
+                            // que client/src/data/routineTemplates.js
+  daysPerWeek     Int
+  equipment       String[] // subconjunto de ['barbell','dumbbell','machine','cable','bodyweight']
+  experienceLevel String   // 'beginner'|'intermediate'|'advanced' — mismo vocabulario que Goal.experienceLevel
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

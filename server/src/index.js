@@ -12,6 +12,10 @@ import { v2 as cloudinary } from 'cloudinary';
 import { isSameExercise, groupHistoryByExercise, bestOneRepMaxForTarget, epley1RM } from './utils/exerciseName.js';
 import { deduplicateExercises } from './services/exerciseAgent.js';
 import { uploadBackup, pruneOldBackups } from './services/backupService.js';
+import { planToday } from './services/aiRoutineService.js';
+import { chooseExercisesForDay } from './services/aiRoutineAgent.js';
+import { EXERCISE_CATALOG } from './data/exerciseCatalog.js';
+import { pickDeterministicExercises, pickReplacementExercises } from './data/splitTemplates.js';
 import {
     mexicoCityDateStr, mexicoCityDayBounds, dayOfWeekFromDateStr, mexicoCityHour,
     resolveTargetDate, getTodayName, normalizeDay,
@@ -1211,27 +1215,40 @@ app.post('/api/routines/import', authMiddleware, async (req, res) => {
 // ============================================
 
 // GET /api/routines - List all routines
+// `days` sin límite para rutinas manuales (siempre pocas, una fija por semana);
+// para rutinas IA (un RoutineDay nuevo por cada día ENTRENADO, para siempre) se
+// limita a los más recientes — evita que estos endpoints, golpeados en casi cada
+// carga de página, devuelvan un payload que crece sin cota con el tiempo de uso.
+// "Qué toca hoy" nunca depende de esto: pasa por su propio endpoint dedicado
+// (GET /api/ai-routine/today), que consulta por dayName exacto. Mismo principio
+// que ya usa la rutina-papelera del sistema (getRecycleBinDay): historial que
+// también crece sin límite, mantenido fuera del camino caliente.
+function daysIncludeFor(source, exercises) {
+    return source === 'ai'
+        ? { include: { exercises }, orderBy: { dayName: 'desc' }, take: 7 }
+        : { include: { exercises }, orderBy: { order: 'asc' } };
+}
+
 app.get('/api/routines', authMiddleware, async (req, res) => {
     try {
-        const routines = await prisma.routine.findMany({
-            where: {
-                userId: req.userId,
-                name: { not: "ARCHIVED_HISTORY_DO_NOT_DELETE" }
-            },
-            include: {
-                days: {
-                    include: {
-                        exercises: { orderBy: { order: 'asc' } }
-                    },
-                    orderBy: { order: 'asc' }
-                },
-                blocks: { orderBy: { order: 'asc' } }
-            },
-            orderBy: { createdAt: 'desc' }
-        });
+        const baseWhere = { userId: req.userId, name: { not: "ARCHIVED_HISTORY_DO_NOT_DELETE" } };
+        const plainExercises = { orderBy: { order: 'asc' } };
         // activeBlock/currentWeek calculados aquí (no solo en /active): Workout.jsx
         // busca el día por dayId iterando TODAS las rutinas del usuario, no solo la
         // marcada isActive.
+        const [manualRoutines, aiRoutines] = await Promise.all([
+            prisma.routine.findMany({
+                where: { ...baseWhere, source: 'manual' },
+                include: { days: daysIncludeFor('manual', plainExercises), blocks: { orderBy: { order: 'asc' } } },
+                orderBy: { createdAt: 'desc' }
+            }),
+            prisma.routine.findMany({
+                where: { ...baseWhere, source: 'ai' },
+                include: { days: daysIncludeFor('ai', plainExercises), blocks: { orderBy: { order: 'asc' } } },
+                orderBy: { createdAt: 'desc' }
+            })
+        ]);
+        const routines = [...manualRoutines, ...aiRoutines].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         res.json(routines.map(r => {
             const activeBlock = getActiveBlock(r.blocks);
             const phaseStatus = getRoutinePhaseStatus(r);
@@ -1271,24 +1288,20 @@ app.get('/api/routines/trash', authMiddleware, async (req, res) => {
 // GET /api/routines/active - Get active routine (MUST be before :id)
 app.get('/api/routines/active', authMiddleware, async (req, res) => {
     try {
-        const routine = await prisma.routine.findFirst({
+        const activeMeta = await prisma.routine.findFirst({
             where: { isActive: true, userId: req.userId },
+            select: { id: true, source: true }
+        });
+        if (!activeMeta) return res.json(null);
+
+        const exercisesWithLastLog = {
+            include: { workoutLogs: { include: { sets: true }, orderBy: { date: 'desc' }, take: 1 } },
+            orderBy: { order: 'asc' }
+        };
+        const routine = await prisma.routine.findUnique({
+            where: { id: activeMeta.id },
             include: {
-                days: {
-                    include: {
-                        exercises: {
-                            include: {
-                                workoutLogs: {
-                                    include: { sets: true },
-                                    orderBy: { date: 'desc' },
-                                    take: 1
-                                }
-                            },
-                            orderBy: { order: 'asc' }
-                        }
-                    },
-                    orderBy: { order: 'asc' }
-                },
+                days: daysIncludeFor(activeMeta.source, exercisesWithLastLog),
                 blocks: { orderBy: { order: 'asc' } }
             }
         });
@@ -1305,24 +1318,22 @@ app.get('/api/routines/active', authMiddleware, async (req, res) => {
 // GET /api/routines/:id - Get single routine
 app.get('/api/routines/:id', authMiddleware, async (req, res) => {
     try {
-        const routine = await prisma.routine.findFirst({
+        const meta = await prisma.routine.findFirst({
             where: { id: req.params.id, userId: req.userId },
+            select: { source: true }
+        });
+        if (!meta) {
+            return res.status(404).json({ error: 'Routine not found' });
+        }
+
+        const exercisesWithHistory = {
+            include: { workoutLogs: { include: { sets: true }, orderBy: { date: 'desc' }, take: 5 } },
+            orderBy: { order: 'asc' }
+        };
+        const routine = await prisma.routine.findUnique({
+            where: { id: req.params.id },
             include: {
-                days: {
-                    include: {
-                        exercises: {
-                            include: {
-                                workoutLogs: {
-                                    include: { sets: true },
-                                    orderBy: { date: 'desc' },
-                                    take: 5
-                                }
-                            },
-                            orderBy: { order: 'asc' }
-                        }
-                    },
-                    orderBy: { order: 'asc' }
-                },
+                days: daysIncludeFor(meta.source, exercisesWithHistory),
                 blocks: { orderBy: { order: 'asc' } }
             }
         });
@@ -1912,6 +1923,194 @@ app.put('/api/routines/:id/activate', authMiddleware, async (req, res) => {
     }
 });
 
+// ============================================
+// RUTINA DIARIA CON IA
+// ============================================
+
+// Resuelve (o genera, idempotente) el RoutineDay de HOY de una rutina IA. Nunca
+// regenera un día que ya existe — si el usuario ya empezó a registrar series hoy,
+// reabrir la app debe mostrar exactamente lo mismo, no una lista nueva. La
+// decisión de qué hacer (reusar/descansar/crear) vive en aiRoutineService.js
+// (puro, sin Prisma); aquí solo se cargan los datos y se ejecuta la decisión.
+async function resolveOrGenerateAiRoutineDay(routine, profile) {
+    const todayStr = mexicoCityDateStr();
+
+    const existingToday = await prisma.routineDay.findFirst({
+        where: { routineId: routine.id, dayName: todayStr },
+        include: { exercises: { orderBy: { order: 'asc' } } }
+    });
+
+    // 14 días de sobra para cubrir la ventana de 7 días de la cuota semanal
+    // incluso con el split más frecuente (6x/semana) que este proyecto ofrece.
+    const recentDays = existingToday ? [] : await prisma.routineDay.findMany({
+        where: { routineId: routine.id, isRestDay: false },
+        orderBy: { dayName: 'desc' },
+        take: 14
+    });
+
+    const sevenDaysAgoStr = mexicoCityDateStr(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+    const plan = planToday({ existingToday, recentDays, profile, todayStr, sevenDaysAgoStr });
+
+    if (plan.action === 'reuse') return plan.day;
+    if (plan.action === 'rest') return { isRestDay: true, dayName: plan.dayName, splitLabel: null, exercises: [] };
+
+    // plan.action === 'create' — plan.exercises ya trae el fallback determinista
+    // completo y utilizable. Con OPENAI_API_KEY configurada, se le da a la IA la
+    // oportunidad de elegir mejor (candidatos = catálogo filtrado por equipo +
+    // ejercicios que el usuario ya entrenó antes, para continuidad de Smart
+    // Loading) — con ese mismo determinista como fallback si la IA falla.
+    let exercises = plan.exercises;
+    if (process.env.OPENAI_API_KEY) {
+        const equipment = (profile.equipment && profile.equipment.length) ? profile.equipment : null;
+        const equipmentCatalog = equipment ? EXERCISE_CATALOG.filter(ex => equipment.includes(ex.equipment)) : EXERCISE_CATALOG;
+        const historicalExercises = await prisma.exercise.findMany({
+            where: { routineDay: { routine: { userId: routine.userId } } },
+            select: { name: true, muscleGroup: true, isUnilateral: true },
+            distinct: ['name']
+        });
+        exercises = await chooseExercisesForDay({
+            splitLabel: plan.splitLabel,
+            profile,
+            equipmentCatalog,
+            historicalExercises,
+            fallback: () => plan.exercises
+        });
+    }
+
+    return prisma.routineDay.create({
+        data: {
+            dayName: plan.dayName,
+            isRestDay: false,
+            splitLabel: plan.splitLabel,
+            order: 0,
+            routineId: routine.id,
+            exercises: {
+                create: exercises.map((ex, i) => ({ ...ex, order: i }))
+            }
+        },
+        include: { exercises: { orderBy: { order: 'asc' } } }
+    });
+}
+
+// POST /api/ai-routine/setup - Cuestionario inicial (objetivo/días/equipo/experiencia)
+app.post('/api/ai-routine/setup', authMiddleware, async (req, res) => {
+    try {
+        const { goal, daysPerWeek, equipment, experienceLevel } = req.body;
+        if (!goal || !daysPerWeek || !Array.isArray(equipment) || equipment.length === 0 || !experienceLevel) {
+            return res.status(400).json({ error: 'Required: goal, daysPerWeek, equipment[], experienceLevel' });
+        }
+
+        const profile = await prisma.trainingProfile.upsert({
+            where: { userId: req.userId },
+            update: { goal, daysPerWeek, equipment, experienceLevel },
+            create: { userId: req.userId, goal, daysPerWeek, equipment, experienceLevel }
+        });
+
+        // Deactivate all routines FOR THIS USER first (mismo patrón que
+        // PUT /api/routines/:id/activate) para garantizar como mucho 1 activa.
+        await prisma.routine.updateMany({
+            where: { isActive: true, userId: req.userId },
+            data: { isActive: false }
+        });
+
+        // Reusa la rutina IA existente si ya hay una (conserva su historial de
+        // días/ejercicios) — solo crea una nueva la primera vez que se configura.
+        let routine = await prisma.routine.findFirst({ where: { userId: req.userId, source: 'ai' } });
+        routine = routine
+            ? await prisma.routine.update({ where: { id: routine.id }, data: { isActive: true } })
+            : await prisma.routine.create({ data: { name: 'Rutina IA', source: 'ai', isActive: true, userId: req.userId } });
+
+        const day = await resolveOrGenerateAiRoutineDay(routine, profile);
+        res.json({ routine, day });
+    } catch (error) {
+        console.error('Error setting up AI routine:', error);
+        res.status(500).json({ error: 'Failed to set up AI routine' });
+    }
+});
+
+// GET /api/ai-routine/today - Día de hoy de la rutina IA activa (genera si falta)
+app.get('/api/ai-routine/today', authMiddleware, async (req, res) => {
+    try {
+        const profile = await prisma.trainingProfile.findUnique({ where: { userId: req.userId } });
+        if (!profile) return res.status(404).json({ error: 'No training profile configured' });
+
+        const routine = await prisma.routine.findFirst({ where: { userId: req.userId, source: 'ai', isActive: true } });
+        if (!routine) return res.status(404).json({ error: 'No active AI routine' });
+
+        const day = await resolveOrGenerateAiRoutineDay(routine, profile);
+        res.json({ routineId: routine.id, day });
+    } catch (error) {
+        console.error('Error fetching AI routine today:', error);
+        res.status(500).json({ error: "Failed to fetch today's AI routine day" });
+    }
+});
+
+// POST /api/ai-routine/reshuffle/:routineDayId - "Cambia los ejercicios de hoy"
+app.post('/api/ai-routine/reshuffle/:routineDayId', authMiddleware, async (req, res) => {
+    try {
+        const day = await prisma.routineDay.findFirst({
+            where: { id: req.params.routineDayId, routine: { userId: req.userId, source: 'ai' } },
+            include: { exercises: true }
+        });
+        if (!day) return res.status(404).json({ error: 'AI routine day not found' });
+
+        // Solo tiene sentido reorganizar HOY — un día pasado ya es historial.
+        if (day.dayName !== mexicoCityDateStr()) {
+            return res.status(400).json({ error: 'Only today\'s day can be reshuffled' });
+        }
+
+        const profile = await prisma.trainingProfile.findUnique({ where: { userId: req.userId } });
+        if (!profile) return res.status(404).json({ error: 'No training profile configured' });
+
+        // Regla de seguridad: un ejercicio con AL MENOS una serie registrada HOY no
+        // se toca — nunca se descarta un set que el usuario ya guardó.
+        const { start, end } = mexicoCityDayBounds(new Date());
+        const loggedTodayIds = new Set((await prisma.workoutLog.findMany({
+            where: { exerciseId: { in: day.exercises.map(e => e.id) }, date: { gte: start, lt: end } },
+            select: { exerciseId: true }
+        })).map(l => l.exerciseId));
+
+        const toKeep = day.exercises.filter(ex => loggedTodayIds.has(ex.id));
+        const toRemove = day.exercises.filter(ex => !loggedTodayIds.has(ex.id));
+
+        // Mismo patrón que PUT /api/routines/:id: un ejercicio con historial (de
+        // CUALQUIER día, no solo hoy) se archiva en vez de borrarse de verdad.
+        for (const ex of toRemove) {
+            const logCount = await prisma.workoutLog.count({ where: { exerciseId: ex.id } });
+            if (logCount > 0) {
+                const binId = await getRecycleBinDay(req.userId);
+                await prisma.exercise.update({ where: { id: ex.id }, data: { routineDayId: binId } });
+            } else {
+                await prisma.exercise.delete({ where: { id: ex.id } });
+            }
+        }
+
+        // Excluye TODOS los nombres de hoy (conservados + removidos): solo
+        // reemplaza por grupo muscular lo que realmente se quitó — regenerar el
+        // día completo (como en la generación inicial) duplicaría los grupos
+        // musculares que los ejercicios conservados ya cubren. Determinista a
+        // propósito (no pasa por la IA): reshuffle es la pieza menos esencial de
+        // la feature, y este camino evita repetir el mismo riesgo de "conteo por
+        // grupo muscular" con una respuesta de LLM que no lo tiene en cuenta.
+        const excludeNames = day.exercises.map(ex => ex.name);
+        const freshExercises = pickReplacementExercises(profile, toRemove, excludeNames, EXERCISE_CATALOG);
+
+        const startOrder = toKeep.length;
+        await Promise.all(freshExercises.map((ex, i) =>
+            prisma.exercise.create({ data: { ...ex, order: startOrder + i, routineDayId: day.id } })
+        ));
+
+        const updatedDay = await prisma.routineDay.findUnique({
+            where: { id: day.id },
+            include: { exercises: { orderBy: { order: 'asc' } } }
+        });
+        res.json({ day: updatedDay });
+    } catch (error) {
+        console.error('Error reshuffling AI routine day:', error);
+        res.status(500).json({ error: 'Failed to reshuffle day' });
+    }
+});
+
 // GET /api/stats/routine/:id - Get stats for a specific routine
 app.get('/api/stats/routine/:id', authMiddleware, async (req, res) => {
     try {
@@ -2343,7 +2542,19 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
 
         const phaseStatus = getRoutinePhaseStatus(routine);
 
-        const todayRoutineDay = routine.days.find(d => normalizeDay(d.dayName) === normalizeDay(todayName));
+        // Rutinas IA no se organizan por nombre de día de la semana (sus RoutineDay
+        // llevan la fecha ISO como dayName) — resolverlas requiere el mismo camino
+        // idempotente que usa la PWA (GET /api/ai-routine/today), no el match por
+        // nombre de abajo. El backfill vía ?date= no aplica aquí: generar un día IA
+        // "del pasado" después de que ya exista uno más reciente rompería el orden
+        // que asume la rotación (recentDays DESC) — se ignora a propósito.
+        let todayRoutineDay;
+        if (routine.source === 'ai') {
+            const profile = await prisma.trainingProfile.findUnique({ where: { userId: req.userId } });
+            todayRoutineDay = profile ? await resolveOrGenerateAiRoutineDay(routine, profile) : null;
+        } else {
+            todayRoutineDay = routine.days.find(d => normalizeDay(d.dayName) === normalizeDay(todayName));
+        }
 
         if (!todayRoutineDay || todayRoutineDay.isRestDay) {
             return res.json({ ...baseShortcutResponse(), isRestDay: true, dayName: todayName });

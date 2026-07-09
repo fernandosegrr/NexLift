@@ -93,8 +93,31 @@ export default function Dashboard() {
             .slice(0, 3);
     };
 
+    // Rutinas IA no se organizan por nombre de día de la semana — "qué toca hoy"
+    // se resuelve vía GET /api/ai-routine/today (mismo endpoint idempotente que
+    // usa el Atajo de iOS), nunca recalculado aquí — este proyecto tiene como
+    // regla explícita que ese tipo de estado se calcula SIEMPRE en el servidor.
+    const [aiTodayDay, setAiTodayDay] = useState(null);
+    const [aiTodayLoading, setAiTodayLoading] = useState(false);
+    useEffect(() => {
+        if (activeRoutine?.source !== 'ai') { setAiTodayDay(null); return undefined; }
+        let cancelled = false;
+        setAiTodayLoading(true);
+        api.getAiRoutineToday()
+            .then(result => { if (!cancelled) setAiTodayDay(result?.day || null); })
+            .catch(() => { if (!cancelled) setAiTodayDay(null); })
+            .finally(() => { if (!cancelled) setAiTodayLoading(false); });
+        return () => { cancelled = true; };
+    }, [activeRoutine]);
+
     const nextDay = useMemo(() => {
-        if (!activeRoutine?.days?.length) return null;
+        if (!activeRoutine) return null;
+
+        if (activeRoutine.source === 'ai') {
+            return aiTodayDay; // null mientras carga — el render de abajo lo tolera
+        }
+
+        if (!activeRoutine.days?.length) return null;
         const todayName = getTodayName();
 
         const todayRoutineDay = activeRoutine.days.find(d =>
@@ -108,7 +131,7 @@ export default function Dashboard() {
             dayName: todayName,
             exercises: []
         };
-    }, [activeRoutine]);
+    }, [activeRoutine, aiTodayDay]);
 
     // Cuántos PRs están en plateau (sin mejora en sus últimas 4-6 sesiones)
     const plateauCount = useMemo(() => {
@@ -258,9 +281,14 @@ export default function Dashboard() {
 
                     <div className="relative z-10">
                         <p className="text-white/80 text-xs font-semibold tracking-wider mb-1">RUTINA ACTIVA</p>
-                        <h2 className="text-xl font-bold text-white mb-4">{activeRoutine.name}</h2>
+                        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                            {activeRoutine.name}
+                            {activeRoutine.source === 'ai' && (
+                                <span className="bg-white/20 text-white text-[10px] px-2 py-0.5 rounded-full font-bold tracking-wide">IA</span>
+                            )}
+                        </h2>
 
-                        {nextDay && (
+                        {nextDay ? (
                             <>
                                 {nextDay.isRestDay ? (
                                     <div className="bg-white/20 backdrop-blur-md rounded-xl p-4 border border-white/10">
@@ -323,7 +351,9 @@ export default function Dashboard() {
                                     </Link>
                                 )}
                             </>
-                        )}
+                        ) : (activeRoutine.source === 'ai' && aiTodayLoading) ? (
+                            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 h-[76px] animate-pulse" />
+                        ) : null}
                     </div>
                 </div>
             ) : (

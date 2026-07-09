@@ -305,6 +305,42 @@ export const api = {
     },
 
     // ==========================================
+    // RUTINA DIARIA CON IA
+    // ==========================================
+    async setupAiRoutine(profile) {
+        const res = await authFetch(`${API_URL}/ai-routine/setup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(profile),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to set up AI routine');
+        return data;
+    },
+
+    // null si no hay perfil configurado o ninguna rutina IA activa (404) — el
+    // caller (Dashboard.jsx) lo trata igual que "sin rutina activa".
+    async getAiRoutineToday() {
+        const res = await authFetch(`${API_URL}/ai-routine/today`);
+        if (!res.ok) {
+            if (res.status === 404) return null;
+            throw new Error('Failed to fetch AI routine today');
+        }
+        return res.json();
+    },
+
+    // "No me gusta este día, cambia los ejercicios" — solo aplica al día de HOY;
+    // cualquier ejercicio con una serie ya registrada hoy se preserva tal cual.
+    async reshuffleAiRoutineDay(routineDayId) {
+        const res = await authFetch(`${API_URL}/ai-routine/reshuffle/${routineDayId}`, {
+            method: 'POST',
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to reshuffle day');
+        return data;
+    },
+
+    // ==========================================
     // WORKOUTS
     // ==========================================
     async logWorkout(exerciseId, sets, notes = null) {

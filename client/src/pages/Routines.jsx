@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
     Dumbbell, ChevronDown, ChevronRight, Play, Check,
     Trash2, BarChart2, Plus, Pencil, AlertTriangle, Trophy,
-    Calendar, MoreVertical, X
+    Calendar, MoreVertical, X, Bot, Loader2
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
@@ -210,8 +210,48 @@ function RoutineCard({
     onActivate,
     onDelete
 }) {
-    // Calculamos stats rápidos
+    const navigate = useNavigate();
+    const isAi = routine.source === 'ai';
+    // Calculamos stats rápidos. Para rutinas IA, `routine.days` ya viene acotado
+    // a los más recientes (GET /api/routines lo limita a propósito — un día nuevo
+    // por cada día entrenado crecería sin límite) — el conteo es "de los últimos
+    // días", no el total histórico.
     const totalExercises = routine.days.reduce((acc, d) => acc + d.exercises.length, 0);
+    const [startingToday, setStartingToday] = useState(false);
+    const [reshuffling, setReshuffling] = useState(false);
+    const toast = useToast();
+
+    async function handleTrainToday() {
+        if (startingToday) return;
+        setStartingToday(true);
+        try {
+            // Fresco desde el server (no desde `routine.days`, que puede no incluir
+            // el día de hoy todavía si nadie lo generó vía Dashboard/Atajo aún) —
+            // este mismo endpoint lo genera si falta.
+            const result = await api.getAiRoutineToday();
+            if (result?.day?.id) navigate(`/workout/${result.day.id}`);
+        } catch {
+            // Sin conexión o sin perfil configurado — el usuario puede reintentar.
+        } finally {
+            setStartingToday(false);
+        }
+    }
+
+    async function handleReshuffle(e) {
+        e.stopPropagation();
+        if (reshuffling) return;
+        setReshuffling(true);
+        try {
+            const today = await api.getAiRoutineToday();
+            if (!today?.day?.id) { toast.error('Todavía no hay un día de hoy que cambiar'); return; }
+            await api.reshuffleAiRoutineDay(today.day.id);
+            toast.success('Ejercicios de hoy actualizados');
+        } catch (err) {
+            toast.error(err.message || 'No se pudo cambiar los ejercicios');
+        } finally {
+            setReshuffling(false);
+        }
+    }
 
     return (
         <div className={`
@@ -238,11 +278,18 @@ function RoutineCard({
                             {routine.name}
                         </h3>
                         {isActive && <span className="bg-[var(--primary)]/20 text-[var(--primary)] text-[10px] px-2 py-0.5 rounded-full font-bold tracking-wide">ACTIVA</span>}
+                        {isAi && <span className="bg-purple-500/20 text-purple-400 text-[10px] px-2 py-0.5 rounded-full font-bold tracking-wide">IA</span>}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-[var(--text-secondary)]">
-                        <span className="flex items-center gap-1"><Calendar size={12} /> {routine.days.length} días</span>
-                        <span className="w-1 h-1 rounded-full bg-[var(--border)]"></span>
-                        <span>{totalExercises} ejercicios</span>
+                        {isAi ? (
+                            <span>{totalExercises} ejercicios en los últimos días</span>
+                        ) : (
+                            <>
+                                <span className="flex items-center gap-1"><Calendar size={12} /> {routine.days.length} días</span>
+                                <span className="w-1 h-1 rounded-full bg-[var(--border)]"></span>
+                                <span>{totalExercises} ejercicios</span>
+                            </>
+                        )}
                     </div>
                     {routine.activeBlock && (
                         <p className="text-[10px] text-[var(--primary)] font-medium mt-1">
@@ -261,17 +308,55 @@ function RoutineCard({
             <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                 <div className="overflow-hidden">
                     <div className="border-t border-[var(--border)] bg-[var(--bg-dark)]/50">
-                        {/* Days List */}
-                        <div className="divide-y divide-[var(--border)]/50">
-                            {routine.days.map((day) => (
-                                <DayRow
-                                    key={day.id}
-                                    day={day}
-                                    isExpanded={expandedDayId === day.id}
-                                    onToggle={() => onDayToggle(expandedDayId === day.id ? null : day.id)}
-                                />
-                            ))}
-                        </div>
+                        {isAi ? (
+                            /* Resumen en vez de acordeón: `routine.days` para una rutina IA
+                               crece un día nuevo por cada día ENTRENADO, para siempre — no
+                               tiene sentido mostrarlos todos como si fueran una semana fija. */
+                            <div className="p-4 space-y-3">
+                                {routine.days.length > 0 ? (
+                                    <div>
+                                        <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider font-bold mb-2">Últimos días</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {routine.days.slice(0, 5).map(day => (
+                                                <span key={day.id} className="text-[10px] font-bold text-[var(--text-secondary)] bg-[var(--bg-dark)] px-2 py-1 rounded-lg border border-[var(--border)]">
+                                                    {day.splitLabel || day.dayName}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-[var(--text-secondary)]">Todavía no hay días entrenados con esta rutina.</p>
+                                )}
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleTrainToday(); }}
+                                    disabled={startingToday}
+                                    className="w-full flex items-center justify-center gap-2 py-3 bg-[var(--primary)] text-white text-sm font-bold rounded-lg active:scale-[0.98] transition-transform disabled:opacity-60"
+                                >
+                                    {startingToday ? <Loader2 size={16} className="animate-spin" /> : <Play size={14} fill="currentColor" />}
+                                    Entrenar hoy
+                                </button>
+                                <button
+                                    onClick={handleReshuffle}
+                                    disabled={reshuffling}
+                                    className="w-full flex items-center justify-center gap-2 py-2 text-xs font-medium text-[var(--text-secondary)] hover:text-white transition-colors disabled:opacity-60"
+                                >
+                                    {reshuffling ? <Loader2 size={12} className="animate-spin" /> : <Bot size={12} />}
+                                    No me gusta este día, cambiar ejercicios
+                                </button>
+                            </div>
+                        ) : (
+                            /* Days List */
+                            <div className="divide-y divide-[var(--border)]/50">
+                                {routine.days.map((day) => (
+                                    <DayRow
+                                        key={day.id}
+                                        day={day}
+                                        isExpanded={expandedDayId === day.id}
+                                        onToggle={() => onDayToggle(expandedDayId === day.id ? null : day.id)}
+                                    />
+                                ))}
+                            </div>
+                        )}
 
                         {/* Action Footer */}
                         <div className="p-3 flex items-center justify-between bg-[var(--bg-card)] border-t border-[var(--border)]">
@@ -284,21 +369,34 @@ function RoutineCard({
                                         <Check size={14} strokeWidth={3} /> ACTIVAR
                                     </button>
                                 )}
-                                <Link
-                                    to={`/routines/${routine.id}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="p-2 text-[var(--text-secondary)] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
-                                    title="Ver detalle (incluye mesociclos)"
-                                >
-                                    <ChevronRight size={18} />
-                                </Link>
-                                <Link
-                                    to={`/routines/${routine.id}/edit`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="p-2 text-[var(--text-secondary)] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
-                                >
-                                    <Pencil size={18} />
-                                </Link>
+                                {isAi ? (
+                                    <Link
+                                        to="/ai-routine/setup"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="p-2 text-[var(--text-secondary)] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+                                        title="Reconfigurar perfil IA"
+                                    >
+                                        <Bot size={18} />
+                                    </Link>
+                                ) : (
+                                    <>
+                                        <Link
+                                            to={`/routines/${routine.id}`}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="p-2 text-[var(--text-secondary)] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+                                            title="Ver detalle (incluye mesociclos)"
+                                        >
+                                            <ChevronRight size={18} />
+                                        </Link>
+                                        <Link
+                                            to={`/routines/${routine.id}/edit`}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="p-2 text-[var(--text-secondary)] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+                                        >
+                                            <Pencil size={18} />
+                                        </Link>
+                                    </>
+                                )}
                             </div>
                             <button
                                 onClick={(e) => { e.stopPropagation(); onDelete(); }}

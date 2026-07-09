@@ -24,6 +24,7 @@ const Register = lazy(() => import('./pages/Register'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const Profile = lazy(() => import('./pages/Profile'));
 const NewGoal = lazy(() => import('./pages/NewGoal'));
+const AiRoutineSetup = lazy(() => import('./pages/AiRoutineSetup'));
 
 function PageLoader() {
   return (
@@ -95,6 +96,7 @@ function AppRoutes() {
         <Route path="export" element={<ExportReport />} />
         <Route path="profile" element={<Profile />} />
         <Route path="goals/new" element={<NewGoal />} />
+        <Route path="ai-routine/setup" element={<AiRoutineSetup />} />
       </Route>
 
       {/* Catch-all: redirige URLs desconocidas al inicio */}

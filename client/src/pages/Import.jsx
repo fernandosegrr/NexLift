@@ -7,7 +7,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Upload, CheckCircle, AlertCircle, FileJson, Copy,
   Sparkles, PenTool, Plus, Trash2, ArrowUp, ArrowDown, Dumbbell,
-  Calendar, Trophy, ChevronRight, X, Save, Search, MoreVertical
+  Calendar, Trophy, ChevronRight, X, Save, Search, MoreVertical, Bot
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
@@ -20,7 +20,8 @@ import MuscleIcon, { MUSCLE_LIST } from '../components/ui/MuscleIcon';
 const TABS = [
   { id: 'templates', label: 'Plantillas', icon: Sparkles },
   { id: 'manual', label: 'Manual', icon: PenTool },
-  { id: 'json', label: 'JSON', icon: FileJson }
+  { id: 'json', label: 'JSON', icon: FileJson },
+  { id: 'ai', label: 'IA', icon: Bot }
 ];
 
 export default function CreateRoutine() {
@@ -560,6 +561,27 @@ export default function CreateRoutine() {
             <p className="text-center text-[10px] text-[var(--text-secondary)]">
               💡 Pídele a ChatGPT que genere una rutina en este formato
             </p>
+          </div>
+        )}
+
+        {/* ========== TAB: IA ========== */}
+        {activeTab === 'ai' && (
+          <div className="text-center py-6 space-y-4">
+            <div className="w-16 h-16 mx-auto bg-[var(--primary)]/10 rounded-2xl flex items-center justify-center">
+              <Bot size={32} className="text-[var(--primary)]" />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg mb-1">Rutina diaria con IA</h3>
+              <p className="text-sm text-[var(--text-secondary)] max-w-xs mx-auto">
+                Ideal si no tienes una rutina fija: responde un cuestionario corto y la app decide qué entrenar cada día. El peso y las reps los sigue calculando el mismo Smart Loading de siempre.
+              </p>
+            </div>
+            <Link
+              to="/ai-routine/setup"
+              className="inline-flex items-center justify-center gap-2 w-full py-4 bg-[var(--primary)] rounded-xl font-bold active:scale-[0.98] transition-transform"
+            >
+              <Sparkles size={18} /> Configurar mi rutina IA
+            </Link>
           </div>
         )}
       </div>

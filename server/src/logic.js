@@ -130,6 +130,24 @@ export function getRoutinePhaseStatus(routine) {
 }
 
 // ============================================
+// RUTINA DIARIA CON IA — rotación del split (server/src/services/aiRoutineService.js)
+// ============================================
+
+// Qué día del split toca ahora: round-robin puro sobre el último splitLabel
+// entrenado. `recentLabels` = labels de los últimos días entrenados por la
+// rutina IA, del más viejo al más reciente. Sin historial (o un label que ya no
+// existe en splitLabels, ej. el usuario reconfiguró su perfil) -> el primero de
+// la lista. La cuota real de "cuántas veces por semana" NO vive aquí (necesita
+// leer la base de datos) — esto solo decide LA FORMA de la rotación.
+export function pickNextSplitDay(splitLabels, recentLabels) {
+    if (!splitLabels || splitLabels.length === 0) return null;
+    const lastLabel = (recentLabels || []).length ? recentLabels[recentLabels.length - 1] : null;
+    const lastIndex = lastLabel != null ? splitLabels.indexOf(lastLabel) : -1;
+    if (lastIndex === -1) return splitLabels[0];
+    return splitLabels[(lastIndex + 1) % splitLabels.length];
+}
+
+// ============================================
 // Smart Loading (port literal de client/src/pages/Workout.jsx:50-139, usado por el
 // Atajo de iOS vía GET /api/shortcuts/next-set). El comportamiento numérico debe
 // coincidir exacto con lo que la PWA ya sugiere en /workout.
