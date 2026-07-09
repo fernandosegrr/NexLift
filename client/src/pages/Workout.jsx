@@ -837,7 +837,10 @@ export default function Workout() {
             return updated;
         });
         toast.success('Sugerencia aplicada');
-    }, [isAlreadyLogged, suggestion, isUnilateral, toast]);
+        // Instrumentación de calibración (P5) — fire-and-forget, nunca debe
+        // afectar el flujo de guardado si esto falla.
+        api.logSuggestionApplied(currentExercise.id, suggestion.weight, suggestion.reps, workoutState.phase).catch(() => {});
+    }, [isAlreadyLogged, suggestion, isUnilateral, toast, currentExercise, workoutState.phase]);
 
     function goToExercise(newIndex) {
         if (newIndex < 0 || newIndex >= workoutState.exercises.length) return;

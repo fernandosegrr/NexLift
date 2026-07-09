@@ -60,6 +60,7 @@ model User {
   goals             Goal[]
   pushSubscriptions PushSubscription[]
   pendingReminders  PendingReminder[]
+  suggestionLogs    SuggestionLog[]
 
   @@index([email])
   @@index([username])
@@ -137,6 +138,7 @@ model Exercise {
   routineDay   RoutineDay   @relation(fields: [routineDayId], references: [id], onDelete: Cascade)
   workoutLogs  WorkoutLog[]
   pendingReminders PendingReminder[]
+  suggestionLogs   SuggestionLog[]
 
   @@index([routineDayId])
   @@index([name])
@@ -291,4 +293,25 @@ model PendingReminder {
   createdAt        DateTime @default(now())
 
   @@unique([userId, exerciseId])
+}
+
+// Instrumentación de calibración del entrenador inteligente (P5 del plan de
+// mejoras, v2.6.2) — una fila por cada sugerencia MOSTRADA/aplicada, para poder
+// comparar después (server/analyze-suggestions.mjs, solo lectura) sugerido vs.
+// realizado. Deliberadamente NO cambia ninguna constante de los algoritmos —
+// solo recolecta datos para decidir eso más adelante, con semanas de uso real.
+model SuggestionLog {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId      String
+  exercise        Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  date            DateTime @default(now())
+  suggestedWeight Float
+  suggestedReps   Int
+  phase           String? // fase activa al momento de sugerir (ver getRoutinePhaseStatus), null si ninguna
+  source          String  // 'client' (Workout.jsx, al tocar "SUGERIDO") | 'shortcut' (GET /api/shortcuts/next-set)
+
+  @@index([userId])
+  @@index([exerciseId])
 }

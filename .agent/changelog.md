@@ -3,7 +3,15 @@
 > Historial completo de versiones, movido desde `context.md` (8 Jul 2026) para mantener el contexto principal en un tamaño legible de una sola pasada.
 > Las reglas vivas del proyecto están en `.agent/context.md` — este archivo es solo historia.
 
-### v2.6.1 (9 Julio 2026) - **Current**
+### v2.6.2 (9 Julio 2026) - **Current**
+Origen: P5 de `.agent/plan-mejoras-app.md` (opcional, marcada como "requiere semanas de datos") — los umbrales del entrenador inteligente (declive <85%, ≥3 plateaus, ±50% de rango, -10% en descarga) siguen siendo "primera aproximación, sin validar contra uso real" desde v2.4.0. Esta fase instala la recolección; no valida ni cambia nada todavía.
+
+*   **FEATURE — Instrumentación de calibración:** nuevo modelo `SuggestionLog` (`exerciseId`, `date`, `suggestedWeight`, `suggestedReps`, `phase`, `source`). Se escribe una fila fire-and-forget cada vez que `GET /api/shortcuts/next-set` calcula una sugerencia (`source: 'shortcut'`) y cada vez que el usuario toca la insignia "SUGERIDO" en `Workout.jsx` (`source: 'client'`, vía nuevo `POST /api/suggestions/log`). Ninguna de las dos escrituras puede bloquear ni tumbar el flujo real si falla.
+*   **FEATURE — Script de análisis `server/analyze-suggestions.mjs`:** solo lectura, sin dependencias nuevas. Para cada sugerencia registrada, busca el `WorkoutLog` real del mismo ejercicio en el mismo día calendario CDMX (usando los helpers de `server/src/logic.js`, no una fecha de cliente) y compara contra la serie de trabajo real, agrupando por ejercicio+fase: cuántas sugerencias, cuántas con dato real, cuántas se siguieron al pie de la letra, delta promedio de peso, RIR promedio real.
+*   **Verificado en vivo** con datos sintéticos (usuario/rutina/ejercicio de prueba, borrados después): una sugerencia del Atajo + una aplicada en la UI + un `WorkoutLog` real guardado ese mismo día con el peso/reps exactos sugeridos → el script reporta correctamente 2/2 "siguió la sugerencia", delta de peso +0.0kg.
+*   **Explícitamente NO se tocó ninguna constante** de `adjustRepRangeForPhase` ni de la descarga adaptativa — eso queda como decisión del usuario, con este reporte en la mano, después de semanas de datos reales.
+
+### v2.6.1 (9 Julio 2026)
 Origen: P4 de `.agent/plan-mejoras-app.md` — "medir primero, optimizar después", con la instrucción explícita de aplicar solo fixes de bajo riesgo y reportar números antes/después.
 
 *   **MEDICIÓN (solo lectura, contra la cuenta real de fernando.segrr — 281 WorkoutLogs, 794 SetLogs):** `getWorkoutHistory(500)` (Dashboard/Progress) pesa 246.7KB para 281 items — bajo el umbral de 500KB del plan, pero sin límite de crecimiento a futuro. `GET /api/routines`: 20.4KB. Los tiempos absolutos (~500-994ms) están inflados por la latencia dev-machine→VPS remoto — no representativos de prod (mismo VPS ahí), pero la comparación relativa antes/después de un fix sí es válida.

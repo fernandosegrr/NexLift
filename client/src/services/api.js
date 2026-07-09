@@ -330,6 +330,19 @@ export const api = {
         return res.json();
     },
 
+    // Instrumentación de calibración del entrenador inteligente (P5) — llamar
+    // fire-and-forget (`.catch(() => {})`) al tocar la insignia "SUGERIDO", nunca
+    // bloqueando el flujo de guardado si esto falla.
+    async logSuggestionApplied(exerciseId, suggestedWeight, suggestedReps, phase = null) {
+        const res = await authFetch(`${API_URL}/suggestions/log`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ exerciseId, suggestedWeight, suggestedReps, phase }),
+        });
+        if (!res.ok) throw new Error('Failed to log suggestion');
+        return res.json();
+    },
+
     async logRestDay(note = null) {
         try {
             return await rawLogRestDay(note);

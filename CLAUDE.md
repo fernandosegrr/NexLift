@@ -87,7 +87,10 @@ Medido contra la cuenta real (fernando.segrr, 281 WorkoutLogs / 794 SetLogs), so
 - Lighthouse (`npx lighthouse`, build de producción, página de login): Performance 83 (móvil, throttled) / 100 (desktop), Best Practices 100, SEO 92, Accessibility 68. La categoría "PWA" ya no existe en Lighthouse stock desde v9+ (removida del core). Accesibilidad NO se tocó (fuera del alcance de esta auditoría de performance) — hallazgos para una futura pasada: botones sin `aria-label`, `user-scalable=no` en el viewport (bloquea pinch-zoom), touch targets pequeños.
 - N+1 encontrado pero NO corregido (fuera del alcance — endpoint raro, no "caliente"): `DELETE /api/routines/:id` hace un `workoutLog.count()` por cada ejercicio de la rutina en un loop anidado.
 
-## Current Version: 2.6.1
+## Instrumentación de calibración (v2.6.2)
+Modelo `SuggestionLog` (`exerciseId`, `date`, `suggestedWeight`, `suggestedReps`, `phase`, `source: 'client'|'shortcut'`) — una fila por sugerencia MOSTRADA (`GET /api/shortcuts/next-set`, fire-and-forget) o APLICADA (`POST /api/suggestions/log`, llamado fire-and-forget desde `applySuggestion` en `Workout.jsx` al tocar la insignia "SUGERIDO"). `server/analyze-suggestions.mjs` (solo lectura) compara sugerido vs. realizado ese mismo día (usando `mexicoCityDateStr` de `logic.js`, no fechas de cliente — mismo cuidado de zona horaria que el resto del proyecto) y agrupa por ejercicio+fase: cuántas sugerencias, cuántas con dato real, RIR promedio real. **No cambia ninguna constante** — es solo recolección; ajustar los umbrales de `adjustRepRangeForPhase`/descarga adaptativa es una decisión del usuario con este reporte en la mano, después de semanas de uso real.
+
+## Current Version: 2.6.2
 
 ## Conventions
 - Spanish UI, Spanish commit messages preferred

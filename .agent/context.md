@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 2.6.1 | **Última actualización:** 9 Julio 2026
+> **Versión:** 2.6.2 | **Última actualización:** 9 Julio 2026
 > **Historial de versiones:** [`changelog.md`](changelog.md) (movido ahí para que este archivo quepa en una sola lectura de una IA) | **Schema:** `server/prisma/schema.prisma` (única copia, no se duplica aquí)
 
 ---
@@ -298,6 +298,7 @@ Resumen de los 12 modelos:
 | `BodyLog` | Composición corporal | `photoUrl` (Cloudinary/Catbox), métricas de bioimpedancia |
 | `PushSubscription` | Web Push por dispositivo | `endpoint` único; se revoca en logout |
 | `PendingReminder` | Recordatorio de descanso pendiente (v2.5.1) | Espejo en DB del `setTimeout` en memoria; `@@unique([userId, exerciseId])`; recuperado al arrancar por `restorePendingReminders()` |
+| `SuggestionLog` | Instrumentación de calibración (v2.6.2) | Una fila por sugerencia mostrada/aplicada; `source: 'client'\|'shortcut'`; analizada por `server/analyze-suggestions.mjs` (solo lectura) |
 
 ---
 
@@ -335,6 +336,7 @@ Todos bajo auth JWT (`authMiddleware`) salvo registro/login/recuperación/vapid-
 | Método/Ruta | Qué hace |
 |---|---|
 | `GET /api/workouts/today-log?exerciseId=X` | (v2.6.0) ¿Ya existe log de HOY (día CDMX) para este ejercicio? Usado por la reconciliación anti-duplicados de la cola offline — ver Gotcha #9 |
+| `POST /api/suggestions/log` | (v2.6.2) Instrumentación de calibración — registra que el usuario APLICÓ una sugerencia en la app (fire-and-forget desde `Workout.jsx`) |
 | `POST /api/workouts/log` | Registrar TODAS las series de un ejercicio — **siempre crea un log nuevo** |
 | `GET/PUT/DELETE /api/workouts/:logId` | Detalle / **reemplazar todas las series** (EditSession + sesiones parciales del Atajo) / borrar — PUT y DELETE recalculan PRs |
 | `GET /api/workouts/history` | Historial (con `limit`, filtros) |
@@ -475,6 +477,17 @@ Medido con Prisma directo (solo lectura) contra la cuenta real de fernando.segrr
 - **NO corregido, fuera de alcance de esta auditoría (accesibilidad, no performance):** botones sin `aria-label` (accesible name), `user-scalable=no` en el `<meta viewport>` (bloquea pinch-zoom — común en PWAs mobile-first pero afecta a usuarios con baja visión), touch targets pequeños. Quedan documentados para una futura pasada dedicada, no se tocaron sin confirmación explícita porque cambiar el viewport es una decisión de producto, no solo un fix técnico.
 - **N+1 encontrado pero NO corregido** (fuera del alcance — endpoint raro, no "caliente" como los que pedía el plan): `DELETE /api/routines/:id` hace un `workoutLog.count()` por cada ejercicio de la rutina, dentro de un loop anidado por día. Borrar una rutina completa es una acción rara y de bajo tráfico; no se tocó.
 
+### 11. Instrumentación de calibración del entrenador inteligente (v2.6.2)
+Los umbrales del entrenador inteligente (declive <85%, ≥3 plateaus, ±50% de rango de reps, -10% en descarga) están marcados en la doc desde v2.4.0 como "primera aproximación, sin validar contra uso real". Esta fase NO valida nada todavía — solo instala la recolección de datos para poder hacerlo después.
+
+- **Modelo `SuggestionLog`** (`exerciseId`, `date`, `suggestedWeight`, `suggestedReps`, `phase`, `source`): una fila por cada vez que se GENERA o se APLICA una sugerencia.
+  - `source: 'shortcut'` — escrita fire-and-forget en `GET /api/shortcuts/next-set` cada vez que ese endpoint calcula una sugerencia (se muestre o no se aplique después — el Atajo de iOS solo la consulta).
+  - `source: 'client'` — escrita vía `POST /api/suggestions/log` (nuevo endpoint), llamado fire-and-forget desde `applySuggestion` en `Workout.jsx` SOLO cuando el usuario TOCA la insignia "SUGERIDO" (no cada vez que se calcula/muestra — eso ya lo cubre el cliente sin necesidad de otra fila, ver `useExerciseHistory`).
+  - Ninguna de las dos escrituras bloquea ni puede tumbar el flujo real (guardar una serie, responder al Atajo) si falla — mismo criterio que `scheduleRestReminder`.
+- **`server/analyze-suggestions.mjs`** (solo lectura, sin dependencias nuevas): para cada `SuggestionLog`, busca el `WorkoutLog` de ESE ejercicio en el MISMO día calendario CDMX (`mexicoCityDateStr` de `server/src/logic.js` — nunca una fecha de cliente, mismo cuidado de zona horaria que motivó el fix de P3) y compara contra la "serie de trabajo real" (mayor 1RM estimado ese día, lado débil en unilateral — mismo criterio que `computeWorkoutSuggestion`). Agrupa por ejercicio+fase e imprime: cuántas sugerencias, cuántas con dato real ese día, cuántas se seguiste al pie de la letra, delta promedio de peso, RIR promedio real (para detectar si la sugerencia viene quedando corta o larga).
+- **Verificado en vivo** con datos sintéticos (usuario, rutina y ejercicio de prueba, borrados después): una sugerencia vía `next-set` (source `shortcut`) + una aplicada tocando la insignia en la UI (source `client`) + un `WorkoutLog` real guardado ese mismo día con exactamente el peso/reps sugeridos → el script reporta 2/2 "siguió la sugerencia", delta de peso +0.0kg.
+- **No se tocó ninguna constante** de `adjustRepRangeForPhase` ni de la descarga adaptativa — eso es una decisión del usuario, con el reporte de este script en la mano, después de semanas de datos reales acumulados.
+
 ---
 
 ## 📝 Guía para Modificar Documentación
@@ -493,7 +506,7 @@ Para mantener esta documentación al día:
 
 El historial completo de versiones vive en [`changelog.md`](changelog.md).
 
-**Versión actual: 2.6.1** (9 Julio 2026) — auditoría de rendimiento (paralelización de queries en stats, ~47% menos tiempo medido contra datos reales; medición de payloads, build y Lighthouse), sobre v2.6.0 (registro offline), v2.5.1 (recordatorios persistentes) y v2.5.0 (backup automático + primera suite de tests).
+**Versión actual: 2.6.2** (9 Julio 2026) — instrumentación de calibración del entrenador inteligente (`SuggestionLog` + `analyze-suggestions.mjs`, solo recolecta datos, sin cambiar ninguna constante), sobre v2.6.1 (auditoría de rendimiento), v2.6.0 (registro offline), v2.5.1 (recordatorios persistentes) y v2.5.0 (backup automático + primera suite de tests).
 
 ---
 
@@ -516,4 +529,7 @@ cd server && npm test
 # Backup manual / restore (ver Gotcha #6)
 curl -X POST http://localhost:3001/api/backup/run -H "Authorization: Bearer <token>"
 cd server && node restore-backup.mjs --apply
+
+# Análisis de calibración del entrenador inteligente (ver Gotcha #11, solo lectura)
+cd server && node analyze-suggestions.mjs
 ```

@@ -5,7 +5,7 @@
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-![Version](https://img.shields.io/badge/Version-2.6.1-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-2.6.2-blue?style=flat-square)
 
 ---
 
@@ -215,6 +215,9 @@ cd server && npm test   # node --test — server/src/logic.js
 ## 📜 Changelog
 
 Historial completo y detallado (con causa raíz de cada fix) en [`.agent/context.md`](.agent/context.md). Resumen de versiones recientes:
+
+### v2.6.2 (9 Jul 2026) — Instrumentación de calibración del entrenador inteligente
+Cada sugerencia de peso/reps (mostrada por el Atajo de iOS o aplicada en la app) ahora queda registrada (`SuggestionLog`). Nuevo script `server/analyze-suggestions.mjs` (solo lectura) compara sugerido vs. realizado — no cambia ningún umbral todavía, solo recolecta datos para decidir eso después con semanas de uso real.
 
 ### v2.6.1 (9 Jul 2026) — Auditoría de rendimiento
 Medido contra datos reales: `/api/stats/overview` y `/api/stats/consistency` paralelizaron sus queries independientes (~47% menos tiempo), payloads/build/Lighthouse documentados como línea base.

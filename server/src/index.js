@@ -2418,6 +2418,20 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
             ? roundWorkoutWeight(suggestion.weight * 0.9, increment, suggestion.weight)
             : suggestion.weight;
 
+        // Instrumentación de calibración (P5 del plan de mejoras, v2.6.2) — una
+        // fila por sugerencia MOSTRADA (no solo aplicada) vía el Atajo. Fire-and-
+        // forget: nunca debe retrasar ni tumbar la respuesta al Atajo de iOS.
+        prisma.suggestionLog.create({
+            data: {
+                userId: req.userId,
+                exerciseId: nextExercise.id,
+                suggestedWeight,
+                suggestedReps: suggestion.reps,
+                phase: phaseStatus.phase,
+                source: 'shortcut'
+            }
+        }).catch(err => console.error('Error guardando SuggestionLog:', err.message));
+
         res.json({
             ...base,
             suggestedWeight,
@@ -2532,6 +2546,39 @@ app.post('/api/shortcuts/log-set', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Error logging set via shortcut:', error);
         res.status(500).json({ error: 'Failed to log set' });
+    }
+});
+
+// POST /api/suggestions/log — instrumentación de calibración (P5 del plan de
+// mejoras, v2.6.2). Llamado fire-and-forget desde Workout.jsx cuando el usuario
+// TOCA la insignia "SUGERIDO" (no cada vez que se calcula/muestra — eso ya lo
+// cubre GET /api/shortcuts/next-set con source:'shortcut'). Nunca debe romper
+// el flujo de guardado si falla: el caller no espera esta respuesta para nada.
+app.post('/api/suggestions/log', authMiddleware, async (req, res) => {
+    try {
+        const { exerciseId, suggestedWeight, suggestedReps, phase } = req.body;
+        if (!exerciseId || suggestedWeight == null || suggestedReps == null) {
+            return res.status(400).json({ error: 'Required: exerciseId, suggestedWeight, suggestedReps' });
+        }
+        const exercise = await prisma.exercise.findFirst({
+            where: { id: exerciseId, routineDay: { routine: { userId: req.userId } } }
+        });
+        if (!exercise) return res.status(404).json({ error: 'Exercise not found or unauthorized' });
+
+        await prisma.suggestionLog.create({
+            data: {
+                userId: req.userId,
+                exerciseId,
+                suggestedWeight: parseFloat(suggestedWeight),
+                suggestedReps: parseInt(suggestedReps),
+                phase: phase || null,
+                source: 'client'
+            }
+        });
+        res.status(201).json({ ok: true });
+    } catch (error) {
+        console.error('Error guardando SuggestionLog:', error);
+        res.status(500).json({ error: 'Failed to log suggestion' });
     }
 });
 
