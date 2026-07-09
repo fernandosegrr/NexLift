@@ -2,13 +2,15 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, Save, Trophy, History, X, ChevronLeft, ChevronRight,
-    Target, ArrowRight, TrendingUp, Sparkles, Dumbbell, AlertTriangle
+    Target, ArrowRight, TrendingUp, Sparkles, Dumbbell, AlertTriangle, Percent
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
 import { adjustRepRangeForPhase } from '../utils/smartLoading';
 import { hasPendingWrite, subscribeQueueChange } from '../services/offlineQueue';
+import { canonicalExerciseKey } from '../utils/exerciseName';
+import { getCurrentGoalTarget } from '../utils/goalPlanner';
 
 // ==================== CUSTOM HOOKS ====================
 
@@ -147,11 +149,18 @@ function useExerciseHistory(exerciseId, targetReps, muscleGroup, phase) {
     const [previousBest, setPreviousBest] = useState(null);
     const [suggestion, setSuggestion] = useState(null);
     const [loading, setLoading] = useState(false);
+    // Shape {sessions:[{date,best1RM,weight,reps,sets}]} para el chip de "Objetivo
+    // activo" (goalPlanner.js) — derivado AQUÍ, localmente, en vez de reusar
+    // groupHistoryByExercise(): ese helper depende de `workout.exercise.name`, pero
+    // GET /api/workouts/exercise/:exerciseId/history no incluye esa relación en su
+    // respuesta, así que llamarlo directo sobre `history` devolvería un Map vacío.
+    const [goalSessions, setGoalSessions] = useState([]);
     const currentRequestRef = useRef(null);
 
     useEffect(() => {
         setPreviousBest(null);
         setSuggestion(null);
+        setGoalSessions([]);
         if (!exerciseId) return;
 
         const requestId = exerciseId;
@@ -188,10 +197,29 @@ function useExerciseHistory(exerciseId, targetReps, muscleGroup, phase) {
                     ? { ...raw, weight: roundWeight(raw.weight * 0.9, increment, raw.weight) }
                     : raw;
                 setSuggestion(adjusted);
+
+                // El endpoint devuelve DESC por fecha; goalPlanner espera ascendente
+                // (la regresión lineal necesita "más viejo primero" para que la
+                // pendiente apunte en la dirección correcta).
+                setGoalSessions(sessions.slice().reverse().map(s => {
+                    const validSets = s.sets.map(effectiveSet).filter(x => x.weight > 0 && x.reps > 0);
+                    const bestSet = validSets.reduce(
+                        (b, x) => (estimate1RM(x) > estimate1RM(b) ? x : b),
+                        validSets[0]
+                    );
+                    return {
+                        date: s.date,
+                        best1RM: validSets.length ? estimate1RM(bestSet) : 0,
+                        weight: bestSet?.weight,
+                        reps: bestSet?.reps,
+                        sets: validSets
+                    };
+                }));
             } catch {
                 if (currentRequestRef.current === requestId) {
                     setPreviousBest(null);
                     setSuggestion(null);
+                    setGoalSessions([]);
                 }
             } finally {
                 if (currentRequestRef.current === requestId) setLoading(false);
@@ -199,7 +227,21 @@ function useExerciseHistory(exerciseId, targetReps, muscleGroup, phase) {
         })();
     }, [exerciseId, targetReps, muscleGroup, phase]);
 
-    return { previousBest, suggestion, loading };
+    return { previousBest, suggestion, loading, goalSessions };
+}
+
+// Objetivo activo (no alcanzado) para el ejercicio actual, si existe — reusa la
+// misma lógica de predicción que GoalCard.jsx (client/src/utils/goalPlanner.js),
+// sin fusionarse con computeSuggestion/Smart Loading (algoritmos deliberadamente
+// separados, ver CLAUDE.md).
+function useGoalChip(exerciseName, goals, goalSessions) {
+    return useMemo(() => {
+        if (!exerciseName || !goals || goals.length === 0) return null;
+        const key = canonicalExerciseKey(exerciseName);
+        const goal = goals.find(g => !g.achievedAt && canonicalExerciseKey(g.exerciseName) === key);
+        if (!goal) return null;
+        return getCurrentGoalTarget(goal, { sessions: goalSessions || [] });
+    }, [exerciseName, goals, goalSessions]);
 }
 
 // Hook para el temporizador visual de descanso (respaldo cliente de la notificación
@@ -511,6 +553,64 @@ const PHASE_BANNER = {
     }
 };
 
+// Guía de calentamiento — puramente informativa, no persiste nada (calienta "por tu
+// cuenta" y luego registra tus series de trabajo como siempre). Parte del mismo 1RM
+// estimado (Epley) que ya usa la Sugerencia/Mejor Anterior, y del mismo roundWeight
+// que ya usa el resto del archivo — sin matemática nueva.
+const RAMP_STEPS = [
+    { pct: 0.4, reps: 8 },
+    { pct: 0.6, reps: 5 },
+    { pct: 0.8, reps: 3 }
+];
+
+function WarmupCalculator({ base1RM, increment }) {
+    const [customPct, setCustomPct] = useState('75');
+
+    if (!base1RM) return null;
+
+    const pctNum = parseFloat(customPct);
+    const customWeight = pctNum > 0
+        ? roundWeight(base1RM * (pctNum / 100), increment, base1RM * (pctNum / 100))
+        : null;
+
+    return (
+        <details className="text-[10px] text-[var(--text-secondary)] bg-[var(--bg-card)] rounded-2xl border border-[var(--border)]">
+            <summary className="p-2 cursor-pointer flex items-center gap-1 select-none">
+                <Percent size={10} className="text-[var(--primary)]" />
+                <span className="font-bold text-[var(--primary)]">Calculadora de calentamiento</span>
+            </summary>
+            <div className="px-2 pb-3 space-y-2.5">
+                <div className="flex gap-2 pt-1">
+                    {RAMP_STEPS.map(({ pct, reps }) => (
+                        <div key={pct} className="flex-1 flex flex-col items-center gap-0.5 bg-[var(--bg-dark)]/50 rounded-lg px-2 py-1.5">
+                            <span className="text-[9px] uppercase tracking-wide">{Math.round(pct * 100)}%</span>
+                            <span className="text-sm font-bold tabular-nums text-[var(--text-primary)]">
+                                {roundWeight(base1RM * pct, increment, base1RM * pct)}kg
+                            </span>
+                            <span className="text-[9px]">× {reps}</span>
+                        </div>
+                    ))}
+                </div>
+                <div className="flex items-center gap-2 pt-2 border-t border-[var(--border)]">
+                    <span>Peso a</span>
+                    <input
+                        type="number"
+                        inputMode="numeric"
+                        value={customPct}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setCustomPct(e.target.value)}
+                        className="w-12 bg-[var(--bg-dark)]/50 rounded px-1 py-0.5 text-center text-[var(--text-primary)] font-bold tabular-nums focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50"
+                    />
+                    <span>% =</span>
+                    <span className="font-bold text-[var(--text-primary)] tabular-nums">
+                        {customWeight != null ? `${customWeight}kg` : '—'}
+                    </span>
+                </div>
+            </div>
+        </details>
+    );
+}
+
 // ==================== COMPONENTE PRINCIPAL ====================
 
 export default function Workout() {
@@ -548,7 +648,15 @@ export default function Workout() {
     const restTimer = useRestTimer();
 
     const currentExercise = workoutState.exercises[workoutState.currentIndex];
-    const { previousBest, suggestion } = useExerciseHistory(currentExercise?.id, currentExercise?.targetReps, currentExercise?.muscleGroup, workoutState.phase);
+    const { previousBest, suggestion, goalSessions } = useExerciseHistory(currentExercise?.id, currentExercise?.targetReps, currentExercise?.muscleGroup, workoutState.phase);
+
+    // Objetivos activos del usuario — lista pequeña, independiente del ejercicio
+    // actual, se carga una sola vez (no en cada cambio de ejercicio).
+    const [goals, setGoals] = useState([]);
+    useEffect(() => {
+        api.getGoals().then(setGoals).catch(() => {});
+    }, []);
+    const goalTarget = useGoalChip(currentExercise?.name, goals, goalSessions);
 
     // P3: ¿el ejercicio actual tiene una escritura offline pendiente de
     // sincronizar? Se re-evalúa al cambiar de ejercicio y cuando la cola cambia
@@ -1084,6 +1192,28 @@ export default function Workout() {
 
             {/* Banner de Estado (Bloqueado/Sugerencias) */}
             <div className="mb-6 space-y-3 ml-4">
+                {/* Objetivo activo — independiente de la Sugerencia/Smart Loading,
+                    nunca se fusionan (ver client/src/utils/goalPlanner.js) */}
+                {goalTarget && !goalTarget.planExhausted && (
+                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-4 flex items-center gap-3 animate-fade-in">
+                        <div className="bg-purple-500 p-2 rounded-full text-white shadow-sm shrink-0">
+                            <Target size={16} strokeWidth={2.5} />
+                        </div>
+                        {goalTarget.achieved ? (
+                            <div>
+                                <p className="font-bold text-purple-400 text-sm">Objetivo superado</p>
+                                <p className="text-purple-400/80 text-xs">Tu marca real ya supera la meta de {goalTarget.exerciseName}</p>
+                            </div>
+                        ) : (
+                            <div>
+                                <p className="font-bold text-purple-400 text-sm">
+                                    Objetivo: {goalTarget.weight}kg × {goalTarget.reps}
+                                </p>
+                                <p className="text-purple-400/80 text-xs">Semana {goalTarget.week} de {goalTarget.totalWeeks}</p>
+                            </div>
+                        )}
+                    </div>
+                )}
                 {workoutState.phase && PHASE_BANNER[workoutState.phase] && (
                     <div className={`${PHASE_BANNER[workoutState.phase].wrapperClass} border rounded-2xl p-4 flex items-center gap-3 animate-fade-in`}>
                         <div className={`${PHASE_BANNER[workoutState.phase].iconBoxClass} p-2 rounded-full shadow-sm shrink-0`}>
@@ -1171,6 +1301,12 @@ export default function Workout() {
                             <p className="px-2 pb-2">{suggestion.rationale}</p>
                         </details>
                     )}
+
+                    {/* Calculadora de porcentajes - guía de calentamiento, informativa (no se guarda) */}
+                    <WarmupCalculator
+                        base1RM={estimate1RM(suggestion || previousBest)}
+                        increment={currentExercise?.muscleGroup === 'Piernas' ? 5 : 2.5}
+                    />
                     </>
                 )}
             </div>
