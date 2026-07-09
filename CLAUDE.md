@@ -77,7 +77,17 @@ Job diario (~04:00 CDMX, mismo patrón `setInterval` que `checkReengagementRemin
 - Reintento: `replayOfflineQueue()` (en `api.js`) corre al abrir la app (código de nivel de módulo) y en el evento `online` de `window`. Errores de red o 401 durante el replay detienen el drenado (se reintenta después, sin descartar nada); cualquier OTRO error (validación real) sí saca el item de la cola — no reintenta infinito.
 - Badge visible en `Workout.jsx` (`hasPendingWrite`/`subscribeQueueChange`) mientras el ejercicio afectado tenga algo pendiente.
 
-## Current Version: 2.6.0
+## Auditoría de rendimiento (v2.6.1)
+Medido contra la cuenta real (fernando.segrr, 281 WorkoutLogs / 794 SetLogs), solo lectura vía Prisma directo:
+- `getWorkoutHistory(500)` (Dashboard/Progress): 246.7KB, 281 items — bajo el umbral de 500KB del plan, pero crece sin límite con el historial; vigilar si sigue creciendo (candidato futuro: endpoint de agregación server-side para plateau/1RM en vez de mandar cada set).
+- `GET /api/routines`: 20.4KB (3 rutinas).
+- Los tiempos absolutos medidos (~500-600ms por query) están inflados por la latencia de red dev-machine→VPS remoto (Postgres no está en la misma red que el entorno de desarrollo) — no representativos de prod (server y DB en el mismo VPS). La comparación RELATIVA sí es válida.
+- **Fix aplicado (bajo riesgo, mecánico):** `GET /api/stats/overview` (7 queries) y `GET /api/stats/consistency` (3 queries) corrían en `await` secuencial pese a ser mutuamente independientes — cambiadas a `Promise.all`. Medido contra datos reales: 994ms → 522ms (~47% menos) en `/api/stats/overview`. Cero cambio de comportamiento (verificado con datos sintéticos: streak, `weeklyVolume` y días de descanso automáticos calculan igual).
+- Build de producción (`npm run build` en `client/`): code-splitting sigue efectivo — recharts (`CartesianChart`/`XAxis`/`index.es`, ~275+56+158KB), jsPDF (~386+31KB) y html2canvas (~201KB) quedan en chunks separados, cargados solo al visitar Progress/ExportReport. Chunk inicial: 292.92KB raw / 91.69KB gzip (línea base de v2.0.0 era ~272KB raw — crecimiento ~8% tras varias features, razonable).
+- Lighthouse (`npx lighthouse`, build de producción, página de login): Performance 83 (móvil, throttled) / 100 (desktop), Best Practices 100, SEO 92, Accessibility 68. La categoría "PWA" ya no existe en Lighthouse stock desde v9+ (removida del core). Accesibilidad NO se tocó (fuera del alcance de esta auditoría de performance) — hallazgos para una futura pasada: botones sin `aria-label`, `user-scalable=no` en el viewport (bloquea pinch-zoom), touch targets pequeños.
+- N+1 encontrado pero NO corregido (fuera del alcance — endpoint raro, no "caliente"): `DELETE /api/routines/:id` hace un `workoutLog.count()` por cada ejercicio de la rutina en un loop anidado.
+
+## Current Version: 2.6.1
 
 ## Conventions
 - Spanish UI, Spanish commit messages preferred

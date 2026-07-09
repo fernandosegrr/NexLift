@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 2.6.0 | **Última actualización:** 9 Julio 2026
+> **Versión:** 2.6.1 | **Última actualización:** 9 Julio 2026
 > **Historial de versiones:** [`changelog.md`](changelog.md) (movido ahí para que este archivo quepa en una sola lectura de una IA) | **Schema:** `server/prisma/schema.prisma` (única copia, no se duplica aquí)
 
 ---
@@ -464,6 +464,17 @@ Alcance deliberadamente acotado: SOLO `logWorkout`/`updateWorkoutSession`/`logRe
 - **Bug real #2 (mismo patrón de zona horaria que este proyecto ya resolvió 3 veces):** la reconciliación anti-duplicados (antes de reintentar un `logWorkout` encolado, ¿ya existe un log de hoy? si sí, `PUT` en vez de `POST` — cubre "el POST sí llegó pero se perdió la respuesta") originalmente mandaba una `fecha` calculada en el navegador (`new Date().toLocaleDateString('sv')`) contra `GET /api/workouts/history?dateFrom=X&dateTo=X` — ese endpoint filtra con `new Date(dateFrom)` (UTC ingenuo, sin pasar por los helpers CDMX). Reproducido en vivo: un log real creado a las 20:49 CDMX (02:49 UTC del día siguiente) no lo encontraba la query con `fecha` del día CDMX correcto, y el replay creaba un WorkoutLog **duplicado**. Fix: nuevo endpoint dedicado `GET /api/workouts/today-log?exerciseId=X` que calcula "hoy" con `mexicoCityDayBounds()` server-side — el cliente ya no manda ninguna fecha, elimina la clase entera de bug.
 - **Verificado en vivo end-to-end** (usuario y ejercicios sintéticos, borrados después): offline real (servidor detenido/fetch interceptado por endpoint) → guardar → badge visible → recargar la página → sigue pendiente → volver "online" (`window.dispatchEvent(new Event('online'))`) → sincroniza solo, exactamente 1 `WorkoutLog` correcto. Escenario de respuesta perdida (log ya existente + item encolado apuntando al mismo ejercicio) → replay hace `PUT`, NO duplica. Item con peso inválido (rechazado por `sanitizeSets`, 400) → se descarta de la cola sin reintentar infinito y sin crear datos corruptos.
 
+### 10. Auditoría de rendimiento (v2.6.1) — medir antes de optimizar
+Medido con Prisma directo (solo lectura) contra la cuenta real de fernando.segrr (281 WorkoutLogs, 794 SetLogs):
+
+- **`getWorkoutHistory(500)`** (usado por `Dashboard.jsx`/`Progress.jsx` para plateau/1RM): 246.7KB, 281 items. Bajo el umbral de 500KB que marcaba el plan como "vale la pena optimizar", pero crece sin límite con el historial — si en el futuro pesa demasiado, la opción es un endpoint de agregación server-side (calcular plateau/1RM en el servidor) en vez de mandar cada set al cliente.
+- Los tiempos absolutos medidos (~500-994ms por operación) están inflados por la latencia de red entre la máquina de desarrollo y el Postgres remoto del VPS — en producción, server y DB viven en el mismo VPS, así que el número real ahí es mucho menor. La comparación RELATIVA entre "antes" y "después" de un fix sí es válida y es la que se reporta abajo.
+- **Fix aplicado (bajo riesgo, puramente mecánico — cero cambio de comportamiento):** `GET /api/stats/overview` corría 7 queries de Prisma mutuamente independientes en `await` secuencial (7 round-trips seguidos); `GET /api/stats/consistency` corría 3 de la misma forma. Ambas cambiadas a `Promise.all`. Medido contra datos reales: **994ms → 522ms (~47% menos)** en `/api/stats/overview`. Verificado con datos sintéticos que el streak, `weeklyVolume` y la detección de días de descanso automáticos (desde la rutina activa) calculan exactamente igual que antes.
+- **Build de producción** (`npm run build` en `client/`): code-splitting sigue efectivo — recharts (`CartesianChart`/`XAxis`/`index.es`, ~275+56+158KB), jsPDF (~386+31KB) y html2canvas (~201KB) quedan en chunks separados del entry principal, cargados solo al visitar Progress/ExportReport. Chunk inicial: 292.92KB raw / 91.69KB gzip — la línea base de v2.0.0 era ~272KB raw, así que el crecimiento (~8%) tras varias features (mesociclos, plateau, descarga adaptativa, Atajo de iOS, backup, cola offline) es razonable, no una regresión.
+- **Lighthouse** (`npx lighthouse`, contra el build de producción vía `vite preview`, página de login — no requiere sesión): Performance 83 (emulación móvil, con throttling) / 100 (desktop), Best Practices 100, SEO 92, Accessibility 68. La categoría "PWA" ya no existe en Lighthouse stock desde v9+ (Google la movió a un plugin aparte) — no se pudo medir con la instalación estándar.
+- **NO corregido, fuera de alcance de esta auditoría (accesibilidad, no performance):** botones sin `aria-label` (accesible name), `user-scalable=no` en el `<meta viewport>` (bloquea pinch-zoom — común en PWAs mobile-first pero afecta a usuarios con baja visión), touch targets pequeños. Quedan documentados para una futura pasada dedicada, no se tocaron sin confirmación explícita porque cambiar el viewport es una decisión de producto, no solo un fix técnico.
+- **N+1 encontrado pero NO corregido** (fuera del alcance — endpoint raro, no "caliente" como los que pedía el plan): `DELETE /api/routines/:id` hace un `workoutLog.count()` por cada ejercicio de la rutina, dentro de un loop anidado por día. Borrar una rutina completa es una acción rara y de bajo tráfico; no se tocó.
+
 ---
 
 ## 📝 Guía para Modificar Documentación
@@ -482,7 +493,7 @@ Para mantener esta documentación al día:
 
 El historial completo de versiones vive en [`changelog.md`](changelog.md).
 
-**Versión actual: 2.6.0** (9 Julio 2026) — registro de entrenamiento offline con cola de sincronización (sobrevive sin señal en el gym), sobre la base de v2.5.1 (recordatorios persistentes) y v2.5.0 (backup automático + primera suite de tests).
+**Versión actual: 2.6.1** (9 Julio 2026) — auditoría de rendimiento (paralelización de queries en stats, ~47% menos tiempo medido contra datos reales; medición de payloads, build y Lighthouse), sobre v2.6.0 (registro offline), v2.5.1 (recordatorios persistentes) y v2.5.0 (backup automático + primera suite de tests).
 
 ---
 

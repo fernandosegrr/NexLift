@@ -2709,46 +2709,60 @@ app.delete('/api/workouts/:logId', authMiddleware, async (req, res) => {
 // GET /api/stats/overview - Get overall stats
 app.get('/api/stats/overview', authMiddleware, async (req, res) => {
     try {
-        const totalWorkouts = await prisma.workoutLog.count({
-            where: { exercise: { routineDay: { routine: { userId: req.userId } } } }
-        });
-        const totalRoutines = await prisma.routine.count({
-            where: { userId: req.userId }
-        });
-        const totalPRs = await prisma.personalRecord.count({
-            where: { userId: req.userId }
-        });
-
-        // Get last 30 days workout count for streak calculation
         const todayBounds = mexicoCityDayBounds();
         const thirtyDaysAgo = new Date(todayBounds.start.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const weekAgo = new Date(todayBounds.start.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-        const recentWorkouts = await prisma.workoutLog.findMany({
-            where: {
-                date: { gte: thirtyDaysAgo },
-                exercise: { routineDay: { routine: { userId: req.userId } } }
-            },
-            select: { date: true }
-        });
-        const recentRestLogs = await prisma.restLog.findMany({
-            where: {
-                date: { gte: thirtyDaysAgo },
-                userId: req.userId
-            },
-            select: { date: true }
-        });
+        // Las 7 consultas son independientes entre sí (ninguna depende del
+        // resultado de otra) — antes corrían en 7 round-trips secuenciales a la
+        // DB; medido contra datos reales (P4 del plan de mejoras), cada
+        // round-trip pesaba ~500-600ms de latencia de red, así que 7 en serie
+        // eran ~3.5-4s. En paralelo, el tiempo total pasa a ser el de la más
+        // lenta de las 7, no la suma.
+        const [totalWorkouts, totalRoutines, totalPRs, recentWorkouts, recentRestLogs, activeRoutine, weekSets] = await Promise.all([
+            prisma.workoutLog.count({
+                where: { exercise: { routineDay: { routine: { userId: req.userId } } } }
+            }),
+            prisma.routine.count({
+                where: { userId: req.userId }
+            }),
+            prisma.personalRecord.count({
+                where: { userId: req.userId }
+            }),
+            prisma.workoutLog.findMany({
+                where: {
+                    date: { gte: thirtyDaysAgo },
+                    exercise: { routineDay: { routine: { userId: req.userId } } }
+                },
+                select: { date: true }
+            }),
+            prisma.restLog.findMany({
+                where: {
+                    date: { gte: thirtyDaysAgo },
+                    userId: req.userId
+                },
+                select: { date: true }
+            }),
+            // Active routine, to detect scheduled rest days
+            prisma.routine.findFirst({
+                where: { userId: req.userId, isActive: true },
+                include: { days: { orderBy: { order: 'asc' } } }
+            }),
+            prisma.setLog.findMany({
+                where: {
+                    workoutLog: {
+                        date: { gte: weekAgo },
+                        exercise: { routineDay: { routine: { userId: req.userId } } }
+                    }
+                }
+            })
+        ]);
 
         // Calculate unique training days (día calendario de CDMX, no UTC)
         const uniqueDays = new Set([
             ...recentWorkouts.map(w => mexicoCityDateStr(w.date)),
             ...recentRestLogs.map(r => mexicoCityDateStr(r.date))
         ]);
-
-        // Get active routine to detect scheduled rest days
-        const activeRoutine = await prisma.routine.findFirst({
-            where: { userId: req.userId, isActive: true },
-            include: { days: { orderBy: { order: 'asc' } } }
-        });
 
         // Build a map of which day-of-week is a rest day in the routine
         const DAY_NAMES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -2784,18 +2798,7 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
             }
         }
 
-        // Get volume this week
-        const weekAgo = new Date(todayBounds.start.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-        const weekSets = await prisma.setLog.findMany({
-            where: {
-                workoutLog: {
-                    date: { gte: weekAgo },
-                    exercise: { routineDay: { routine: { userId: req.userId } } }
-                }
-            }
-        });
-
+        // Volumen de esta semana — weekSets ya viene del Promise.all de arriba.
         const weeklyVolume = weekSets.reduce((acc, set) => {
             return acc + (set.weight * set.reps);
         }, 0);
@@ -2819,26 +2822,29 @@ app.get('/api/stats/consistency', authMiddleware, async (req, res) => {
     try {
         const threeSixtyFiveDaysAgo = new Date(mexicoCityDayBounds().start.getTime() - 365 * 24 * 60 * 60 * 1000);
 
-        const workouts = await prisma.workoutLog.findMany({
-            where: {
-                date: { gte: threeSixtyFiveDaysAgo },
-                exercise: { routineDay: { routine: { userId: req.userId } } }
-            },
-            select: { date: true }
-        });
-        const restLogs = await prisma.restLog.findMany({
-            where: {
-                date: { gte: threeSixtyFiveDaysAgo },
-                userId: req.userId
-            },
-            select: { date: true }
-        });
-
-        // Get active routine to identify scheduled rest days
-        const activeRoutine = await prisma.routine.findFirst({
-            where: { userId: req.userId, isActive: true },
-            include: { days: { orderBy: { order: 'asc' } } }
-        });
+        // Las 3 consultas son independientes — antes corrían secuenciales (ver
+        // misma nota de latencia en GET /api/stats/overview, P4 del plan de mejoras).
+        const [workouts, restLogs, activeRoutine] = await Promise.all([
+            prisma.workoutLog.findMany({
+                where: {
+                    date: { gte: threeSixtyFiveDaysAgo },
+                    exercise: { routineDay: { routine: { userId: req.userId } } }
+                },
+                select: { date: true }
+            }),
+            prisma.restLog.findMany({
+                where: {
+                    date: { gte: threeSixtyFiveDaysAgo },
+                    userId: req.userId
+                },
+                select: { date: true }
+            }),
+            // Active routine, to identify scheduled rest days
+            prisma.routine.findFirst({
+                where: { userId: req.userId, isActive: true },
+                include: { days: { orderBy: { order: 'asc' } } }
+            })
+        ]);
 
         const DAY_NAMES_NORM = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
         const restDaySet = new Set();
