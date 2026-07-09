@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 2.6.2 | **Última actualización:** 9 Julio 2026
+> **Versión:** 2.7.0 | **Última actualización:** 9 Julio 2026
 > **Historial de versiones:** [`changelog.md`](changelog.md) (movido ahí para que este archivo quepa en una sola lectura de una IA) | **Schema:** `server/prisma/schema.prisma` (única copia, no se duplica aquí)
 
 ---
@@ -85,6 +85,8 @@ Página crítica para registrar el entrenamiento del día. Ha recibido actualiza
   - **Temporizador de descanso visual** (`useRestTimer`, v2.2.0, corregido a fondo en v2.3.0): cuenta regresiva en pantalla al marcar CADA serie individual como completada (no solo al terminar el ejercicio) — respaldo del push de `scheduleRestReminder` (poco fiable en iOS Safari/PWA), que ahora también se dispara por serie vía `POST /api/workouts/rest-reminder`. Basado en timestamp absoluto (no un contador de ticks), así que se recalcula correctamente al volver de segundo plano en vez de quedarse congelado. Persiste a través del auto-avance de ejercicio — solo se detiene al terminar, al tocar la X, o al salir del entreno.
   - **Aviso de descanso correcto al cambiar de ejercicio** (v2.4.1): si la serie recién completada era la última del ejercicio actual, `triggerSetCompleted` resuelve el ejercicio SIGUIENTE en la lista del día y manda su nombre (`nextExerciseName`) al backend, que lo usa para componer el texto del push en vez de repetir el nombre del ejercicio que ya se terminó.
   - **Sesiones parciales del Atajo de iOS** (v2.4.1): si el Atajo ya registró algunas series de un ejercicio hoy (menos que `targetSets`), `Workout.jsx` las muestra pre-llenadas + filas vacías para las restantes, todo editable — ya no bloquea el ejercicio como "completo" solo por tener algún log de hoy. Al guardar, actualiza (`PUT`) ese mismo `WorkoutLog` en vez de crear uno nuevo, para no fragmentar el día.
+  - **Calculadora de calentamiento** (v2.7.0): panel `<details>` junto a la Sugerencia — rampa 40/60/80% del peso base + tabla libre "peso @ X%", 100% informativo (no persiste nada). Ver Gotcha #12.
+  - **Chip de Objetivo activo** (v2.7.0): si el ejercicio actual coincide con un `Goal` no alcanzado, muestra "Objetivo: Xkg × Y — semana Z" (reusa `client/src/utils/goalPlanner.js`, extraído de `GoalCard.jsx`) — sin fusionarse con la Sugerencia. Ver Gotcha #12.
 
 **API usada:**
 - `GET /api/routines` - Obtener estructura del día
@@ -133,10 +135,18 @@ Editor completo y complejo de rutinas:
 ### 5.1 Create Routine / Import (`Import.jsx`)
 **Ruta:** `/routines/new`
 
-Página unificada para crear rutinas con 3 métodos:
+Página unificada para crear rutinas con 4 métodos:
 1.  **Plantillas:** Selección de rutinas probadas (PPL, Arnold, Full Body).
 2.  **Manual:** Constructor visual paso a paso.
 3.  **JSON:** Importación directa de texto estructurado.
+4.  **IA** (v2.7.0): CTA simple que lleva a `/ai-routine/setup` — no un formulario inline, el cuestionario es demasiado distinto de los otros 3 métodos.
+
+### 5.2 Rutina diaria con IA (`AiRoutineSetup.jsx`)
+**Ruta:** `/ai-routine/setup`
+
+Para quien no tiene rutina fija: cuestionario de 4 pasos (objetivo, días/semana, equipo disponible, experiencia) → `TrainingProfile` (1:1 por usuario) → genera/activa una `Routine{source:'ai'}` y navega directo a `/workout/:dayId` del día de hoy. Ver sección "Entrenador inteligente" abajo (apartado 5) para el detalle completo — el peso/reps de cada serie sigue siendo 100% Smart Loading, la IA solo decide qué ejercicios tocan.
+
+`Routines.jsx` (`RoutineCard`) muestra las rutinas IA con una tarjeta resumen (últimos splits entrenados + "Entrenar hoy" + "Cambiar ejercicios de hoy") en vez del acordeón de días normal — ver Gotcha #13. `Dashboard.jsx` resuelve "hoy" para estas rutinas vía `GET /api/ai-routine/today`, nunca recalculado en el cliente.
 
 ### 6. Body Tracking (`BodyTracking.jsx`)
 **Ruta:** `/body`
@@ -286,9 +296,10 @@ Resumen de los 12 modelos:
 | Modelo | Qué es | Detalle no obvio |
 |--------|--------|------------------|
 | `User` | Cuenta | `tokenVersion` revoca JWTs viejos; `lastReengagementNotifiedAt` limita el push de re-enganche a 1/día; `lastBackupAt`/`lastBackupError` (v2.5.0) reflejan el backup automático diario |
-| `Routine` | Rutina | `adaptiveDeloadUntil`/`lastAdaptiveCheckAt` = descarga adaptativa (v2.4.0) |
+| `Routine` | Rutina | `adaptiveDeloadUntil`/`lastAdaptiveCheckAt` = descarga adaptativa (v2.4.0); `source` (v2.7.0) `'manual'|'ai'` |
 | `RoutineBlock` | Mesociclo (opcional) | `phase` es string libre, no enum; activo = `startedAt` no-nulo más reciente |
-| `RoutineDay` | Día de rutina | `isRestDay`, `order` |
+| `RoutineDay` | Día de rutina | `isRestDay`, `order`; `splitLabel` (v2.7.0, solo días IA, ej. `"Push"`) — para rutinas IA, `dayName` es una fecha ISO, no un día de la semana |
+| `TrainingProfile` | Perfil de Rutina diaria con IA (v2.7.0), 1:1 por usuario | `goal`/`daysPerWeek`/`equipment[]`/`experienceLevel` — alimenta el fallback determinista y (opcional) la capa de IA. Ver Gotcha #13 |
 | `Exercise` | Ejercicio de un día | `targetReps` es string `"8-12"`; `isUnilateral`; `restSeconds` |
 | `WorkoutLog` | Sesión de UN ejercicio en una fecha | `onDelete: Restrict` hacia `Exercise` — nunca borrar ejercicios con historial (archivar) |
 | `SetLog` | Serie individual | **`rpe` guarda `10 - RIR`, no el RIR crudo** (ver Gotcha #5); `weightRight`/`repsRight` en unilateral |
@@ -328,6 +339,9 @@ Todos bajo auth JWT (`authMiddleware`) salvo registro/login/recuperación/vapid-
 | `GET/PUT/DELETE /api/routines/:id` | Detalle / editar / borrar — PUT y DELETE en `$transaction`; borrar archiva ejercicios con historial |
 | `PUT /api/routines/:id/activate` | Activar rutina |
 | `GET/POST /api/routines/:id/blocks`, `PUT/DELETE .../blocks/:blockId`, `POST .../blocks/:blockId/start` | CRUD de mesociclos (v2.4.0) |
+| `POST /api/ai-routine/setup` | (v2.7.0) Cuestionario inicial → `TrainingProfile` + crea/reactiva la rutina IA + genera el día de hoy |
+| `GET /api/ai-routine/today` | (v2.7.0) Día de hoy de la rutina IA activa — idempotente, genera si falta |
+| `POST /api/ai-routine/reshuffle/:routineDayId` | (v2.7.0) "Cambia los ejercicios de hoy" — preserva ejercicios con series ya registradas hoy |
 | `GET /api/exercises` | Catálogo del usuario (incluye archivados) |
 | `PUT /api/exercises/:id/muscle` | Clasificar grupo muscular |
 | `GET /api/stats/routine/:id` | Stats por rutina |
@@ -488,6 +502,27 @@ Los umbrales del entrenador inteligente (declive <85%, ≥3 plateaus, ±50% de r
 - **Verificado en vivo** con datos sintéticos (usuario, rutina y ejercicio de prueba, borrados después): una sugerencia vía `next-set` (source `shortcut`) + una aplicada tocando la insignia en la UI (source `client`) + un `WorkoutLog` real guardado ese mismo día con exactamente el peso/reps sugeridos → el script reporta 2/2 "siguió la sugerencia", delta de peso +0.0kg.
 - **No se tocó ninguna constante** de `adjustRepRangeForPhase` ni de la descarga adaptativa — eso es una decisión del usuario, con el reporte de este script en la mano, después de semanas de datos reales acumulados.
 
+### 12. Calculadora de calentamiento y Objetivo visible (v2.7.0)
+Dos features chicas, sin backend nuevo, agregadas al mismo tiempo que la Rutina con IA (Gotcha #13).
+
+- **Calculadora:** panel `<details>` en `Workout.jsx` (sibling del bloque "Por qué esta sugerencia") con rampa 40/60/80% del peso base (`suggestion || previousBest`) + tabla libre "peso @ X%", reusando `estimate1RM`/`roundWeight` ya existentes en el archivo. 100% informativo — no persiste nada, no toca schema. `<details>` en vez de modal a propósito, evita el requisito de `<Portal>` (Gotcha #3.1).
+- **Objetivo visible:** chip "Objetivo: Xkg × Y — semana Z" cuando el ejercicio actual coincide (`canonicalExerciseKey`) con un `Goal` activo no alcanzado — nunca se fusiona con Smart Loading.
+- **Extracción necesaria:** la lógica de periodización de Goals vivía completa dentro de `GoalCard.jsx` (~150 líneas). Se extrajo a `client/src/utils/goalPlanner.js` (`generatePeriodizedPlan`, `computeGoalPrediction`, `computeGoalProgress`, `filterVisibleWeeks`, y la nueva `getCurrentGoalTarget`, que compone las otras 4). `GoalCard.jsx` ahora llama estas funciones — comportamiento idéntico, verificado en vivo (mismo 1RM/semana/plan antes y después del refactor) — y es la única fuente de esta lógica.
+- **Gotcha real encontrado:** `GET /api/workouts/exercise/:exerciseId/history` (el que `Workout.jsx` ya usa) no incluye la relación `exercise` en su respuesta — `groupHistoryByExercise()` depende de `workout.exercise?.name`, así que llamarla directo sobre esos datos devuelve un Map vacío en silencio. El shape `{sessions:[{best1RM,...}]}` que pide `goalPlanner.js` se deriva LOCALMENTE dentro de `useExerciseHistory`, reusando `effectiveSet`/`estimate1RM` ya presentes en el archivo — sin fetch nuevo.
+
+### 13. Rutina diaria con IA (v2.7.0)
+Para quien no tiene rutina fija ni conoce de gym: cuestionario corto (`AiRoutineSetup.jsx` → `TrainingProfile`, 1:1 por usuario) y la app decide **qué** entrenar cada día — el peso/reps sigue siendo 100% Smart Loading, sin cambios. Mismo patrón que `exerciseAgent.js`: IA opcional asistiendo una decisión estructural de bajo riesgo, con fallback determinista si no hay `OPENAI_API_KEY`.
+
+- **Modelo:** `Routine.source` (`'manual'|'ai'`, default `'manual'`), `RoutineDay.splitLabel` (solo días IA). Cada día ENTRENADO genera un `RoutineDay` fresco con `dayName = mexicoCityDateStr()` — los de descanso no generan fila. Se descartó a propósito un diseño de "slots fijos reordenados" (Push/Pull/Legs reusados semana a semana): calza peor con "decide fresco cada día" y, confirmado el punto siguiente, no hacía falta para la continuidad del historial.
+- **Por qué un `RoutineDay` nuevo por día es seguro:** tanto `GET /api/workouts/exercise/:exerciseId/history` como `/api/shortcuts/next-set` resuelven historial por **nombre exacto** (insensible a mayúsculas) en TODA la cuenta, no por el id de la fila — confirmado leyendo ambas rutas. Una fila `Exercise` nueva hereda la continuidad de Smart Loading mientras el nombre coincida con usos anteriores. Esto NO es el matching difuso (`canonicalExerciseKey`) del resto del proyecto — "Press Banca" y "Press de Banca con Barra" no calzarían. Mitigado en 2 capas: la IA elige de una lista CERRADA de candidatos (nunca texto libre), y el camino determinista siempre usa los mismos nombres literales del catálogo.
+- **Catálogo del servidor** (`server/src/data/exerciseCatalog.js`, copia deliberada de `client/src/data/exercises.js`, mismo criterio que Epley/plateau) usa `muscleGroup` en **ESPAÑOL** (`'Piernas'`) a propósito — el catálogo cliente usa ids en inglés (`'legs'`), y el redondeo a 5kg de piernas compara contra el string `'Piernas'`; copiar el inglés habría dejado ese redondeo sin efecto para ejercicios de pierna generados por IA. `server/src/data/splitTemplates.js`: plantillas fijas por `daysPerWeek` (`<=3`→Full Body A/B, `4`→Upper/Lower A/B, `>=5`→Push/Pull/Legs) — fallback 100% funcional sin IA.
+- **Rotación** (`pickNextSplitDay`, `server/src/logic.js`, pura y testeada): round-robin sobre el último split entrenado. La cuota semanal vive en `server/src/services/aiRoutineService.js` (`planToday`, también puro — sin Prisma, mismo patrón que `exerciseAgent.js`/`backupService.js`; `index.js` hace las consultas reales y le pasa los datos ya cargados).
+- **Riesgo de crecimiento sin límite, mitigado:** un `RoutineDay` nuevo por cada día entrenado, para siempre, haría crecer sin cota `GET /api/routines`/`.../active`/`.../:id` (golpeados en casi cada carga de página). Para rutinas `source:'ai'`, estos 3 endpoints limitan `days` a los 7 más recientes (`daysIncludeFor()` en `index.js`) — "qué toca hoy" nunca depende de esto, pasa por `GET /api/ai-routine/today` (consulta por `dayName` exacto). Mismo principio que la rutina-papelera del sistema.
+- **Gap cerrado en `/api/shortcuts/next-set`:** su resolución de "día de hoy" por nombre de día de la semana nunca hacía match contra un `dayName` de fecha ISO — devolvía "descanso" para siempre, en silencio, para cualquier rutina IA activa. Ahora branchea en `routine.source === 'ai'` y comparte `resolveOrGenerateAiRoutineDay()` con `GET /api/ai-routine/today` — una sola fuente de verdad para PWA y Atajo. El backfill `?date=` no aplica a rutinas IA (ignorado a propósito: generar un día "del pasado" tras uno más reciente rompería el orden que asume la rotación).
+- **Capa de IA** (`server/src/services/aiRoutineAgent.js`, espejo de `exerciseAgent.js`): con `OPENAI_API_KEY`, el LLM elige entre una lista CERRADA de candidatos (catálogo filtrado por equipo + ejercicios ya entrenados por el usuario, marcados `yaEntrenado: true` para preferir continuidad). Fallback determinista en cualquier falla.
+- **Bug real encontrado y corregido verificando el reshuffle** (`POST /api/ai-routine/reshuffle/:routineDayId`, solo hoy, preserva ejercicios con serie ya registrada): la primera versión regeneraba TODOS los slots del split (incluyendo los ya cubiertos por ejercicios conservados), duplicando esos grupos musculares — confirmado en vivo (2 "Press de Banca con Barra" en el mismo día). Fix: `pickReplacementExercises(profile, exercisesToReplace, excludeNames)` reemplaza puntualmente solo por el grupo muscular de lo removido, excluyendo TODOS los nombres del día (conservados + removidos). Determinista a propósito, no pasa por la IA.
+- **Verificado en vivo end-to-end** con usuarios sintéticos (borrados después): cuestionario completo → generación filtrada por equipo → idempotencia (`GET /today` repetido devuelve el mismo día) → Dashboard/Routines con la rama IA renderizando correctamente → Atajo de iOS funcionando contra una rutina IA activa (antes del fix, `isRestDay` para siempre) → reshuffle preservando el ejercicio con serie registrada y sin duplicar grupos musculares (confirmado tras el fix).
+
 ---
 
 ## 📝 Guía para Modificar Documentación
@@ -506,7 +541,7 @@ Para mantener esta documentación al día:
 
 El historial completo de versiones vive en [`changelog.md`](changelog.md).
 
-**Versión actual: 2.6.2** (9 Julio 2026) — instrumentación de calibración del entrenador inteligente (`SuggestionLog` + `analyze-suggestions.mjs`, solo recolecta datos, sin cambiar ninguna constante), sobre v2.6.1 (auditoría de rendimiento), v2.6.0 (registro offline), v2.5.1 (recordatorios persistentes) y v2.5.0 (backup automático + primera suite de tests).
+**Versión actual: 2.7.0** (9 Julio 2026) — 3 funcionalidades nuevas del backlog de producto: calculadora de calentamiento, objetivo visible durante el entrenamiento, y Rutina diaria con IA (cuestionario → la app decide qué entrenar cada día, con fallback 100% determinista sin `OPENAI_API_KEY`) — ver Gotchas #12/#13. Sobre v2.6.2 (instrumentación de calibración), v2.6.1 (auditoría de rendimiento), v2.6.0 (registro offline), v2.5.1 (recordatorios persistentes) y v2.5.0 (backup automático + primera suite de tests).
 
 ---
 

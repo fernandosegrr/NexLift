@@ -5,7 +5,7 @@
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-![Version](https://img.shields.io/badge/Version-2.6.2-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-2.7.0-blue?style=flat-square)
 
 ---
 
@@ -27,6 +27,7 @@ Funciona instalada como app nativa (offline-first) y también admite registrar s
 - Crear rutinas a mano, desde plantillas (PPL, Arnold, Full Body...) o importando JSON/texto.
 - Deduplicación de ejercicios al importar vía LLM (opcional) para evitar duplicados como "Press Banca" / "press de banca".
 - **Mesociclos:** organiza una rutina en bloques de Acumulación, Intensificación, Descarga o personalizados, con duración en semanas e inicio manual del siguiente bloque.
+- **Rutina diaria con IA (v2.7.0):** para quien no tiene rutina fija — responde un cuestionario corto (objetivo, días/semana, equipo, experiencia) y la app decide qué entrenar cada día. El peso y las reps de cada serie los sigue calculando el mismo Smart Loading determinista de siempre; funciona igual sin IA configurada (plantillas de split fijas como fallback).
 - Papelera de historial: un ejercicio con series registradas nunca se borra de verdad al editar o eliminar una rutina.
 
 ### 🧠 Entrenador Inteligente
@@ -34,6 +35,8 @@ Funciona instalada como app nativa (offline-first) y también admite registrar s
 - **Detección de plateau:** marca un ejercicio como estancado si su mejor 1RM estimado no mejora entre la mitad antigua y la reciente de sus últimas sesiones.
 - **Descarga adaptativa:** si el volumen semanal cae por debajo del 85% del anterior y 3+ ejercicios están en plateau al mismo tiempo, la rutina entra en una ventana de descarga automática con la carga sugerida reducida — siempre avisado con un banner visible, nunca en silencio.
 - La fase activa de un mesociclo ajusta en tiempo real el rango de reps usado para sugerir (más reps en acumulación, más peso/menos reps en intensificación).
+- **Calculadora de calentamiento (v2.7.0):** rampa 40/60/80% del peso sugerido + tabla libre "peso a X%", visible junto a la sugerencia de cada ejercicio.
+- **Objetivo visible (v2.7.0):** si el ejercicio actual tiene un Objetivo de fuerza activo, un chip muestra el peso/reps que le toca esta semana según su plan de periodización — sin mezclarse con la sugerencia de Smart Loading.
 
 ### 📲 Atajo de iOS (Shortcuts)
 - Registra una serie sin abrir la app: un Atajo consulta la sugerencia del próximo ejercicio y guarda la serie contra la misma cuenta.
