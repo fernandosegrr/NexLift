@@ -1,0 +1,271 @@
+// Funciones puras extraídas de server/src/index.js (P1 del plan de mejoras) para
+// poder testearlas sin DB ni servidor levantado. Extracción literal — el
+// comportamiento numérico debe seguir siendo idéntico al de antes de mover este
+// código; si algo necesita cambiar, cambiarlo aquí (única copia) y no en index.js.
+
+// ============================================
+// ZONA HORARIA — app de un solo usuario, siempre en Ciudad de México. TODA fecha
+// "de calendario" (qué día es hoy, dónde empieza/termina un día) debe resolverse
+// aquí. El contenedor corre en UTC (Docker/Alpine sin TZ fijada), así que
+// new Date()/getFullYear()/getMonth()/getDate()/getDay() usados directo quedan
+// desalineados hasta 6 horas: cualquier cosa registrada después de las 6pm hora de
+// CDMX caía en el "día" siguiente. Usado por: racha y heatmap (stats/overview,
+// stats/consistency), los endpoints de Atajos iOS, y el filtro por día de semana.
+// ============================================
+export const APP_TIMEZONE = 'America/Mexico_City';
+
+// "YYYY-MM-DD" del día calendario de CDMX que contiene `date`.
+export function mexicoCityDateStr(date = new Date()) {
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: APP_TIMEZONE,
+        year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(date);
+}
+
+// Offset UTC de CDMX (minutos, negativo = detrás de UTC) en el instante `date`.
+// Se calcula en vivo vía Intl en vez de fijar -06:00 a mano, para no romper si
+// México reactivara el horario de verano.
+export function mexicoCityUtcOffsetMinutes(date = new Date()) {
+    const part = new Intl.DateTimeFormat('en-US', { timeZone: APP_TIMEZONE, timeZoneName: 'shortOffset' })
+        .formatToParts(date).find(p => p.type === 'timeZoneName')?.value || 'GMT-6';
+    const match = part.match(/GMT([+-])(\d+)(?::(\d+))?/);
+    if (!match) return -360;
+    const sign = match[1] === '-' ? -1 : 1;
+    return sign * (parseInt(match[2], 10) * 60 + (match[3] ? parseInt(match[3], 10) : 0));
+}
+
+// Límites reales [inicio, fin) del día calendario de CDMX que contiene `date`,
+// como instantes UTC — para filtrar columnas DateTime con gte/lt correctamente.
+export function mexicoCityDayBounds(date = new Date()) {
+    const dateStr = mexicoCityDateStr(date);
+    const offsetMin = mexicoCityUtcOffsetMinutes(date);
+    const sign = offsetMin <= 0 ? '-' : '+';
+    const abs = Math.abs(offsetMin);
+    const offsetStr = `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+    const start = new Date(`${dateStr}T00:00:00${offsetStr}`);
+    return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000), dateStr };
+}
+
+// Día de la semana (0=domingo) de un "YYYY-MM-DD", sin ambigüedad de zona horaria
+// (ancla a mediodía UTC antes de leer getUTCDay, así nunca cruza al día vecino).
+export function dayOfWeekFromDateStr(dateStr) {
+    return new Date(`${dateStr}T12:00:00Z`).getUTCDay();
+}
+
+// Resuelve el día objetivo para los endpoints de Atajos: ?date=YYYY-MM-DD explícito
+// (backfill, se interpreta como medianoche de CDMX de ese día) o el día calendario
+// real de CDMX ahora mismo. Devuelve esa medianoche como instante UTC real — ya
+// sirve directo como límite inferior de "hoy" (ver next-set/log-set).
+export function resolveTargetDate(dateParam) {
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+        // Ancla a mediodía UTC de esa fecha para que, al leer el día calendario de
+        // CDMX de ese instante, nunca se cruce al día anterior/siguiente.
+        return mexicoCityDayBounds(new Date(`${dateParam}T12:00:00Z`)).start;
+    }
+    return mexicoCityDayBounds(new Date()).start;
+}
+
+// Hora del día (0-23) de un instante, en CDMX — usado para inferir la hora
+// habitual de entrenar del usuario (ver checkReengagementReminders).
+export function mexicoCityHour(date = new Date()) {
+    const h = parseInt(new Intl.DateTimeFormat('en-US', {
+        timeZone: APP_TIMEZONE, hour: '2-digit', hour12: false
+    }).format(date), 10);
+    return h === 24 ? 0 : h; // algunos runtimes devuelven "24" para medianoche
+}
+
+// ============================================
+// "Qué día toca" (port literal de client/src/pages/Dashboard.jsx:76-87), usado por
+// GET /api/shortcuts/next-set para resolver el RoutineDay de hoy igual que ya lo
+// hace el Dashboard de la PWA.
+// ============================================
+export function getTodayName(dateObj = new Date()) {
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    return days[dateObj.getDay()];
+}
+
+export function normalizeDay(day) {
+    return day.toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .slice(0, 3);
+}
+
+// ============================================
+// MESOCICLOS (RoutineBlock) — bloques de periodización opcionales por rutina
+// ============================================
+
+// Bloque activo = el de `startedAt` no-nulo más reciente. Calculado en lectura a
+// propósito (no un `isActive` guardado): arrancar un bloque nuevo reemplaza al
+// viejo sin ningún paso de limpieza, y no hay invariante "a lo más un activo" que
+// mantener a mano en cada escritura.
+export function getActiveBlock(blocks) {
+    const started = (blocks || []).filter(b => b.startedAt != null);
+    if (!started.length) return null;
+    return started.reduce((latest, b) => (b.startedAt > latest.startedAt ? b : latest), started[0]);
+}
+
+// Semana actual dentro de un bloque (1-indexed), o null si el bloque no ha arrancado.
+export function currentWeekInBlock(block, now = new Date()) {
+    if (!block?.startedAt) return null;
+    const daysSince = Math.floor((now.getTime() - block.startedAt.getTime()) / (24 * 60 * 60 * 1000));
+    return Math.floor(daysSince / 7) + 1;
+}
+
+// Fuente única de verdad para "en qué fase está esta rutina ahora mismo". Prioridad
+// fija: un bloque activo (cualquier fase) manda siempre; si no hay ninguno, cae al
+// mecanismo adaptativo standalone (que solo conoce 'deload', no hay forma de
+// "acumular/intensificar automáticamente" sin un bloque configurado — ver discusión
+// con el usuario). NINGÚN otro lugar del código debe recalcular esto por su cuenta —
+// todo lector nuevo (suggestion, UI, lo que sea) debe llamar a esta función.
+export function getRoutinePhaseStatus(routine) {
+    const activeBlock = getActiveBlock(routine.blocks || []);
+    if (activeBlock) {
+        return { isDeload: activeBlock.phase === 'deload', source: 'block', phase: activeBlock.phase, block: activeBlock };
+    }
+    if (routine.adaptiveDeloadUntil && routine.adaptiveDeloadUntil > new Date()) {
+        return { isDeload: true, source: 'adaptive', phase: 'deload', until: routine.adaptiveDeloadUntil };
+    }
+    return { isDeload: false, source: null, phase: null };
+}
+
+// ============================================
+// Smart Loading (port literal de client/src/pages/Workout.jsx:50-139, usado por el
+// Atajo de iOS vía GET /api/shortcuts/next-set). El comportamiento numérico debe
+// coincidir exacto con lo que la PWA ya sugiere en /workout.
+// ============================================
+
+// Parsea el rango de reps objetivo ("8-12", "5", "AMRAP") -> { lo, hi }
+export function parseRepRange(targetReps) {
+    const nums = String(targetReps || '').match(/\d+/g);
+    if (!nums) return { lo: 8, hi: 12 };
+    const a = parseInt(nums[0], 10);
+    const b = nums[1] ? parseInt(nums[1], 10) : a;
+    return { lo: Math.min(a, b), hi: Math.max(a, b) };
+}
+
+// Devuelve los valores efectivos de una serie (en unilateral usa el lado débil,
+// que es el que limita la progresión)
+export function effectiveWorkoutSet(set) {
+    const w = Number(set.weight) || 0;
+    const r = Number(set.reps) || 0;
+    const hasRight = set.weightRight != null || set.repsRight != null;
+    const wR = set.weightRight != null ? Number(set.weightRight) : w;
+    const rR = set.repsRight != null ? Number(set.repsRight) : r;
+    const rir = set.rpe != null ? (10 - set.rpe) : (set.rir != null ? set.rir : null);
+    return {
+        weight: hasRight ? Math.min(w, wR) : w,
+        reps: hasRight ? Math.min(r, rR) : r,
+        rir
+    };
+}
+
+// Redondea el peso a una rejilla sensata. Si el peso base ya cae en la rejilla del
+// incremento (barras/discos), se mantiene esa rejilla; si no (poleas/placas con
+// valores raros como 6.8kg), se redondea al medio kilo para no distorsionar el peso real.
+export function roundWorkoutWeight(w, increment, base) {
+    const grid = (Math.abs(base % increment) < 0.01) ? increment : 0.5;
+    return Math.round(w / grid) * grid;
+}
+
+// Plateau para UN ejercicio (por id) — usado por el trigger adaptativo de descarga.
+// A diferencia del cliente (exerciseName.js), aquí NO hace falta consolidar variantes
+// de nombre: cada Exercise ya tiene un id estable dentro de la rutina activa, así que
+// se agrupa directo por WorkoutLogs de ese id. Mismo criterio que detectPlateau:
+// últimas min(6, N) sesiones (día local CDMX), mitad reciente no supera a la antigua,
+// requiere >=4 sesiones para tener señal.
+export function detectPlateauForExercise(workoutLogs) {
+    const byDay = new Map();
+    for (const log of workoutLogs) {
+        const dayKey = mexicoCityDateStr(log.date);
+        let best = byDay.get(dayKey) || 0;
+        for (const set of log.sets) {
+            const eff = effectiveWorkoutSet(set);
+            if (eff.weight <= 0 || eff.reps <= 0) continue;
+            const rm = (eff.reps > 1 && eff.reps < 37) ? eff.weight * (1 + eff.reps / 30) : eff.weight;
+            if (rm > best) best = rm;
+        }
+        byDay.set(dayKey, best);
+    }
+    const sessions = [...byDay.keys()].sort().map(day => byDay.get(day));
+    if (sessions.length < 4) return false;
+
+    const window = sessions.slice(-Math.min(6, sessions.length));
+    const splitAt = Math.floor(window.length / 2);
+    const olderBest = Math.max(0, ...window.slice(0, splitAt));
+    const recentBest = Math.max(0, ...window.slice(splitAt));
+    return recentBest <= olderBest;
+}
+
+// Ajusta el rango de reps objetivo según la fase activa — NO modifica el rango
+// guardado del ejercicio (Exercise.targetReps), solo el usado para ESTA sugerencia:
+// - intensificación: rango a la mitad (menos reps -> exige más peso para llegar al tope)
+// - acumulación: techo del rango +50% (más reps antes de subir peso)
+// - descarga/personalizado/sin bloque activo: rango sin cambios (descarga solo ajusta
+//   el peso final, ver computeWorkoutSuggestion)
+export function adjustRepRangeForPhase(lo, hi, phase) {
+    if (phase === 'intensification') {
+        const newLo = Math.max(1, Math.round(lo * 0.5));
+        return { lo: newLo, hi: Math.max(newLo, Math.round(hi * 0.5)) };
+    }
+    if (phase === 'accumulation') {
+        return { lo, hi: Math.round(hi * 1.5) };
+    }
+    return { lo, hi };
+}
+
+/**
+ * Sugerencia de peso y reps por DOBLE PROGRESIÓN — idéntico a Workout.jsx.
+ * Toma como referencia la SERIE DE TRABAJO MÁS FUERTE de la última sesión (mayor
+ * 1RM estimado), y a ese peso usa las MEJORES reps logradas. `sessions` debe venir
+ * ordenado por fecha DESC (igual que GET /api/workouts/exercise/:id/history).
+ */
+export function computeWorkoutSuggestion(sessions, targetReps, increment, phase = null) {
+    if (!sessions || sessions.length === 0) return null;
+    const parsedRange = parseRepRange(targetReps);
+    const { lo, hi } = adjustRepRangeForPhase(parsedRange.lo, parsedRange.hi, phase);
+
+    const working = (sessions[0].sets || [])
+        .map(effectiveWorkoutSet)
+        .filter(s => s.weight > 0 && s.reps > 0);
+    if (working.length === 0) return null;
+
+    const rm = (s) => s.weight * (1 + s.reps / 30);
+    const ref = working.reduce((best, s) => (rm(s) > rm(best) ? s : best), working[0]);
+
+    const sameWeight = working.filter(s => Math.abs(s.weight - ref.weight) < 0.01);
+    const refReps = Math.max(...sameWeight.map(s => s.reps));
+    const knownRir = sameWeight.map(s => s.rir).filter(v => v != null);
+    const rir = knownRir.length ? Math.min(...knownRir) : null;
+
+    let weight, reps, rationale;
+
+    if (refReps >= hi) {
+        weight = roundWorkoutWeight(ref.weight + increment, increment, ref.weight);
+        reps = lo;
+        rationale = `Alcanzaste ${refReps} reps con ${ref.weight}kg (tope del rango): sube a ${weight}kg y reinicia en ${lo}.`;
+    } else {
+        const bump = (rir != null && rir >= 3) ? 2 : 1;
+        weight = ref.weight;
+        reps = Math.min(hi, refReps + bump);
+        rationale = rir != null
+            ? `Hiciste ${ref.weight}kg × ${refReps} (RIR ${rir}): mantén el peso y apunta a ${reps} reps.`
+            : `Hiciste ${ref.weight}kg × ${refReps}: mantén el peso y apunta a ${reps} reps.`;
+    }
+
+    if (weight <= 0 || reps <= 0) return null;
+    return { weight, reps, rationale, basedOn: sessions.length };
+}
+
+// ============================================
+// Atajo de iOS: convención de RIR (ver POST /api/shortcuts/log-set)
+// ============================================
+
+// El Atajo pregunta "RIR?" y manda ese número crudo (0-4) bajo el nombre `rpe` —
+// pero el resto de la app (guardado manual en Workout.jsx) guarda en SetLog.rpe el
+// valor invertido `10 - RIR`, no el RIR crudo, y lo revierte igual al leer. Sin
+// esta conversión, la PWA relee un valor fuera del rango 0-3 de sus botones de RIR
+// y lo muestra como "sin registrar". Ida y vuelta: 10 - x es su propia inversa.
+export function convertShortcutRir(rawRir) {
+    return rawRir != null && Number.isFinite(parseFloat(rawRir)) ? 10 - parseFloat(rawRir) : null;
+}

@@ -5,7 +5,7 @@
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-![Version](https://img.shields.io/badge/Version-2.4.1-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-2.5.0-blue?style=flat-square)
 
 ---
 
@@ -132,6 +132,24 @@ CLOUDINARY_API_SECRET=
 ```
 Plantilla completa en [`server/.env.example`](server/.env.example).
 
+### Backup y restauración
+
+Con `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET` configuradas, el server sube automáticamente cada día (~04:00 hora CDMX) un JSON completo de rutinas, entrenamientos, PRs, body logs, goals y descansos por usuario a Cloudinary, como recurso `raw`+`authenticated` (no público) en la carpeta `nexlift-backups/`. Se conservan los 14 más recientes; los más viejos se borran solos. Sin esas 3 variables, el job es un no-op silencioso — el server arranca igual.
+
+- **Forzar un backup ahora:** `POST /api/backup/run` (autenticado) — corre solo para el usuario del token, útil antes de una operación riesgosa o para probar la integración.
+- **Ver la fecha del último backup exitoso:** `GET /api/health` → `backup.users[].lastBackupAt` (y `lastBackupError` si algo falló).
+- **Restaurar** (DB nueva/perdida, o revertir un desastre): el usuario destino debe existir ya en la DB (mismo `username` que tenía el backup — regístralo primero si hace falta). Luego:
+  ```bash
+  cd server
+  node restore-backup.mjs                    # dry-run: solo cuenta qué restauraría, usa el backup más reciente
+  node restore-backup.mjs --apply             # aplica de verdad (idempotente — puede correrse más de una vez)
+  node restore-backup.mjs --user=otro_usuario --apply   # forzar a qué cuenta reconectar los datos
+  node restore-backup.mjs --file=./backup.json --apply  # restaurar desde un JSON ya descargado a mano
+  ```
+  El backup **no incluye** contraseña ni pregunta de seguridad (se excluyen a propósito antes de subir el JSON a un CDN de terceros) — el restore solo repone historial de entrenamiento, nunca credenciales.
+
+**Complemento recomendado (segunda capa, no automatizada por la app):** además de este backup a nivel aplicación, agregar un cron a nivel VPS con `pg_dump` completo de la base (EasyPanel permite agregar un servicio/cron aparte). Este backup de Cloudinary cubre "perdí el JSON estructurado de mis datos"; un `pg_dump` cubre "perdí la base completa" (incluye credenciales, todos los usuarios, y no depende de que el server de la app haya podido correr ese día).
+
 ---
 
 ## 📋 Formato de Importación de Rutinas
@@ -185,13 +203,21 @@ npm run dev
 - Frontend: http://localhost:5173
 - Backend: http://localhost:3001
 
-> ⚠️ No hay suite de tests automatizados. Cualquier cambio a lógica de fechas, PRs, rutinas o autenticación debe probarse a mano (navegador, datos reales) antes de darse por bueno.
+**Tests (funciones puras, sin DB ni navegador):**
+```bash
+cd client && npm test   # vitest — exerciseName.js, paridad cliente/servidor
+cd server && npm test   # node --test — server/src/logic.js
+```
+> ⚠️ Estos tests cubren solo lógica pura (fechas, plateau, Smart Loading, RIR). El resto (rutinas, auth, integración con Prisma/UI) sigue sin cobertura automatizada — pruébalo a mano (navegador, datos reales) antes de darlo por bueno.
 
 ---
 
 ## 📜 Changelog
 
 Historial completo y detallado (con causa raíz de cada fix) en [`.agent/context.md`](.agent/context.md). Resumen de versiones recientes:
+
+### v2.5.0 (9 Jul 2026) — Backup automático y tests de funciones puras
+Backup diario (~04:00 CDMX) de rutinas/entrenamientos/PRs/body logs/goals a Cloudinary (`raw`+`authenticated`, retención de 14), con endpoint de corrida manual, estado en `/api/health` y script de restauración documentado y probado (`server/restore-backup.mjs`). Además, primera suite de tests automatizados del proyecto: funciones puras extraídas a `server/src/logic.js` y `client/src/utils/smartLoading.js`, con tests de paridad cliente/servidor.
 
 ### v2.4.1 (7 Jul 2026) — Fixes de Atajo de iOS y notificaciones
 Las sesiones parciales del Atajo ya no bloquean completar el ejercicio a mano, el RIR enviado por el Atajo se guardaba invertido (corregido, con script de corrección retroactiva), el aviso de descanso ahora menciona el ejercicio siguiente correcto al cambiar de ejercicio, se eliminaron notificaciones duplicadas al completar varias series de golpe, y un aviso "fantasma" al recargar la página quedó corregido.

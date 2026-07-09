@@ -11,6 +11,13 @@ import webpush from 'web-push';
 import { v2 as cloudinary } from 'cloudinary';
 import { isSameExercise, groupHistoryByExercise, bestOneRepMaxForTarget, epley1RM } from './utils/exerciseName.js';
 import { deduplicateExercises } from './services/exerciseAgent.js';
+import { uploadBackup, pruneOldBackups } from './services/backupService.js';
+import {
+    mexicoCityDateStr, mexicoCityDayBounds, dayOfWeekFromDateStr, mexicoCityHour,
+    resolveTargetDate, getTodayName, normalizeDay,
+    getActiveBlock, currentWeekInBlock, getRoutinePhaseStatus, adjustRepRangeForPhase,
+    computeWorkoutSuggestion, roundWorkoutWeight, detectPlateauForExercise, convertShortcutRir
+} from './logic.js';
 
 dotenv.config();
 
@@ -239,26 +246,11 @@ async function getRecycleBinDay(userId, client = prisma) {
 }
 
 // ============================================
-// MESOCICLOS (RoutineBlock) — bloques de periodización opcionales por rutina
+// MESOCICLOS (RoutineBlock) — bloques de periodización opcionales por rutina.
+// getActiveBlock/currentWeekInBlock: ver server/src/logic.js (P1 — extraídas ahí
+// para poder testearlas sin DB).
 // ============================================
 const ROUTINE_BLOCK_PHASES = ['accumulation', 'intensification', 'deload', 'custom'];
-
-// Bloque activo = el de `startedAt` no-nulo más reciente. Calculado en lectura a
-// propósito (no un `isActive` guardado): arrancar un bloque nuevo reemplaza al
-// viejo sin ningún paso de limpieza, y no hay invariante "a lo más un activo" que
-// mantener a mano en cada escritura.
-function getActiveBlock(blocks) {
-    const started = (blocks || []).filter(b => b.startedAt != null);
-    if (!started.length) return null;
-    return started.reduce((latest, b) => (b.startedAt > latest.startedAt ? b : latest), started[0]);
-}
-
-// Semana actual dentro de un bloque (1-indexed), o null si el bloque no ha arrancado.
-function currentWeekInBlock(block, now = new Date()) {
-    if (!block?.startedAt) return null;
-    const daysSince = Math.floor((now.getTime() - block.startedAt.getTime()) / (24 * 60 * 60 * 1000));
-    return Math.floor(daysSince / 7) + 1;
-}
 
 // ============================================
 // RATE LIMITING (en memoria) para endpoints sensibles de auth
@@ -536,6 +528,117 @@ async function checkAdaptiveDeloadForAllUsers() {
 setInterval(checkAdaptiveDeloadForAllUsers, 24 * 60 * 60 * 1000).unref?.();
 
 // ============================================
+// BACKUP AUTOMÁTICO DIARIO (P0 del plan de mejoras) — corre ~04:00 CDMX. Exporta
+// TODO el historial de entrenamiento del usuario (rutinas+días+ejercicios+bloques,
+// logs+series, PRs, body logs, goals, descansos registrados) a JSON y lo sube a
+// Cloudinary como recurso `raw`+`authenticated` (NO público — a diferencia de las
+// fotos, este JSON no necesita servirse directo y contiene datos personales como
+// peso/composición corporal). No-op si Cloudinary no está configurado, mismo
+// criterio que uploadPhoto()/VAPID. Deliberadamente NO incluye
+// passwordHash/securityAnswerHash: ese JSON queda en un CDN de terceros y esos
+// campos no hacen falta para recuperar el historial de entrenamiento, que es el
+// activo irreemplazable que este backup protege.
+// ============================================
+async function buildBackupData(userId) {
+    const [user, routines, workoutLogs, bodyLogs, personalRecords, goals, restLogs] = await Promise.all([
+        prisma.user.findUnique({
+            where: { id: userId },
+            select: { id: true, username: true, email: true, firstName: true, lastName: true, phone: true, birthDate: true, createdAt: true }
+        }),
+        prisma.routine.findMany({
+            where: { userId },
+            include: {
+                days: { include: { exercises: true }, orderBy: { order: 'asc' } },
+                blocks: { orderBy: { order: 'asc' } }
+            },
+            orderBy: { createdAt: 'asc' }
+        }),
+        prisma.workoutLog.findMany({
+            where: { exercise: { routineDay: { routine: { userId } } } },
+            include: { sets: true },
+            orderBy: { date: 'asc' }
+        }),
+        prisma.bodyLog.findMany({ where: { userId }, orderBy: { date: 'asc' } }),
+        prisma.personalRecord.findMany({ where: { userId }, orderBy: { date: 'asc' } }),
+        prisma.goal.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
+        prisma.restLog.findMany({ where: { userId }, orderBy: { date: 'asc' } })
+    ]);
+
+    return {
+        version: 1,
+        generatedAt: new Date().toISOString(),
+        user,
+        routines,
+        workoutLogs,
+        bodyLogs,
+        personalRecords,
+        goals,
+        restLogs
+    };
+}
+
+async function runBackupForUser(user) {
+    const data = await buildBackupData(user.id);
+    await uploadBackup(data);
+    await prisma.user.update({ where: { id: user.id }, data: { lastBackupAt: new Date(), lastBackupError: null } });
+}
+
+async function runDailyBackup() {
+    if (!CLOUDINARY_CONFIGURED) return { skipped: true };
+    const users = await prisma.user.findMany({ where: { isActive: true }, select: { id: true, username: true } });
+    const results = [];
+    for (const user of users) {
+        try {
+            await runBackupForUser(user);
+            results.push({ userId: user.id, ok: true });
+        } catch (err) {
+            console.error(`Error en backup diario (usuario ${user.username}):`, err.message);
+            await prisma.user.update({ where: { id: user.id }, data: { lastBackupError: err.message } }).catch(() => {});
+            results.push({ userId: user.id, ok: false, error: err.message });
+        }
+    }
+    try {
+        const { deleted } = await pruneOldBackups();
+        if (deleted > 0) console.log(`🗑️ Backup: ${deleted} respaldo(s) viejo(s) eliminado(s) (retención de 14).`);
+    } catch (err) {
+        console.error('Error podando backups viejos:', err.message);
+    }
+    return { skipped: false, results };
+}
+
+// Igual que checkReengagementReminders: se revisa cada 30 min y se dispara una
+// sola vez por día (CDMX), la primera vez que la hora local cruza las 4am. Un
+// reinicio del server dentro de esa misma hora puede repetir la corrida (el guard
+// es en memoria, no en DB) — inofensivo, la retención de 14 se autocorrige.
+let lastBackupRunDateStr = null;
+async function maybeRunDailyBackup() {
+    const now = new Date();
+    const hour = mexicoCityHour(now);
+    const todayStr = mexicoCityDateStr(now);
+    if (hour !== 4 || lastBackupRunDateStr === todayStr) return;
+    lastBackupRunDateStr = todayStr;
+    await runDailyBackup();
+}
+setInterval(maybeRunDailyBackup, 30 * 60 * 1000).unref?.();
+
+// Disparo manual (botón futuro en Settings, y forma de verificar esta feature sin
+// esperar a las 4am) — corre solo para el usuario autenticado, nunca para todos.
+app.post('/api/backup/run', authMiddleware, async (req, res) => {
+    if (!CLOUDINARY_CONFIGURED) {
+        return res.status(503).json({ error: 'Backup no configurado: faltan credenciales de Cloudinary' });
+    }
+    try {
+        const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { id: true, username: true } });
+        await runBackupForUser(user);
+        const { deleted, kept } = await pruneOldBackups();
+        res.json({ ok: true, lastBackupAt: new Date().toISOString(), prunedCount: deleted, keptCount: kept });
+    } catch (error) {
+        console.error('Error en backup manual:', error.message);
+        res.status(500).json({ error: 'Failed to run backup' });
+    }
+});
+
+// ============================================
 // PERSONAL RECORDS: recálculo derivado de los logs reales
 // Se llama tras crear/editar/eliminar sesiones para que no queden récords fantasma.
 // Considera ambos lados en unilateral (el récord es el mejor esfuerzo de una extremidad).
@@ -646,238 +749,10 @@ function sanitizeBodyMetrics(body) {
 }
 
 // ============================================
-// HELPERS: Smart Loading (port literal de client/src/pages/Workout.jsx:50-139,
-// usado por el Atajo de iOS vía GET /api/shortcuts/next-set). El comportamiento
-// numérico debe coincidir exacto con lo que la PWA ya sugiere en /workout.
+// Smart Loading, plateau, fase de rutina, zona horaria, "qué día toca": ver
+// server/src/logic.js (P1 — extraídas ahí, funciones puras, con tests). El
+// comportamiento numérico es idéntico al de antes de la extracción.
 // ============================================
-
-// Parsea el rango de reps objetivo ("8-12", "5", "AMRAP") -> { lo, hi }
-function parseRepRange(targetReps) {
-    const nums = String(targetReps || '').match(/\d+/g);
-    if (!nums) return { lo: 8, hi: 12 };
-    const a = parseInt(nums[0], 10);
-    const b = nums[1] ? parseInt(nums[1], 10) : a;
-    return { lo: Math.min(a, b), hi: Math.max(a, b) };
-}
-
-// Devuelve los valores efectivos de una serie (en unilateral usa el lado débil,
-// que es el que limita la progresión)
-function effectiveWorkoutSet(set) {
-    const w = Number(set.weight) || 0;
-    const r = Number(set.reps) || 0;
-    const hasRight = set.weightRight != null || set.repsRight != null;
-    const wR = set.weightRight != null ? Number(set.weightRight) : w;
-    const rR = set.repsRight != null ? Number(set.repsRight) : r;
-    const rir = set.rpe != null ? (10 - set.rpe) : (set.rir != null ? set.rir : null);
-    return {
-        weight: hasRight ? Math.min(w, wR) : w,
-        reps: hasRight ? Math.min(r, rR) : r,
-        rir
-    };
-}
-
-// Redondea el peso a una rejilla sensata. Si el peso base ya cae en la rejilla del
-// incremento (barras/discos), se mantiene esa rejilla; si no (poleas/placas con
-// valores raros como 6.8kg), se redondea al medio kilo para no distorsionar el peso real.
-function roundWorkoutWeight(w, increment, base) {
-    const grid = (Math.abs(base % increment) < 0.01) ? increment : 0.5;
-    return Math.round(w / grid) * grid;
-}
-
-// Plateau para UN ejercicio (por id) — usado por el trigger adaptativo de descarga.
-// A diferencia del cliente (exerciseName.js), aquí NO hace falta consolidar variantes
-// de nombre: cada Exercise ya tiene un id estable dentro de la rutina activa, así que
-// se agrupa directo por WorkoutLogs de ese id. Mismo criterio que detectPlateau:
-// últimas min(6, N) sesiones (día local CDMX), mitad reciente no supera a la antigua,
-// requiere >=4 sesiones para tener señal.
-function detectPlateauForExercise(workoutLogs) {
-    const byDay = new Map();
-    for (const log of workoutLogs) {
-        const dayKey = mexicoCityDateStr(log.date);
-        let best = byDay.get(dayKey) || 0;
-        for (const set of log.sets) {
-            const eff = effectiveWorkoutSet(set);
-            if (eff.weight <= 0 || eff.reps <= 0) continue;
-            const rm = (eff.reps > 1 && eff.reps < 37) ? eff.weight * (1 + eff.reps / 30) : eff.weight;
-            if (rm > best) best = rm;
-        }
-        byDay.set(dayKey, best);
-    }
-    const sessions = [...byDay.keys()].sort().map(day => byDay.get(day));
-    if (sessions.length < 4) return false;
-
-    const window = sessions.slice(-Math.min(6, sessions.length));
-    const splitAt = Math.floor(window.length / 2);
-    const olderBest = Math.max(0, ...window.slice(0, splitAt));
-    const recentBest = Math.max(0, ...window.slice(splitAt));
-    return recentBest <= olderBest;
-}
-
-// Fuente única de verdad para "en qué fase está esta rutina ahora mismo". Prioridad
-// fija: un bloque activo (cualquier fase) manda siempre; si no hay ninguno, cae al
-// mecanismo adaptativo standalone (que solo conoce 'deload', no hay forma de
-// "acumular/intensificar automáticamente" sin un bloque configurado — ver discusión
-// con el usuario). NINGÚN otro lugar del código debe recalcular esto por su cuenta —
-// todo lector nuevo (suggestion, UI, lo que sea) debe llamar a esta función.
-function getRoutinePhaseStatus(routine) {
-    const activeBlock = getActiveBlock(routine.blocks || []);
-    if (activeBlock) {
-        return { isDeload: activeBlock.phase === 'deload', source: 'block', phase: activeBlock.phase, block: activeBlock };
-    }
-    if (routine.adaptiveDeloadUntil && routine.adaptiveDeloadUntil > new Date()) {
-        return { isDeload: true, source: 'adaptive', phase: 'deload', until: routine.adaptiveDeloadUntil };
-    }
-    return { isDeload: false, source: null, phase: null };
-}
-
-// Ajusta el rango de reps objetivo según la fase activa — NO modifica el rango
-// guardado del ejercicio (Exercise.targetReps), solo el usado para ESTA sugerencia:
-// - intensificación: rango a la mitad (menos reps -> exige más peso para llegar al tope)
-// - acumulación: techo del rango +50% (más reps antes de subir peso)
-// - descarga/personalizado/sin bloque activo: rango sin cambios (descarga solo ajusta
-//   el peso final, ver computeWorkoutSuggestion)
-function adjustRepRangeForPhase(lo, hi, phase) {
-    if (phase === 'intensification') {
-        const newLo = Math.max(1, Math.round(lo * 0.5));
-        return { lo: newLo, hi: Math.max(newLo, Math.round(hi * 0.5)) };
-    }
-    if (phase === 'accumulation') {
-        return { lo, hi: Math.round(hi * 1.5) };
-    }
-    return { lo, hi };
-}
-
-/**
- * Sugerencia de peso y reps por DOBLE PROGRESIÓN — idéntico a Workout.jsx.
- * Toma como referencia la SERIE DE TRABAJO MÁS FUERTE de la última sesión (mayor
- * 1RM estimado), y a ese peso usa las MEJORES reps logradas. `sessions` debe venir
- * ordenado por fecha DESC (igual que GET /api/workouts/exercise/:id/history).
- */
-function computeWorkoutSuggestion(sessions, targetReps, increment, phase = null) {
-    if (!sessions || sessions.length === 0) return null;
-    const parsedRange = parseRepRange(targetReps);
-    const { lo, hi } = adjustRepRangeForPhase(parsedRange.lo, parsedRange.hi, phase);
-
-    const working = (sessions[0].sets || [])
-        .map(effectiveWorkoutSet)
-        .filter(s => s.weight > 0 && s.reps > 0);
-    if (working.length === 0) return null;
-
-    const rm = (s) => s.weight * (1 + s.reps / 30);
-    const ref = working.reduce((best, s) => (rm(s) > rm(best) ? s : best), working[0]);
-
-    const sameWeight = working.filter(s => Math.abs(s.weight - ref.weight) < 0.01);
-    const refReps = Math.max(...sameWeight.map(s => s.reps));
-    const knownRir = sameWeight.map(s => s.rir).filter(v => v != null);
-    const rir = knownRir.length ? Math.min(...knownRir) : null;
-
-    let weight, reps, rationale;
-
-    if (refReps >= hi) {
-        weight = roundWorkoutWeight(ref.weight + increment, increment, ref.weight);
-        reps = lo;
-        rationale = `Alcanzaste ${refReps} reps con ${ref.weight}kg (tope del rango): sube a ${weight}kg y reinicia en ${lo}.`;
-    } else {
-        const bump = (rir != null && rir >= 3) ? 2 : 1;
-        weight = ref.weight;
-        reps = Math.min(hi, refReps + bump);
-        rationale = rir != null
-            ? `Hiciste ${ref.weight}kg × ${refReps} (RIR ${rir}): mantén el peso y apunta a ${reps} reps.`
-            : `Hiciste ${ref.weight}kg × ${refReps}: mantén el peso y apunta a ${reps} reps.`;
-    }
-
-    if (weight <= 0 || reps <= 0) return null;
-    return { weight, reps, rationale, basedOn: sessions.length };
-}
-
-// ============================================
-// HELPERS: "Qué día toca" (port literal de client/src/pages/Dashboard.jsx:76-87),
-// usado por GET /api/shortcuts/next-set para resolver el RoutineDay de hoy igual
-// que ya lo hace el Dashboard de la PWA.
-// ============================================
-
-function getTodayName(dateObj = new Date()) {
-    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-    return days[dateObj.getDay()];
-}
-
-function normalizeDay(day) {
-    return day.toLowerCase()
-        .normalize('NFD')
-        .replace(/[̀-ͯ]/g, '')
-        .slice(0, 3);
-}
-
-// ============================================
-// HELPERS: Zona horaria — app de un solo usuario, siempre en Ciudad de México.
-// TODA fecha "de calendario" (qué día es hoy, dónde empieza/termina un día) debe
-// resolverse aquí. El contenedor corre en UTC (Docker/Alpine sin TZ fijada), así
-// que new Date()/getFullYear()/getMonth()/getDate()/getDay() usados directo quedan
-// desalineados hasta 6 horas: cualquier cosa registrada después de las 6pm hora de
-// CDMX caía en el "día" siguiente. Usado por: racha y heatmap (stats/overview,
-// stats/consistency), los endpoints de Atajos iOS, y el filtro por día de semana.
-// ============================================
-const APP_TIMEZONE = 'America/Mexico_City';
-
-// "YYYY-MM-DD" del día calendario de CDMX que contiene `date`.
-function mexicoCityDateStr(date = new Date()) {
-    return new Intl.DateTimeFormat('en-CA', {
-        timeZone: APP_TIMEZONE,
-        year: 'numeric', month: '2-digit', day: '2-digit'
-    }).format(date);
-}
-
-// Offset UTC de CDMX (minutos, negativo = detrás de UTC) en el instante `date`.
-// Se calcula en vivo vía Intl en vez de fijar -06:00 a mano, para no romper si
-// México reactivara el horario de verano.
-function mexicoCityUtcOffsetMinutes(date = new Date()) {
-    const part = new Intl.DateTimeFormat('en-US', { timeZone: APP_TIMEZONE, timeZoneName: 'shortOffset' })
-        .formatToParts(date).find(p => p.type === 'timeZoneName')?.value || 'GMT-6';
-    const match = part.match(/GMT([+-])(\d+)(?::(\d+))?/);
-    if (!match) return -360;
-    const sign = match[1] === '-' ? -1 : 1;
-    return sign * (parseInt(match[2], 10) * 60 + (match[3] ? parseInt(match[3], 10) : 0));
-}
-
-// Límites reales [inicio, fin) del día calendario de CDMX que contiene `date`,
-// como instantes UTC — para filtrar columnas DateTime con gte/lt correctamente.
-function mexicoCityDayBounds(date = new Date()) {
-    const dateStr = mexicoCityDateStr(date);
-    const offsetMin = mexicoCityUtcOffsetMinutes(date);
-    const sign = offsetMin <= 0 ? '-' : '+';
-    const abs = Math.abs(offsetMin);
-    const offsetStr = `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
-    const start = new Date(`${dateStr}T00:00:00${offsetStr}`);
-    return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000), dateStr };
-}
-
-// Día de la semana (0=domingo) de un "YYYY-MM-DD", sin ambigüedad de zona horaria
-// (ancla a mediodía UTC antes de leer getUTCDay, así nunca cruza al día vecino).
-function dayOfWeekFromDateStr(dateStr) {
-    return new Date(`${dateStr}T12:00:00Z`).getUTCDay();
-}
-
-// Resuelve el día objetivo para los endpoints de Atajos: ?date=YYYY-MM-DD explícito
-// (backfill, se interpreta como medianoche de CDMX de ese día) o el día calendario
-// real de CDMX ahora mismo. Devuelve esa medianoche como instante UTC real — ya
-// sirve directo como límite inferior de "hoy" (ver next-set/log-set).
-function resolveTargetDate(dateParam) {
-    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-        // Ancla a mediodía UTC de esa fecha para que, al leer el día calendario de
-        // CDMX de ese instante, nunca se cruce al día anterior/siguiente.
-        return mexicoCityDayBounds(new Date(`${dateParam}T12:00:00Z`)).start;
-    }
-    return mexicoCityDayBounds(new Date()).start;
-}
-
-// Hora del día (0-23) de un instante, en CDMX — usado para inferir la hora
-// habitual de entrenar del usuario (ver checkReengagementReminders).
-function mexicoCityHour(date = new Date()) {
-    const h = parseInt(new Intl.DateTimeFormat('en-US', {
-        timeZone: APP_TIMEZONE, hour: '2-digit', hour12: false
-    }).format(date), 10);
-    return h === 24 ? 0 : h; // algunos runtimes devuelven "24" para medianoche
-}
 
 // ============================================
 // ROUTES: Routine Import
@@ -2467,7 +2342,8 @@ app.post('/api/shortcuts/log-set', authMiddleware, async (req, res) => {
         // en SetLog.rpe el valor invertido `10 - RIR`, no el RIR crudo, y lo
         // revierte igual al leer. Sin esta conversión, la PWA relee un valor fuera
         // del rango 0-3 de sus botones de RIR y lo muestra como "sin registrar".
-        const convertedRpe = rpe != null && Number.isFinite(parseFloat(rpe)) ? 10 - parseFloat(rpe) : null;
+        // Ver convertShortcutRir en server/src/logic.js (extraída para testearla).
+        const convertedRpe = convertShortcutRir(rpe);
 
         const { sets: cleanSets, error: setsError } = sanitizeSets([{ weight, reps, rpe: convertedRpe, weightRight, repsRight }]);
         if (setsError) return res.status(400).json({ error: setsError });
@@ -3347,8 +3223,18 @@ app.delete('/api/goals/:id', authMiddleware, async (req, res) => {
 // ============================================
 // Health Check
 // ============================================
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/api/health', async (req, res) => {
+    const health = { status: 'ok', timestamp: new Date().toISOString() };
+    try {
+        const users = await prisma.user.findMany({
+            where: { isActive: true },
+            select: { username: true, lastBackupAt: true, lastBackupError: true }
+        });
+        health.backup = { cloudinaryConfigured: CLOUDINARY_CONFIGURED, users };
+    } catch (err) {
+        // No bloquear el healthcheck si esto falla — el status base ya respondió.
+    }
+    res.json(health);
 });
 
 // ============================================

@@ -7,6 +7,7 @@ import {
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
+import { adjustRepRangeForPhase } from '../utils/smartLoading';
 
 // ==================== CUSTOM HOOKS ====================
 
@@ -85,22 +86,6 @@ function estimate1RM(set) {
 function roundWeight(w, increment, base) {
     const grid = (Math.abs(base % increment) < 0.01) ? increment : 0.5;
     return Math.round(w / grid) * grid;
-}
-
-// Ajusta el rango de reps objetivo según la fase del bloque activo (si hay uno) —
-// idéntico a server/src/index.js. NO modifica el rango guardado del ejercicio, solo
-// el usado para ESTA sugerencia: intensificación lo reduce a la mitad (más peso,
-// menos reps), acumulación sube el techo 50% (más reps antes de subir peso).
-// Descarga/personalizado/sin bloque activo: rango sin cambios.
-function adjustRepRangeForPhase(lo, hi, phase) {
-    if (phase === 'intensification') {
-        const newLo = Math.max(1, Math.round(lo * 0.5));
-        return { lo: newLo, hi: Math.max(newLo, Math.round(hi * 0.5)) };
-    }
-    if (phase === 'accumulation') {
-        return { lo, hi: Math.round(hi * 1.5) };
-    }
-    return { lo, hi };
 }
 
 /**

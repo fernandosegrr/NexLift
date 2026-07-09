@@ -40,7 +40,13 @@ model User {
   // Recordatorio de re-enganche: último día (CDMX) en que se le mandó el push de
   // "¿no vas a entrenar hoy?" — evita mandarlo más de una vez por día.
   lastReengagementNotifiedAt DateTime?
-  
+
+  // Backup automático diario a Cloudinary (ver runDailyBackup en server/src/index.js).
+  // Persistido en DB (no solo en memoria) para que /api/health siga reportando la
+  // fecha real del último backup exitoso incluso después de un redeploy/reinicio.
+  lastBackupAt    DateTime?
+  lastBackupError String?
+
   // Timestamps
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

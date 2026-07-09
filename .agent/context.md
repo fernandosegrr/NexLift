@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 2.4.1 | **Última actualización:** 8 Julio 2026
+> **Versión:** 2.5.0 | **Última actualización:** 9 Julio 2026
 > **Historial de versiones:** [`changelog.md`](changelog.md) (movido ahí para que este archivo quepa en una sola lectura de una IA) | **Schema:** `server/prisma/schema.prisma` (única copia, no se duplica aquí)
 
 ---
@@ -285,7 +285,7 @@ Resumen de los 12 modelos:
 
 | Modelo | Qué es | Detalle no obvio |
 |--------|--------|------------------|
-| `User` | Cuenta | `tokenVersion` revoca JWTs viejos; `lastReengagementNotifiedAt` limita el push de re-enganche a 1/día |
+| `User` | Cuenta | `tokenVersion` revoca JWTs viejos; `lastReengagementNotifiedAt` limita el push de re-enganche a 1/día; `lastBackupAt`/`lastBackupError` (v2.5.0) reflejan el backup automático diario |
 | `Routine` | Rutina | `adaptiveDeloadUntil`/`lastAdaptiveCheckAt` = descarga adaptativa (v2.4.0) |
 | `RoutineBlock` | Mesociclo (opcional) | `phase` es string libre, no enum; activo = `startedAt` no-nulo más reciente |
 | `RoutineDay` | Día de rutina | `isRestDay`, `order` |
@@ -340,6 +340,7 @@ Todos bajo auth JWT (`authMiddleware`) salvo registro/login/recuperación/vapid-
 | `POST /api/workouts/rest-reminder` | Agendar push de descanso por serie (no toca `WorkoutLog`/`SetLog`) |
 | `POST /api/workouts/log-rest` | Registrar día de descanso |
 | `PUT /api/workouts/fix-weights` | Corrección masiva de pesos |
+| `POST /api/backup/run` | (v2.5.0) Forzar backup a Cloudinary para el usuario del token — ver Gotcha #6 |
 
 **Atajos de iOS**
 | Método/Ruta | Qué hace |
@@ -415,8 +416,13 @@ No almacenamos binarios.
 ### 3.1. Modales y `position: fixed`
 Cualquier overlay `fixed inset-0` (modal, visor de foto) DEBE ir envuelto en `client/src/components/ui/Portal.jsx` (`createPortal` a `document.body`). Causa raíz (v2.3.0): las animaciones de entrada (`animate-fade-in`/`slide-up`/`scale-in` en `index.css`) usan `transform` con `animation-fill-mode: forwards`, que dejan el elemento "transformado" para siempre a ojos del navegador (aunque visualmente sea un no-op) — y cualquier ancestro con un `transform` computado distinto de `none` se convierte en el *containing block* de sus descendientes `position: fixed`, sacándolos de "fijo al viewport" y dejándolos posicionados como si fueran parte del contenido con scroll (aparecen centenares de píxeles fuera de pantalla en cuanto la página tiene scroll real). Confirmado en vivo midiendo el `getBoundingClientRect()` de un modal roto antes del fix. `Portal` es agnóstico a la causa exacta: saca el modal del árbol afectado por completo.
 
-### 4. Sin tests automatizados
-No existe ninguna suite de tests. Cualquier cambio a lógica de fechas, PRs, rutinas o autenticación debe probarse a mano (levantar `server`+`client`, probar en navegador contra datos reales) antes de darlo por bueno — no hay red de seguridad que atrape una regresión. El bug de zona horaria de v2.2.0 es el ejemplo directo de lo que pasa sin esto: se "arregló" 3 veces en sitios distintos antes de resolverse por completo.
+### 4. Tests automatizados (desde v2.5.0) — cubren solo lógica pura
+Antes de v2.5.0 no existía ninguna suite de tests; el bug de zona horaria de v2.2.0 es el ejemplo directo de lo que pasa sin esto: se "arregló" 3 veces en sitios distintos antes de resolverse por completo. Ahora hay dos suites:
+- **Cliente:** `client/src/utils/exerciseName.test.js` (vitest) — `canonicalExerciseKey`, `epley1RM`, `best1RMRecent`, `bestOneRepMaxForTarget`, `detectPlateau`, `groupHistoryByExercise`. Correr con `cd client && npm test`.
+- **Servidor:** `server/src/logic.test.js` (`node --test`, sin dependencias nuevas) — helpers CDMX (con el caso exacto de medianoche UTC del bug histórico), `convertShortcutRir`, `adjustRepRangeForPhase`, `computeWorkoutSuggestion`, `detectPlateauForExercise`, `getActiveBlock`/`currentWeekInBlock`, `getRoutinePhaseStatus`. Correr con `cd server && npm test`.
+- **Paridad cliente/servidor:** `client/src/utils/smartLoading.parity.test.js` importa AMBAS copias de `adjustRepRangeForPhase` (cruzando de `client/` a `server/src/logic.js` — son módulos ES planos sin DOM ni Prisma) y corre los mismos fixtures de plateau por `detectPlateau` (cliente) y `detectPlateauForExercise` (servidor), documentando que la diferencia de agrupación (nombre canónico vs id) es deliberada.
+
+**Lo que SIGUE sin cobertura:** rutinas, auth, cualquier cosa que toque Prisma/DB o el DOM. Cualquier cambio ahí debe seguir probándose a mano (levantar `server`+`client`, probar en navegador contra datos reales) antes de darlo por bueno.
 
 ### 5. Atajo de iOS: sesiones parciales y convención de RIR (v2.4.1)
 `POST /api/shortcuts/log-set` registra UNA serie a la vez, acumulando en el `WorkoutLog` de hoy si ya existe uno — un ejercicio puede entonces tener un log de hoy con MENOS series que `Exercise.targetSets`. `Workout.jsx` (`checkCompletedExercises`/`loadExerciseData`) debe comparar `sets.length` contra `targetSets`, no solo "¿existe un log hoy?", para decidir si el ejercicio está de verdad completo o solo parcialmente registrado (en cuyo caso se muestra editable, con las series ya guardadas + filas vacías para el resto). Al terminar de llenarlo a mano, se usa `PUT /api/workouts/:logId` (reemplaza todas las series, mismo endpoint que `EditSession.jsx`) sobre ESE log — nunca `POST /api/workouts/log`, que siempre crea uno nuevo y fragmentaría el día en 2.
@@ -424,6 +430,19 @@ No existe ninguna suite de tests. Cualquier cambio a lógica de fechas, PRs, rut
 `SetLog.rpe` no guarda el RIR crudo pese al comentario del schema (`// RIR`) — guarda `10 - RIR` (ida y vuelta en `Workout.jsx`: `rpe: 10 - rir` al guardar, `rir: 10 - rpe` al leer). El Atajo pregunta "RIR?" directo (0-4, confirmado con capturas reales del Atajo del usuario) y lo manda bajo el nombre `rpe` — el endpoint debe aplicarle la misma conversión antes de guardar, o el valor queda invertido y no calza con ningún botón de RIR (0-3) en la UI. Datos ya guardados mal antes de este fix: `server/fix-shortcut-rir.mjs` (dry-run por defecto, `--apply` para escribir), identifica candidatos por rango (`rpe <= 6` solo puede venir del Atajo sin convertir, nunca del flujo manual).
 
 **Gotcha encontrado verificando este fix (no reportado, pero mismo sistema):** `loadExerciseData` compara `sets` contra `prevSetsSnapshotRef` para detectar "una serie se acaba de completar" y disparar el aviso de descanso. Si `setSets(...)` carga series YA completadas (del historial de hoy o del caché de `localStorage`) sin sincronizar `prevSetsSnapshotRef` en la misma pasada, el efecto las interpreta como transiciones recién ocurridas y dispara un aviso fantasma (timer reiniciado + push real) solo por abrir o revisitar la página — confirmado en vivo antes del fix (petición a `/api/workouts/rest-reminder` disparándose sin ninguna interacción del usuario). Cualquier rama que precargue `sets` con datos preexistentes debe actualizar el ref a juego.
+
+### 6. Backup automático a Cloudinary (v2.5.0)
+Job diario (~04:00 CDMX, mismo patrón `setInterval` que `checkReengagementReminders`) — `runDailyBackup()`/`maybeRunDailyBackup()` en `server/src/index.js` — exporta por usuario TODO su historial de entrenamiento (rutinas+días+ejercicios+bloques, workoutLogs+sets, bodyLogs, personalRecords, goals, restLogs) y lo sube a Cloudinary vía `server/src/services/backupService.js` como recurso `raw`+`type: 'authenticated'` (deliberadamente NO público, a diferencia de las fotos — el JSON contiene datos personales de composición corporal) en la carpeta `nexlift-backups/`, reteniendo los 14 más recientes (`pruneOldBackups`, borra los más viejos por `public_id` ordenado — el nombre incluye el timestamp ISO, así que el orden lexicográfico ya es cronológico).
+
+- **No-op sin credenciales:** mismo criterio que `uploadPhoto()`/VAPID — sin `CLOUDINARY_CLOUD_NAME`/`API_KEY`/`API_SECRET`, `runDailyBackup()` retorna de inmediato y el server arranca igual.
+- **Deliberadamente excluye `passwordHash`/`securityAnswerHash`:** el JSON queda en un CDN de terceros (aunque no público); esos campos no hacen falta para recuperar el historial de entrenamiento, que es el activo irreemplazable que este backup protege. El restore, por tanto, NUNCA toca contraseñas — solo reconecta datos a un usuario que ya debe existir.
+- **`POST /api/backup/run`** (autenticado): fuerza una corrida solo para el usuario del token — útil como botón futuro en Settings y como forma de probar la integración sin esperar a las 4am.
+- **`GET /api/health`** expone `backup.users[].lastBackupAt`/`lastBackupError` (persistidos en `User`, no solo en memoria, para sobrevivir un redeploy).
+- **Restauración:** `server/restore-backup.mjs` (dry-run por defecto, `--apply` para escribir — mismo patrón que `fix-shortcut-rir.mjs`). Idempotente vía `upsert` por `id` (los ids del backup son los cuids originales; se recrean tal cual, remapeando solo `userId` al usuario destino). El usuario destino debe existir ya en la DB con el mismo `username` que tenía el backup (o pasar `--user=` para forzar otro) — regístralo primero si es una DB nueva. Probado end-to-end con datos sintéticos: backup → borrado total de las tablas del usuario → restore dry-run (conteos correctos) → restore `--apply` (ids originales recuperados) → segundo `--apply` (idempotente, sin errores) → limpieza.
+- Documentación de uso completa en la sección "Backup y restauración" de `README.md`.
+
+### 7. Tests automatizados: qué NO está cubierto (v2.5.0)
+Ver Gotcha #4 arriba (sección "Sin tests automatizados", renombrada). Solo lógica pura tiene tests — `server/src/logic.js` y `client/src/utils/{exerciseName,smartLoading}.js`. Si extraes una función pura nueva de `index.js`/`Workout.jsx`, considera moverla a `logic.js`/`smartLoading.js` y agregarle un test ahí en vez de dejarla inline sin cobertura.
 
 ---
 
@@ -443,7 +462,7 @@ Para mantener esta documentación al día:
 
 El historial completo de versiones vive en [`changelog.md`](changelog.md).
 
-**Versión actual: 2.4.1** (7 Julio 2026) — sesiones parciales del Atajo de iOS, conversión de RIR en `/api/shortcuts/log-set`, dedup de notificaciones de descanso y fix del aviso fantasma al recargar.
+**Versión actual: 2.5.0** (9 Julio 2026) — backup automático diario a Cloudinary con restore probado, y primera suite de tests automatizados (funciones puras + paridad cliente/servidor).
 
 ---
 
@@ -458,4 +477,12 @@ cd client && npm run dev
 
 # Prisma Studio (Ver datos)
 cd server && npx prisma studio
+
+# Tests (funciones puras, sin DB ni navegador — ver Gotcha #4/#7)
+cd client && npm test
+cd server && npm test
+
+# Backup manual / restore (ver Gotcha #6)
+curl -X POST http://localhost:3001/api/backup/run -H "Authorization: Bearer <token>"
+cd server && node restore-backup.mjs --apply
 ```
