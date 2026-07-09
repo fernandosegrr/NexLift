@@ -8,6 +8,7 @@ import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
 import { adjustRepRangeForPhase } from '../utils/smartLoading';
+import { hasPendingWrite, subscribeQueueChange } from '../services/offlineQueue';
 
 // ==================== CUSTOM HOOKS ====================
 
@@ -549,6 +550,17 @@ export default function Workout() {
     const currentExercise = workoutState.exercises[workoutState.currentIndex];
     const { previousBest, suggestion } = useExerciseHistory(currentExercise?.id, currentExercise?.targetReps, currentExercise?.muscleGroup, workoutState.phase);
 
+    // P3: ¿el ejercicio actual tiene una escritura offline pendiente de
+    // sincronizar? Se re-evalúa al cambiar de ejercicio y cuando la cola cambia
+    // (se encola algo nuevo al guardar sin red, o el replay la vacía al volver
+    // la conexión) — nunca un poll, vía suscripción de offlineQueue.js.
+    const [pendingSync, setPendingSync] = useState(false);
+    useEffect(() => {
+        if (!currentExercise) { setPendingSync(false); return undefined; }
+        setPendingSync(hasPendingWrite(currentExercise.id));
+        return subscribeQueueChange(() => setPendingSync(hasPendingWrite(currentExercise.id)));
+    }, [currentExercise]);
+
     // Valores computados
     const isAlreadyLogged = useMemo(() =>
         currentExercise && completedExerciseIds.includes(currentExercise.id),
@@ -895,9 +907,10 @@ export default function Workout() {
             // iOS guardó 1 serie), actualizamos ESE MISMO WorkoutLog en vez de crear
             // uno nuevo — si no, el día quedaría fragmentado en 2 logs para el mismo
             // ejercicio.
-            const { workoutLog } = resumeLogId
-                ? await api.updateWorkoutSession(resumeLogId, validSets)
+            const result = resumeLogId
+                ? await api.updateWorkoutSession(resumeLogId, validSets, currentExercise.id)
                 : await api.logWorkout(currentExercise.id, validSets);
+            const { workoutLog, queued } = result;
             setCompletedExerciseIds(prev => [...prev, currentExercise.id]);
             setCompletedAt(workoutLog?.date ? new Date(workoutLog.date) : new Date());
             setWorkoutData(prev => {
@@ -906,7 +919,14 @@ export default function Workout() {
                 return updated;
             });
 
-            toast.success('¡Guardado!');
+            // Sin red: se encoló para sincronizar después (P3) — nunca fingir que
+            // ya se guardó en el server. El badge de "pendiente" en la tarjeta lo
+            // confirma vía hasPendingWrite/subscribeQueueChange arriba.
+            if (queued) {
+                toast.info('Guardado local — se sincronizará cuando vuelva la conexión');
+            } else {
+                toast.success('¡Guardado!');
+            }
             if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
             // El timer ya arrancó al completar la última serie (updateSet/
             // toggleComplete) — reiniciarlo aquí sería redundante y cortaría
@@ -1032,6 +1052,15 @@ export default function Workout() {
                 <h1 className="text-2xl font-black text-[var(--text-primary)] leading-tight mb-2 px-2">
                     {currentExercise?.name}
                 </h1>
+
+                {pendingSync && (
+                    <div className="flex justify-center mb-2">
+                        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--warning)] bg-[var(--warning)]/10 px-3 py-1 rounded-full border border-[var(--warning)]/30">
+                            <AlertTriangle size={12} />
+                            <span>Guardado local — pendiente de sincronizar</span>
+                        </div>
+                    </div>
+                )}
 
                 <div className="flex items-center justify-center gap-3">
                     <div className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)] bg-[var(--bg-card)] px-3 py-1.5 rounded-lg border border-[var(--border)]">

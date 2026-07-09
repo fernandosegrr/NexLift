@@ -1,3 +1,5 @@
+import { enqueueWrite, getQueue, removeFromQueue } from './offlineQueue.js';
+
 // En producción (Vercel), usa ruta relativa. En desarrollo, usa localhost
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
 
@@ -9,12 +11,17 @@ function getAuthHeaders() {
 
 // Helper: fetch() envuelto para distinguir fallos de red (offline, DNS, timeout)
 // de respuestas HTTP normales. Un fetch() que revienta se ve igual que cualquier
-// otro error en el catch del caller si no se etiqueta aquí.
+// otro error en el catch del caller si no se etiqueta aquí. `isNetworkError` es
+// lo que usan logWorkout/updateWorkoutSession/logRestDay (P3) para decidir si
+// encolar en vez de fallar, y replayOfflineQueue() para saber si debe detenerse
+// a reintentar más tarde en vez de descartar el item.
 async function safeFetch(url, options = {}) {
     try {
         return await fetch(url, options);
     } catch (e) {
-        throw new Error('No se pudo conectar con el servidor. Revisa tu conexión.');
+        const err = new Error('No se pudo conectar con el servidor. Revisa tu conexión.');
+        err.isNetworkError = true;
+        throw err;
     }
 }
 
@@ -37,6 +44,124 @@ async function authFetch(url, options = {}) {
     }
 
     return res;
+}
+
+// ==========================================
+// OFFLINE QUEUE (P3): escrituras "crudas" (sin cola) del registro de entreno.
+// Separadas de los métodos públicos de `api.*` porque tanto ellos COMO
+// replayOfflineQueue() necesitan la llamada de red real — si el replay llamara
+// a `api.logWorkout` de nuevo y siguiera sin conexión, reencolaría un duplicado
+// en vez de dejar intacto el item original para el siguiente intento.
+// ==========================================
+async function rawLogWorkout(exerciseId, sets, notes = null) {
+    const res = await authFetch(`${API_URL}/workouts/log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exerciseId, sets, notes }),
+    });
+    if (!res.ok) {
+        const err = new Error('Failed to log workout');
+        err.status = res.status;
+        throw err;
+    }
+    return res.json();
+}
+
+async function rawUpdateWorkoutSession(logId, sets) {
+    const res = await authFetch(`${API_URL}/workouts/${logId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sets }),
+    });
+    if (!res.ok) {
+        const err = new Error('Failed to update session');
+        err.status = res.status;
+        throw err;
+    }
+    return res.json();
+}
+
+async function rawLogRestDay(note = null) {
+    const res = await authFetch(`${API_URL}/workouts/log-rest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note }),
+    });
+    if (!res.ok) {
+        const err = new Error('Failed to log rest day');
+        err.status = res.status;
+        throw err;
+    }
+    return res.json();
+}
+
+// ¿Ya existe un log de HOY para este ejercicio? — regla anti-duplicados del
+// replay: el POST original pudo haber llegado al server aunque la RESPUESTA se
+// perdiera por red (el error de red no distingue esos dos casos), así que antes
+// de reintentar un logWorkout encolado hay que revisar esto primero. Mismo
+// criterio que ya usa Workout.jsx para las sesiones parciales del Atajo de iOS.
+// Usa GET /api/workouts/today-log (calcula "hoy" en CDMX server-side) en vez de
+// mandar una fecha calculada en este navegador — un `fecha` de cliente sufre el
+// mismo bug de zona horaria que este proyecto ya resolvió 3 veces en otros
+// endpoints (encontrado en vivo verificando este fix: sin esto, el replay
+// duplicaba el log en vez de actualizar el existente).
+async function rawFindTodayLog(exerciseId) {
+    const res = await authFetch(`${API_URL}/workouts/today-log?exerciseId=${encodeURIComponent(exerciseId)}`);
+    if (!res.ok) {
+        const err = new Error('Failed to check today log');
+        err.status = res.status;
+        throw err;
+    }
+    return res.json();
+}
+
+async function replayOne(item) {
+    const { op, payload } = item;
+    if (op === 'logRestDay') {
+        return rawLogRestDay(payload.note);
+    }
+    if (op === 'updateWorkoutSession') {
+        return rawUpdateWorkoutSession(payload.logId, payload.sets);
+    }
+    if (op === 'logWorkout') {
+        const existing = await rawFindTodayLog(payload.exerciseId);
+        return existing
+            ? rawUpdateWorkoutSession(existing.id, payload.sets)
+            : rawLogWorkout(payload.exerciseId, payload.sets, payload.notes);
+    }
+    throw new Error(`Operación de cola desconocida: ${op}`);
+}
+
+// Drena la cola offline en orden (FIFO). Se llama al recuperar conexión y al
+// abrir la app (ver wiring al final del archivo). Nunca corre 2 réplicas a la
+// vez (evento `online` y apertura casi simultáneos no deben procesar el mismo
+// item dos veces).
+let isReplaying = false;
+export async function replayOfflineQueue({ onItemSynced, onItemFailed } = {}) {
+    if (isReplaying) return;
+    if (!localStorage.getItem('nexlift_token')) return; // sin sesión: nada que sincronizar todavía
+    isReplaying = true;
+    try {
+        const queue = getQueue(); // ya poda expirados (>48h) internamente
+        for (const item of queue) {
+            try {
+                await replayOne(item);
+                removeFromQueue(item.id);
+                onItemSynced?.(item);
+            } catch (err) {
+                // Sin red, o sesión momentáneamente inválida (401 justo al volver
+                // online, antes de que el usuario reintente login): dejar el resto
+                // de la cola intacto y reintentar en el próximo evento `online`.
+                // Cualquier OTRO error (4xx real de validación, etc.) sí es
+                // permanente — sacar de la cola para no reintentar infinito.
+                if (err?.isNetworkError || err?.status === 401) break;
+                removeFromQueue(item.id);
+                onItemFailed?.(item, err);
+            }
+        }
+    } finally {
+        isReplaying = false;
+    }
 }
 
 export const api = {
@@ -183,13 +308,16 @@ export const api = {
     // WORKOUTS
     // ==========================================
     async logWorkout(exerciseId, sets, notes = null) {
-        const res = await authFetch(`${API_URL}/workouts/log`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ exerciseId, sets, notes }),
-        });
-        if (!res.ok) throw new Error('Failed to log workout');
-        return res.json();
+        try {
+            return await rawLogWorkout(exerciseId, sets, notes);
+        } catch (err) {
+            if (!err?.isNetworkError) throw err;
+            // Sin red: encolar para sincronizar después (P3) en vez de perder el
+            // registro — nunca fingir que se guardó en el server (el caller debe
+            // chequear `queued` para avisarle al usuario, no mostrar "¡Guardado!").
+            enqueueWrite('logWorkout', { exerciseId, sets, notes });
+            return { queued: true };
+        }
     },
 
     async scheduleRestReminder(exerciseId, nextExerciseName = null) {
@@ -203,13 +331,13 @@ export const api = {
     },
 
     async logRestDay(note = null) {
-        const res = await authFetch(`${API_URL}/workouts/log-rest`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ note }),
-        });
-        if (!res.ok) throw new Error('Failed to log rest day');
-        return res.json();
+        try {
+            return await rawLogRestDay(note);
+        } catch (err) {
+            if (!err?.isNetworkError) throw err;
+            enqueueWrite('logRestDay', { note });
+            return { queued: true };
+        }
     },
 
     async getWorkoutHistory(limit = 30, filters = {}) {
@@ -236,14 +364,17 @@ export const api = {
         return res.json();
     },
 
-    async updateWorkoutSession(logId, sets) {
-        const res = await authFetch(`${API_URL}/workouts/${logId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sets }),
-        });
-        if (!res.ok) throw new Error('Failed to update session');
-        return res.json();
+    // exerciseId es opcional: solo se usa para que el badge de "pendiente de
+    // sincronizar" (Workout.jsx, vía hasPendingWrite) sepa a qué ejercicio
+    // corresponde este log si termina encolado — el PUT en sí solo necesita logId.
+    async updateWorkoutSession(logId, sets, exerciseId = null) {
+        try {
+            return await rawUpdateWorkoutSession(logId, sets);
+        } catch (err) {
+            if (!err?.isNetworkError) throw err;
+            enqueueWrite('updateWorkoutSession', { logId, sets, exerciseId });
+            return { queued: true };
+        }
     },
 
     async deleteWorkoutSession(logId) {
@@ -510,3 +641,12 @@ export const api = {
         return res.json();
     }
 };
+
+// Wiring de la cola offline (P3): drena lo pendiente al recuperar conexión Y al
+// abrir la app. `api.js` se importa una sola vez por carga de página (módulo ES
+// singleton), así que este código de nivel de módulo cubre ambos disparadores
+// del plan con un solo punto de entrada — no hace falta llamarlo desde App.jsx.
+if (typeof window !== 'undefined') {
+    window.addEventListener('online', () => { replayOfflineQueue(); });
+    replayOfflineQueue();
+}

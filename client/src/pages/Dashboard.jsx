@@ -196,11 +196,20 @@ export default function Dashboard() {
         }));
 
         try {
-            await api.logRestDay();
-            const statsData = await api.getOverviewStats();
-            setStats(statsData);
+            const result = await api.logRestDay();
+            if (result?.queued) {
+                // Sin red: se encoló para sincronizar después (P3). El update
+                // optimista de arriba se queda tal cual — SÍ se va a registrar, solo
+                // que todavía no en el server — y no tiene caso reintentar
+                // getOverviewStats() ahora mismo, fallaría por la misma razón.
+                toast.info('Guardado local — se sincronizará cuando vuelva la conexión');
+            } else {
+                const statsData = await api.getOverviewStats();
+                setStats(statsData);
+            }
         } catch (error) {
-            // Rollback si falla
+            // Rollback si falla de verdad (no un simple "sin red": eso ya se
+            // maneja arriba encolando en vez de lanzar)
             console.error('Failed to log rest:', error);
             setConsistency(previousConsistency);
             setStats(previousStats);

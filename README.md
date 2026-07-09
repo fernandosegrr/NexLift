@@ -5,7 +5,7 @@
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-![Version](https://img.shields.io/badge/Version-2.5.1-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-2.6.0-blue?style=flat-square)
 
 ---
 
@@ -215,6 +215,9 @@ cd server && npm test   # node --test — server/src/logic.js
 ## 📜 Changelog
 
 Historial completo y detallado (con causa raíz de cada fix) en [`.agent/context.md`](.agent/context.md). Resumen de versiones recientes:
+
+### v2.6.0 (9 Jul 2026) — Registro offline con cola de sincronización
+Registrar series/descansos ya no se pierde sin conexión (típico en sótanos de gimnasio): se guarda localmente con un badge "pendiente de sincronizar" y se reintenta solo al volver la conexión, con reconciliación anti-duplicados (evita crear un registro repetido si el guardado original sí había llegado al servidor).
 
 ### v2.5.1 (9 Jul 2026) — Recordatorios de descanso persistentes
 Los avisos de "descanso terminado" ahora sobreviven un redeploy/reinicio del servidor a mitad del descanso (nuevo modelo `PendingReminder`, espejo en DB del temporizador en memoria) — antes se perdían en silencio.

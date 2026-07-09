@@ -84,9 +84,15 @@ export default function EditSession() {
 
         setSaving(true);
         try {
-            await api.updateWorkoutSession(logId, validSets);
+            const result = await api.updateWorkoutSession(logId, validSets);
             clearWorkoutCache();
-            toast.success('Sesión actualizada');
+            // Sin red: se encoló para sincronizar después (P3) — avisar que
+            // todavía no está en el server, no fingir un "Sesión actualizada".
+            if (result?.queued) {
+                toast.info('Guardado local — se sincronizará cuando vuelva la conexión');
+            } else {
+                toast.success('Sesión actualizada');
+            }
             navigate('/settings');
         } catch (error) {
             console.error('Error:', error);

@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 2.5.1 | **Última actualización:** 9 Julio 2026
+> **Versión:** 2.6.0 | **Última actualización:** 9 Julio 2026
 > **Historial de versiones:** [`changelog.md`](changelog.md) (movido ahí para que este archivo quepa en una sola lectura de una IA) | **Schema:** `server/prisma/schema.prisma` (única copia, no se duplica aquí)
 
 ---
@@ -334,6 +334,7 @@ Todos bajo auth JWT (`authMiddleware`) salvo registro/login/recuperación/vapid-
 **Workouts**
 | Método/Ruta | Qué hace |
 |---|---|
+| `GET /api/workouts/today-log?exerciseId=X` | (v2.6.0) ¿Ya existe log de HOY (día CDMX) para este ejercicio? Usado por la reconciliación anti-duplicados de la cola offline — ver Gotcha #9 |
 | `POST /api/workouts/log` | Registrar TODAS las series de un ejercicio — **siempre crea un log nuevo** |
 | `GET/PUT/DELETE /api/workouts/:logId` | Detalle / **reemplazar todas las series** (EditSession + sesiones parciales del Atajo) / borrar — PUT y DELETE recalculan PRs |
 | `GET /api/workouts/history` | Historial (con `limit`, filtros) |
@@ -454,6 +455,15 @@ Antes de v2.5.1, `scheduleRestReminder` vivía SOLO en memoria (`setTimeout` + `
 - No-op completo si `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` no están configuradas (mismo criterio que antes) — en ese caso ni siquiera se escribe la fila en `PendingReminder`.
 - Verificado en vivo (usuario y ejercicios 100% sintéticos, borrados después): recordatorio con `restSeconds` largo → reinicio real del proceso a mitad del descanso → log `"1 reagendado(s)"` al arrancar → dispara a la hora correcta y limpia la fila. Ráfaga de 2 llamadas casi seguidas → una sola fila en DB (mismo `id`, `fireAt`/`nextExerciseName` de la más reciente) — dedup intacto. Fila insertada a mano con `fireAt` de hace 10 minutos → reinicio → log `"1 descartado(s) por viejos"`, fila borrada, nada disparado.
 
+### 9. Registro offline con cola de sincronización (v2.6.0) — 2 bugs reales encontrados verificándolo en el navegador
+Alcance deliberadamente acotado: SOLO `logWorkout`/`updateWorkoutSession`/`logRestDay` (el registro de entrenamiento). Nada de fotos, goals ni rutinas.
+
+- **`client/src/services/offlineQueue.js`** (storage puro, sin red — a propósito, para no formar un import circular con `api.js`, que sí necesita esta cola Y las llamadas de red reales): `enqueueWrite`/`getQueue`/`removeFromQueue` sobre un array en `localStorage` (`nexlift_offline_queue`), con expiración de 48h y `subscribeQueueChange` para que la UI reaccione sin poll.
+- **`client/src/services/api.js`**: `safeFetch` marca `err.isNetworkError = true` cuando `fetch()` mismo revienta (offline/DNS/timeout) — la señal que distingue "sin red" de un 4xx/5xx real (que llega como `Response`, no como excepción). `logWorkout`/`updateWorkoutSession`/`logRestDay` capturan SOLO ese caso, encolan, y devuelven `{ queued: true }` en vez de fingir éxito — los 3 callers (`Workout.jsx`, `Dashboard.jsx`, `EditSession.jsx`) chequean ese flag para mostrar "Guardado local — pendiente de sincronizar" en vez del toast de éxito normal, sin bloquear el flujo (Workout.jsx avanza al siguiente ejercicio igual). `replayOfflineQueue()` corre al abrir la app (código de nivel de módulo en `api.js`) y en el evento `online` de `window`.
+- **Bug real #1 (stack overflow confirmado en vivo, no teórico):** `getQueue()` llamaba a `writeQueue()` (que notifica `subscribeQueueChange`) en CADA lectura, para persistir la poda de expirados. El badge de `Workout.jsx` se suscribe con un callback que llama `hasPendingWrite()` → `getQueue()` de vuelta — cualquier lectura disparaba una notificación que disparaba otra lectura, ad infinitum, hasta `RangeError: Maximum call stack size exceeded` (reproducido con el DOM real, no en un test). Fix: la poda se persiste con `writeQueueSilent` (sin notificar); solo las mutaciones reales (`enqueueWrite`/`removeFromQueue`) notifican. Test de regresión en `offlineQueue.test.js`.
+- **Bug real #2 (mismo patrón de zona horaria que este proyecto ya resolvió 3 veces):** la reconciliación anti-duplicados (antes de reintentar un `logWorkout` encolado, ¿ya existe un log de hoy? si sí, `PUT` en vez de `POST` — cubre "el POST sí llegó pero se perdió la respuesta") originalmente mandaba una `fecha` calculada en el navegador (`new Date().toLocaleDateString('sv')`) contra `GET /api/workouts/history?dateFrom=X&dateTo=X` — ese endpoint filtra con `new Date(dateFrom)` (UTC ingenuo, sin pasar por los helpers CDMX). Reproducido en vivo: un log real creado a las 20:49 CDMX (02:49 UTC del día siguiente) no lo encontraba la query con `fecha` del día CDMX correcto, y el replay creaba un WorkoutLog **duplicado**. Fix: nuevo endpoint dedicado `GET /api/workouts/today-log?exerciseId=X` que calcula "hoy" con `mexicoCityDayBounds()` server-side — el cliente ya no manda ninguna fecha, elimina la clase entera de bug.
+- **Verificado en vivo end-to-end** (usuario y ejercicios sintéticos, borrados después): offline real (servidor detenido/fetch interceptado por endpoint) → guardar → badge visible → recargar la página → sigue pendiente → volver "online" (`window.dispatchEvent(new Event('online'))`) → sincroniza solo, exactamente 1 `WorkoutLog` correcto. Escenario de respuesta perdida (log ya existente + item encolado apuntando al mismo ejercicio) → replay hace `PUT`, NO duplica. Item con peso inválido (rechazado por `sanitizeSets`, 400) → se descarta de la cola sin reintentar infinito y sin crear datos corruptos.
+
 ---
 
 ## 📝 Guía para Modificar Documentación
@@ -472,7 +482,7 @@ Para mantener esta documentación al día:
 
 El historial completo de versiones vive en [`changelog.md`](changelog.md).
 
-**Versión actual: 2.5.1** (9 Julio 2026) — recordatorios de descanso persistentes (sobreviven un redeploy/reinicio a mitad del descanso), sobre la base de v2.5.0 (backup automático a Cloudinary + primera suite de tests).
+**Versión actual: 2.6.0** (9 Julio 2026) — registro de entrenamiento offline con cola de sincronización (sobrevive sin señal en el gym), sobre la base de v2.5.1 (recordatorios persistentes) y v2.5.0 (backup automático + primera suite de tests).
 
 ---
 

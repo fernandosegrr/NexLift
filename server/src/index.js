@@ -1983,6 +1983,43 @@ app.get('/api/stats/routine/:id', authMiddleware, async (req, res) => {
 // ============================================
 
 // POST /api/workouts/log - Log a workout session
+// GET /api/workouts/today-log?exerciseId=X — ¿ya existe un log de HOY (día
+// calendario CDMX) para este ejercicio? Usado por la reconciliación anti-
+// duplicados del replay de la cola offline (P3): antes de reintentar un
+// logWorkout encolado, hay que revisar si el POST original en realidad SÍ había
+// llegado al server (solo se perdió la RESPUESTA por el mismo corte de red que
+// lo encoló). Existe como endpoint dedicado — y no reutilizando
+// /api/workouts/history con dateFrom/dateTo de un `fecha` calculado en el
+// navegador — porque ese filtro parsea las fechas con `new Date(dateFrom)` (UTC
+// ingenuo), y un `fecha` de cliente coincide con el día CDMX real del log solo
+// la mayoría de las veces: exactamente en la ventana de 6pm-medianoche CDMX
+// (que es college de horario de gym) el día UTC ya avanzó al día siguiente
+// mientras el día CDMX no — el mismo patrón de bug de zona horaria que este
+// proyecto ya resolvió 3 veces en otros endpoints (ver mexicoCityDayBounds).
+// Encontrado en vivo verificando este fix: sin este endpoint dedicado, el
+// replay creaba un WorkoutLog duplicado en vez de actualizar el existente.
+app.get('/api/workouts/today-log', authMiddleware, async (req, res) => {
+    try {
+        const { exerciseId } = req.query;
+        if (!exerciseId) return res.status(400).json({ error: 'Required: exerciseId' });
+
+        const exercise = await prisma.exercise.findFirst({
+            where: { id: exerciseId, routineDay: { routine: { userId: req.userId } } }
+        });
+        if (!exercise) return res.status(404).json({ error: 'Exercise not found or unauthorized' });
+
+        const { start, end } = mexicoCityDayBounds(new Date());
+        const log = await prisma.workoutLog.findFirst({
+            where: { exerciseId, date: { gte: start, lt: end } },
+            include: { sets: true }
+        });
+        res.json(log || null);
+    } catch (error) {
+        console.error('Error checking today log:', error);
+        res.status(500).json({ error: 'Failed to check today log' });
+    }
+});
+
 app.post('/api/workouts/log', authMiddleware, async (req, res) => {
     try {
         const { exerciseId, sets, notes } = req.body;
