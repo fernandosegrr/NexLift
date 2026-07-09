@@ -1,7 +1,8 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 2.4.1 | **Última actualización:** 7 Julio 2026
+> **Versión:** 2.4.1 | **Última actualización:** 8 Julio 2026
+> **Historial de versiones:** [`changelog.md`](changelog.md) (movido ahí para que este archivo quepa en una sola lectura de una IA) | **Schema:** `server/prisma/schema.prisma` (única copia, no se duplica aquí)
 
 ---
 
@@ -215,6 +216,30 @@ Panel de control rediseñado (v1.9.3):
   4.  **Historial:** Tabla de todas las sesiones pasadas con opción de **Editar** (`EditSession.jsx`) o **Eliminar**.
   5.  **Data:** Botón para **Exportar Backup JSON** completo.
 
+### 11. Autenticación (`Login.jsx`, `Register.jsx`, `ForgotPassword.jsx`)
+**Rutas:** `/login`, `/register`, `/forgot-password`
+
+- **Login:** usuario/email + contraseña → `POST /api/auth/login` devuelve JWT de **365 días** (persistido por `AuthContext` en localStorage; la revocación real es vía `tokenVersion`, no la expiración). Rate limited por IP. Inputs con trim (v2.2.0).
+- **Register:** `POST /api/auth/register`. Contraseña mínima de 8 caracteres validada **server-side** (no solo en el form). Rate limited.
+- **ForgotPassword:** recuperación **sin email**, vía pregunta de seguridad (`POST /api/auth/recover/question` → `POST /api/auth/recover/verify`). Doble rate limit (por IP y por cuenta objetivo, 5 intentos/30 min — v2.2.0). Restablecer la contraseña incrementa `tokenVersion` (invalida todos los JWT emitidos antes).
+
+### 12. New Goal (`NewGoal.jsx`)
+**Ruta:** `/goals/new`
+
+Creación de objetivos de fuerza (ejercicio + peso × reps meta):
+- Lista de ejercicios **consolidada** desde rutinas + catálogo `/exercises` (incluye archivados) + historial, agrupando por `canonicalExerciseKey` y resolviendo el grupo muscular con el primer valor no-nulo de cualquier copia (v2.0.1).
+- Filtro por músculo case-insensitive + buscador global + orden por número de sesiones.
+- Al crear un objetivo con historial se persiste un snapshot de `currentOneRepMax` (mejor 1RM de las últimas 3 sesiones) como respaldo para la tarjeta.
+- `POST /api/goals` rechaza con 409 un objetivo duplicado exacto no cumplido (v2.2.0).
+
+### 13. Edit Session (`EditSession.jsx`)
+**Ruta:** `/session/:logId/edit` (se llega desde Settings → Historial)
+
+Editor de una sesión pasada:
+- Edita todas las series de un `WorkoutLog` (peso/reps/RIR, ambos lados en unilateral).
+- Guarda vía `PUT /api/workouts/:logId` (**reemplaza TODAS las series del log** — el mismo endpoint que usa `Workout.jsx` para completar sesiones parciales del Atajo de iOS).
+- El backend recalcula los PRs desde los logs reales tras la edición, y el caché local de `Workout.jsx` se invalida para que el día activo refleje el cambio (v2.2.0).
+
 ---
 
 ## 🧠 Lógica de Negocio Avanzada
@@ -252,235 +277,88 @@ Las 3 fases del roadmap original se construyeron juntas en una sola pasada (no d
 
 ---
 
-## 📊 Modelo de Datos (Prisma Schema Completo)
+## 📊 Modelo de Datos
 
-La base de datos PostgreSQL está normalizada y optimizada para queries de series temporales.
+**La fuente de verdad es `server/prisma/schema.prisma`** (única copia; sincronizar con `npx prisma db push`, NUNCA `migrate` — no hay historial de migraciones y `migrate dev` ofrece resetear todo el schema). Antes había aquí una copia pegada del schema completo; se eliminó porque vivió desincronizada del archivo real durante meses (hasta v2.2.0) — leer siempre el `.prisma` directamente.
 
-> El bloque de abajo es el `schema.prisma` real (recortando comentarios largos) — ver el archivo para el detalle completo. Actualizado en v2.2.0: antes este bloque llevaba tiempo desincronizado del real (le faltaban `weightRight`/`repsRight`, `RestLog`, varios índices).
+Resumen de los 12 modelos:
 
-```prisma
-// server/prisma/schema.prisma
+| Modelo | Qué es | Detalle no obvio |
+|--------|--------|------------------|
+| `User` | Cuenta | `tokenVersion` revoca JWTs viejos; `lastReengagementNotifiedAt` limita el push de re-enganche a 1/día |
+| `Routine` | Rutina | `adaptiveDeloadUntil`/`lastAdaptiveCheckAt` = descarga adaptativa (v2.4.0) |
+| `RoutineBlock` | Mesociclo (opcional) | `phase` es string libre, no enum; activo = `startedAt` no-nulo más reciente |
+| `RoutineDay` | Día de rutina | `isRestDay`, `order` |
+| `Exercise` | Ejercicio de un día | `targetReps` es string `"8-12"`; `isUnilateral`; `restSeconds` |
+| `WorkoutLog` | Sesión de UN ejercicio en una fecha | `onDelete: Restrict` hacia `Exercise` — nunca borrar ejercicios con historial (archivar) |
+| `SetLog` | Serie individual | **`rpe` guarda `10 - RIR`, no el RIR crudo** (ver Gotcha #5); `weightRight`/`repsRight` en unilateral |
+| `PersonalRecord` | PR por ejercicio | `exerciseName` guardado solo en `.toLowerCase()` — cruzar siempre vía `canonicalExerciseKey` |
+| `Goal` | Objetivo de fuerza | `achievedAt` lo decide el backend (puerta de un solo sentido); snapshot `currentOneRepMax` |
+| `RestLog` | Día de descanso registrado | Cuenta para la racha |
+| `BodyLog` | Composición corporal | `photoUrl` (Cloudinary/Catbox), métricas de bioimpedancia |
+| `PushSubscription` | Web Push por dispositivo | `endpoint` único; se revoca en logout |
 
-// ==================== USUARIO ====================
-model User {
-  id            String    @id @default(cuid())
-  username      String    @unique
-  email         String    @unique
-  passwordHash  String
-  firstName     String
-  lastName      String
-  phone         String?
-  birthDate     DateTime?
-  avatarUrl     String?   // URL de Catbox
+---
 
-  // Seguridad
-  securityQuestion   String?
-  securityAnswerHash String?
+## 🔌 Endpoints de la API (`server/src/index.js`)
 
-  isActive      Boolean   @default(true)
+Todos bajo auth JWT (`authMiddleware`) salvo registro/login/recuperación/vapid-public-key/health.
 
-  // Revocación de sesión (v2.2.0): cambiar contraseña o pregunta de seguridad la
-  // incrementa, invalidando todos los JWT emitidos antes.
-  tokenVersion  Int       @default(0)
+**Auth**
+| Método/Ruta | Qué hace |
+|---|---|
+| `POST /api/auth/register` | Crear cuenta (rate limited, contraseña ≥8 server-side) |
+| `POST /api/auth/login` | Login → JWT 365 días (rate limited) |
+| `GET /api/auth/me` | Usuario actual |
+| `PUT /api/auth/profile` | Editar perfil |
+| `PUT /api/auth/password` | Cambiar contraseña — incrementa `tokenVersion` y **devuelve token nuevo** (el frontend debe persistirlo) |
+| `POST /api/auth/recover/question` / `POST /api/auth/recover/verify` | Recuperación por pregunta de seguridad (rate limit por IP **y** por cuenta) |
+| `PUT /api/auth/security-question` | Cambiar pregunta (exige contraseña actual; incrementa `tokenVersion`, devuelve token nuevo) |
+| `POST /api/auth/avatar` | Subir avatar (`uploadPhoto()`) |
 
-  // Recordatorio de re-enganche (v2.2.0): último día (CDMX) en que se avisó
-  // "¿no vas a entrenar hoy?" — máximo uno por día.
-  lastReengagementNotifiedAt DateTime?
+**Rutinas y ejercicios**
+| Método/Ruta | Qué hace |
+|---|---|
+| `GET /api/routines` | Listar (excluye la rutina-papelera) |
+| `GET /api/routines/trash` | Papelera de historial (ejercicios archivados) |
+| `GET /api/routines/active` | Rutina activa |
+| `POST /api/routines/import` | Importar rutina JSON/plantilla (dedup vía LLM si hay `OPENAI_API_KEY`, si no `canonicalExerciseKey`) |
+| `GET/PUT/DELETE /api/routines/:id` | Detalle / editar / borrar — PUT y DELETE en `$transaction`; borrar archiva ejercicios con historial |
+| `PUT /api/routines/:id/activate` | Activar rutina |
+| `GET/POST /api/routines/:id/blocks`, `PUT/DELETE .../blocks/:blockId`, `POST .../blocks/:blockId/start` | CRUD de mesociclos (v2.4.0) |
+| `GET /api/exercises` | Catálogo del usuario (incluye archivados) |
+| `PUT /api/exercises/:id/muscle` | Clasificar grupo muscular |
+| `GET /api/stats/routine/:id` | Stats por rutina |
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  lastLogin     DateTime?
+**Workouts**
+| Método/Ruta | Qué hace |
+|---|---|
+| `POST /api/workouts/log` | Registrar TODAS las series de un ejercicio — **siempre crea un log nuevo** |
+| `GET/PUT/DELETE /api/workouts/:logId` | Detalle / **reemplazar todas las series** (EditSession + sesiones parciales del Atajo) / borrar — PUT y DELETE recalculan PRs |
+| `GET /api/workouts/history` | Historial (con `limit`, filtros) |
+| `GET /api/workouts/exercise/:exerciseId/history` | Historial de un ejercicio (insumo del Smart Loading) |
+| `POST /api/workouts/rest-reminder` | Agendar push de descanso por serie (no toca `WorkoutLog`/`SetLog`) |
+| `POST /api/workouts/log-rest` | Registrar día de descanso |
+| `PUT /api/workouts/fix-weights` | Corrección masiva de pesos |
 
-  // Relaciones
-  routines          Routine[]
-  bodyLogs          BodyLog[]
-  restLogs          RestLog[]
-  personalRecords   PersonalRecord[]
-  goals             Goal[]
-  pushSubscriptions PushSubscription[]
+**Atajos de iOS**
+| Método/Ruta | Qué hace |
+|---|---|
+| `GET /api/shortcuts/next-set` | Rutina activa → día de hoy → próximo ejercicio → sugerencia Smart Loading (JSON plano) |
+| `POST /api/shortcuts/log-set` | Registrar UNA serie (acumula en el log de hoy; convierte RIR crudo → `10 - RIR`) |
 
-  @@index([email])
-  @@index([username])
-}
-
-// ==================== RUTINAS ====================
-model Routine {
-  id          String       @id @default(cuid())
-  name        String
-  description String?
-  isActive    Boolean      @default(false)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  userId      String?      // opcional para migración
-  user        User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  days        RoutineDay[]
-  blocks      RoutineBlock[] // Mesociclos (v2.4.0) — opcional, ver getActiveBlock() en index.js
-
-  // Descarga adaptativa (v2.4.0) — solo aplica si NO hay bloque con phase='deload'
-  // activo (ver getRoutinePhaseStatus). adaptiveDeloadUntil: ventana de 7 días con
-  // sugerencias reducidas. lastAdaptiveCheckAt: cooldown de 7 días entre evaluaciones.
-  adaptiveDeloadUntil DateTime?
-  lastAdaptiveCheckAt DateTime?
-
-  @@index([userId])
-}
-
-// Mesociclo/bloque de periodización (v2.4.0). Opcional por rutina — cero bloques
-// se comporta igual que antes. Bloque activo = el de `startedAt` no-nulo más
-// reciente (calculado en lectura, no un `isActive` guardado).
-model RoutineBlock {
-  id            String    @id @default(cuid())
-  name          String
-  phase         String    @default("custom") // 'accumulation' | 'intensification' | 'deload' | 'custom'
-  order         Int       @default(0)
-  durationWeeks Int       @default(4)
-  startedAt     DateTime?
-  routineId     String
-  routine       Routine   @relation(fields: [routineId], references: [id], onDelete: Cascade)
-
-  @@index([routineId])
-}
-
-model RoutineDay {
-  id        String     @id @default(cuid())
-  dayName   String
-  isRestDay Boolean    @default(false)
-  order     Int        @default(0)
-  routineId String
-  routine   Routine    @relation(fields: [routineId], references: [id], onDelete: Cascade)
-  exercises Exercise[]
-}
-
-model Exercise {
-  id           String       @id @default(cuid())
-  name         String
-  muscleGroup  String?      // 'Pecho', 'Espalda', 'Piernas', 'Bíceps', 'Tríceps', 'Hombros', 'Core'
-  targetSets   Int
-  targetReps   String       // "8-12"
-  restSeconds  Int?
-  note         String?
-  order        Int          @default(0)
-  isUnilateral Boolean      @default(false)
-  routineDayId String
-  routineDay   RoutineDay   @relation(fields: [routineDayId], references: [id], onDelete: Cascade)
-  workoutLogs  WorkoutLog[]
-
-  @@index([routineDayId])
-  @@index([name])
-}
-
-// ==================== WORKOUTS (Logs) ====================
-model WorkoutLog {
-  id          String    @id @default(cuid())
-  date        DateTime  @default(now())
-  exerciseId  String
-  // onDelete: Restrict explícito (v2.2.0) — un ejercicio con historial nunca se
-  // borra de verdad (ver getRecycleBinDay/archivo en index.js).
-  exercise    Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
-  sets        SetLog[]
-  notes       String?
-
-  @@index([exerciseId])
-  @@index([date])
-}
-
-model SetLog {
-  id           String     @id @default(cuid())
-  setNumber    Int
-  weight       Float
-  reps         Int
-  rpe          Int?       // RIR
-  completed    Boolean    @default(true)
-  weightRight  Float?     // Lado derecho (ejercicios unilaterales)
-  repsRight    Int?
-  workoutLogId String
-  workoutLog   WorkoutLog @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
-}
-
-// ==================== METAS & RECORDS ====================
-model Goal {
-  id               String    @id @default(cuid())
-  exerciseName     String
-  muscleGroup      String?
-  targetWeight     Float
-  targetReps       Int
-  currentOneRepMax   Float?  // Snapshot para cálculos
-  currentEightRepMax Float?
-  experienceLevel  String?   // 'beginner', 'intermediate', 'advanced'
-  frequencyPerWeek Int?
-  completedWeeks   Int[]     // Control manual de progreso
-  achievedAt       DateTime?
-  createdAt        DateTime  @default(now())
-  userId           String
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
-
-model PersonalRecord {
-  id           String   @id @default(cuid())
-  exerciseName String
-  weight       Float
-  reps         Int
-  estimated1RM Float?   // Resultado Epley
-  date         DateTime @default(now())
-  userId       String?
-  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([exerciseName])
-  @@index([userId])
-}
-
-// ==================== DESCANSO ====================
-model RestLog {
-  id     String   @id @default(cuid())
-  date   DateTime @default(now())
-  note   String?
-  userId String?
-  user   User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
-
-// ==================== WEB PUSH ====================
-model PushSubscription {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-}
-
-// ==================== BODY TRACKING ====================
-model BodyLog {
-  id          String   @id @default(cuid())
-  date        DateTime @default(now())
-  weight      Float?
-  photoUrl    String?
-  note        String?
-
-  // Métricas Avanzadas
-  bmi         Float?
-  bodyFat     Float?
-  muscleMass  Float?
-  bmr         Float?
-  bodyWater   Float?
-  visceralFat Float?
-  boneMass    Float?
-  protein     Float?
-
-  createdAt   DateTime @default(now())
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([date])
-  @@index([userId])
-}
-```
+**Stats, cuerpo, goals, push, otros**
+| Método/Ruta | Qué hace |
+|---|---|
+| `GET /api/stats/overview` / `GET /api/stats/consistency` | KPIs del Dashboard / heatmap (usan helpers CDMX) |
+| `GET /api/stats/progress/:exerciseName` / `GET /api/stats/prs` | Evolución 1RM / récords |
+| `GET /api/body/logs`, `POST /api/body/log`, `GET/POST /api/body`, `GET /api/body/photos`, `GET /api/body/latest` | Composición corporal y fotos (conviven rutas nuevas y legacy) |
+| `GET /api/goals` | Lista objetivos — calcula y **persiste** `achievedAt` de forma autoritativa |
+| `POST /api/goals` | Crear (409 si duplicado exacto no cumplido) |
+| `PUT /api/goals/:id/weeks` / `DELETE /api/goals/:id` | Checklist de semanas / borrar |
+| `GET /api/push/vapid-public-key`, `POST/DELETE /api/push/subscribe` | Web Push |
+| `GET /api/health` | Healthcheck |
+| `GET *` | Sirve `client/dist` en producción (SPA fallback) |
 
 ---
 
@@ -553,147 +431,19 @@ No existe ninguna suite de tests. Cualquier cambio a lógica de fechas, PRs, rut
 
 Para mantener esta documentación al día:
 
-1.  **Integridad:** Este archivo es la fuente de verdad. Si el código cambia, actualiza esto primero.
-2.  **Detalle:** Mantén la descripción detallada de "Páginas y Componentes". No resumas excesivamente.
-3.  **Schema:** Copia y pega el schema real si hay migraciones.
-4.  **Changelog:** Registra cada cambio significativo abajo.
+1.  **Integridad:** Este archivo es la fuente de verdad narrativa. Si el código cambia, actualiza esto primero.
+2.  **Detalle:** Mantén la descripción detallada de "Páginas y Componentes" — una sección por página de `client/src/pages/`. No resumas excesivamente.
+3.  **Schema:** NO copiar el schema aquí — la única copia es `server/prisma/schema.prisma` (se sincroniza con `db push`; el proyecto no usa migraciones). Aquí solo se mantiene la tabla-resumen de modelos; si agregas un modelo o campo con comportamiento no obvio, agrega su fila/nota.
+4.  **Changelog:** Registra cada cambio significativo en [`changelog.md`](changelog.md), no aquí. Actualiza la versión y fecha del encabezado de este archivo.
+5.  **Tamaño:** este archivo debe caber en una sola lectura de una IA (< ~500 líneas). Si crece más, mover historia/detalle a archivos hermanos en `.agent/`.
 
 ---
 
-## 📋 Changelog Histórico
+## 📋 Changelog
 
-### v2.4.1 (7 Julio 2026) - **Current**
-Origen: 3 fricciones reales reportadas por el usuario tras usar el Atajo de iOS y el sistema de descanso/notificaciones de v2.1-v2.3 en entrenamientos reales, más 1 encontrada durante la verificación en vivo de esos mismos fixes (mismo sistema, no reportada).
+El historial completo de versiones vive en [`changelog.md`](changelog.md).
 
-*   **FIX — Atajo de iOS bloqueaba agregar series a mano tras registrar 1 sola:** `Workout.jsx` (`checkCompletedExercises`/`loadExerciseData`) trataba "existe un log de hoy" como "ejercicio completo", sin comparar contra `Exercise.targetSets` — como el Atajo registra 1 serie a la vez, esto bloqueaba el resto del ejercicio con solo 1/N series hechas. Ahora se reconcilia: si `sets.length < targetSets`, se muestran las series ya guardadas (editables) + filas vacías para las restantes. Al guardar, usa `PUT /api/workouts/:logId` (reemplaza todas las series de ESE log, mismo endpoint que `EditSession.jsx`) en vez de `POST /api/workouts/log` (que siempre crea un log nuevo) — evita fragmentar el día en 2 `WorkoutLog` para el mismo ejercicio.
-*   **FIX — RIR no se reflejaba en series registradas por el Atajo:** confirmado con capturas reales del Atajo del usuario — pregunta "RIR?" (crudo, 0-4) y lo manda bajo el nombre `rpe`, pero el resto de la app guarda ahí `10 - RIR`, no el valor crudo. `POST /api/shortcuts/log-set` ahora aplica esa misma conversión antes de guardar. Corrección retroactiva de series ya guardadas mal: `server/fix-shortcut-rir.mjs` (dry-run por defecto; identifica candidatos por `rpe <= 6`, rango que el flujo manual nunca produce).
-*   **FIX — Notificación de descanso no distinguía cambio de ejercicio:** `scheduleRestReminder` siempre mencionaba el ejercicio ACTUAL, incluso cuando la serie recién completada era la última de ese ejercicio y lo que seguía era otro distinto. `Workout.jsx` ahora detecta si fue la última serie y, de ser así, manda el nombre del ejercicio SIGUIENTE (`nextExerciseName`) al backend para componer el texto correcto.
-*   **FIX — Doble notificación al completar 2+ series de golpe:** `scheduleRestReminder` no tenía ninguna deduplicación — cada llamada agendaba un `setTimeout` 100% independiente, así que registrar varias series olvidadas de golpe mandaba un push por cada una (el `tag` del service worker solo deduplica la notificación VISIBLE, no evita que el servidor mande varias). Nuevo `Map` en memoria (`pendingRestReminders`, clave `userId:exerciseId`) cancela cualquier recordatorio pendiente de la misma clave antes de agendar uno nuevo.
-*   **FIX — Aviso fantasma solo por cargar/revisitar un ejercicio ya guardado hoy (encontrado en vivo, no reportado):** el mismo mecanismo de detección "¿una serie se acaba de completar?" (comparación contra `prevSetsSnapshotRef`) se disparaba también al simplemente CARGAR un ejercicio con series ya completadas (desde el historial de hoy o desde `localStorage`), porque el snapshot no se sincronizaba con esos datos precargados — confirmado en vivo viendo un POST a `/api/workouts/rest-reminder` dispararse sin ninguna interacción real. Ahora `loadExerciseData` sincroniza `prevSetsSnapshotRef` en la misma pasada que `setSets(...)` en sus 3 ramas con datos preexistentes.
-*   **Verificado en vivo contra la cuenta real de producción:** simulación del Atajo (`POST /api/shortcuts/log-set` con RIR crudo) contra un ejercicio real sin log hoy, confirmando en el navegador las 3 filas (no 1), el RIR correcto resaltado, edición habilitada, guardado vía PUT y exactamente 1 `WorkoutLog` final (sin fragmentación); ráfaga de 3 completados de serie casi simultáneos confirmando el dedup del servidor (`cancelledPrevious: false → true → true`) y el `nextExerciseName` correcto en la última; recarga de página confirmando la ausencia del aviso fantasma tras el fix (antes disparaba, después no). Dato de prueba (pesos de 1kg, claramente falsos) borrado inmediatamente después de cada verificación; PR real del ejercicio (100kg) confirmado sin alterar.
-
-### v2.4.0 (6 Julio 2026)
-Origen: las 3 fases del roadmap "entrenador inteligente" (plateau, mesociclos, descarga adaptativa), construidas juntas en una sola pasada por decisión explícita del usuario, en vez de una a la vez como sugería el roadmap original.
-
-*   **FEATURE — Detección de plateau:** `detectPlateau()` (nuevo, `client/src/utils/exerciseName.js`) marca un ejercicio si su mejor 1RM estimado no mejoró entre la mitad antigua y la mitad reciente de sus últimas 4-6 sesiones. Badge "Estancado" en `PRCard` de Progress (tabs General y Músculos) y tarjeta agregada en Dashboard. 100% cliente, sin endpoint nuevo — reutiliza el patrón de `GoalSection.jsx` (`getWorkoutHistory(500)` + `groupHistoryByExercise`). Gotcha encontrado y resuelto: `PersonalRecord.exerciseName` se guarda solo en minúsculas, así que el cruce con el historial agrupado usa `canonicalExerciseKey`, no un match de string crudo.
-*   **FEATURE — Mesociclos:** nuevo modelo `RoutineBlock` (opcional por rutina), con CRUD completo (`server/src/index.js`) y UI en `EditRoutine.jsx` (crear/editar/reordenar, guardado inmediato por bloque) y `RoutineDetail.jsx` (ver bloques, "Semana N de M", botón "Iniciar siguiente bloque"). Bloque activo = el de `startedAt` no-nulo más reciente, sin necesidad de mantener un flag `isActive` aparte.
-*   **FEATURE — Descarga adaptativa:** combina volumen semanal a la baja (<85% de la semana anterior) con varios ejercicios en plateau simultáneo (>=3) para activar una reducción automática (~10%) del peso sugerido, en los dos algoritmos de Smart Loading (cliente y servidor) a la vez. `getRoutinePhaseStatus()` es la única fuente de verdad de "¿está esto en descarga?", con prioridad fija entre un bloque de fase `deload` y el mecanismo adaptativo standalone (`Routine.adaptiveDeloadUntil`). Aviso visible en `Workout.jsx` (banner + badge recoloreado), nunca un ajuste silencioso.
-*   **Verificado end-to-end** contra la cuenta real de producción: badges de plateau con datos reales (4 ejercicios detectados), CRUD completo de bloques (crear, iniciar, avance de semana, reordenar, borrar — con limpieza de los bloques de prueba después), multiplicador de descarga confirmado en ambos algoritmos de sugerencia con overrides temporales de código (nunca datos permanentes), y el flujo real end-to-end (escritura directa de `adaptiveDeloadUntil`, revertida después) confirmando que el banner aparece sin ningún override.
-
-### v2.3.0 (6 Julio 2026)
-Origen: 4 problemas de experiencia real reportados por el usuario (scroll que salta, foto de progreso que no se guarda, timer de descanso entre ejercicios en vez de series, notificaciones que se apilan), investigados y corregidos uno por uno con verificación en vivo contra la cuenta de producción.
-
-*   **FIX CRÍTICO — Scroll salta al inicio al abrir modales:** causa raíz no era la sospechada inicialmente (ni scroll-anchoring del navegador, ni `autoFocus`): las animaciones de entrada (`animate-fade-in`/`slide-up`/`scale-in`, `index.css`) usan `transform` con `animation-fill-mode: forwards`, que deja el elemento marcado como transformado para siempre (aunque visualmente sea idéntico a `transform: none`) — y **cualquier ancestro con un `transform` computado distinto de `none` se convierte en el containing block de sus descendientes `position: fixed`**, sacándolos de "fijo al viewport". Confirmado midiendo en vivo el `getBoundingClientRect()` de un modal roto (aparecía cientos de píxeles fuera de pantalla). Nuevo componente `client/src/components/ui/Portal.jsx` (`createPortal` a `document.body`) aplicado en los 10 overlays `fixed inset-0` de la app (BodyTracking, Routines, Profile, AchievementsStrip, Progress, ExerciseLibrary, RoutineTemplateSelector, Workout, Settings, Import). También corregido `Workout.jsx` `goToExercise()`: llamaba `window.scrollTo()`, que nunca hacía nada porque `<main>` (no `window`) es el contenedor real con scroll (ver Layout.jsx).
-*   **FIX — Foto de progreso se guardaba "vacía" sin avisar:** si la subida a Catbox fallaba, el backend igual creaba el registro (`photoUrl: null`) y respondía éxito — confirmado con un registro real encontrado en producción, fechado el mismo día del reporte, completamente vacío. Ahora `POST /api/body/log` distingue dos casos: si la foto era el único dato y falla, responde error (502) sin crear el registro; si había más datos (peso, métricas), los guarda igual y marca `photoFailed: true` para que el frontend avise sin perder lo demás. Se añadió timeout (15s) y 3 reintentos a la subida.
-*   **FEATURE — Migración de fotos a Cloudinary:** `uploadPhoto()` (nuevo, sustituye las 3 llamadas directas a `uploadBase64ToCatbox`) usa Cloudinary si está configurado (`CLOUDINARY_CLOUD_NAME`/`API_KEY`/`API_SECRET`), con fallback a Catbox si no. Script `server/migrate-catbox-to-cloudinary.mjs` migró el avatar y las 4 fotos de progreso existentes de la cuenta real, verificadas cargando correctamente tras el cambio.
-*   **FIX CRÍTICO — Timer de descanso entre EJERCICIOS en vez de SERIES:** `restTimer.start()` solo se llamaba una vez en todo `Workout.jsx`, dentro de `handlePrimaryAction()` (botón "Guardar", que junta TODAS las series de un ejercicio en una sola llamada a la API) — estructuralmente nunca podía ser "entre series" porque no existía ningún disparo a nivel de serie individual. Se agregó detección de la transición "serie no completada → completada" vía un único `useEffect` que compara `sets` contra un snapshot del render anterior (intentarlo leyendo una variable seteada dentro del updater de `setSets(prev => ...)` justo después de llamarlo NO funciona — React difiere la ejecución de ese updater a la fase de render, así que esa variable seguiría en su valor inicial; encontrado y corregido durante la verificación en vivo). Nuevo endpoint `POST /api/workouts/rest-reminder` (solo programa el push, sin tocar `WorkoutLog`/`SetLog`) para no tener que rediseñar cómo se persisten los datos.
-*   **FIX — Timer se quedaba congelado tras segundo plano:** `useRestTimer` decrementaba un contador simple vía `setInterval` — los navegadores móviles pausan esos timers en background, así que no reflejaba el tiempo real transcurrido al volver. Reescrito para basarse en un timestamp absoluto (`Date.now() + segundos`), recalculado en cada tick y también en `visibilitychange`/`focus`/`pageshow`. Verificado simulando 60s de background (adelantando `Date.now()`): el countdown saltó correctamente en vez de seguir congelado.
-*   **FIX — Notificaciones push se apilaban/aparecían viejas:** `sw.js` no tenía `tag` en `showNotification()`. Agregado `tag: rest-${exerciseId}` + `renotify: true` para que un aviso nuevo del mismo ejercicio reemplace al anterior (con nueva alerta) en vez de acumularse — más necesario aún ahora que los avisos son por serie en vez de por ejercicio.
-*   **Verificado end-to-end** contra la cuenta real de producción: scroll en los modales de BodyTracking y Routines (con cancelación explícita del modal de borrar rutina activa, sin tocar el dato real), ciclo completo de guardar-y-borrar una serie de prueba para confirmar el timer y la ausencia de duplicados en push, subida de foto fallida (imagen inválida, sin crear registro) y exitosa (imagen sintética, no del usuario), y la migración de las 5 fotos reales a Cloudinary. Todos los registros de prueba se limpiaron después (confirmado explícitamente con el usuario antes de cada borrado sobre datos reales).
-
-### v2.2.0 (3 Julio 2026)
-Origen: auditoría completa de código (solo lectura) seguida de una corrección exhaustiva, y luego una auditoría de experiencia real usando la cuenta de producción con datos reales (265 sesiones).
-
-*   **FIX CRÍTICO — Zona horaria (UTC vs. Ciudad de México), causa raíz compartida:** el contenedor corre en UTC pero la app es de un solo usuario, siempre en CDMX (UTC-6). Los fixes de v2.1.0 (Atajos iOS) solo cerraron dos síntomas puntuales; el mismo patrón seguía vivo en **5 sitios**: la racha y el heatmap (`stats/overview`, `stats/consistency` agrupaban por día vía `.toISOString()`, siempre UTC), la ventana de "hoy" de los endpoints de Atajos (`resolveTargetDate`/`startOfDay`/`endOfDay` seguían usando accesores locales del contenedor en el camino de `?date=` explícito), y el filtro por día de semana del historial. Todo se centralizó en helpers nuevos y compartidos en `server/src/index.js`: `mexicoCityDateStr`, `mexicoCityDayBounds`, `mexicoCityHour`, `dayOfWeekFromDateStr`. Cualquier código nuevo que agrupe/filtre por día debe usarlos — no repetir el patrón viejo.
-*   **SECURITY (auditoría completa):**
-    - Recuperación de contraseña (`POST /api/auth/recover/verify`) ahora tiene un segundo límite por **cuenta objetivo** (5 intentos/30min), no solo por IP — antes alguien con IPs rotativas podía forzar-bruta la respuesta de seguridad contra el único username sin cooldown de cuenta.
-    - `PUT /api/auth/security-question` ahora **exige la contraseña actual** (igual que cambiar contraseña) — antes un JWT robado alcanzaba para reescribir en silencio el único mecanismo de recuperación de la cuenta.
-    - **Revocación de sesión vía `User.tokenVersion`:** cambiar contraseña o pregunta de seguridad lo incrementa, invalidando todos los JWT emitidos antes (`authMiddleware` lo verifica en cada request contra el DB). Antes un token filtrado (365 días de vida) seguía siendo válido aunque se "arreglara" la cuenta. Ambas rutas devuelven un `token` nuevo en la respuesta para no cerrar la sesión de quien hizo el cambio legítimo.
-    - `cors()` ya no refleja cualquier `Origin` — bloqueado a same-origin en producción salvo que se configure `CORS_ORIGIN`.
-    - `rateLimit()` ganó soporte de `keyFn` (límite por cuenta, no solo IP/ruta) y un tope de tamaño de emergencia en el Map en memoria.
-    - Subida de imágenes a Catbox ahora valida que el contenido decodificado sea realmente una imagen (firma de bytes) y que la URL de respuesta tenga el formato esperado — antes se confiaba a ciegas en ambos.
-    - `helmet()` agregado (cabeceras de seguridad estándar; CSP desactivada a propósito, rompía los assets de este build de Vite). `jwt.verify` ahora fija `algorithms: ['HS256']`. Longitud mínima de contraseña (8) aplicada server-side en registro/cambio/recuperación.
-*   **INTEGRIDAD DE DATOS:**
-    - `WorkoutLog.exercise` ahora declara `onDelete: Restrict` explícito en el schema (antes dependía del default implícito de Postgres — un `onDelete: Cascade` "corrector" bien intencionado se habría llevado el historial).
-    - `PUT` y `DELETE /api/routines/:id` envueltos en `prisma.$transaction` — antes una rutina grande podía quedar parcialmente actualizada si algo fallaba a la mitad.
-    - Fallback de `targetSets` (`|| 3`) aplicado consistentemente en los 3 caminos de escritura del editor de rutinas — antes 2 de 3 podían persistir `NaN` y romper en silencio la detección de "día completo".
-    - `recalcPRForExercise` ahora ordena los logs por fecha ascendente — antes un empate exacto de 1RM estimado podía hacer que la fecha del PR "saltara" entre recálculos según el orden arbitrario de Postgres.
-    - Nuevos índices (`WorkoutLog.exerciseId/date`, `Exercise.routineDayId/name`) en columnas de alto tráfico sin ninguno antes.
-    - Validación de rango en métricas de `/api/body` y `/api/body/log` (antes un `NaN` o un valor absurdo se guardaba tal cual).
-*   **DEPENDENCIAS:** `jspdf` y `react-router-dom` actualizados vía `npm audit fix` (tenían CVEs crítica y altas respectivamente) — 0 vulnerabilidades en cliente y servidor.
-*   **FEATURE — Recordatorio de re-enganche:** `checkReengagementReminders` (revisa cada 30 min) infiere la hora habitual de gym del usuario (moda de la hora del día en sus últimas ~40 sesiones reales) y, si lleva 3+ días sin registrar actividad, manda un push "¿No vas a entrenar hoy?" a esa hora — máximo uno por día (`User.lastReengagementNotifiedAt`). No-op sin VAPID configurado, mismo criterio que `scheduleRestReminder` (con quien ahora comparte el helper `sendPushToUser`).
-*   **FIX — Fricciones de experiencia real (encontradas usando la app con la cuenta de producción, no solo leyendo código):**
-    - La insignia "SUGERIDO" en `Workout.jsx` no rellenaba el set al tocarla — el handler existía pero sobrescribía las 3 series en vez de solo la primera vacía. Ahora rellena solo la primera serie sin peso/reps, sin pisar lo que ya escribiste.
-    - Las medallas de `AchievementsStrip.jsx` invitaban a "tocar para ver cómo conseguirla" pero no abrían nada. Ahora abren un modal con ícono, descripción, progreso real y estado de desbloqueo.
-    - Temporizador de descanso visual agregado en `Workout.jsx` (respaldo de la notificación push, poco fiable en iOS Safari/PWA) — **se corrigió en la primera verificación**: se cancelaba solo al avanzar de ejercicio, que pasa ~300ms después de guardar una serie por el auto-avance; el descanso real sigue corriendo aunque cambie la vista, así que ya no se cancela ahí.
-    - `POST /api/goals` ahora rechaza (409) un objetivo duplicado exacto (mismo ejercicio+peso+reps, no cumplido) — se encontró un caso real de dos objetivos idénticos en la cuenta de producción sin ningún aviso.
-*   **FRONTEND (auditoría):** manejo de fallos de red centralizado en `services/api.js` (`safeFetch`, antes solo un método de ~41 tenía try/catch de red), `logout()` revoca la suscripción push del dispositivo, `Dashboard.jsx` ahora muestra errores (antes era la única pantalla sin toasts), doble-submit corregido en el tab Manual de `Import.jsx`, caché local de `Workout.jsx` invalidado tras editar una sesión desde `EditSession.jsx`, `GoalModal.jsx` (código muerto, fórmula 1RM duplicada y desincronizada) eliminado, y una decena de fixes menores (`BodyTracking.jsx` mostraba siempre "(30d)" aunque el dato más cercano fuera de hace meses, truncado de texto seguro para emojis en `ExportReport.jsx`, `EditRoutine.jsx` usa toasts en vez de `alert()`, trims de input en Login/Register/ForgotPassword).
-*   **Verificado end-to-end** contra la cuenta real de producción: login, una sesión de entreno completa (registro y borrado de series de prueba), racha/heatmap, progreso, cuerpo, configuración, el modal de logros, el 409 de objetivo duplicado y el temporizador de descanso sobreviviendo el cambio de ejercicio.
-
-### v2.1.0 (2 Julio 2026)
-*   **FEATURE — Atajo de iOS (Shortcuts):** Nuevos endpoints `GET /api/shortcuts/next-set` (resuelve rutina activa → día de hoy [mismo criterio de nombre de día que el Dashboard] → próximo ejercicio sin completar → sugerencia de Smart Loading, todo en JSON plano sin anidar) y `POST /api/shortcuts/log-set` (registra UNA serie; agrupa en el `WorkoutLog` de hoy si ya existe uno para ese ejercicio, en vez de fragmentar). Auth: el mismo Bearer JWT de siempre (365 días), sin mecanismo nuevo — se obtiene una vez con `POST /api/auth/login` y se pega en el Atajo. El algoritmo de Smart Loading (doble progresión + RIR) y la lógica de "qué día toca" (antes solo en `Workout.jsx`/`Dashboard.jsx`) se portaron al backend como funciones puras.
-*   **FEATURE — Notificaciones Web Push (recordatorio de descanso):** Nuevo modelo `PushSubscription`. Al registrar una serie (vía PWA o el Atajo) se agenda un recordatorio (`restSeconds` del ejercicio, 90s por defecto) que envía una notificación push real cuando expira — funciona con la PWA en segundo plano, incluyendo iOS 16.4+ (solo si la app está añadida a la pantalla de inicio, no en pestaña de Safari). Service worker (`sw.js`) con listeners `push`/`notificationclick`. Toggle en Configuración → Cuenta. Timer en memoria (no persistente): no sobrevive a un reinicio del servidor a mitad del descanso — aceptado dado el tamaño del proyecto. Variables opcionales `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`; sin ellas la función queda en no-op.
-*   **FIX CRÍTICO — Objetivos marcaban "cumplido" prematuramente:** `GoalCard.jsx` comparaba el 1RM (Epley) del mejor set de las últimas 3 sesiones contra la meta, sin importar cuántas reps tenía ese set. Una serie submáxima de muchas reps (p. ej. 100kg×7) podía superar por extrapolación una meta exigente a pocas reps (p. ej. 120kg×1) aunque el usuario nunca hubiera probado nada cerca de ese peso a esas reps — confirmado contra datos reales de producción (un caso real: 100kg×7 daba una estimación de 123.3kg superando una meta de 120kg×1, mientras el máximo real probado — 115kg×1 a RPE 10, el mismo día — quedaba descartado por dar un Epley "menor"). Nueva función `bestOneRepMaxForTarget` (en `utils/exerciseName.js`, cliente y servidor): solo cuentan series con reps ≤ target+1. El backend (`GET /api/goals`) ahora calcula y persiste `achievedAt` de forma independiente y autoritativa (nunca confía en un flag del cliente); es una puerta de un solo sentido, como un PR. El checklist manual de semanas sigue sin poder forzar "cumplido" por sí solo.
-*   **FEATURE — Deduplicación de ejercicios vía LLM (`ExerciseAgentService`):** Al importar una rutina JSON (y al añadir un ejercicio nuevo a un día existente), `server/src/services/exerciseAgent.js` hace UNA sola llamada a OpenAI (gpt-4o-mini) por operación para clasificar cada ejercicio entrante contra el catálogo existente del usuario (incluye archivados), evitando duplicados como "Press Banca" / "press de banca" / "Bench Press". Conservador por diseño (nunca fusiona variantes de equipamiento distintas). Sin `OPENAI_API_KEY`, o si la llamada falla/da JSON inválido, cae automáticamente al matching determinista existente (`canonicalExerciseKey`) sin romper el import — un elemento malformado en la respuesta del LLM solo afecta a ese elemento, no a todo el lote.
-*   **CHORE:** `server/.env.example` (no existía) documentando todas las variables. Documentado que el schema de Prisma se sincroniza con `db push` (no hay `migrations/`; `migrate dev` pide resetear todo el schema).
-
-### v2.0.1 (29 May 2026)
-*   **CONSOLIDACIÓN DE EJERCICIOS (`utils/exerciseName.js`):** Nuevo módulo que identifica el "mismo" ejercicio aunque su nombre varíe entre rutinas (abreviaturas "elev."→"elevaciones", plurales, prefijos de orden "A1.", tildes y **sufijos de grupo muscular entre paréntesis** como "(bíceps)"). Conservador: NO fusiona variantes de equipamiento legítimas ("press inclinado (mancuernas)" ≠ "(hammer o smith)"). Funciones: `canonicalExerciseKey`, `normalizeExerciseName`, `groupHistoryByExercise`, `best1RMRecent`, `epley1RM`.
-*   **FIX — Objetivos no mostraban todos los ejercicios:** `NewGoal` construía la lista solo desde la 1ª copia de cada ejercicio en las rutinas (a veces con `muscleGroup` null → invisible al filtrar por músculo). Ahora consolida rutinas + catálogo (`/exercises`, incluye archivados) + historial, resolviendo el grupo muscular con el primer valor no-nulo de cualquier copia. Filtro de músculo case-insensitive + **buscador global** + orden por nº de sesiones.
-*   **FIX — "Faltan datos de fuerza inicial" con historial:** El conteo de sesiones de `NewGoal` y el emparejado de `GoalSection`/`GoalCard` ahora usan la misma clave canónica, así un objetivo encuentra su historial pese a variantes del nombre (p. ej. "curl martillo (bíceps)" hereda el historial de "curl martillo"). Además, al crear un objetivo con historial se **persiste un snapshot de `currentOneRepMax`** (mejor 1RM de las últimas 3 sesiones) como respaldo: la tarjeta nunca vuelve a quedarse sin fuerza inicial aunque falle el emparejado de display.
-*   **FIX — Sugerencias de Workout (Smart Loading):** El algoritmo tomaba el peso máximo absoluto (un single de tope) como peso de trabajo y el **mínimo** de reps, sugiriendo a veces **bajar** el peso (ej.: tras 120×8/120×7 sugería 117.5×8). Ahora la referencia es la **serie de trabajo más fuerte** (mayor 1RM estimado), usa las **mejores** reps a ese peso (no penaliza la fatiga entre series) y nunca propone bajar la carga. Redondeo de peso sensato (mantiene la rejilla del incremento en barras; medio kilo en poleas/placas con valores no redondos). `aplicar sugerencia` ahora rellena también el lado derecho en unilateral.
-*   **UI — Logros (Dashboard):** Rediseño de `AchievementsStrip`: cada medalla muestra **nombre + estado/progreso** (no solo un emoji con tooltip, que no funciona en móvil). Tarjeta de detalle del logro seleccionado (o el próximo a conseguir por defecto) con barra de progreso; toca una medalla para ver cómo desbloquearla.
-
-### v2.0.0 (28 May 2026)
-*   **PWA REAL:** Añadido service worker (`client/public/sw.js`) → la app es instalable y funciona offline (assets cache-first, navegación network-first con shell offline, API network-first con respaldo). Registrado en `main.jsx` (solo producción).
-*   **PERF:** Code-splitting con `React.lazy`/`Suspense` de las rutas pesadas. El bundle inicial bajó de ~876 KB a ~272 KB (jsPDF/html2canvas y recharts se cargan solo al abrir sus pantallas).
-*   **FEATURE — Logros y rachas:** Sistema de logros derivado de las stats reales (`utils/achievements.js` + `components/AchievementsStrip.jsx`), con medallas, progreso al siguiente logro y notificación al desbloquear. Integrado en el Dashboard.
-*   **FEATURE — Estándares de fuerza:** Nueva pestaña "Fuerza" en Progreso con calculadora de 1RM (Epley) y nivel por ejercicio (Principiante→Élite) según múltiplo de 1RM sobre el peso corporal (`data/strengthStandards.js` + `utils/strength.js`).
-*   **UI:** Dashboard enriquecido (logros + volumen semanal). `background_color` del manifest alineado a OLED.
-
-### v1.9.9 (28 May 2026)
-*   **BACKEND ÚNICO:** Eliminados `api/` (serverless de Vercel), `vercel.json` y `shared/` (código muerto). Ahora hay un solo backend (`server/src/index.js`) y un solo `schema.prisma`. Deploy en VPS con Docker/EasyPanel; `Dockerfile` ajustado.
-*   **SECURITY:** El server no arranca en producción sin `JWT_SECRET` (antes usaba un secreto por defecto público → tokens falsificables). Rate limiting en `login`/`register`/`recover`. `trust proxy` para IP real tras EasyPanel. Validación server-side de peso/reps (0-2000 kg / 0-1000 reps).
-*   **PRs CORRECTOS:** Los récords se recalculan desde los logs reales al crear/editar/eliminar sesiones (antes quedaban récords fantasma al editar a la baja o borrar). El recálculo considera el lado unilateral.
-*   **FRONTEND (auditoría):** Manejo central de 401 (logout+redirect), `JSON.parse` seguro y sin logout ante caídas de red en AuthContext, ruta catch-all, fugas de blob URL corregidas (Profile/BodyTracking), `border-3` inexistente → `border-2`, IDs de plantillas rotos remapeados (14 tipos), propagación de `muscleGroup`/`isUnilateral`, race condition del historial de Settings, fechas UTC del PDF, IDs de Toast únicos, emoji corrupto en MuscleIcon, `--bg-body` inexistente → `--bg-dark`.
-*   **`/body/log`:** acepta registros con solo composición corporal (sin peso/foto).
-
-### v1.9.8 (28 May 2026)
-*   **DATA INTEGRITY (PROD):** El backend serverless (`api/index.js`) ahora archiva ejercicios con historial al editar/eliminar rutinas (antes los borraba en duro → crash P2003 y pérdida de logs). Añadido `GET /routines/trash` y exclusión de la rutina-papelera en `GET /routines`.
-*   **DATA INTEGRITY:** El backup JSON (Settings) ahora incluye `weightRight`, `repsRight`, `rpe` (RIR) e `isUnilateral`/`restSeconds` (antes se perdían).
-*   **AI REMOVED:** Eliminada la sugerencia vía GPT-4o-mini y el endpoint `/api/ai/suggest`. Sustituida por cálculo local de **peso y reps** (doble progresión + autorregulación por RIR sobre la última sesión completa).
-*   **UNILATERAL:** Mejor marca previa, sugerencia, detección de PR, modal de historial, historial de Settings y reporte PDF ahora consideran/ muestran el lado derecho (lado débil para cálculos). Corregido el `memo` de SetCard que congelaba el input de peso derecho.
-*   **GOALS:** Tope de progresión escalado al 2.5% del 1RM (antes 1kg/sem fijo, irreal en piernas), sin inflar planes cortos a 12 semanas, y 1RM actual robusto (mejor de las últimas 3 sesiones) coherente entre barra de progreso y semanas completadas. Sesiones agrupadas por fecha local (no UTC).
-
-### v1.9.6 (29 Mar 2026)
-*   **FEATURE:** Soporte de ejercicios unilaterales en Workout (inputs IZQ/DER separados).
-*   **AI:** Sugerencia de carga vía GPT-4o-mini analizando historial con RIR.
-*   **FIX:** Alineación correcta del calendario heatmap (semanas empiezan en lunes).
-*   **FIX:** Streak ya cuenta días de descanso programados automáticamente.
-*   **FEATURE:** Historial ilimitado en Configuración con filtros (búsqueda, rango de fechas, día de semana).
-*   **FIX:** PDFs incluyen datos de RIR por serie y columna 1RM estimado en tabla de PRs.
-*   **GOALS:** Progreso automático desde historial real (1RM vs proyección por semana).
-*   **API:** Endpoint `PUT /api/workouts/fix-weights` para corrección masiva de pesos en DB.
-
-### v1.9.5 (28 Ene 2026)
-
-*   **DATA INTEGRITY:** Implementación de "Papelera de Historial" (Smart Archive). Los ejercicios con logs ya no se eliminan al editar rutinas; se mueven a una rutina de sistema oculta para proteger los datos.
-*   **SMART RESTORE:** Lógica automatizada en el backend que detecta si un ejercicio nuevo (o renombrado) ya existe en la papelera. Si coincide el nombre (insensible a mayúsculas), restaura el ejercicio original preservando su ID único y todo su historial.
-*   **FIX:** Corregidos errores 500 (P2003) al intentar eliminar ejercicios que tenían registros vinculados.
-*   **UI:** Nueva sección "Papelera de Historial" integrada en **Configuración > Historial**, permitiendo acceso y gestión de ejercicios archivados.
-
-### v1.9.4 (13 Ene 2026)
-*   **CORE FIX:** Corrección en `GoalCard.jsx` para normalizar el input manual de 1RM con la fórmula de Epley, evitando "easy mode" accidental.
-*   **ALGORITMO:** Suavizado (Smoothing) de la curva de intensidad en la fase de fuerza (0.75-0.85) para conectar fluidamente con el Peaking.
-*   **DOCS:** Restauración masiva de documentación detallada en `context.md`.
-
-### v1.9.3 (12 Ene 2026)
-*   **UI:** Rediseño total de la página de Configuración (`Settings.jsx`). Tabs, animaciones y mejor UX.
-*   **FEATURE:** Nueva herramienta de "Clasificación Muscular" en Settings.
-*   **FEATURE:** Exportación de Backup completo (JSON) desde el cliente.
-*   **SECURITY:** Implementada pregunta de seguridad y recuperación de contraseña sin email.
-
-### v1.9.2 (11 Ene 2026)
-*   **PDF:** Mejora en el motor de reportes. Añadida sección de "Detalle Diario" con comparativas de volumen.
-*   **DATA:** Extensión del modelo `BodyLog` para soportar métricas de bioimpedancia (agua, hueso, etc.).
-
-### v1.9.0 (Ene 2026)
-*   **MAJOR:** Lanzamiento del sistema de **Goals** (Objetivos).
-*   **ALGO:** Implementación inicial del motor de periodización ondulatoria.
-
-### v1.8.x (Dic 2025)
-*   Migración a PostgreSQL + Prisma.
-*   Sistema Multi-usuario (Auth JWT).
+**Versión actual: 2.4.1** (7 Julio 2026) — sesiones parciales del Atajo de iOS, conversión de RIR en `/api/shortcuts/log-set`, dedup de notificaciones de descanso y fix del aviso fantasma al recargar.
 
 ---
 
