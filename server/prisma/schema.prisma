@@ -59,6 +59,7 @@ model User {
   personalRecords   PersonalRecord[]
   goals             Goal[]
   pushSubscriptions PushSubscription[]
+  pendingReminders  PendingReminder[]
 
   @@index([email])
   @@index([username])
@@ -135,6 +136,7 @@ model Exercise {
   routineDayId String
   routineDay   RoutineDay   @relation(fields: [routineDayId], references: [id], onDelete: Cascade)
   workoutLogs  WorkoutLog[]
+  pendingReminders PendingReminder[]
 
   @@index([routineDayId])
   @@index([name])
@@ -270,4 +272,23 @@ model PushSubscription {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// Recordatorio de descanso pendiente, persistido además del `setTimeout` en
+// memoria (ver scheduleRestReminder en server/src/index.js) — un redeploy o
+// reinicio del contenedor a mitad de un descanso perdía el push en silencio
+// antes de v2.5.1. El `@@unique` cumple el mismo rol que la clave
+// `${userId}:${exerciseId}` del Map en memoria: como mucho una fila pendiente
+// por usuario+ejercicio (agendar una nueva reemplaza a la anterior).
+model PendingReminder {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId       String
+  exercise         Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  fireAt           DateTime
+  nextExerciseName String?
+  createdAt        DateTime @default(now())
+
+  @@unique([userId, exerciseId])
 }

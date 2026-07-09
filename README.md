@@ -5,7 +5,7 @@
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-![Version](https://img.shields.io/badge/Version-2.5.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-2.5.1-blue?style=flat-square)
 
 ---
 
@@ -215,6 +215,9 @@ cd server && npm test   # node --test — server/src/logic.js
 ## 📜 Changelog
 
 Historial completo y detallado (con causa raíz de cada fix) en [`.agent/context.md`](.agent/context.md). Resumen de versiones recientes:
+
+### v2.5.1 (9 Jul 2026) — Recordatorios de descanso persistentes
+Los avisos de "descanso terminado" ahora sobreviven un redeploy/reinicio del servidor a mitad del descanso (nuevo modelo `PendingReminder`, espejo en DB del temporizador en memoria) — antes se perdían en silencio.
 
 ### v2.5.0 (9 Jul 2026) — Backup automático y tests de funciones puras
 Backup diario (~04:00 CDMX) de rutinas/entrenamientos/PRs/body logs/goals a Cloudinary (`raw`+`authenticated`, retención de 14), con endpoint de corrida manual, estado en `/api/health` y script de restauración documentado y probado (`server/restore-backup.mjs`). Además, primera suite de tests automatizados del proyecto: funciones puras extraídas a `server/src/logic.js` y `client/src/utils/smartLoading.js`, con tests de paridad cliente/servidor.

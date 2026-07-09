@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 2.5.0 | **Última actualización:** 9 Julio 2026
+> **Versión:** 2.5.1 | **Última actualización:** 9 Julio 2026
 > **Historial de versiones:** [`changelog.md`](changelog.md) (movido ahí para que este archivo quepa en una sola lectura de una IA) | **Schema:** `server/prisma/schema.prisma` (única copia, no se duplica aquí)
 
 ---
@@ -297,6 +297,7 @@ Resumen de los 12 modelos:
 | `RestLog` | Día de descanso registrado | Cuenta para la racha |
 | `BodyLog` | Composición corporal | `photoUrl` (Cloudinary/Catbox), métricas de bioimpedancia |
 | `PushSubscription` | Web Push por dispositivo | `endpoint` único; se revoca en logout |
+| `PendingReminder` | Recordatorio de descanso pendiente (v2.5.1) | Espejo en DB del `setTimeout` en memoria; `@@unique([userId, exerciseId])`; recuperado al arrancar por `restorePendingReminders()` |
 
 ---
 
@@ -444,6 +445,15 @@ Job diario (~04:00 CDMX, mismo patrón `setInterval` que `checkReengagementRemin
 ### 7. Tests automatizados: qué NO está cubierto (v2.5.0)
 Ver Gotcha #4 arriba (sección "Sin tests automatizados", renombrada). Solo lógica pura tiene tests — `server/src/logic.js` y `client/src/utils/{exerciseName,smartLoading}.js`. Si extraes una función pura nueva de `index.js`/`Workout.jsx`, considera moverla a `logic.js`/`smartLoading.js` y agregarle un test ahí en vez de dejarla inline sin cobertura.
 
+### 8. Recordatorios de descanso persistentes (v2.5.1)
+Antes de v2.5.1, `scheduleRestReminder` vivía SOLO en memoria (`setTimeout` + `Map` en `server/src/index.js`) — cualquier redeploy o reinicio del contenedor a mitad de un descanso perdía el push en silencio. Con deploys frecuentes en EasyPanel esto pasaba en la práctica.
+
+- **Modelo `PendingReminder`** (`userId`, `exerciseId`, `fireAt`, `nextExerciseName`, `@@unique([userId, exerciseId])`): `scheduleRestReminder` ahora hace `upsert` de esta fila ADEMÁS de agendar el `setTimeout` — mismo unique que ya usaba el `Map` en memoria para el dedup, así que agendar un recordatorio nuevo reemplaza al pendiente anterior en ambos lados a la vez (memoria y DB).
+- **`firePendingReminder(userId, exerciseId, exerciseName, nextExerciseName)`** centraliza el disparo real (enviar el push + borrar la fila de `PendingReminder` + limpiar el `Map`) — compartido por el `setTimeout` normal Y por `restorePendingReminders()`, para no duplicar esa lógica en dos sitios.
+- **`restorePendingReminders()`**, llamado una vez desde `startServer()` (después de `prisma.$connect()`, antes de `app.listen()`): lee TODAS las filas de `PendingReminder` al arrancar. `fireAt` en el futuro → reagenda un `setTimeout` con el tiempo restante EXACTO (no un valor fijo). `fireAt` pasado hace menos de 5 minutos → dispara de inmediato (el aviso todavía sirve). Más viejo que eso → borra la fila sin disparar (un aviso de "descanso terminado" de hace 20 minutos ya no es útil, y podría confundir).
+- No-op completo si `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` no están configuradas (mismo criterio que antes) — en ese caso ni siquiera se escribe la fila en `PendingReminder`.
+- Verificado en vivo (usuario y ejercicios 100% sintéticos, borrados después): recordatorio con `restSeconds` largo → reinicio real del proceso a mitad del descanso → log `"1 reagendado(s)"` al arrancar → dispara a la hora correcta y limpia la fila. Ráfaga de 2 llamadas casi seguidas → una sola fila en DB (mismo `id`, `fireAt`/`nextExerciseName` de la más reciente) — dedup intacto. Fila insertada a mano con `fireAt` de hace 10 minutos → reinicio → log `"1 descartado(s) por viejos"`, fila borrada, nada disparado.
+
 ---
 
 ## 📝 Guía para Modificar Documentación
@@ -462,7 +472,7 @@ Para mantener esta documentación al día:
 
 El historial completo de versiones vive en [`changelog.md`](changelog.md).
 
-**Versión actual: 2.5.0** (9 Julio 2026) — backup automático diario a Cloudinary con restore probado, y primera suite de tests automatizados (funciones puras + paridad cliente/servidor).
+**Versión actual: 2.5.1** (9 Julio 2026) — recordatorios de descanso persistentes (sobreviven un redeploy/reinicio a mitad del descanso), sobre la base de v2.5.0 (backup automático a Cloudinary + primera suite de tests).
 
 ---
 

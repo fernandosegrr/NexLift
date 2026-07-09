@@ -329,7 +329,35 @@ async function sendPushToUser(userId, payload) {
 
 // Recordatorios pendientes por usuario+ejercicio, para poder cancelar uno
 // viejo si llega uno nuevo antes de que dispare (ver scheduleRestReminder).
+// Además del setTimeout en memoria, cada uno se refleja en PendingReminder (DB) —
+// ver P2 del plan de mejoras: un redeploy/reinicio a mitad de un descanso ya no
+// pierde el push en silencio, porque restorePendingReminders() lo recupera al
+// arrancar (ver más abajo, llamado desde startServer()).
 const pendingRestReminders = new Map(); // key: `${userId}:${exerciseId}`
+
+// Envía el push y limpia tanto el Map en memoria como la fila en DB. Compartido
+// por el disparo normal (setTimeout) y por restorePendingReminders() (recordatorio
+// vencido hace poco al arrancar, o el que se reagenda y eventualmente dispara).
+async function firePendingReminder(userId, exerciseId, exerciseName, nextExerciseName) {
+    const key = `${userId}:${exerciseId}`;
+    pendingRestReminders.delete(key);
+    try {
+        // Si la serie que se acaba de completar era la última de este ejercicio,
+        // el descanso es para el ejercicio SIGUIENTE, no este.
+        const body = nextExerciseName
+            ? `Es hora de tu siguiente serie de ${nextExerciseName}`
+            : `Es hora de tu siguiente serie de ${exerciseName}`;
+        await sendPushToUser(userId, JSON.stringify({
+            title: 'Descanso terminado',
+            body,
+            exerciseId
+        }));
+    } catch (err) {
+        console.error('Error in scheduleRestReminder:', err.message);
+    } finally {
+        await prisma.pendingReminder.deleteMany({ where: { userId, exerciseId } }).catch(() => {});
+    }
+}
 
 async function scheduleRestReminder(userId, exercise, nextExerciseName) {
     if (!VAPID_CONFIGURED) return; // feature no configurada: no-op, no rompe el flujo de logging
@@ -344,26 +372,66 @@ async function scheduleRestReminder(userId, exercise, nextExerciseName) {
     if (existingTimeout) clearTimeout(existingTimeout);
 
     const restMs = (exercise.restSeconds || 90) * 1000;
+    const fireAt = new Date(Date.now() + restMs);
 
-    const timeout = setTimeout(async () => {
-        pendingRestReminders.delete(key);
-        try {
-            // Si la serie que se acaba de completar era la última de este
-            // ejercicio, el descanso es para el ejercicio SIGUIENTE, no este.
-            const body = nextExerciseName
-                ? `Es hora de tu siguiente serie de ${nextExerciseName}`
-                : `Es hora de tu siguiente serie de ${exercise.name}`;
-            await sendPushToUser(userId, JSON.stringify({
-                title: 'Descanso terminado',
-                body,
-                exerciseId: exercise.id
-            }));
-        } catch (err) {
-            console.error('Error in scheduleRestReminder:', err.message);
-        }
+    // Persistir ANTES de agendar el setTimeout: si el proceso muere entre este
+    // punto y que dispare, restorePendingReminders() lo recupera al reiniciar
+    // leyendo esta fila. El @@unique([userId, exerciseId]) hace que esto sea un
+    // upsert-reemplazo, igual que el clearTimeout de arriba para el Map en memoria.
+    try {
+        await prisma.pendingReminder.upsert({
+            where: { userId_exerciseId: { userId, exerciseId: exercise.id } },
+            create: { userId, exerciseId: exercise.id, fireAt, nextExerciseName: nextExerciseName || null },
+            update: { fireAt, nextExerciseName: nextExerciseName || null }
+        });
+    } catch (err) {
+        console.error('Error guardando recordatorio pendiente:', err.message);
+    }
+
+    const timeout = setTimeout(() => {
+        firePendingReminder(userId, exercise.id, exercise.name, nextExerciseName);
     }, restMs);
     timeout.unref?.();
     pendingRestReminders.set(key, timeout);
+}
+
+// Al arrancar: recupera lo que quedó pendiente en DB de un reinicio/redeploy
+// anterior. Futuro -> reagenda con el tiempo restante exacto; vencido hace <5min
+// -> dispara ya (todavía es útil); más viejo -> descarta sin avisar (un aviso de
+// descanso de hace 20 min ya no sirve de nada).
+async function restorePendingReminders() {
+    if (!VAPID_CONFIGURED) return;
+    try {
+        const pending = await prisma.pendingReminder.findMany({ include: { exercise: true } });
+        if (pending.length === 0) return;
+
+        const FIVE_MIN_MS = 5 * 60 * 1000;
+        const now = Date.now();
+        let rescheduled = 0, firedNow = 0, discarded = 0;
+
+        for (const reminder of pending) {
+            const delay = reminder.fireAt.getTime() - now;
+            const key = `${reminder.userId}:${reminder.exerciseId}`;
+
+            if (delay > 0) {
+                const timeout = setTimeout(() => {
+                    firePendingReminder(reminder.userId, reminder.exerciseId, reminder.exercise.name, reminder.nextExerciseName);
+                }, delay);
+                timeout.unref?.();
+                pendingRestReminders.set(key, timeout);
+                rescheduled++;
+            } else if (delay > -FIVE_MIN_MS) {
+                await firePendingReminder(reminder.userId, reminder.exerciseId, reminder.exercise.name, reminder.nextExerciseName);
+                firedNow++;
+            } else {
+                await prisma.pendingReminder.delete({ where: { id: reminder.id } }).catch(() => {});
+                discarded++;
+            }
+        }
+        console.log(`🔔 Recordatorios de descanso al arrancar: ${rescheduled} reagendado(s), ${firedNow} disparado(s) de inmediato, ${discarded} descartado(s) por viejos.`);
+    } catch (err) {
+        console.error('Error restaurando recordatorios de descanso:', err.message);
+    }
 }
 
 // ============================================
@@ -3252,6 +3320,8 @@ async function startServer() {
         console.log('🔄 Testing database connection...');
         await prisma.$connect();
         console.log('✅ Database connected successfully');
+
+        await restorePendingReminders();
 
         app.listen(PORT, () => {
             console.log(`🏋️ NexLift API running on http://localhost:${PORT}`);
