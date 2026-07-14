@@ -484,9 +484,22 @@ export default function ExportReport() {
                 ...Object.keys(lastWeekExercises)
             ])];
 
+            const lastWeekExerciseCount = Object.keys(lastWeekExercises).length;
+            const todayExerciseCount = Object.keys(todayExercises).length;
+
             const volumeChange = lastWeekStats.volume > 0
                 ? ((todayStats.volume - lastWeekStats.volume) / lastWeekStats.volume * 100).toFixed(1)
                 : null;
+
+            // Si hoy va muy por debajo (0 volumen, o menos de la mitad de ejercicios y
+            // del volumen), la % engaña: suele ser sesión aún en curso, no un -100% real.
+            const comparisonIncomplete = lastWeekStats.volume > 0 && (
+                todayStats.volume <= 0
+                || (
+                    todayExerciseCount < Math.max(1, Math.ceil(lastWeekExerciseCount * 0.5))
+                    && todayStats.volume < lastWeekStats.volume * 0.5
+                )
+            );
 
             const weekdayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
             const weekdayName = weekdayNames[new Date(`${todayStr}T12:00:00Z`).getUTCDay()];
@@ -497,12 +510,14 @@ export default function ExportReport() {
                 weekdayName,
                 todayVolume: todayStats.volume,
                 todaySets: todayStats.sets,
-                todayExerciseCount: Object.keys(todayExercises).length,
+                todayExerciseCount,
+                lastWeekExerciseCount,
                 todayPRs: todayPRs,
                 lastWeekVolume: lastWeekStats.volume,
                 lastWeekSets: lastWeekStats.sets,
                 volumeChange: volumeChange,
                 volumeDelta: todayStats.volume - lastWeekStats.volume,
+                comparisonIncomplete,
                 exercises: allExerciseNames.map(name => ({
                     name,
                     today: todayExercises[name] || [],
@@ -712,28 +727,53 @@ export default function ExportReport() {
 
                 // Comparación de volumen vs semana pasada
                 if (dc.lastWeekVolume > 0) {
-                    const volChangeNum = parseFloat(dc.volumeChange);
-                    const isPositive = volChangeNum > 0;
-                    doc.setFillColor(...COLORS.bgAlt);
-                    doc.roundedRect(margin, builder.y, w - margin * 2, 18, 3, 3, 'F');
+                    if (dc.comparisonIncomplete) {
+                        // No pintar -100% en rojo: la sesión de pesas aún no está completa
+                        doc.setFillColor(255, 251, 235); // amber soft
+                        doc.roundedRect(margin, builder.y, w - margin * 2, 22, 3, 3, 'F');
 
-                    doc.setFontSize(9);
-                    doc.setFont('helvetica', 'normal');
-                    doc.setTextColor(...COLORS.textMedium);
-                    doc.text('Volumen vs semana pasada:', margin + 5, builder.y + 7);
+                        doc.setFontSize(9);
+                        doc.setFont('helvetica', 'bold');
+                        doc.setTextColor(...COLORS.yellow);
+                        doc.text('Sesion de pesas incompleta o en curso', margin + 5, builder.y + 8);
 
-                    doc.setFontSize(11);
-                    doc.setFont('helvetica', 'bold');
-                    doc.setTextColor(...(isPositive ? COLORS.green : COLORS.red));
-                    doc.text(
-                        `${isPositive ? '+' : ''}${dc.volumeChange}% (${isPositive ? '+' : ''}${Math.round(dc.volumeDelta).toLocaleString()}kg)`,
-                        margin + 5, builder.y + 14
-                    );
+                        doc.setFontSize(8);
+                        doc.setFont('helvetica', 'normal');
+                        doc.setTextColor(...COLORS.textMedium);
+                        const hoyLbl = dc.todayVolume > 0
+                            ? `Parcial hoy: ${Math.round(dc.todayVolume).toLocaleString()} kg x r`
+                            : 'Sin volumen de pesas registrado hoy';
+                        // Sin tildes/em-dash: helvetica de jsPDF no renderiza bien unicode en todos los entornos
+                        doc.text(
+                            `${hoyLbl}  |  ${dc.weekdayName} pasado: ${Math.round(dc.lastWeekVolume).toLocaleString()} kg x r - % no aplica aun`,
+                            margin + 5,
+                            builder.y + 16
+                        );
+                        builder.y += 28;
+                    } else {
+                        const volChangeNum = parseFloat(dc.volumeChange);
+                        const isPositive = volChangeNum > 0;
+                        doc.setFillColor(...COLORS.bgAlt);
+                        doc.roundedRect(margin, builder.y, w - margin * 2, 18, 3, 3, 'F');
 
-                    doc.setFontSize(8);
-                    doc.setTextColor(...COLORS.textLight);
-                    doc.text(`Hoy: ${Math.round(dc.todayVolume).toLocaleString()}kg  |  Anterior: ${Math.round(dc.lastWeekVolume).toLocaleString()}kg`, w - margin - 5, builder.y + 11, { align: 'right' });
-                    builder.y += 25;
+                        doc.setFontSize(9);
+                        doc.setFont('helvetica', 'normal');
+                        doc.setTextColor(...COLORS.textMedium);
+                        doc.text('Volumen vs semana pasada:', margin + 5, builder.y + 7);
+
+                        doc.setFontSize(11);
+                        doc.setFont('helvetica', 'bold');
+                        doc.setTextColor(...(isPositive ? COLORS.green : COLORS.red));
+                        doc.text(
+                            `${isPositive ? '+' : ''}${dc.volumeChange}% (${isPositive ? '+' : ''}${Math.round(dc.volumeDelta).toLocaleString()}kg)`,
+                            margin + 5, builder.y + 14
+                        );
+
+                        doc.setFontSize(8);
+                        doc.setTextColor(...COLORS.textLight);
+                        doc.text(`Hoy: ${Math.round(dc.todayVolume).toLocaleString()}kg  |  Anterior: ${Math.round(dc.lastWeekVolume).toLocaleString()}kg`, w - margin - 5, builder.y + 11, { align: 'right' });
+                        builder.y += 25;
+                    }
                 }
 
                 // PRs logrados hoy
@@ -1323,28 +1363,48 @@ export default function ExportReport() {
                             </div>
                         )}
 
-                        {/* Daily Comparison Preview - Solo estadística de volumen */}
+                        {/* Daily Comparison Preview — no asustar con -100% si la sesión va a medias */}
                         {computed.dailyComparison && computed.dailyComparison.lastWeekVolume > 0 && (
-                            <div className={`rounded-lg p-3 border ${parseFloat(computed.dailyComparison.volumeChange) >= 0
-                                ? 'bg-green-500/10 border-green-500/20'
-                                : 'bg-red-500/10 border-red-500/20'
-                                }`}>
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">
-                                            vs {computed.dailyComparison.weekdayName} pasado
-                                        </p>
-                                        <p className={`text-xl font-bold ${parseFloat(computed.dailyComparison.volumeChange) >= 0 ? 'text-green-400' : 'text-red-400'
-                                            }`}>
-                                            {parseFloat(computed.dailyComparison.volumeChange) >= 0 ? '+' : ''}{computed.dailyComparison.volumeChange}%
-                                        </p>
-                                    </div>
-                                    <div className="text-right text-xs text-[var(--text-secondary)]">
-                                        <p>Hoy: <span className="text-[var(--text-primary)] font-medium">{Math.round(computed.dailyComparison.todayVolume).toLocaleString()} kg×reps</span></p>
-                                        <p>Anterior: {Math.round(computed.dailyComparison.lastWeekVolume).toLocaleString()} kg×reps</p>
+                            computed.dailyComparison.comparisonIncomplete ? (
+                                <div className="rounded-lg p-3 border border-amber-500/25 bg-amber-500/10">
+                                    <p className="text-[10px] font-bold text-amber-300/90 uppercase tracking-wider mb-1">
+                                        vs {computed.dailyComparison.weekdayName} pasado
+                                    </p>
+                                    <p className="text-sm font-bold text-amber-100 leading-snug">
+                                        Sesión de pesas incompleta o en curso
+                                    </p>
+                                    <p className="text-xs text-[var(--text-secondary)] mt-1.5 leading-snug">
+                                        {computed.dailyComparison.todayVolume > 0
+                                            ? `Llevas ${Math.round(computed.dailyComparison.todayVolume).toLocaleString()} kg×reps parciales`
+                                            : 'Aún no hay volumen de pesas hoy'}
+                                        {' · '}
+                                        la semana pasada fueron{' '}
+                                        {Math.round(computed.dailyComparison.lastWeekVolume).toLocaleString()} kg×reps.
+                                        La % se mostrará cuando completes el entreno.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className={`rounded-lg p-3 border ${parseFloat(computed.dailyComparison.volumeChange) >= 0
+                                    ? 'bg-green-500/10 border-green-500/20'
+                                    : 'bg-red-500/10 border-red-500/20'
+                                    }`}>
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">
+                                                vs {computed.dailyComparison.weekdayName} pasado
+                                            </p>
+                                            <p className={`text-xl font-bold ${parseFloat(computed.dailyComparison.volumeChange) >= 0 ? 'text-green-400' : 'text-red-400'
+                                                }`}>
+                                                {parseFloat(computed.dailyComparison.volumeChange) >= 0 ? '+' : ''}{computed.dailyComparison.volumeChange}%
+                                            </p>
+                                        </div>
+                                        <div className="text-right text-xs text-[var(--text-secondary)]">
+                                            <p>Hoy: <span className="text-[var(--text-primary)] font-medium">{Math.round(computed.dailyComparison.todayVolume).toLocaleString()} kg×reps</span></p>
+                                            <p>Anterior: {Math.round(computed.dailyComparison.lastWeekVolume).toLocaleString()} kg×reps</p>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            )
                         )}
 
                         {/* Weight Chart */}
