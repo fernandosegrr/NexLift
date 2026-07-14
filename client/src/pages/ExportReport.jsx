@@ -1144,17 +1144,21 @@ export default function ExportReport() {
                     ))}
                 </div>
                 {period === 'daily' && (
-                    <div className="mt-3 pt-3 border-t border-[var(--border)]">
-                        <label className="block text-xs text-[var(--text-secondary)] mb-1.5">
+                    <div className="mt-3 pt-3 border-t border-[var(--border)] min-w-0">
+                        <label htmlFor="export-day-date" className="block text-xs text-[var(--text-secondary)] mb-1.5">
                             Día a exportar (todos los ejercicios de ese día)
                         </label>
-                        <input
-                            type="date"
-                            value={dayDate}
-                            max={mexicoCityDateStr()}
-                            onChange={(e) => setDayDate(e.target.value)}
-                            className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl px-3 py-2.5 text-sm text-white focus:border-[var(--primary)] outline-none"
-                        />
+                        {/* min-w-0 + overflow-hidden: iOS date input no desborda el card */}
+                        <div className="min-w-0 max-w-full overflow-hidden rounded-xl">
+                            <input
+                                id="export-day-date"
+                                type="date"
+                                value={dayDate}
+                                max={mexicoCityDateStr()}
+                                onChange={(e) => setDayDate(e.target.value)}
+                                className="block w-full min-w-0 max-w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl px-3 py-2.5 text-sm text-white focus:border-[var(--primary)] outline-none"
+                            />
+                        </div>
                     </div>
                 )}
             </section>

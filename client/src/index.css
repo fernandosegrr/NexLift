@@ -342,6 +342,33 @@ input[type="number"] {
   appearance: textfield;
 }
 
+/*
+ * iOS Safari: input[type=date] tiene min-width intrínseco grande y desborda
+ * el contenedor (export PDF, Progress, Settings). Forzar caja al 100%.
+ */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* WebKit (iOS): el valor interno del date no debe forzar el ancho del input */
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-width: 0;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  /* Dejar el icono usable sin empujar el layout fuera del card */
+  margin-left: 0;
+  opacity: 0.7;
+}
+
 /* Custom Select styling */
 select {
   background: var(--bg-card);
