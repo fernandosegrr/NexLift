@@ -89,12 +89,15 @@ function estimate1RM(set) {
 // historial ya cargado (DESC). Extraída para reusar el caché de fetchDay sin un
 // GET /history extra por cada cambio de ejercicio.
 function deriveHistoryDerived(history, targetReps, muscleGroup, phase, exerciseName) {
-    const sessions = (history || []).filter(s => s.sets && s.sets.length > 0);
+    const sessions = (history || []).filter(s => Array.isArray(s?.sets) && s.sets.length > 0);
     if (sessions.length === 0) {
         return { previousBest: null, suggestion: null, goalSessions: [], lastSession: null };
     }
 
-    const allSets = sessions.flatMap(s => s.sets);
+    const allSets = sessions.flatMap(s => s.sets).filter(Boolean);
+    if (allSets.length === 0) {
+        return { previousBest: null, suggestion: null, goalSessions: [], lastSession: null };
+    }
     const previousBest = allSets.reduce(
         (b, s) => (estimate1RM(s) > estimate1RM(b) ? s : b),
         allSets[0]
@@ -788,18 +791,20 @@ export default function Workout() {
             const routines = await api.getRoutines();
             let found = false;
             for (const routine of routines) {
-                const day = routine.days.find(d => d.id === dayId);
+                const day = (routine.days || []).find(d => d.id === dayId);
                 if (!day) continue;
                 found = true;
+
+                const exercises = Array.isArray(day.exercises) ? day.exercises : [];
 
                 // Batch de historiales ANTES de exponer exercises al árbol React —
                 // así useExerciseHistory recibe preloadedHistory en el primer
                 // render del ejercicio y no dispara un GET extra en paralelo.
                 const pairs = await Promise.all(
-                    day.exercises.map(async (ex) => {
+                    exercises.map(async (ex) => {
                         try {
                             const h = await api.getExerciseHistory(ex.id);
-                            return [ex.id, h || []];
+                            return [ex.id, Array.isArray(h) ? h : []];
                         } catch {
                             return [ex.id, []];
                         }
@@ -810,23 +815,29 @@ export default function Workout() {
                 setHistoriesLoaded(true);
                 setWorkoutState(prev => ({
                     ...prev,
-                    exercises: day.exercises,
-                    dayName: day.dayName,
-                    phase: routine.phase || null
+                    exercises,
+                    dayName: day.dayName || '',
+                    phase: routine.phase || null,
+                    currentIndex: 0
                 }));
 
-                applyCompletedFromHistories(day.exercises, map);
-                if (day.exercises.length > 0) {
-                    loadExerciseData(day.exercises[0], 0, map);
+                applyCompletedFromHistories(exercises, map);
+                if (exercises.length > 0) {
+                    loadExerciseData(exercises[0], 0, map);
+                } else {
+                    setSets([]);
                 }
                 break;
             }
             if (!found) {
                 toast.error('Día de rutina no encontrado');
+                // Evita re-render con exercises vacíos a medias
+                setWorkoutState(prev => ({ ...prev, exercises: [], dayName: '' }));
             }
         } catch (error) {
             console.error('Error:', error);
-            toast.error('Error al cargar rutina');
+            toast.error(error?.message || 'Error al cargar rutina');
+            setWorkoutState(prev => ({ ...prev, exercises: [] }));
         } finally {
             setWorkoutState(prev => ({ ...prev, loading: false }));
         }
@@ -861,66 +872,72 @@ export default function Workout() {
     }
 
     function loadExerciseData(exercise, index, historyMapOverride) {
+        if (!exercise?.id) {
+            setSets([]);
+            return;
+        }
         currentExerciseIdRef.current = exercise.id;
-        setIsUnilateral(exercise.isUnilateral || false);
+        setIsUnilateral(!!exercise.isUnilateral);
         setCompletedAt(null);
         setTodayLogId(null);
         // El descanso NO se cancela al cambiar de ejercicio: tras guardar se avanza
         // ~300ms y sigues descansando en la siguiente pantalla. Solo se detiene al
         // terminar el timer, al tocar la X, o al salir del entreno.
 
+        const targetSets = Math.max(1, Number(exercise.targetSets) || 3);
         const historyMap = historyMapOverride || historyByExerciseId;
         const history = historyMap[exercise.id];
+        const todayLog = findTodayLog(history);
 
-        if (history?.length > 0 && history[0].sets) {
-            const today = mexicoCityDateStr();
-            const logDate = mexicoCityDateStr(history[0].date);
+        if (todayLog?.sets?.length) {
+            const loggedSets = todayLog.sets.map(s => ({
+                // weight/reps null del API reventaban .toString() y crasheaban al reabrir
+                weight: s.weight != null ? String(s.weight) : '',
+                reps: s.reps != null ? String(s.reps) : '',
+                weightR: s.weightRight != null ? String(s.weightRight) : '',
+                repsR: s.repsRight != null ? String(s.repsRight) : '',
+                rir: s.rpe != null ? (10 - s.rpe) : null,
+                completed: true
+            }));
+            setTodayLogId(todayLog.id || null);
 
-            if (logDate === today) {
-                const loggedSets = history[0].sets.map(s => ({
-                    weight: s.weight.toString(),
-                    reps: s.reps.toString(),
-                    weightR: s.weightRight?.toString() || '',
-                    repsR: s.repsRight?.toString() || '',
-                    rir: s.rpe != null ? (10 - s.rpe) : null,
-                    completed: true
-                }));
-                setTodayLogId(history[0].id);
-
-                if (loggedSets.length >= exercise.targetSets) {
-                    // Sesión completa de hoy — bloqueada + enlace a editar
-                    setSets(loggedSets);
-                    // Snapshot ANTES del efecto de detección: evita timer/push fantasma
-                    // al reabrir un ejercicio ya guardado (series ya completed:true).
-                    prevSetsSnapshotRef.current = { exerciseId: exercise.id, sets: loggedSets };
-                    setCompletedAt(new Date(history[0].date));
-                    setCompletedExerciseIds(prev =>
-                        prev.includes(exercise.id) ? prev : [...prev, exercise.id]
-                    );
-                    return;
+            if (loggedSets.length >= targetSets) {
+                // Sesión completa de hoy — bloqueada + enlace a editar
+                setSets(loggedSets);
+                // Snapshot ANTES del efecto de detección: evita timer/push fantasma
+                // al reabrir un ejercicio ya guardado (series ya completed:true).
+                prevSetsSnapshotRef.current = { exerciseId: exercise.id, sets: loggedSets };
+                try {
+                    setCompletedAt(todayLog.date ? new Date(todayLog.date) : new Date());
+                } catch {
+                    setCompletedAt(new Date());
                 }
-
-                // Sesión parcial (Atajo): series hechas + filas vacías, editable.
-                // Guardar hace PUT sobre todayLogId (no POST nuevo).
-                const emptySets = Array.from(
-                    { length: exercise.targetSets - loggedSets.length },
-                    makeEmptySet
+                setCompletedExerciseIds(prev =>
+                    prev.includes(exercise.id) ? prev : [...prev, exercise.id]
                 );
-                const mergedSets = [...loggedSets, ...emptySets];
-                setSets(mergedSets);
-                prevSetsSnapshotRef.current = { exerciseId: exercise.id, sets: mergedSets };
                 return;
             }
+
+            // Sesión parcial (Atajo): series hechas + filas vacías, editable.
+            // Guardar hace PUT sobre todayLogId (no POST nuevo).
+            const emptySets = Array.from(
+                { length: Math.max(0, targetSets - loggedSets.length) },
+                makeEmptySet
+            );
+            const mergedSets = [...loggedSets, ...emptySets];
+            setSets(mergedSets);
+            prevSetsSnapshotRef.current = { exerciseId: exercise.id, sets: mergedSets };
+            return;
         }
 
-        if (workoutData[exercise.id]) {
+        if (workoutData[exercise.id] && Array.isArray(workoutData[exercise.id])) {
             // localStorage a medio llenar — sincroniza snapshot para no releer
             // completed:true como "recién marcadas".
             const cachedSets = workoutData[exercise.id];
             setSets(cachedSets);
             prevSetsSnapshotRef.current = { exerciseId: exercise.id, sets: cachedSets };
         } else {
-            const newSets = Array.from({ length: exercise.targetSets }, makeEmptySet);
+            const newSets = Array.from({ length: targetSets }, makeEmptySet);
             setSets(newSets);
             prevSetsSnapshotRef.current = { exerciseId: exercise.id, sets: newSets };
         }
@@ -1275,6 +1292,26 @@ export default function Workout() {
 
     if (workoutState.loading) return <SkeletonLoader />;
 
+    // Día vacío / no encontrado: no seguir al UI que asume currentExercise
+    if (!workoutState.exercises.length) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center gap-3">
+                <AlertTriangle size={32} className="text-[var(--warning)]" />
+                <p className="font-bold text-lg">No se pudo abrir este día</p>
+                <p className="text-sm text-[var(--text-secondary)]">
+                    Puede que la rutina se haya actualizado o el día ya no esté disponible.
+                </p>
+                <button
+                    type="button"
+                    onClick={() => navigate('/')}
+                    className="mt-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-white font-semibold text-sm"
+                >
+                    Volver al inicio
+                </button>
+            </div>
+        );
+    }
+
     if (uiState.showSuccess && sessionSummary) {
         return (
             <div className="min-h-[calc(100vh-80px)] max-w-lg mx-auto px-4 py-8 animate-fade-in">
@@ -1445,9 +1482,9 @@ export default function Workout() {
                 </div>
 
                 <h1 className="text-2xl font-black text-[var(--text-primary)] leading-tight mb-1 px-2">
-                    {currentExercise?.name}
+                    {currentExercise?.name || 'Ejercicio'}
                 </h1>
-                {currentExercise?.note && (
+                {!!currentExercise?.note && (
                     <p className="text-xs text-[var(--text-secondary)] px-4 mb-2 leading-snug">
                         {currentExercise.note}
                     </p>

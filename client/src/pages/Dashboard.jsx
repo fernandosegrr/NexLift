@@ -391,7 +391,7 @@ export default function Dashboard() {
                                             </p>
                                         )}
                                     </div>
-                                ) : (
+                                ) : nextDay?.id ? (
                                     <Link
                                         to={`/workout/${nextDay.id}`}
                                         onPointerEnter={prefetchWorkoutChunk}
@@ -412,6 +412,10 @@ export default function Dashboard() {
                                             <Play size={22} className="text-[var(--primary)] ml-1" fill="currentColor" />
                                         </div>
                                     </Link>
+                                ) : (
+                                    <div className="bg-white/10 rounded-xl p-4 border border-white/10 text-center text-white/80 text-sm">
+                                        No hay día de entrenamiento disponible. Abre Rutinas o recarga.
+                                    </div>
                                 )}
                             </>
                         ) : (activeRoutine.source === 'ai' && aiTodayLoading) ? (
