@@ -8,6 +8,7 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
+import { cloudinaryThumb, cloudinaryDisplay } from '../utils/cloudinary';
 
 const MAX_AVATAR_BYTES = 8 * 1024 * 1024; // 8 MB antes de comprimir
 
@@ -19,6 +20,7 @@ export default function Profile() {
 
     const [loading, setLoading] = useState(false);
     const [showAvatarModal, setShowAvatarModal] = useState(false);
+    const [avatarReady, setAvatarReady] = useState(false);
 
     const handleAvatarClick = () => {
         // Permite re-elegir el mismo archivo (onchange no dispara si no se limpia)
@@ -115,6 +117,11 @@ export default function Profile() {
     if (!user) return null;
 
     const birthLabel = formatDate(user.birthDate);
+    // Miniatura ~200px (retina 96×2), no el full-res de Cloudinary/Catbox
+    const avatarThumb = user.avatarUrl
+        ? cloudinaryThumb(user.avatarUrl, { width: 200, height: 200, crop: 'fill', quality: 'auto' })
+        : null;
+    const avatarFull = user.avatarUrl ? cloudinaryDisplay(user.avatarUrl) : null;
 
     return (
         <div className="pb-24 max-w-2xl mx-auto">
@@ -134,18 +141,28 @@ export default function Profile() {
                 {/* Avatar Floating */}
                 <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
                     <div className="relative">
-                        {user.avatarUrl ? (
+                        {avatarThumb ? (
                             <button
                                 type="button"
                                 onClick={() => setShowAvatarModal(true)}
                                 aria-label="Ver foto de perfil"
-                                className="block rounded-full focus-ring"
+                                className="relative block rounded-full focus-ring w-24 h-24 overflow-hidden border-4 border-[var(--bg-dark)] shadow-xl bg-[var(--bg-card)]"
                             >
+                                {/* Placeholder iniciales mientras baja la miniatura */}
+                                {!avatarReady && (
+                                    <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-white bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)]" aria-hidden>
+                                        {getInitials()}
+                                    </span>
+                                )}
                                 <img
-                                    src={user.avatarUrl}
+                                    src={avatarThumb}
                                     alt={`Foto de ${user.firstName || user.username}`}
-                                    loading="lazy"
-                                    className="w-24 h-24 rounded-full border-4 border-[var(--bg-dark)] object-cover shadow-xl hover:scale-105 transition-transform"
+                                    width={96}
+                                    height={96}
+                                    decoding="async"
+                                    fetchPriority="high"
+                                    onLoad={() => setAvatarReady(true)}
+                                    className={`w-full h-full object-cover transition-opacity duration-200 ${avatarReady ? 'opacity-100' : 'opacity-0'}`}
                                 />
                             </button>
                         ) : (

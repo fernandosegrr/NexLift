@@ -61,23 +61,17 @@ export default function Layout() {
             </aside>
 
             <div className="flex-1 flex flex-col min-w-0 min-h-0">
-                {!isImmersive && (
-                    <header
-                        className="lg:hidden glass shrink-0 z-50 px-4 py-2.5 flex items-center justify-center border-b border-[var(--border)]"
-                        style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
-                    >
-                        <div className="flex items-center gap-2">
-                            <img src="/logo.png" alt="" className="w-7 h-7 rounded-lg" aria-hidden />
-                            <h1 className="text-lg font-bold gradient-text">NexLift</h1>
-                        </div>
-                    </header>
-                )}
-
+                {/* Sin barra de logo en móvil: cada página ya tiene su título;
+                    el branding vive en el sidebar de desktop. Safe-area en main. */}
                 <main
                     className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain lg:p-6 pb-24 lg:pb-6 [-webkit-overflow-scrolling:touch] ${
                         isImmersive ? 'p-0' : 'p-4'
                     }`}
-                    style={isImmersive ? { paddingTop: 'env(safe-area-inset-top)' } : undefined}
+                    style={{
+                        paddingTop: isImmersive
+                            ? 'env(safe-area-inset-top)'
+                            : 'max(0.75rem, env(safe-area-inset-top))'
+                    }}
                 >
                     <div className={isImmersive ? 'w-full' : 'max-w-5xl mx-auto'}>
                         <Outlet />
