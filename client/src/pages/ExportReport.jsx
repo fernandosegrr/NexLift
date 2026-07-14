@@ -8,19 +8,70 @@ import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { useAuth } from '../context/AuthContext';
-import { mexicoCityDateStr, mexicoCityTodayName } from '../utils/dates';
+import { mexicoCityDateStr } from '../utils/dates';
 
 // ==========================================
 // CONSTANTS & CONFIG
 // ==========================================
 const PERIODS = [
-    { id: 'daily', label: 'Diario', days: 1 },
+    { id: 'daily', label: 'Un día', days: 1 },
     { id: 'weekly', label: 'Semanal', days: 7 },
     { id: 'monthly', label: 'Mensual', days: 30 },
     { id: 'quarterly', label: 'Trimestral', days: 90 },
     { id: 'semester', label: 'Semestral', days: 180 },
     { id: 'yearly', label: 'Anual', days: 365 },
 ];
+
+/** Carga una imagen remota a dataURL para jsPDF; timeout / CORS / 404 → null. */
+async function loadImageAsDataUrl(url, timeoutMs = 12000) {
+    if (!url) return null;
+    if (String(url).startsWith('data:')) return url;
+    try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), timeoutMs);
+        const res = await fetch(url, { mode: 'cors', credentials: 'omit', signal: ctrl.signal, referrerPolicy: 'no-referrer' });
+        clearTimeout(t);
+        if (!res.ok) return null;
+        const blob = await res.blob();
+        if (!blob.type.startsWith('image/')) return null;
+        return await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+        });
+    } catch {
+        // Fallback: Image + canvas (a veces evita CORS raro de fetch)
+        try {
+            return await new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.referrerPolicy = 'no-referrer';
+                const timer = setTimeout(() => resolve(null), timeoutMs);
+                img.onload = () => {
+                    clearTimeout(timer);
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.naturalWidth || img.width;
+                        canvas.height = img.naturalHeight || img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        resolve(canvas.toDataURL('image/jpeg', 0.85));
+                    } catch {
+                        resolve(null);
+                    }
+                };
+                img.onerror = () => {
+                    clearTimeout(timer);
+                    resolve(null);
+                };
+                img.src = url;
+            });
+        } catch {
+            return null;
+        }
+    }
+}
 
 const COLORS = {
     purple: [139, 92, 246],
@@ -265,6 +316,11 @@ export default function ExportReport() {
         const p = searchParams.get('period');
         return PERIODS.find(x => x.id === p) ? p : 'monthly';
     });
+    // Día concreto para período "Un día" (antes solo era "hoy" sin picker)
+    const [dayDate, setDayDate] = useState(() => {
+        const d = searchParams.get('date');
+        return d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : mexicoCityDateStr();
+    });
 
     // Data Fetching
     useEffect(() => {
@@ -324,12 +380,19 @@ export default function ExportReport() {
 
         // Ventana del período en días calendario CDMX
         const todayCdmx = mexicoCityDateStr();
+        const dailyKey = selectedP.id === 'daily'
+            ? (dayDate || todayCdmx)
+            : null;
         let cutoffStr = todayCdmx;
-        if (selectedP.id !== 'daily') {
+        let isAfterCutoff;
+        if (selectedP.id === 'daily') {
+            // Un solo día exacto
+            isAfterCutoff = (d) => mexicoCityDateStr(new Date(d)) === dailyKey;
+        } else {
             const daysBack = selectedP.days - 1; // inclusivo: 30d = hoy + 29 atrás
             cutoffStr = mexicoCityDateStr(new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000));
+            isAfterCutoff = (d) => mexicoCityDateStr(new Date(d)) >= cutoffStr;
         }
-        const isAfterCutoff = (d) => mexicoCityDateStr(new Date(d)) >= cutoffStr;
 
         const allPeriodPRs = data.prs
             .filter(pr => isAfterCutoff(pr.date))
@@ -343,9 +406,10 @@ export default function ExportReport() {
         // ============ COMPARACIÓN DIARIA POR DÍA DE SEMANA ============
         let dailyComparison = null;
         if (selectedP.id === 'daily') {
-            const todayStr = mexicoCityDateStr();
-            // Hace 7 días calendario CDMX
-            const lastWeekStr = mexicoCityDateStr(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+            const todayStr = dailyKey; // día elegido en el date picker
+            // Mismo día de la semana, 7 días antes (CDMX)
+            const anchor = new Date(`${todayStr}T12:00:00Z`);
+            const lastWeekStr = mexicoCityDateStr(new Date(anchor.getTime() - 7 * 24 * 60 * 60 * 1000));
 
             const todaySessions = data.history.filter(h =>
                 mexicoCityDateStr(new Date(h.date)) === todayStr
@@ -405,10 +469,13 @@ export default function ExportReport() {
                 ? ((todayStats.volume - lastWeekStats.volume) / lastWeekStats.volume * 100).toFixed(1)
                 : null;
 
+            const weekdayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+            const weekdayName = weekdayNames[new Date(`${todayStr}T12:00:00Z`).getUTCDay()];
+
             dailyComparison = {
                 todayDate: todayStr,
                 lastWeekDate: lastWeekStr,
-                weekdayName: mexicoCityTodayName().toLowerCase(),
+                weekdayName,
                 todayVolume: todayStats.volume,
                 todaySets: todayStats.sets,
                 todayExerciseCount: Object.keys(todayExercises).length,
@@ -426,7 +493,8 @@ export default function ExportReport() {
         }
 
         const photos = data.bodyLogs
-            .filter(l => l.photo && isAfterCutoff(l.date))
+            .filter(l => (l.photo || l.photoUrl) && isAfterCutoff(l.date))
+            .map(l => ({ ...l, photo: l.photo || l.photoUrl }))
             .sort((a, b) => new Date(a.date) - new Date(b.date));
 
         const weightChart = filteredLogs.slice().reverse().map(l => ({
@@ -528,9 +596,10 @@ export default function ExportReport() {
             weightChange,
             progressData,
             dailyComparison, // <--- Comparación diaria por día de semana
-            hasData: trainingDays > 0 || totalSessions > 0 || prsCount > 0 || filteredLogs.length > 0 || (dailyComparison?.exercises?.length > 0)
+            hasData: trainingDays > 0 || totalSessions > 0 || prsCount > 0 || filteredLogs.length > 0 || (dailyComparison?.exercises?.length > 0),
+            dayDate: dailyKey
         };
-    }, [data, period]);
+    }, [data, period, dayDate]);
 
     // ==========================================
     // PDF GENERATION LOGIC
@@ -840,7 +909,7 @@ export default function ExportReport() {
                     builder.drawLineChart(computed.weightChart, w - margin * 2, 50);
                 }
 
-                // B. Fotos
+                // B. Fotos — convertir a dataURL (jsPDF no siempre acepta URL remota directa)
                 if (showPhotos) {
                     builder.ensureSpace(40);
                     doc.setFontSize(11);
@@ -855,31 +924,52 @@ export default function ExportReport() {
                     const pH = pW * 1.33;
                     const rowHeight = pH + 15;
 
-                    computed.photos.forEach((photo, i) => {
-                        const col = i % maxPerRow;
-                        if (col === 0 && i > 0) builder.y += rowHeight;
+                    const photoPayloads = await Promise.all(
+                        computed.photos.map(async (photo) => ({
+                            ...photo,
+                            dataUrl: await loadImageAsDataUrl(photo.photo || photo.photoUrl)
+                        }))
+                    );
+
+                    let drawn = 0;
+                    photoPayloads.forEach((photo) => {
+                        const col = drawn % maxPerRow;
+                        if (col === 0 && drawn > 0) builder.y += rowHeight;
                         if (col === 0 && builder.y + rowHeight > h - margin) {
                             doc.addPage();
                             builder.y = margin;
                         }
-
                         const x = margin + col * (pW + gap);
-                        try {
-                            doc.addImage(photo.photo, 'JPEG', x, builder.y, pW, pH);
-                            doc.setFillColor(...COLORS.purpleDark);
-                            doc.rect(x, builder.y + pH - 6, pW, 6, 'F');
-                            doc.setTextColor(255, 255, 255);
-                            doc.setFontSize(7);
-                            doc.text(
-                                formatLocalDate(photo.date, { day: 'numeric', month: 'numeric', year: 'numeric' }),
-                                x + pW / 2, builder.y + pH - 1.5,
-                                { align: 'center' }
-                            );
-                        } catch (e) {
+                        if (photo.dataUrl) {
+                            try {
+                                const fmt = photo.dataUrl.includes('image/png') ? 'PNG' : 'JPEG';
+                                doc.addImage(photo.dataUrl, fmt, x, builder.y, pW, pH);
+                            } catch {
+                                doc.setDrawColor(...COLORS.gridLine);
+                                doc.rect(x, builder.y, pW, pH);
+                                doc.setFontSize(7);
+                                doc.setTextColor(...COLORS.textLight);
+                                doc.text('Sin imagen', x + pW / 2, builder.y + pH / 2, { align: 'center' });
+                            }
+                        } else {
+                            doc.setDrawColor(...COLORS.gridLine);
                             doc.rect(x, builder.y, pW, pH);
+                            doc.setFontSize(7);
+                            doc.setTextColor(...COLORS.textLight);
+                            doc.text('No disponible', x + pW / 2, builder.y + pH / 2, { align: 'center' });
                         }
+                        doc.setFillColor(...COLORS.purpleDark);
+                        doc.rect(x, builder.y + pH - 6, pW, 6, 'F');
+                        doc.setTextColor(255, 255, 255);
+                        doc.setFontSize(7);
+                        doc.text(
+                            formatLocalDate(photo.date, { day: 'numeric', month: 'numeric', year: 'numeric' }),
+                            x + pW / 2, builder.y + pH - 1.5,
+                            { align: 'center' }
+                        );
+                        drawn++;
                     });
-                    builder.y += rowHeight + 10;
+                    if (drawn > 0) builder.y += rowHeight + 10;
                 }
 
                 // C. Composición Corporal con COMPARATIVA
@@ -999,7 +1089,10 @@ export default function ExportReport() {
             setProgress(100);
             builder.renderFooters();
 
-            doc.save(`NexLift_${computed.period.label}_${mexicoCityDateStr()}.pdf`);
+            const fileSuffix = computed.period.id === 'daily' && computed.dayDate
+                ? computed.dayDate
+                : mexicoCityDateStr();
+            doc.save(`NexLift_${computed.period.label.replace(/\s+/g, '_')}_${fileSuffix}.pdf`);
             toast.success('Reporte descargado');
 
         } catch (error) {
@@ -1039,6 +1132,7 @@ export default function ExportReport() {
                     {PERIODS.map(p => (
                         <button
                             key={p.id}
+                            type="button"
                             onClick={() => setPeriod(p.id)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${period === p.id
                                 ? 'bg-[var(--primary)] text-white shadow-lg shadow-purple-900/20'
@@ -1049,13 +1143,31 @@ export default function ExportReport() {
                         </button>
                     ))}
                 </div>
+                {period === 'daily' && (
+                    <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                        <label className="block text-xs text-[var(--text-secondary)] mb-1.5">
+                            Día a exportar (todos los ejercicios de ese día)
+                        </label>
+                        <input
+                            type="date"
+                            value={dayDate}
+                            max={mexicoCityDateStr()}
+                            onChange={(e) => setDayDate(e.target.value)}
+                            className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl px-3 py-2.5 text-sm text-white focus:border-[var(--primary)] outline-none"
+                        />
+                    </div>
+                )}
             </section>
 
             {/* 2. Preview Rápido */}
             <section className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)]">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-semibold">Vista Previa</h3>
-                    <span className="text-xs text-[var(--text-secondary)]">{computed.period.days} días seleccionados</span>
+                    <span className="text-xs text-[var(--text-secondary)]">
+                        {period === 'daily'
+                            ? (computed.dayDate || dayDate)
+                            : `${computed.period.days} días seleccionados`}
+                    </span>
                 </div>
 
                 {!computed.hasData ? (

@@ -3287,10 +3287,12 @@ app.get('/api/body/logs', authMiddleware, async (req, res) => {
             take: Math.min(limit, 500)
         });
 
-        // Map photoUrl to photo for frontend compatibility
+        // Map photoUrl to photo for frontend. Cadena vacía ≠ null en Prisma y
+        // se colaba como tile roto en la galería (caso real post-migración).
         const mappedLogs = logs.map(log => ({
             ...log,
-            photo: log.photoUrl || null
+            photo: (log.photoUrl && String(log.photoUrl).trim()) || null,
+            photoUrl: (log.photoUrl && String(log.photoUrl).trim()) || null
         }));
 
         res.json(mappedLogs);
@@ -3300,7 +3302,7 @@ app.get('/api/body/logs', authMiddleware, async (req, res) => {
     }
 });
 
-// POST /api/body/log - Client-compatible route (with Catbox upload)
+// POST /api/body/log - Client-compatible route
 app.post('/api/body/log', authMiddleware, async (req, res) => {
     try {
         const { weight, photo, note, bmi, bodyFat, muscleMass, bmr, bodyWater, visceralFat, boneMass, protein } = req.body;
@@ -3385,30 +3387,36 @@ app.get('/api/body', authMiddleware, async (req, res) => {
     }
 });
 
-// GET /api/body/photos - Get only photo entries
+// GET /api/body/photos - Get only photo entries (Cloudinary; excluye null y "")
 app.get('/api/body/photos', authMiddleware, async (req, res) => {
     try {
         const photos = await prisma.bodyLog.findMany({
             where: {
                 userId: req.userId,
-                photoUrl: { not: null }
+                photoUrl: { not: null },
+                NOT: { photoUrl: '' }
             },
             select: {
                 id: true,
                 date: true,
                 photoUrl: true,
+                weight: true,
                 note: true
             },
             orderBy: { date: 'desc' },
-            take: 12 // Last 12 months
+            take: 50
         });
 
-        const mappedPhotos = photos.map(p => ({
-            id: p.id,
-            date: p.date,
-            photo: p.photoUrl,
-            note: p.note
-        }));
+        // Defensa extra: trim / hosts vacíos
+        const mappedPhotos = photos
+            .filter(p => p.photoUrl && String(p.photoUrl).trim().startsWith('http'))
+            .map(p => ({
+                id: p.id,
+                date: p.date,
+                photo: p.photoUrl.trim(),
+                weight: p.weight,
+                note: p.note
+            }));
 
         res.json(mappedPhotos);
     } catch (error) {
@@ -3417,7 +3425,7 @@ app.get('/api/body/photos', authMiddleware, async (req, res) => {
     }
 });
 
-// POST /api/body - Log weight and/or photo (with Catbox upload)
+// POST /api/body - Log weight and/or photo
 app.post('/api/body', authMiddleware, async (req, res) => {
     try {
         const { weight, photo, note } = req.body;

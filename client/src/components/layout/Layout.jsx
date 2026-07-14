@@ -12,9 +12,11 @@ const navItems = [
 
 export default function Layout() {
     return (
-        <div className="flex h-screen bg-[var(--bg-dark)] overflow-hidden">
+        // h-dvh + min-h-0: sin min-h-0 el hijo flex crece con el contenido, el
+        // overflow-hidden del root recorta y NO hay scroll (clásico en Progress/Cuerpo).
+        <div className="flex h-dvh max-h-dvh bg-[var(--bg-dark)] overflow-hidden">
             {/* Desktop Sidebar (Visible only on LG screens) */}
-            <aside className="hidden lg:flex flex-col w-64 bg-[var(--bg-card)] border-r border-[var(--border)] p-4">
+            <aside className="hidden lg:flex flex-col w-64 bg-[var(--bg-card)] border-r border-[var(--border)] p-4 shrink-0 min-h-0 overflow-y-auto">
                 <div className="flex items-center gap-3 mb-8 px-2">
                     <img src="/logo.png" alt="NexLift" className="w-10 h-10 rounded-xl" />
                     <h1 className="text-2xl font-bold gradient-text">NexLift</h1>
@@ -41,17 +43,17 @@ export default function Layout() {
             </aside>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 flex flex-col min-w-0 min-h-0">
                 {/* Mobile Header */}
-                <header className="lg:hidden glass sticky top-0 z-50 px-4 py-3 flex items-center justify-center border-b border-[var(--border)]">
+                <header className="lg:hidden glass shrink-0 z-50 px-4 py-3 flex items-center justify-center border-b border-[var(--border)]">
                     <div className="flex items-center gap-2">
                         <img src="/logo.png" alt="NexLift" className="w-8 h-8 rounded-lg" />
                         <h1 className="text-xl font-bold gradient-text">NexLift</h1>
                     </div>
                 </header>
 
-                {/* Scrollable Page Content */}
-                <main className="flex-1 overflow-y-auto p-4 lg:p-6 pb-24 lg:pb-6 scroll-smooth">
+                {/* Scrollable Page Content — min-h-0 es obligatorio para que overflow-y funcione en flex */}
+                <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 lg:p-6 pb-24 lg:pb-6 [-webkit-overflow-scrolling:touch]">
                     <div className="max-w-5xl mx-auto">
                         <Outlet />
                     </div>

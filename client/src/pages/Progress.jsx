@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
     TrendingUp, Calendar, Trophy, Dumbbell, ChevronDown, ChevronRight, Activity,
-    CheckCircle, Search, FileText, Loader2, Flame, X, Clock, Target, Zap
+    CheckCircle, Search, FileText, Loader2, Flame, X, Clock, Target, Zap, FileDown
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, CartesianGrid, Area, AreaChart } from 'recharts';
 import { api } from '../services/api';
@@ -13,6 +13,8 @@ import { epley1RM, classifyLift } from '../utils/strength';
 import { canonicalExerciseKey, groupHistoryByExercise, detectPlateau } from '../utils/exerciseName';
 import { mexicoCityDateStr, mexicoCityLastNDays } from '../utils/dates';
 import { toSpanishMuscleGroup } from '../utils/muscleGroup';
+import { downloadDayPdf } from '../utils/dayPdf';
+import { useAuth } from '../context/AuthContext';
 
 // ==========================================
 // CONSTANTS & UTILITIES
@@ -79,6 +81,8 @@ function useProgressData() {
         exercises: [],
         // Map: clave canónica de ejercicio -> { names, muscleGroup, sessions } (ver exerciseName.js)
         workoutHistory: new Map(),
+        // Logs crudos para PDF por día
+        rawHistory: [],
         loading: true,
         loadError: false
     });
@@ -109,7 +113,8 @@ function useProgressData() {
                     Object.assign(consistencyMap, consistencyRes);
                 }
 
-                const historyMap = groupHistoryByExercise(historyData || []);
+                const rawHistory = historyData || [];
+                const historyMap = groupHistoryByExercise(rawHistory);
                 const allExercises = [];
                 const seen = new Set();
 
@@ -141,6 +146,7 @@ function useProgressData() {
                     prs: Array.isArray(prsData) ? prsData : [],
                     exercises: allExercises,
                     workoutHistory: historyMap,
+                    rawHistory,
                     loading: false,
                     loadError: false
                 });
@@ -157,6 +163,14 @@ function useProgressData() {
     }, []);
 
     return dataState;
+}
+
+/** Formatea peso numérico + unidad sin amontonar ("80 kg", no "80kg"). */
+function formatKg(value) {
+    if (value == null || value === '' || Number.isNaN(Number(value))) return '—';
+    const n = Number(value);
+    const text = Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
+    return `${text} kg`;
 }
 
 function useExerciseProgress(exerciseName) {
@@ -514,13 +528,15 @@ function PRCard({ pr, rank, historyGroup }) {
                     </div>
                 </div>
 
-                {/* Weight, Reps & 1RM */}
-                <div className="text-right shrink-0">
-                    <p className="text-xl font-bold text-[var(--primary)]">{pr.weight}kg</p>
+                {/* Weight, Reps & 1RM — unidad separada para no amontonar dígitos+kg */}
+                <div className="text-right shrink-0 min-w-[4.5rem]">
+                    <p className="text-xl font-bold text-[var(--primary)] tabular-nums whitespace-nowrap">
+                        {formatKg(pr.weight)}
+                    </p>
                     <p className="text-xs text-[var(--text-secondary)] font-mono">× {pr.reps} reps</p>
-                    {estimated1RM && (
-                        <p className="text-[10px] text-[var(--warning)] font-medium mt-0.5">
-                            ~{estimated1RM}kg 1RM
+                    {estimated1RM != null && (
+                        <p className="text-[10px] text-[var(--warning)] font-medium mt-0.5 tabular-nums whitespace-nowrap">
+                            ~{formatKg(estimated1RM)} 1RM
                         </p>
                     )}
                 </div>
@@ -533,10 +549,15 @@ function PRCard({ pr, rank, historyGroup }) {
 function CustomTooltip({ active, payload, label }) {
     if (!active || !payload?.[0]) return null;
     const data = payload[0].payload;
+    const weightVal = data.maxWeight != null && data.maxWeight !== '' ? Number(data.maxWeight) : null;
     return (
         <div className="bg-[var(--bg-card)] border-2 border-[var(--primary)] rounded-xl p-3 shadow-2xl">
             <p className="text-xs text-[var(--text-secondary)] mb-1">{data.fullDate || label}</p>
-            <p className="font-bold text-[var(--primary)] text-lg">{data.maxWeight || data.sessions} {data.maxWeight ? 'kg' : 'sesiones'}</p>
+            <p className="font-bold text-[var(--primary)] text-lg tabular-nums whitespace-nowrap">
+                {weightVal != null && Number.isFinite(weightVal)
+                    ? formatKg(weightVal)
+                    : `${data.sessions ?? 0} sesiones`}
+            </p>
             {data.totalSets && (
                 <p className="text-xs text-[var(--text-secondary)] mt-1">
                     {data.totalSets} series • {data.totalReps} reps
@@ -553,7 +574,8 @@ function CustomTooltip({ active, payload, label }) {
 export default function Progress() {
     const toast = useToast();
     const location = useLocation();
-    const { stats, consistency, prs, exercises, workoutHistory, loading, loadError } = useProgressData();
+    const { user } = useAuth();
+    const { stats, consistency, prs, exercises, workoutHistory, rawHistory, loading, loadError } = useProgressData();
 
     const [uiState, setUIState] = useState({
         // Permite aterrizar en Objetivos desde /goals/new (navigate state.tab)
@@ -567,6 +589,10 @@ export default function Progress() {
         selectedYear: parseInt(mexicoCityDateStr().slice(0, 4), 10),
         prSearch: ''
     });
+
+    // Día para PDF de TODO el día (no una sesión de un solo ejercicio)
+    const [dayPdfDate, setDayPdfDate] = useState(() => mexicoCityDateStr());
+    const [dayPdfLoading, setDayPdfLoading] = useState(false);
 
     const { progress: exerciseProgress, loading: loadingProgress } = useExerciseProgress(filtersState.selectedExercise);
 
@@ -624,6 +650,49 @@ export default function Progress() {
         }
         return yearsWithData.slice(0, 5);
     }, [consistency]);
+
+    // Días con al menos un WorkoutLog (para selector de PDF del día)
+    const trainingDayKeys = useMemo(() => {
+        const set = new Set();
+        (rawHistory || []).forEach(h => {
+            if (h?.date) set.add(mexicoCityDateStr(new Date(h.date)));
+        });
+        return [...set].sort((a, b) => b.localeCompare(a));
+    }, [rawHistory]);
+
+    // Si el día elegido no tiene logs, caer al más reciente con datos
+    useEffect(() => {
+        if (trainingDayKeys.length === 0) return;
+        if (!trainingDayKeys.includes(dayPdfDate)) {
+            setDayPdfDate(trainingDayKeys[0]);
+        }
+    }, [trainingDayKeys, dayPdfDate]);
+
+    async function handleDayPdf() {
+        if (dayPdfLoading) return;
+        const sessions = (rawHistory || []).filter(
+            h => h?.date && mexicoCityDateStr(new Date(h.date)) === dayPdfDate
+        );
+        if (sessions.length === 0) {
+            toast.error('No hay entrenos ese día');
+            return;
+        }
+        setDayPdfLoading(true);
+        try {
+            await downloadDayPdf(sessions, {
+                dayKey: dayPdfDate,
+                userName: user?.firstName
+                    ? `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`
+                    : user?.username
+            });
+            toast.success('PDF del día descargado');
+        } catch (err) {
+            console.error(err);
+            toast.error(err.message || 'No se pudo generar el PDF del día');
+        } finally {
+            setDayPdfLoading(false);
+        }
+    }
 
     // Cumplimiento 30d + racha: fechas CDMX; racha = server si está disponible
     // (incluye descansos programados de la rutina).
@@ -815,6 +884,52 @@ export default function Progress() {
                         </div>
                     </div>
 
+                    {/* PDF de un DÍA completo (todos los ejercicios del día, no una sola sesión) */}
+                    <div className="bg-[var(--bg-card)]/80 border border-[var(--border)] rounded-2xl p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                            <div>
+                                <h3 className="font-bold flex items-center gap-2 text-sm">
+                                    <FileDown size={16} className="text-[var(--primary)]" aria-hidden />
+                                    PDF del día
+                                </h3>
+                                <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                                    Todos los ejercicios de un día de gym (no un solo ejercicio).
+                                </p>
+                            </div>
+                            <Link
+                                to="/export?period=daily"
+                                className="text-[10px] text-purple-400 hover:text-purple-300 shrink-0 pt-0.5"
+                            >
+                                Más reportes →
+                            </Link>
+                        </div>
+                        {trainingDayKeys.length === 0 ? (
+                            <p className="text-xs text-[var(--text-secondary)]">Aún no hay días con entreno para exportar.</p>
+                        ) : (
+                            <div className="flex gap-2">
+                                <input
+                                    type="date"
+                                    value={dayPdfDate}
+                                    max={mexicoCityDateStr()}
+                                    onChange={(e) => setDayPdfDate(e.target.value)}
+                                    className="flex-1 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl px-3 py-2.5 text-sm text-white focus:border-[var(--primary)] outline-none"
+                                    aria-label="Día a exportar"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleDayPdf}
+                                    disabled={dayPdfLoading}
+                                    className="shrink-0 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-50 active:scale-95"
+                                >
+                                    {dayPdfLoading
+                                        ? <Loader2 size={16} className="animate-spin" />
+                                        : <FileDown size={16} />}
+                                    Descargar
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Compliance Card */}
                     <div className="bg-[var(--bg-card)]/80 backdrop-blur-md rounded-2xl p-5 border border-[var(--border)]">
                         <div className="flex items-center justify-between mb-4">
@@ -1003,7 +1118,7 @@ export default function Progress() {
                                 1RM estimado
                             </p>
                             <p className="text-3xl font-bold text-[var(--primary)]">
-                                {calcResult > 0 ? `${calcResult} kg` : '—'}
+                                {calcResult > 0 ? formatKg(calcResult) : '—'}
                             </p>
                         </div>
                     </div>
@@ -1033,7 +1148,7 @@ export default function Progress() {
                                 Niveles de Fuerza
                             </h3>
                             <p className="text-xs text-[var(--text-secondary)] mb-4">
-                                Según tu peso corporal ({bodyWeight} kg)
+                                Según tu peso corporal ({formatKg(bodyWeight)})
                             </p>
 
                             <div className="space-y-3">
@@ -1043,7 +1158,7 @@ export default function Progress() {
                                             <div className="min-w-0">
                                                 <p className="font-semibold text-sm truncate">{lift.key}</p>
                                                 <p className="text-xs text-[var(--text-secondary)]">
-                                                    {Math.round(lift.oneRM)} kg · {lift.ratio}× peso corporal
+                                                    {formatKg(Math.round(lift.oneRM))} · {lift.ratio}× peso corporal
                                                 </p>
                                             </div>
                                             <span className="shrink-0 text-[10px] px-2 py-1 rounded-full border border-[var(--primary)]/40 bg-[var(--primary)]/15 text-[var(--primary)] font-semibold">
@@ -1101,7 +1216,7 @@ export default function Progress() {
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className={`text-sm font-bold ${colors.text}`}>
-                                            {Math.max(...musclePs.map(p => p.weight))}kg max
+                                            {formatKg(Math.max(...musclePs.map(p => p.weight)))} max
                                         </span>
                                         <ChevronDown size={18} className={`transition-transform ${uiState.expandedMuscle === muscle ? 'rotate-180' : ''}`} />
                                     </div>
@@ -1131,7 +1246,7 @@ export default function Progress() {
                                                     </span>
                                                     <div className="flex items-center gap-2">
                                                         <span className="font-bold text-sm font-mono" style={{ color: colors.hex }}>
-                                                            {pr.weight}kg × {pr.reps}
+                                                            {formatKg(pr.weight)} × {pr.reps}
                                                         </span>
                                                         <ChevronRight size={14} className="text-[var(--text-secondary)]" />
                                                     </div>

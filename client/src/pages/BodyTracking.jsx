@@ -5,6 +5,7 @@ import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
 import { mexicoCityDateStr } from '../utils/dates';
+import { cloudinaryThumb, cloudinaryDisplay } from '../utils/cloudinary';
 
 const MAX_PHOTO_BYTES = 12 * 1024 * 1024; // 12 MB pre-compresión
 
@@ -361,9 +362,9 @@ export default function BodyTracking() {
                         </div>
                         <span className="text-xs text-[var(--text-secondary)]">Peso Actual</span>
                     </div>
-                    <p className="text-2xl font-bold">
-                        {stats.weight?.toFixed(1) || '--'}
-                        <span className="text-sm font-normal text-[var(--text-secondary)] ml-1">kg</span>
+                    <p className="text-2xl font-bold tabular-nums whitespace-nowrap">
+                        {stats.weight != null ? Number(stats.weight).toFixed(1) : '--'}
+                        <span className="text-sm font-normal text-[var(--text-secondary)] ml-1.5">kg</span>
                     </p>
                     {stats.weightChange && (
                         <p className={`text-xs mt-1 tabular-nums ${changeColorClass('weight', stats.weightChange.value)}`}>
@@ -421,9 +422,9 @@ export default function BodyTracking() {
                         </div>
                         <span className="text-xs text-[var(--text-secondary)]">Masa muscular</span>
                     </div>
-                    <p className="text-2xl font-bold tabular-nums">
-                        {stats.muscleMass?.toFixed(1) || '--'}
-                        <span className="text-sm font-normal text-[var(--text-secondary)] ml-1">kg</span>
+                    <p className="text-2xl font-bold tabular-nums whitespace-nowrap">
+                        {stats.muscleMass != null ? Number(stats.muscleMass).toFixed(1) : '--'}
+                        <span className="text-sm font-normal text-[var(--text-secondary)] ml-1.5">kg</span>
                     </p>
                     {stats.muscleChange && (
                         <p className={`text-xs mt-1 tabular-nums ${changeColorClass('muscleMass', stats.muscleChange.value)}`}>
@@ -776,20 +777,43 @@ export default function BodyTracking() {
                         Fotos de Progreso
                     </h3>
                     <div className="grid grid-cols-3 gap-2">
-                        {photos.map((photo) => (
+                        {photos.map((photo, idx) => (
                             <button
                                 key={photo.id}
                                 type="button"
                                 onClick={() => { setSelectedPhoto(photo); setShowPhotoModal(true); }}
-                                className="relative aspect-square rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--primary)] transition-colors"
+                                className="relative aspect-square rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--primary)] transition-colors bg-[var(--bg-dark)]"
                             >
                                 <img
-                                    src={photo.photo}
+                                    src={cloudinaryThumb(photo.photo, { width: 360, height: 360 })}
                                     alt={`Progreso ${formatLocalDate(photo.date, { day: 'numeric', month: 'short', year: 'numeric' })}`}
                                     className="w-full h-full object-cover"
-                                    loading="lazy"
+                                    // Miniatura Cloudinary (~tens of KB), no el full-res (puede ser 3MB+)
+                                    loading={idx < 6 ? 'eager' : 'lazy'}
+                                    decoding="async"
+                                    onError={(e) => {
+                                        // Reintento con URL original por si el transform fallara
+                                        const full = photo.photo;
+                                        if (e.currentTarget.dataset.retried !== '1' && full && e.currentTarget.src !== full) {
+                                            e.currentTarget.dataset.retried = '1';
+                                            e.currentTarget.src = full;
+                                            return;
+                                        }
+                                        e.currentTarget.style.display = 'none';
+                                        const fallback = e.currentTarget.nextElementSibling;
+                                        if (fallback) fallback.hidden = false;
+                                    }}
                                 />
-                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1">
+                                <div
+                                    hidden
+                                    className="absolute inset-0 flex flex-col items-center justify-center p-2 text-center bg-[var(--bg-dark)]"
+                                >
+                                    <Camera size={18} className="text-[var(--text-secondary)] mb-1 opacity-50" />
+                                    <p className="text-[9px] text-[var(--text-secondary)] leading-tight">
+                                        No se pudo cargar
+                                    </p>
+                                </div>
+                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1 pointer-events-none">
                                     <p className="text-[10px] text-white text-center">
                                         {formatLocalDate(photo.date, { day: 'numeric', month: 'short' })}
                                     </p>
@@ -809,16 +833,29 @@ export default function BodyTracking() {
                     >
                         <div className="max-w-md w-full" onClick={e => e.stopPropagation()}>
                             <img
-                                src={selectedPhoto.photo}
+                                src={cloudinaryDisplay(selectedPhoto.photo)}
                                 alt="Progreso"
-                                className="w-full rounded-xl"
+                                className="w-full rounded-xl max-h-[70vh] object-contain bg-black/40"
+                                onError={(e) => {
+                                    if (e.currentTarget.dataset.retried !== '1' && selectedPhoto.photo) {
+                                        e.currentTarget.dataset.retried = '1';
+                                        e.currentTarget.src = selectedPhoto.photo;
+                                        return;
+                                    }
+                                    e.currentTarget.replaceWith(Object.assign(document.createElement('p'), {
+                                        className: 'text-center text-[var(--text-secondary)] py-12 px-4 text-sm',
+                                        textContent: 'No se pudo mostrar la imagen. Revisa la conexión o vuelve a subirla.'
+                                    }));
+                                }}
                             />
                             <div className="text-center mt-3">
                                 <p className="text-white font-medium">
                                     {formatLocalDate(selectedPhoto.date, { day: 'numeric', month: 'long', year: 'numeric' })}
                                 </p>
-                                {selectedPhoto.weight && (
-                                    <p className="text-[var(--primary)] text-lg font-bold mt-1">{selectedPhoto.weight.toFixed(1)} kg</p>
+                                {selectedPhoto.weight != null && (
+                                    <p className="text-[var(--primary)] text-lg font-bold mt-1 tabular-nums whitespace-nowrap">
+                                        {Number(selectedPhoto.weight).toFixed(1)} kg
+                                    </p>
                                 )}
                                 {selectedPhoto.note && (
                                     <p className="text-[var(--text-secondary)] text-sm mt-1">{selectedPhoto.note}</p>
