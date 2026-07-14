@@ -26,14 +26,15 @@ function pathMatches(pathname, item) {
 export default function Layout() {
     const { pathname } = useLocation();
     const isWorkout = pathname.startsWith('/workout');
-    const isImmersive = isWorkout;
 
     return (
         <div className="flex h-dvh max-h-dvh bg-[var(--bg-dark)] overflow-hidden">
             <aside className="hidden lg:flex flex-col w-64 bg-[var(--bg-card)] border-r border-[var(--border)] p-4 shrink-0 min-h-0 overflow-y-auto">
                 <div className="flex items-center gap-3 mb-8 px-2">
                     <img src="/logo.png" alt="NexLift" className="w-10 h-10 rounded-xl" />
-                    <h1 className="text-2xl font-bold gradient-text">NexLift</h1>
+                    <h1 className="text-2xl font-bold text-white">
+                        <span className="text-[var(--primary)]">Nex</span>Lift
+                    </h1>
                 </div>
                 <nav className="space-y-1" aria-label="Principal">
                     {navItems.map((item) => {
@@ -61,36 +62,32 @@ export default function Layout() {
             </aside>
 
             <div className="flex-1 flex flex-col min-w-0 min-h-0">
-                {/* Brand bar móvil: logo + nombre (compacto, alineado a la izquierda).
-                    En Workout se oculta para maximizar espacio de series. */}
-                {!isImmersive && (
-                    <header
-                        className="lg:hidden shrink-0 z-40 border-b border-[var(--border)]/80 bg-[var(--bg-dark)]/95 backdrop-blur-md"
-                        style={{ paddingTop: 'env(safe-area-inset-top)' }}
-                    >
-                        <div className="flex items-center gap-2.5 h-12 px-4">
-                            <img
-                                src="/logo.png"
-                                alt=""
-                                width={28}
-                                height={28}
-                                className="w-7 h-7 rounded-lg shadow-sm shadow-[var(--primary)]/20"
-                                aria-hidden
-                            />
-                            <span className="text-base font-bold tracking-tight gradient-text select-none">
-                                NexLift
-                            </span>
-                        </div>
-                    </header>
-                )}
+                {/* Brand bar SIEMPRE en móvil (también en Workout). max-lg = <1024px.
+                    No usamos solo lg:hidden por si el viewport se reporta raro. */}
+                <header
+                    className="flex max-lg:flex lg:hidden shrink-0 z-50 border-b border-[var(--border)] bg-[var(--bg-card)]"
+                    style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+                >
+                    <div className="flex items-center gap-2.5 h-12 w-full px-4">
+                        <img
+                            src="/logo.png"
+                            alt="NexLift"
+                            width={28}
+                            height={28}
+                            className="w-7 h-7 rounded-lg object-cover shrink-0"
+                        />
+                        <span className="text-[17px] font-bold tracking-tight text-white select-none">
+                            <span className="text-[var(--primary)]">Nex</span>Lift
+                        </span>
+                    </div>
+                </header>
 
                 <main
                     className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain lg:p-6 pb-24 lg:pb-6 [-webkit-overflow-scrolling:touch] ${
-                        isImmersive ? 'p-0' : 'p-4 pt-3'
+                        isWorkout ? 'p-3 pt-2' : 'p-4 pt-3'
                     }`}
-                    style={isImmersive ? { paddingTop: 'env(safe-area-inset-top)' } : undefined}
                 >
-                    <div className={isImmersive ? 'w-full' : 'max-w-5xl mx-auto'}>
+                    <div className="max-w-5xl mx-auto w-full">
                         <Outlet />
                     </div>
                 </main>

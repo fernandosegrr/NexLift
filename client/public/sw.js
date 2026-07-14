@@ -5,7 +5,7 @@
 //  - API GET: network-first con fallback a la última respuesta cacheada
 //  - Estáticos varios (iconos, manifest, logo): cache-first
 // Bump en cada release de UI crítica para no servir shell viejo (header logo, etc.)
-const VERSION = 'v2.8.4';
+const VERSION = 'v2.8.5-brand';
 const STATIC_CACHE = `nexlift-static-${VERSION}`;
 const API_CACHE = `nexlift-api-${VERSION}`;
 const SHELL_URL = '/index.html';
@@ -25,6 +25,13 @@ self.addEventListener('activate', (event) => {
             )
         ).then(() => self.clients.claim())
     );
+});
+
+// El cliente puede pedir activación inmediata del SW nuevo
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
 });
 
 self.addEventListener('fetch', (event) => {
