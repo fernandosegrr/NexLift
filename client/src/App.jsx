@@ -25,6 +25,7 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const Profile = lazy(() => import('./pages/Profile'));
 const NewGoal = lazy(() => import('./pages/NewGoal'));
 const AiRoutineSetup = lazy(() => import('./pages/AiRoutineSetup'));
+const Cardio = lazy(() => import('./pages/Cardio'));
 
 function PageLoader() {
   return (
@@ -85,6 +86,7 @@ function AppRoutes() {
         <Route path="settings" element={<Settings />} />
         <Route path="session/:logId/edit" element={<EditSession />} />
         <Route path="body" element={<BodyTracking />} />
+        <Route path="cardio" element={<Cardio />} />
         <Route path="export" element={<ExportReport />} />
         <Route path="profile" element={<Profile />} />
         <Route path="goals/new" element={<NewGoal />} />

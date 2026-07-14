@@ -3,7 +3,16 @@
 > Historial completo de versiones, movido desde `context.md` (8 Jul 2026) para mantener el contexto principal en un tamaño legible de una sola pasada.
 > Las reglas vivas del proyecto están en `.agent/context.md` — este archivo es solo historia.
 
-### v2.8.2 (14 Julio 2026) - **Current**
+### v2.9.0 (14 Julio 2026) - **Current**
+**FEATURE — Cardio por tramos** (sección propia, no un ejercicio de pesas).
+
+*   Modelos `CardioSession` + `CardioSegment` (activity, min, inclinación, velocidad opcional).
+*   API `GET/POST /api/cardio`, `PUT/DELETE /api/cardio/:id`.
+*   UI `/cardio`: armar tramos (default 10@12 → 5@3 → 10@12), historial, minutos de la semana.
+*   Racha/heatmap incluyen días con cardio. Smart Loading / volumen kg sin tocar.
+*   Entradas: Dashboard, Progreso, Perfil. Backup incluye `cardioSessions`.
+
+### v2.8.2 (14 Julio 2026)
 Objetivo **0 bugs en camino caliente** (fechas, RIR, validación, tests, checklist).
 
 *   **FIX CRÍTICO — `getTodayName`:** usaba `date.getDay()` (zona del contenedor UTC). Tras las 18:00 CDMX el Atajo/`next-set` podía resolver el **día de la semana equivocado**. Ahora = `dayOfWeekFromDateStr(mexicoCityDateStr(...))`. Tests de ventana gym 18–23:59 CDMX.

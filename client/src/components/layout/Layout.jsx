@@ -10,7 +10,7 @@ const navItems = [
         icon: TrendingUp,
         label: 'Progreso',
         // Destinos “hijos” sin tab propio (no dejar al usuario sin tab activo)
-        alsoActive: ['/body', '/export', '/goals']
+        alsoActive: ['/body', '/export', '/goals', '/cardio']
     },
     { path: '/profile', icon: User, label: 'Perfil' },
 ];

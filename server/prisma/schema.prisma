@@ -62,9 +62,43 @@ model User {
   pendingReminders  PendingReminder[]
   suggestionLogs    SuggestionLog[]
   trainingProfile   TrainingProfile?
+  cardioSessions    CardioSession[]
 
   @@index([email])
   @@index([username])
+}
+
+// ==================== CARDIO (sesiones por tramos, no series de fuerza) ====================
+// Independiente de Exercise/WorkoutLog. Un tramo = minutos + inclinación (+ velocidad opcional).
+// Cuenta para racha/consistencia; NO entra en Smart Loading / 1RM / volumen kg×reps.
+
+model CardioSession {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // 'caminadora' | 'bici' | 'eliptica' | 'otro'
+  activity String   @default("caminadora")
+  date     DateTime @default(now())
+  note     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  segments CardioSegment[]
+
+  @@index([userId])
+  @@index([userId, date])
+}
+
+model CardioSegment {
+  id            String        @id @default(cuid())
+  sessionId     String
+  session       CardioSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  order         Int           @default(0)
+  durationMin   Float         // permite 2.5 min si hace falta
+  incline       Float?        // inclinación caminadora (0–30 típico)
+  speed         Float?        // km/h u opcional
+  note          String?
+
+  @@index([sessionId])
 }
 
 // ==================== RUTINAS ====================

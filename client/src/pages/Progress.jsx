@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
     TrendingUp, Calendar, Trophy, Dumbbell, ChevronDown, ChevronRight, Activity,
-    CheckCircle, Search, FileText, Loader2, Flame, X, Clock, Target, Zap, FileDown, Scale
+    CheckCircle, Search, FileText, Loader2, Flame, X, Clock, Target, Zap, FileDown, Scale, HeartPulse
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, CartesianGrid, Area, AreaChart } from 'recharts';
 import { api } from '../services/api';
@@ -789,19 +789,26 @@ export default function Progress() {
                     <h1 className="text-2xl font-bold leading-tight">Progreso</h1>
                     <p className="text-[var(--text-secondary)] text-sm mt-0.5">Tu evolución fitness</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-3 gap-2">
+                    <Link
+                        to="/cardio"
+                        className="min-h-[44px] flex items-center justify-center gap-1.5 bg-[var(--bg-card)] border border-[var(--border)] px-2 py-2.5 rounded-xl text-xs font-semibold text-[var(--text-primary)] active:scale-[0.98]"
+                    >
+                        <HeartPulse size={16} className="text-rose-400 shrink-0" aria-hidden />
+                        Cardio
+                    </Link>
                     <Link
                         to="/body"
-                        className="flex-1 min-h-[44px] flex items-center justify-center gap-2 bg-[var(--bg-card)] border border-[var(--border)] px-3 py-2.5 rounded-xl text-sm font-semibold text-[var(--text-primary)] active:scale-[0.98]"
+                        className="min-h-[44px] flex items-center justify-center gap-1.5 bg-[var(--bg-card)] border border-[var(--border)] px-2 py-2.5 rounded-xl text-xs font-semibold text-[var(--text-primary)] active:scale-[0.98]"
                     >
-                        <Scale size={18} className="text-[var(--accent)] shrink-0" aria-hidden />
+                        <Scale size={16} className="text-[var(--accent)] shrink-0" aria-hidden />
                         Cuerpo
                     </Link>
                     <Link
                         to="/export"
-                        className="flex-1 min-h-[44px] flex items-center justify-center gap-2 bg-[var(--primary)] px-3 py-2.5 rounded-xl text-sm font-semibold text-white shadow-md shadow-[var(--primary)]/20 active:scale-[0.98]"
+                        className="min-h-[44px] flex items-center justify-center gap-1.5 bg-[var(--primary)] px-2 py-2.5 rounded-xl text-xs font-semibold text-white shadow-md shadow-[var(--primary)]/20 active:scale-[0.98]"
                     >
-                        <FileText size={18} className="shrink-0" aria-hidden />
+                        <FileText size={16} className="shrink-0" aria-hidden />
                         PDF
                     </Link>
                 </div>

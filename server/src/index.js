@@ -637,7 +637,7 @@ setInterval(checkAdaptiveDeloadForAllUsers, 24 * 60 * 60 * 1000).unref?.();
 // activo irreemplazable que este backup protege.
 // ============================================
 async function buildBackupData(userId) {
-    const [user, routines, workoutLogs, bodyLogs, personalRecords, goals, restLogs] = await Promise.all([
+    const [user, routines, workoutLogs, bodyLogs, personalRecords, goals, restLogs, cardioSessions] = await Promise.all([
         prisma.user.findUnique({
             where: { id: userId },
             select: { id: true, username: true, email: true, firstName: true, lastName: true, phone: true, birthDate: true, createdAt: true }
@@ -658,7 +658,12 @@ async function buildBackupData(userId) {
         prisma.bodyLog.findMany({ where: { userId }, orderBy: { date: 'asc' } }),
         prisma.personalRecord.findMany({ where: { userId }, orderBy: { date: 'asc' } }),
         prisma.goal.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
-        prisma.restLog.findMany({ where: { userId }, orderBy: { date: 'asc' } })
+        prisma.restLog.findMany({ where: { userId }, orderBy: { date: 'asc' } }),
+        prisma.cardioSession.findMany({
+            where: { userId },
+            include: { segments: { orderBy: { order: 'asc' } } },
+            orderBy: { date: 'asc' }
+        })
     ]);
 
     return {
@@ -670,7 +675,8 @@ async function buildBackupData(userId) {
         bodyLogs,
         personalRecords,
         goals,
-        restLogs
+        restLogs,
+        cardioSessions
     };
 }
 
@@ -2358,6 +2364,163 @@ app.post('/api/workouts/log-rest', authMiddleware, async (req, res) => {
     }
 });
 
+// ============================================
+// CARDIO — sesiones por tramos (min + inclinación), no series de fuerza
+// ============================================
+const CARDIO_ACTIVITIES = new Set(['caminadora', 'bici', 'eliptica', 'otro']);
+
+function sanitizeCardioSegments(raw) {
+    if (!Array.isArray(raw) || raw.length === 0) {
+        return { error: 'Agrega al menos un tramo (minutos)' };
+    }
+    if (raw.length > 40) return { error: 'Demasiados tramos (máx. 40)' };
+    const segments = [];
+    for (let i = 0; i < raw.length; i++) {
+        const s = raw[i] || {};
+        const durationMin = parseFloat(s.durationMin);
+        if (!Number.isFinite(durationMin) || durationMin <= 0 || durationMin > 600) {
+            return { error: `Tramo ${i + 1}: minutos inválidos (0–600)` };
+        }
+        let incline = null;
+        if (s.incline != null && s.incline !== '') {
+            const inc = parseFloat(s.incline);
+            if (!Number.isFinite(inc) || inc < 0 || inc > 40) {
+                return { error: `Tramo ${i + 1}: inclinación inválida (0–40)` };
+            }
+            incline = inc;
+        }
+        let speed = null;
+        if (s.speed != null && s.speed !== '') {
+            const sp = parseFloat(s.speed);
+            if (!Number.isFinite(sp) || sp < 0 || sp > 50) {
+                return { error: `Tramo ${i + 1}: velocidad inválida` };
+            }
+            speed = sp;
+        }
+        segments.push({
+            order: i,
+            durationMin,
+            incline,
+            speed,
+            note: s.note != null ? String(s.note).slice(0, 200) : null
+        });
+    }
+    return { segments };
+}
+
+function mapCardioSession(session) {
+    if (!session) return null;
+    const segments = session.segments || [];
+    const totalMin = segments.reduce((a, s) => a + (s.durationMin || 0), 0);
+    return {
+        ...session,
+        totalMin: Math.round(totalMin * 10) / 10,
+        segmentCount: segments.length
+    };
+}
+
+// GET /api/cardio — historial (más recientes primero)
+app.get('/api/cardio', authMiddleware, async (req, res) => {
+    try {
+        const take = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 1), 100);
+        const sessions = await prisma.cardioSession.findMany({
+            where: { userId: req.userId },
+            include: { segments: { orderBy: { order: 'asc' } } },
+            orderBy: { date: 'desc' },
+            take
+        });
+        setPrivateCache(res, 15);
+        res.json(sessions.map(mapCardioSession));
+    } catch (error) {
+        console.error('Error listing cardio:', error);
+        res.status(500).json({ error: 'Failed to list cardio' });
+    }
+});
+
+// POST /api/cardio — nueva sesión con tramos
+app.post('/api/cardio', authMiddleware, async (req, res) => {
+    try {
+        const activityRaw = String(req.body.activity || 'caminadora').toLowerCase();
+        const activity = CARDIO_ACTIVITIES.has(activityRaw) ? activityRaw : 'caminadora';
+        const note = req.body.note != null ? String(req.body.note).slice(0, 500) : null;
+        const { segments, error } = sanitizeCardioSegments(req.body.segments);
+        if (error) return res.status(400).json({ error });
+
+        // Fecha: opcional YYYY-MM-DD (día CDMX); default = ahora
+        let date = new Date();
+        if (req.body.date && /^\d{4}-\d{2}-\d{2}$/.test(req.body.date)) {
+            date = mexicoCityDayBounds(new Date(`${req.body.date}T12:00:00Z`)).start;
+            // Guardar a mediodía CDMX approx para que el día calendario sea claro
+            date = new Date(date.getTime() + 12 * 60 * 60 * 1000);
+        }
+
+        const session = await prisma.cardioSession.create({
+            data: {
+                userId: req.userId,
+                activity,
+                note,
+                date,
+                segments: { create: segments }
+            },
+            include: { segments: { orderBy: { order: 'asc' } } }
+        });
+        res.status(201).json(mapCardioSession(session));
+    } catch (error) {
+        console.error('Error creating cardio:', error);
+        res.status(500).json({ error: 'Failed to create cardio session' });
+    }
+});
+
+// PUT /api/cardio/:id — reemplaza tramos / nota / activity
+app.put('/api/cardio/:id', authMiddleware, async (req, res) => {
+    try {
+        const existing = await prisma.cardioSession.findFirst({
+            where: { id: req.params.id, userId: req.userId }
+        });
+        if (!existing) return res.status(404).json({ error: 'Sesión no encontrada' });
+
+        const activityRaw = String(req.body.activity || existing.activity).toLowerCase();
+        const activity = CARDIO_ACTIVITIES.has(activityRaw) ? activityRaw : existing.activity;
+        const note = req.body.note !== undefined
+            ? (req.body.note != null ? String(req.body.note).slice(0, 500) : null)
+            : existing.note;
+        const { segments, error } = sanitizeCardioSegments(req.body.segments);
+        if (error) return res.status(400).json({ error });
+
+        const session = await prisma.$transaction(async (tx) => {
+            await tx.cardioSegment.deleteMany({ where: { sessionId: existing.id } });
+            return tx.cardioSession.update({
+                where: { id: existing.id },
+                data: {
+                    activity,
+                    note,
+                    segments: { create: segments }
+                },
+                include: { segments: { orderBy: { order: 'asc' } } }
+            });
+        });
+        res.json(mapCardioSession(session));
+    } catch (error) {
+        console.error('Error updating cardio:', error);
+        res.status(500).json({ error: 'Failed to update cardio session' });
+    }
+});
+
+// DELETE /api/cardio/:id
+app.delete('/api/cardio/:id', authMiddleware, async (req, res) => {
+    try {
+        const existing = await prisma.cardioSession.findFirst({
+            where: { id: req.params.id, userId: req.userId }
+        });
+        if (!existing) return res.status(404).json({ error: 'Sesión no encontrada' });
+        await prisma.cardioSession.delete({ where: { id: existing.id } });
+        res.json({ ok: true });
+    } catch (error) {
+        console.error('Error deleting cardio:', error);
+        res.status(500).json({ error: 'Failed to delete cardio session' });
+    }
+});
+
 // GET /api/workouts/history - Get workout history with filters
 // Payload optimizado: select explícito (antes exercise:true + SetLog completo
 // hinchaba history(500) ~250KB). Solo campos que usan plateau/goals/PDF/Settings.
@@ -3060,7 +3223,7 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
         // round-trip pesaba ~500-600ms de latencia de red, así que 7 en serie
         // eran ~3.5-4s. En paralelo, el tiempo total pasa a ser el de la más
         // lenta de las 7, no la suma.
-        const [totalWorkouts, totalRoutines, totalPRs, recentWorkouts, recentRestLogs, activeRoutine, weekSets] = await Promise.all([
+        const [totalWorkouts, totalRoutines, totalPRs, recentWorkouts, recentRestLogs, recentCardio, activeRoutine, weekSets] = await Promise.all([
             prisma.workoutLog.count({
                 where: { exercise: { routineDay: { routine: { userId: req.userId } } } }
             }),
@@ -3082,6 +3245,10 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
                     date: { gte: yearAgo },
                     userId: req.userId
                 },
+                select: { date: true }
+            }),
+            prisma.cardioSession.findMany({
+                where: { date: { gte: yearAgo }, userId: req.userId },
                 select: { date: true }
             }),
             // Active routine: solo dayName/isRestDay para la racha (no ejercicios)
@@ -3106,10 +3273,11 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
             })
         ]);
 
-        // Días con actividad real (entreno o descanso logueado) — día calendario CDMX
+        // Días con actividad (fuerza, descanso logueado o cardio) — día calendario CDMX
         const uniqueDays = new Set([
             ...recentWorkouts.map(w => mexicoCityDateStr(w.date)),
-            ...recentRestLogs.map(r => mexicoCityDateStr(r.date))
+            ...recentRestLogs.map(r => mexicoCityDateStr(r.date)),
+            ...recentCardio.map(c => mexicoCityDateStr(c.date))
         ]);
         // trainingDaysLast30 sigue siendo "últimos 30 días", aunque la query
         // traiga un año para la racha.
@@ -3179,7 +3347,7 @@ app.get('/api/stats/consistency', authMiddleware, async (req, res) => {
 
         // Las 3 consultas son independientes — antes corrían secuenciales (ver
         // misma nota de latencia en GET /api/stats/overview, P4 del plan de mejoras).
-        const [workouts, restLogs, activeRoutine] = await Promise.all([
+        const [workouts, restLogs, cardioLogs, activeRoutine] = await Promise.all([
             prisma.workoutLog.findMany({
                 where: {
                     date: { gte: threeSixtyFiveDaysAgo },
@@ -3192,6 +3360,10 @@ app.get('/api/stats/consistency', authMiddleware, async (req, res) => {
                     date: { gte: threeSixtyFiveDaysAgo },
                     userId: req.userId
                 },
+                select: { date: true }
+            }),
+            prisma.cardioSession.findMany({
+                where: { date: { gte: threeSixtyFiveDaysAgo }, userId: req.userId },
                 select: { date: true }
             }),
             // Active routine, to identify scheduled rest days
@@ -3218,14 +3390,16 @@ app.get('/api/stats/consistency', authMiddleware, async (req, res) => {
         // Build events list including auto-rest days
         const allEvents = [
             ...workouts.map(w => w.date),
-            ...restLogs.map(r => r.date)
+            ...restLogs.map(r => r.date),
+            ...cardioLogs.map(c => c.date)
         ];
 
         // Add auto-rest events for scheduled rest days (last 365 days) — día
         // calendario de CDMX, no UTC (ver HELPERS: Zona horaria)
         const loggedDates = new Set([
             ...workouts.map(w => mexicoCityDateStr(w.date)),
-            ...restLogs.map(r => mexicoCityDateStr(r.date))
+            ...restLogs.map(r => mexicoCityDateStr(r.date)),
+            ...cardioLogs.map(c => mexicoCityDateStr(c.date))
         ]);
 
         if (restDaySet.size > 0) {
@@ -3338,6 +3512,7 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
             totalPRs,
             recentWorkouts,
             recentRestLogs,
+            recentCardio,
             weekSets,
             allPRs,
             plateauLogs,
@@ -3351,6 +3526,10 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
                 select: { date: true }
             }),
             prisma.restLog.findMany({
+                where: { date: { gte: yearAgo }, userId },
+                select: { date: true }
+            }),
+            prisma.cardioSession.findMany({
                 where: { date: { gte: yearAgo }, userId },
                 select: { date: true }
             }),
@@ -3508,7 +3687,8 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
 
         const uniqueDays = new Set([
             ...recentWorkouts.map(w => mexicoCityDateStr(w.date)),
-            ...recentRestLogs.map(r => mexicoCityDateStr(r.date))
+            ...recentRestLogs.map(r => mexicoCityDateStr(r.date)),
+            ...recentCardio.map(c => mexicoCityDateStr(c.date))
         ]);
 
         // Auto-rest programados en el mapa de constancia
@@ -3651,6 +3831,7 @@ app.get('/api/stats/progress-page', authMiddleware, async (req, res) => {
             totalPRs,
             recentWorkouts,
             recentRestLogs,
+            recentCardio,
             weekSets,
             allPRs,
             plateauLogs,
@@ -3667,6 +3848,10 @@ app.get('/api/stats/progress-page', authMiddleware, async (req, res) => {
                 select: { date: true }
             }),
             prisma.restLog.findMany({
+                where: { date: { gte: yearAgo }, userId },
+                select: { date: true }
+            }),
+            prisma.cardioSession.findMany({
                 where: { date: { gte: yearAgo }, userId },
                 select: { date: true }
             }),
@@ -3750,7 +3935,8 @@ app.get('/api/stats/progress-page', authMiddleware, async (req, res) => {
 
         const uniqueDays = new Set([
             ...recentWorkouts.map(w => mexicoCityDateStr(w.date)),
-            ...recentRestLogs.map(r => mexicoCityDateStr(r.date))
+            ...recentRestLogs.map(r => mexicoCityDateStr(r.date)),
+            ...recentCardio.map(c => mexicoCityDateStr(c.date))
         ]);
         let trainingDaysLast30 = 0;
         for (const d of uniqueDays) {

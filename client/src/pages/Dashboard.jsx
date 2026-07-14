@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Flame, Target, Trophy, Calendar, Play,
-    ChevronRight, Dumbbell, TrendingUp, Coffee, CheckCircle2, Loader2, ArrowRight, AlertTriangle
+    ChevronRight, Dumbbell, TrendingUp, Coffee, CheckCircle2, Loader2, ArrowRight, AlertTriangle,
+    HeartPulse
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -474,6 +475,21 @@ export default function Dashboard() {
                     </p>
                 </div>
             </div>
+
+            {/* Cardio — sección aparte de fuerza */}
+            <Link
+                to="/cardio"
+                className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-3 hover:border-[var(--primary)]/40 active:scale-[0.99] transition-all"
+            >
+                <div className="w-11 h-11 rounded-xl bg-rose-500/15 flex items-center justify-center shrink-0">
+                    <HeartPulse size={20} className="text-rose-400" aria-hidden />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm">Cardio</p>
+                    <p className="text-xs text-[var(--text-secondary)]">Caminadora · tramos con inclinación</p>
+                </div>
+                <ChevronRight size={16} className="text-[var(--text-secondary)] shrink-0" />
+            </Link>
 
             {/* Plateau */}
             {plateauCount > 0 && (

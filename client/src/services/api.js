@@ -410,6 +410,45 @@ export const api = {
         }
     },
 
+    // ========== CARDIO (sesiones por tramos) ==========
+    async getCardioSessions(limit = 30) {
+        const res = await authFetch(`${API_URL}/cardio?limit=${limit}`);
+        if (!res.ok) throw new Error('Failed to fetch cardio');
+        return res.json();
+    },
+
+    async createCardioSession({ activity = 'caminadora', segments, note = null, date = null }) {
+        const res = await authFetch(`${API_URL}/cardio`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ activity, segments, note, date })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Failed to create cardio');
+        }
+        return res.json();
+    },
+
+    async updateCardioSession(id, { activity, segments, note }) {
+        const res = await authFetch(`${API_URL}/cardio/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ activity, segments, note })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Failed to update cardio');
+        }
+        return res.json();
+    },
+
+    async deleteCardioSession(id) {
+        const res = await authFetch(`${API_URL}/cardio/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete cardio');
+        return res.json();
+    },
+
     async getWorkoutHistory(limit = 30, filters = {}) {
         const params = new URLSearchParams({ limit: String(limit) });
         if (filters.search) params.set('search', filters.search);

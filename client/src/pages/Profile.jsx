@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
     Settings, LogOut, Camera, Award, Dumbbell, Scale, X,
-    Phone, Calendar, ChevronRight, Crown
+    Phone, Calendar, ChevronRight, Crown, HeartPulse
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -265,6 +265,16 @@ export default function Profile() {
 
             {/* Menu */}
             <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl overflow-hidden mb-4">
+                <Link
+                    to="/cardio"
+                    className="flex items-center gap-3 min-h-[52px] px-4 py-3 border-b border-[var(--border)] active:bg-[var(--bg-dark)]/60"
+                >
+                    <span className="w-9 h-9 rounded-xl bg-rose-500/15 flex items-center justify-center shrink-0">
+                        <HeartPulse className="w-4 h-4 text-rose-400" aria-hidden />
+                    </span>
+                    <span className="flex-1 font-medium text-sm text-left">Cardio</span>
+                    <ChevronRight className="w-4 h-4 text-[var(--text-secondary)]" aria-hidden />
+                </Link>
                 <Link
                     to="/body"
                     className="flex items-center gap-3 min-h-[52px] px-4 py-3 border-b border-[var(--border)] active:bg-[var(--bg-dark)]/60"

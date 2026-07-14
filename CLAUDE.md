@@ -143,7 +143,14 @@ Objetivo: **0 bugs en camino caliente** (registrar, sugerir, fechas, RIR, offlin
 - **Validación única:** `sanitizeSets` / `sanitizeWorkoutLogBody` / `sanitizeShortcutLogSet` en `server/src/logic.js` (testeadas). RIR obligatorio en series con trabajo; Atajo exige RIR 0–4 crudo.
 - **UI save:** Workout y EditSession bloquean guardar sin RIR en series con peso/reps.
 
-## Current Version: 2.8.2
+## Cardio por tramos (v2.9.0)
+Sección **aparte de fuerza** (`/cardio`): `CardioSession` + `CardioSegment` (minutos + inclinación + velocidad opcional).
+- API: `GET/POST /api/cardio`, `PUT/DELETE /api/cardio/:id`
+- Cuenta para racha/heatmap (home, overview, consistency, progress-page). **No** entra en Smart Loading ni volumen kg×reps.
+- UI: tramos editables; default 10′@12 → 5′@3 → 10′@12 (caminadora). Entrada desde Dashboard, Progreso, Perfil.
+- Backup JSON incluye `cardioSessions`.
+
+## Current Version: 2.9.0
 
 ## Conventions
 - Spanish UI, Spanish commit messages preferred
