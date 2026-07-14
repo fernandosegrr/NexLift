@@ -181,6 +181,13 @@ export const api = {
         return res.json();
     },
 
+    /** Bundle de Progreso: 1 round-trip (stats + constancia + PRs + plateau + ejercicios). */
+    async getProgressBundle() {
+        const res = await authFetch(`${API_URL}/stats/progress-page`);
+        if (!res.ok) throw new Error('Failed to fetch progress');
+        return res.json();
+    },
+
     /** Bundle del Dashboard: 1 round-trip (stats + constancia + PRs + plateau + rutina). */
     async getHome() {
         const res = await authFetch(`${API_URL}/stats/home`);

@@ -9,7 +9,6 @@ import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
 import { epley1RM, classifyLift } from '../utils/strength';
-import { groupHistoryByExercise } from '../utils/exerciseName';
 import { mexicoCityDateStr, mexicoCityLastNDays } from '../utils/dates';
 import { toSpanishMuscleGroup } from '../utils/muscleGroup';
 import { downloadDayPdf } from '../utils/dayPdf';
@@ -81,15 +80,9 @@ function useProgressData() {
         consistency: {},
         prs: [],
         exercises: [],
-        // Map: clave canónica de ejercicio -> { names, muscleGroup, sessions } (ver exerciseName.js)
-        workoutHistory: new Map(),
-        // Logs crudos para PDF por día / gráficas
-        rawHistory: [],
-        // Plateau server-side: Set de exerciseName en minúsculas
         plateauedNames: new Set(),
         loading: true,
-        loadError: false,
-        historyLoading: false
+        loadError: false
     });
 
     useEffect(() => {
@@ -97,81 +90,35 @@ function useProgressData() {
 
         async function fetchAllData() {
             try {
-                // Ola 1: General + plateau del server (sin history pesado)
-                const [statsData, consistencyRes, prsData, routinesData, plateausData] = await Promise.all([
-                    api.getOverviewStats(),
-                    api.getConsistency(),
-                    api.getPersonalRecords(),
-                    api.getRoutines(),
-                    api.getPlateaus().catch(() => ({ plateaued: [] }))
-                ]);
-
+                // 1 request (antes 5 + history 120)
+                const bundle = await api.getProgressBundle();
                 if (!isMounted) return;
 
                 const consistencyMap = {};
-                if (consistencyRes.events) {
-                    consistencyRes.events.forEach(dateStr => {
-                        const dayKey = mexicoCityDateStr(new Date(dateStr));
-                        consistencyMap[dayKey] = (consistencyMap[dayKey] || 0) + 1;
-                    });
-                } else {
-                    Object.assign(consistencyMap, consistencyRes);
-                }
-
-                const allExercises = [];
-                const seen = new Set();
-                const pushEx = (name, muscleGroup) => {
-                    if (!name || seen.has(name)) return;
-                    seen.add(name);
-                    allExercises.push({
-                        name,
-                        muscleGroup: toSpanishMuscleGroup(muscleGroup) || null
-                    });
-                };
-                (routinesData || []).forEach(r => (r.days || []).forEach(d => {
-                    (d.exercises || []).forEach(e => pushEx(e.name, e.muscleGroup));
-                }));
-                (Array.isArray(prsData) ? prsData : []).forEach(pr => pushEx(pr.exerciseName, null));
-                allExercises.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
-
-                const plateauedNames = new Set(
-                    (plateausData?.plateaued || []).map(n => String(n).toLowerCase())
-                );
-
-                setDataState({
-                    stats: statsData,
-                    consistency: consistencyMap,
-                    prs: Array.isArray(prsData) ? prsData : [],
-                    exercises: allExercises,
-                    workoutHistory: new Map(),
-                    rawHistory: [],
-                    plateauedNames,
-                    loading: false,
-                    loadError: false,
-                    historyLoading: true
+                (bundle.consistencyDays || []).forEach(dayKey => {
+                    consistencyMap[dayKey] = (consistencyMap[dayKey] || 0) + 1;
                 });
 
-                // Ola 2: history para gráficas/PDF (no para plateau)
-                const historyData = await api.getWorkoutHistory(120);
-                if (!isMounted) return;
-                const rawHistory = historyData || [];
-                const historyMap = groupHistoryByExercise(rawHistory);
-                for (const [, group] of historyMap) {
-                    (group.names || []).forEach(n => pushEx(n, group.muscleGroup));
-                }
-                allExercises.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
-
-                setDataState(prev => ({
-                    ...prev,
-                    exercises: allExercises,
-                    workoutHistory: historyMap,
-                    rawHistory,
-                    historyLoading: false
+                const exercises = (bundle.exercises || []).map(e => ({
+                    name: e.name,
+                    muscleGroup: toSpanishMuscleGroup(e.muscleGroup) || null
                 }));
+
+                setDataState({
+                    stats: bundle.stats || null,
+                    consistency: consistencyMap,
+                    prs: Array.isArray(bundle.prs) ? bundle.prs : [],
+                    exercises,
+                    plateauedNames: new Set(
+                        (bundle.plateaued || []).map(n => String(n).toLowerCase())
+                    ),
+                    loading: false,
+                    loadError: false
+                });
             } catch (error) {
                 if (isMounted) {
-                    console.error('Error fetching data:', error);
-                    setDataState(prev => ({ ...prev, loading: false, loadError: true, historyLoading: false }));
+                    console.error('Error fetching progress:', error);
+                    setDataState(prev => ({ ...prev, loading: false, loadError: true }));
                 }
             }
         }
@@ -594,7 +541,7 @@ export default function Progress() {
     const toast = useToast();
     const location = useLocation();
     const { user } = useAuth();
-    const { stats, consistency, prs, exercises, rawHistory, plateauedNames, loading, loadError } = useProgressData();
+    const { stats, consistency, prs, exercises, plateauedNames, loading, loadError } = useProgressData();
 
     const [uiState, setUIState] = useState({
         // Permite aterrizar en Objetivos desde /goals/new (navigate state.tab)
@@ -670,16 +617,11 @@ export default function Progress() {
         return yearsWithData.slice(0, 5);
     }, [consistency]);
 
-    // Días con al menos un WorkoutLog (para selector de PDF del día)
+    // Días con actividad (del bundle de constancia) — para selector PDF
     const trainingDayKeys = useMemo(() => {
-        const set = new Set();
-        (rawHistory || []).forEach(h => {
-            if (h?.date) set.add(mexicoCityDateStr(new Date(h.date)));
-        });
-        return [...set].sort((a, b) => b.localeCompare(a));
-    }, [rawHistory]);
+        return Object.keys(consistency || {}).sort((a, b) => b.localeCompare(a));
+    }, [consistency]);
 
-    // Si el día elegido no tiene logs, caer al más reciente con datos
     useEffect(() => {
         if (trainingDayKeys.length === 0) return;
         if (!trainingDayKeys.includes(dayPdfDate)) {
@@ -689,15 +631,17 @@ export default function Progress() {
 
     async function handleDayPdf() {
         if (dayPdfLoading) return;
-        const sessions = (rawHistory || []).filter(
-            h => h?.date && mexicoCityDateStr(new Date(h.date)) === dayPdfDate
-        );
-        if (sessions.length === 0) {
-            toast.error('No hay entrenos ese día');
-            return;
-        }
         setDayPdfLoading(true);
         try {
+            // On-demand: solo el día pedido (no history 120 al abrir Progreso)
+            const sessions = await api.getWorkoutHistory(80, {
+                dateFrom: dayPdfDate,
+                dateTo: dayPdfDate
+            });
+            if (!sessions?.length) {
+                toast.error('No hay entrenos ese día');
+                return;
+            }
             await downloadDayPdf(sessions, {
                 dayKey: dayPdfDate,
                 userName: user?.firstName

@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
     Settings, LogOut, Camera, Award, Dumbbell, Scale, X,
-    Phone, Calendar, ChevronRight
+    Phone, Calendar, ChevronRight, Crown
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -189,12 +189,22 @@ export default function Profile() {
             {/* User Info */}
             <div className="mt-14 text-center px-4">
                 <div className="flex flex-col items-center justify-center mb-1">
-                    <p className="text-xl font-bold text-[var(--primary)] mb-1">
+                    <p className="text-xl font-bold text-[var(--primary)] mb-1 flex items-center justify-center gap-2 flex-wrap">
                         @{user.username}
+                        {user.username === 'fernando.segrr' && (
+                            <span className="px-2 py-0.5 text-[10px] bg-gradient-to-r from-[var(--primary)] to-pink-500 text-white rounded-full font-bold uppercase tracking-wider shadow-lg shadow-[var(--primary)]/30 border border-white/10">
+                                Creador
+                            </span>
+                        )}
                     </p>
-                    <h1 className="text-lg text-[var(--text-secondary)] font-medium">
-                        {user.firstName} {user.lastName}
-                    </h1>
+                    <div className="flex items-center gap-2">
+                        <h1 className="text-lg text-[var(--text-secondary)] font-medium">
+                            {user.firstName} {user.lastName}
+                        </h1>
+                        {user.username === 'fernando.segrr' && (
+                            <Crown className="w-4 h-4 text-yellow-400" aria-label="Creador" />
+                        )}
+                    </div>
                 </div>
                 {user.email && (
                     <p className="text-sm text-[var(--text-secondary)] mt-1 break-all">{user.email}</p>
