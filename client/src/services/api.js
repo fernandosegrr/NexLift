@@ -174,6 +174,13 @@ export const api = {
         return res.json();
     },
 
+    /** Bundle del Dashboard: 1 round-trip (stats + constancia + PRs + plateau + rutina). */
+    async getHome() {
+        const res = await authFetch(`${API_URL}/stats/home`);
+        if (!res.ok) throw new Error('Failed to fetch home');
+        return res.json();
+    },
+
     async getConsistency() {
         const res = await authFetch(`${API_URL}/stats/consistency`);
         if (!res.ok) throw new Error('Failed to fetch consistency');

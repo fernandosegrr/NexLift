@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -191,10 +192,22 @@ app.use(cors({
 // tal cual rompería el bundle. Las demás cabeceras (X-Frame-Options, nosniff, etc.)
 // sí quedan activas y son las que de verdad faltaban.
 app.use(helmet({ contentSecurityPolicy: false }));
+// Gzip/brotli según el cliente — payloads JSON del historial y home se reducen ~70%
+app.use(compression({ threshold: 1024 }));
 app.use(express.json({ limit: '10mb' }));
 
 // Serve static files from client/dist (for production)
-app.use(express.static(path.join(__dirname, '../../client/dist')));
+// Cache largo en assets hasheados de Vite; HTML sin cache
+app.use(express.static(path.join(__dirname, '../../client/dist'), {
+    maxAge: '1y',
+    setHeaders(res, filePath) {
+        if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+        } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+    }
+}));
 
 // ============================================
 // HELPERS
@@ -3308,6 +3321,254 @@ app.get('/api/stats/prs', authMiddleware, async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch PRs' });
     }
 });
+
+// GET /api/stats/home — UN solo round-trip para el Dashboard (antes 5 requests
+// en paralelo: overview + active + consistency + prs + history 180).
+// Incluye plateauCount ya calculado (sin mandar 180 WorkoutLogs al cliente).
+app.get('/api/stats/home', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.userId;
+        const todayBounds = mexicoCityDayBounds();
+        const thirtyDaysAgo = new Date(todayBounds.start.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const yearAgo = new Date(todayBounds.start.getTime() - 365 * 24 * 60 * 60 * 1000);
+        const weekAgo = new Date(todayBounds.start.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const thirtyDaysAgoStr = mexicoCityDateStr(thirtyDaysAgo);
+        const todayStr = todayBounds.dateStr;
+
+        const exerciseScope = { exercise: { routineDay: { routine: { userId } } } };
+
+        const [
+            totalWorkouts,
+            totalRoutines,
+            totalPRs,
+            recentWorkouts,
+            recentRestLogs,
+            weekSets,
+            allPRs,
+            plateauLogs,
+            activeMeta
+        ] = await Promise.all([
+            prisma.workoutLog.count({ where: exerciseScope }),
+            prisma.routine.count({ where: { userId } }),
+            prisma.personalRecord.count({ where: { userId } }),
+            prisma.workoutLog.findMany({
+                where: { date: { gte: yearAgo }, ...exerciseScope },
+                select: { date: true }
+            }),
+            prisma.restLog.findMany({
+                where: { date: { gte: yearAgo }, userId },
+                select: { date: true }
+            }),
+            prisma.setLog.findMany({
+                where: {
+                    workoutLog: { date: { gte: weekAgo }, ...exerciseScope }
+                },
+                select: { weight: true, reps: true }
+            }),
+            prisma.personalRecord.findMany({
+                where: { userId },
+                orderBy: { date: 'desc' },
+                select: {
+                    id: true,
+                    exerciseName: true,
+                    weight: true,
+                    reps: true,
+                    estimated1RM: true,
+                    date: true
+                }
+            }),
+            // Últimos logs para plateau — solo weight/reps/date/name, sin notes
+            prisma.workoutLog.findMany({
+                where: exerciseScope,
+                orderBy: { date: 'desc' },
+                take: 160,
+                select: {
+                    date: true,
+                    exercise: { select: { name: true } },
+                    sets: {
+                        select: { weight: true, reps: true, weightRight: true, repsRight: true }
+                    }
+                }
+            }),
+            prisma.routine.findFirst({
+                where: { userId, isActive: true },
+                select: { id: true, source: true, name: true, adaptiveDeloadUntil: true, lastAdaptiveCheckAt: true }
+            })
+        ]);
+
+        // PRs best-per-exercise
+        const prsByExercise = {};
+        for (const pr of allPRs) {
+            const key = pr.exerciseName;
+            if (!prsByExercise[key] || (pr.estimated1RM || 0) > (prsByExercise[key].estimated1RM || 0)) {
+                prsByExercise[key] = pr;
+            }
+        }
+        const prs = Object.values(prsByExercise).sort((a, b) => b.weight - a.weight);
+
+        // Agrupar plateauLogs por nombre de ejercicio (minúsculas) → detectPlateauForExercise
+        const logsByName = new Map();
+        for (const log of plateauLogs) {
+            const name = (log.exercise?.name || '').toLowerCase();
+            if (!name) continue;
+            if (!logsByName.has(name)) logsByName.set(name, []);
+            logsByName.get(name).push(log);
+        }
+        let plateauCount = 0;
+        for (const pr of prs) {
+            const key = (pr.exerciseName || '').toLowerCase();
+            const logs = logsByName.get(key);
+            if (logs && detectPlateauForExercise(logs)) plateauCount++;
+        }
+
+        // Active routine LITE — sin workoutLogs anidados (eran el grueso del payload)
+        let activeRoutine = null;
+        let aiTodayDay = null;
+        if (activeMeta) {
+            const exerciseSelect = {
+                orderBy: { order: 'asc' },
+                select: {
+                    id: true,
+                    name: true,
+                    muscleGroup: true,
+                    targetSets: true,
+                    targetReps: true,
+                    restSeconds: true,
+                    isUnilateral: true,
+                    order: true,
+                    note: true
+                }
+            };
+            // Parent usa `select` → nested también select (no include)
+            const daySelect = {
+                select: {
+                    id: true,
+                    dayName: true,
+                    isRestDay: true,
+                    order: true,
+                    splitLabel: true,
+                    exercises: exerciseSelect
+                },
+                orderBy: activeMeta.source === 'ai' ? { dayName: 'desc' } : { order: 'asc' },
+                ...(activeMeta.source === 'ai' ? { take: 7 } : {})
+            };
+            const full = await prisma.routine.findUnique({
+                where: { id: activeMeta.id },
+                select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                    isActive: true,
+                    source: true,
+                    adaptiveDeloadUntil: true,
+                    lastAdaptiveCheckAt: true,
+                    days: daySelect,
+                    blocks: { orderBy: { order: 'asc' } }
+                }
+            });
+            if (full) {
+                const activeBlock = getActiveBlock(full.blocks);
+                const phaseStatus = getRoutinePhaseStatus(full);
+                activeRoutine = {
+                    ...full,
+                    activeBlock,
+                    currentWeek: currentWeekInBlock(activeBlock),
+                    isDeload: phaseStatus.isDeload,
+                    phase: phaseStatus.phase
+                };
+                if (full.source === 'ai') {
+                    try {
+                        const profile = await prisma.trainingProfile.findUnique({ where: { userId } });
+                        if (profile) {
+                            aiTodayDay = await resolveOrGenerateAiRoutineDay(
+                                { ...full, userId },
+                                profile
+                            );
+                        }
+                    } catch (e) {
+                        console.error('home aiToday:', e.message);
+                        aiTodayDay = null;
+                    }
+                }
+            }
+        }
+
+        // Racha + consistency (días como strings CDMX, no Date ISO completos)
+        const DAY_NAMES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+        const restDaySet = new Set();
+        if (activeRoutine?.days) {
+            activeRoutine.days.forEach(d => {
+                if (d.isRestDay) {
+                    const normalized = d.dayName.toLowerCase()
+                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3);
+                    DAY_NAMES.forEach((name, idx) => {
+                        const norm = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3);
+                        if (norm === normalized) restDaySet.add(idx);
+                    });
+                }
+            });
+        }
+
+        const uniqueDays = new Set([
+            ...recentWorkouts.map(w => mexicoCityDateStr(w.date)),
+            ...recentRestLogs.map(r => mexicoCityDateStr(r.date))
+        ]);
+
+        // Auto-rest programados en el mapa de constancia
+        const consistencyDays = new Set(uniqueDays);
+        if (restDaySet.size > 0) {
+            for (let i = 0; i < 365; i++) {
+                const checkDate = new Date(todayBounds.start.getTime() - i * 24 * 60 * 60 * 1000);
+                const dateStr = mexicoCityDateStr(checkDate);
+                if (!uniqueDays.has(dateStr) && restDaySet.has(dayOfWeekFromDateStr(dateStr))) {
+                    consistencyDays.add(dateStr);
+                }
+            }
+        }
+
+        let trainingDaysLast30 = 0;
+        for (const d of uniqueDays) {
+            if (d >= thirtyDaysAgoStr) trainingDaysLast30++;
+        }
+
+        let streak = 0;
+        for (let i = 0; i < 365; i++) {
+            const checkDate = new Date(todayBounds.start.getTime() - i * 24 * 60 * 60 * 1000);
+            const dateStr = mexicoCityDateStr(checkDate);
+            const dayOfWeek = dayOfWeekFromDateStr(dateStr);
+            if (uniqueDays.has(dateStr)) streak++;
+            else if (restDaySet.has(dayOfWeek)) streak++;
+            else if (i > 0) break;
+        }
+
+        const weeklyVolume = Math.round(weekSets.reduce((acc, s) => acc + (s.weight * s.reps), 0));
+
+        res.set('Cache-Control', 'private, max-age=20');
+        res.json({
+            stats: {
+                totalWorkouts,
+                totalRoutines,
+                totalPRs,
+                currentStreak: streak,
+                trainingDaysLast30,
+                weeklyVolume,
+                maxPRWeight: prs.reduce((m, p) => Math.max(m, p.weight || 0), 0)
+            },
+            // Mapa día→count (más compacto que events[] de ISO timestamps)
+            consistencyDays: [...consistencyDays],
+            prs,
+            plateauCount,
+            activeRoutine,
+            aiTodayDay,
+            todayStr,
+            todayLogged: uniqueDays.has(todayStr)
+        });
+    } catch (error) {
+        console.error('Error fetching home stats:', error);
+        res.status(500).json({ error: 'Failed to fetch home' });
+    }
+});
+
 // ============================================
 // ROUTES: Body Tracking (Peso & Fotos)
 // ============================================

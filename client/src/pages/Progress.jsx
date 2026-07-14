@@ -86,7 +86,8 @@ function useProgressData() {
         // Logs crudos para PDF por día
         rawHistory: [],
         loading: true,
-        loadError: false
+        loadError: false,
+        historyLoading: false
     });
 
     useEffect(() => {
@@ -94,18 +95,16 @@ function useProgressData() {
 
         async function fetchAllData() {
             try {
-                const [statsData, consistencyRes, prsData, routinesData, historyData] = await Promise.all([
+                // Ola 1: lo necesario para pintar General (sin history pesado)
+                const [statsData, consistencyRes, prsData, routinesData] = await Promise.all([
                     api.getOverviewStats(),
                     api.getConsistency(),
                     api.getPersonalRecords(),
-                    api.getRoutines(),
-                    // Suficiente para plateau + PDF del día reciente; export full usa 500 aparte
-                    api.getWorkoutHistory(250)
+                    api.getRoutines()
                 ]);
 
                 if (!isMounted) return;
 
-                // Día calendario CDMX (mismo criterio que Dashboard / server)
                 const consistencyMap = {};
                 if (consistencyRes.events) {
                     consistencyRes.events.forEach(dateStr => {
@@ -116,11 +115,8 @@ function useProgressData() {
                     Object.assign(consistencyMap, consistencyRes);
                 }
 
-                const rawHistory = historyData || [];
-                const historyMap = groupHistoryByExercise(rawHistory);
                 const allExercises = [];
                 const seen = new Set();
-
                 const pushEx = (name, muscleGroup) => {
                     if (!name || seen.has(name)) return;
                     seen.add(name);
@@ -129,34 +125,46 @@ function useProgressData() {
                         muscleGroup: toSpanishMuscleGroup(muscleGroup) || null
                     });
                 };
-
-                // 1) Rutinas actuales
                 (routinesData || []).forEach(r => (r.days || []).forEach(d => {
                     (d.exercises || []).forEach(e => pushEx(e.name, e.muscleGroup));
                 }));
-                // 2) Historial (ejercicios archivados / renombrados que aún tienen logs)
-                for (const [, group] of historyMap) {
-                    (group.names || []).forEach(n => pushEx(n, group.muscleGroup));
-                }
-                // 3) PRs sueltos
                 (Array.isArray(prsData) ? prsData : []).forEach(pr => pushEx(pr.exerciseName, null));
-
                 allExercises.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 
+                // Primera pintura: UI usable sin history
                 setDataState({
                     stats: statsData,
                     consistency: consistencyMap,
                     prs: Array.isArray(prsData) ? prsData : [],
                     exercises: allExercises,
+                    workoutHistory: new Map(),
+                    rawHistory: [],
+                    loading: false,
+                    loadError: false,
+                    historyLoading: true
+                });
+
+                // Ola 2: history (plateau, PDF día) — no bloquea el primer paint
+                const historyData = await api.getWorkoutHistory(200);
+                if (!isMounted) return;
+                const rawHistory = historyData || [];
+                const historyMap = groupHistoryByExercise(rawHistory);
+                for (const [, group] of historyMap) {
+                    (group.names || []).forEach(n => pushEx(n, group.muscleGroup));
+                }
+                allExercises.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+
+                setDataState(prev => ({
+                    ...prev,
+                    exercises: allExercises,
                     workoutHistory: historyMap,
                     rawHistory,
-                    loading: false,
-                    loadError: false
-                });
+                    historyLoading: false
+                }));
             } catch (error) {
                 if (isMounted) {
                     console.error('Error fetching data:', error);
-                    setDataState(prev => ({ ...prev, loading: false, loadError: true }));
+                    setDataState(prev => ({ ...prev, loading: false, loadError: true, historyLoading: false }));
                 }
             }
         }

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { unsubscribeFromPush } from '../utils/push';
+import { clearHomeCache } from '../utils/homeCache';
 
 const AuthContext = createContext(null);
 
@@ -89,6 +90,7 @@ export function AuthProvider({ children }) {
         setToken(null);
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
+        clearHomeCache();
     };
 
     const updateProfile = async (data) => {

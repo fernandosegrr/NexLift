@@ -7,14 +7,19 @@ import {
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ui/Toast';
-import { canonicalExerciseKey, groupHistoryByExercise, detectPlateau } from '../utils/exerciseName';
-
-const AchievementsStrip = lazy(() => import('../components/AchievementsStrip'));
 import {
     mexicoCityDateStr,
     mexicoCityTodayName,
     mexicoCityLastNDays
 } from '../utils/dates';
+import { readHomeCache, writeHomeCache } from '../utils/homeCache';
+
+const AchievementsStrip = lazy(() => import('../components/AchievementsStrip'));
+
+// Prefetch del chunk de Workout en idle (el botón "Entrenar" no espera a bajar JS)
+function prefetchWorkoutChunk() {
+    import('./Workout').catch(() => {});
+}
 
 // Fase del bloque activo (viene de GET /routines/active como `phase`).
 // Mismas claves que Workout — aviso visible, nunca silencioso.
@@ -32,15 +37,44 @@ function normalizeDay(day) {
         .slice(0, 3);
 }
 
+function applyHomePayload(payload, setters) {
+    const {
+        setStats, setActiveRoutine, setConsistency, setPrs,
+        setPlateauCount, setAiTodayDay, setAiTodayLoading
+    } = setters;
+
+    const map = {};
+    (payload.consistencyDays || []).forEach(dayKey => {
+        map[dayKey] = (map[dayKey] || 0) + 1;
+    });
+
+    setStats(payload.stats || null);
+    setActiveRoutine(payload.activeRoutine || null);
+    setConsistency(map);
+    setPrs(Array.isArray(payload.prs) ? payload.prs : []);
+    setPlateauCount(payload.plateauCount || 0);
+    setAiTodayDay(payload.aiTodayDay || null);
+    setAiTodayLoading(false);
+}
+
 export default function Dashboard() {
     const { user } = useAuth();
     const toast = useToast();
-    const [stats, setStats] = useState(null);
-    const [activeRoutine, setActiveRoutine] = useState(null);
-    const [consistency, setConsistency] = useState({});
-    const [prs, setPrs] = useState([]);
-    const [workoutHistory, setWorkoutHistory] = useState(() => new Map());
-    const [loading, setLoading] = useState(true);
+    const cached = useMemo(() => readHomeCache(), []);
+    const [stats, setStats] = useState(() => cached?.stats || null);
+    const [activeRoutine, setActiveRoutine] = useState(() => cached?.activeRoutine || null);
+    const [consistency, setConsistency] = useState(() => {
+        if (!cached?.consistencyDays) return {};
+        const map = {};
+        cached.consistencyDays.forEach(d => { map[d] = (map[d] || 0) + 1; });
+        return map;
+    });
+    const [prs, setPrs] = useState(() => Array.isArray(cached?.prs) ? cached.prs : []);
+    const [plateauCount, setPlateauCount] = useState(() => cached?.plateauCount || 0);
+    const [aiTodayDay, setAiTodayDay] = useState(() => cached?.aiTodayDay || null);
+    const [aiTodayLoading, setAiTodayLoading] = useState(false);
+    // Si hay cache fresco, no bloquear UI con spinner
+    const [loading, setLoading] = useState(() => !cached);
     const [loadError, setLoadError] = useState(false);
     const [showHeatmap, setShowHeatmap] = useState(false);
     const [loggingRest, setLoggingRest] = useState(false);
@@ -51,43 +85,27 @@ export default function Dashboard() {
 
     useEffect(() => {
         let isMounted = true;
+        const setters = {
+            setStats, setActiveRoutine, setConsistency, setPrs,
+            setPlateauCount, setAiTodayDay, setAiTodayLoading
+        };
 
         async function fetchData() {
             try {
                 setLoadError(false);
-                const [statsData, activeData, consistencyRes, prsData, historyData] = await Promise.all([
-                    api.getOverviewStats(),
-                    api.getActiveRoutine(),
-                    api.getConsistency(),
-                    api.getPersonalRecords(),
-                    // Plateau solo necesita ~6 sesiones/ejercicio; 180 logs bastan y
-                    // pesan mucho menos que 500 en el home (ruta más caliente).
-                    api.getWorkoutHistory(180)
-                ]);
-
+                // 1 request en vez de 5 (overview+active+consistency+prs+history)
+                const home = await api.getHome();
                 if (!isMounted) return;
-
-                // events[] del server son instantes UTC; el día "de gym" es CDMX
-                const map = {};
-                if (consistencyRes.events) {
-                    consistencyRes.events.forEach(dateStr => {
-                        const dayKey = mexicoCityDateStr(new Date(dateStr));
-                        map[dayKey] = (map[dayKey] || 0) + 1;
-                    });
-                } else {
-                    Object.assign(map, consistencyRes);
-                }
-
-                setStats(statsData);
-                setActiveRoutine(activeData);
-                setConsistency(map);
-                setPrs(Array.isArray(prsData) ? prsData : []);
-                setWorkoutHistory(groupHistoryByExercise(historyData));
+                applyHomePayload(home, setters);
+                writeHomeCache(home);
             } catch (error) {
                 if (isMounted) {
                     console.error('Dashboard error:', error);
-                    setLoadError(true);
-                    toast.error('Error al cargar el dashboard');
+                    // Solo error total si no había cache para mostrar
+                    if (!cached) {
+                        setLoadError(true);
+                        toast.error('Error al cargar el dashboard');
+                    }
                 }
             } finally {
                 if (isMounted) setLoading(false);
@@ -95,23 +113,15 @@ export default function Dashboard() {
         }
 
         fetchData();
+        // Prefetch Workout en idle para que "Entrenar" abra al toque
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(() => prefetchWorkoutChunk(), { timeout: 2000 });
+        } else {
+            setTimeout(prefetchWorkoutChunk, 600);
+        }
         return () => { isMounted = false; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-
-    // Rutinas IA: "qué toca hoy" siempre vía server (GET /api/ai-routine/today)
-    const [aiTodayDay, setAiTodayDay] = useState(null);
-    const [aiTodayLoading, setAiTodayLoading] = useState(false);
-    useEffect(() => {
-        if (activeRoutine?.source !== 'ai') { setAiTodayDay(null); return undefined; }
-        let cancelled = false;
-        setAiTodayLoading(true);
-        api.getAiRoutineToday()
-            .then(result => { if (!cancelled) setAiTodayDay(result?.day || null); })
-            .catch(() => { if (!cancelled) setAiTodayDay(null); })
-            .finally(() => { if (!cancelled) setAiTodayLoading(false); });
-        return () => { cancelled = true; };
-    }, [activeRoutine]);
 
     const nextDay = useMemo(() => {
         if (!activeRoutine) return null;
@@ -136,13 +146,6 @@ export default function Dashboard() {
             exercises: []
         };
     }, [activeRoutine, aiTodayDay]);
-
-    const plateauCount = useMemo(() => {
-        return prs.reduce((count, pr) => {
-            const group = workoutHistory.get(canonicalExerciseKey(pr.exerciseName));
-            return detectPlateau(group?.sessions).isPlateaued ? count + 1 : count;
-        }, 0);
-    }, [prs, workoutHistory]);
 
     const { last30Days, isTodayLogged } = useMemo(() => {
         const days = mexicoCityLastNDays(30);
@@ -239,8 +242,12 @@ export default function Dashboard() {
             if (result?.queued) {
                 toast.info('Guardado local — se sincronizará cuando vuelva la conexión');
             } else {
-                const statsData = await api.getOverviewStats();
-                setStats(statsData);
+                const home = await api.getHome();
+                applyHomePayload(home, {
+                    setStats, setActiveRoutine, setConsistency, setPrs,
+                    setPlateauCount, setAiTodayDay, setAiTodayLoading
+                });
+                writeHomeCache(home);
             }
         } catch (error) {
             console.error('Failed to log rest:', error);
@@ -387,6 +394,8 @@ export default function Dashboard() {
                                 ) : (
                                     <Link
                                         to={`/workout/${nextDay.id}`}
+                                        onPointerEnter={prefetchWorkoutChunk}
+                                        onFocus={prefetchWorkoutChunk}
                                         className="flex items-center justify-between bg-white/20 backdrop-blur-md rounded-xl p-4 hover:bg-white/30 active:scale-[0.98] transition-all border border-white/10"
                                     >
                                         <div className="flex-1 min-w-0">
