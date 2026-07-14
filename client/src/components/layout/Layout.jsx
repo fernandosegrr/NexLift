@@ -61,17 +61,34 @@ export default function Layout() {
             </aside>
 
             <div className="flex-1 flex flex-col min-w-0 min-h-0">
-                {/* Sin barra de logo en móvil: cada página ya tiene su título;
-                    el branding vive en el sidebar de desktop. Safe-area en main. */}
+                {/* Brand bar móvil: logo + nombre (compacto, alineado a la izquierda).
+                    En Workout se oculta para maximizar espacio de series. */}
+                {!isImmersive && (
+                    <header
+                        className="lg:hidden shrink-0 z-40 border-b border-[var(--border)]/80 bg-[var(--bg-dark)]/95 backdrop-blur-md"
+                        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+                    >
+                        <div className="flex items-center gap-2.5 h-12 px-4">
+                            <img
+                                src="/logo.png"
+                                alt=""
+                                width={28}
+                                height={28}
+                                className="w-7 h-7 rounded-lg shadow-sm shadow-[var(--primary)]/20"
+                                aria-hidden
+                            />
+                            <span className="text-base font-bold tracking-tight gradient-text select-none">
+                                NexLift
+                            </span>
+                        </div>
+                    </header>
+                )}
+
                 <main
                     className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain lg:p-6 pb-24 lg:pb-6 [-webkit-overflow-scrolling:touch] ${
-                        isImmersive ? 'p-0' : 'p-4'
+                        isImmersive ? 'p-0' : 'p-4 pt-3'
                     }`}
-                    style={{
-                        paddingTop: isImmersive
-                            ? 'env(safe-area-inset-top)'
-                            : 'max(0.75rem, env(safe-area-inset-top))'
-                    }}
+                    style={isImmersive ? { paddingTop: 'env(safe-area-inset-top)' } : undefined}
                 >
                     <div className={isImmersive ? 'w-full' : 'max-w-5xl mx-auto'}>
                         <Outlet />
