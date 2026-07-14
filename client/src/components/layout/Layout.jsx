@@ -62,21 +62,20 @@ export default function Layout() {
             </aside>
 
             <div className="flex-1 flex flex-col min-w-0 min-h-0">
-                {/* Brand bar SIEMPRE en móvil (también en Workout). max-lg = <1024px.
-                    No usamos solo lg:hidden por si el viewport se reporta raro. */}
+                {/* Brand bar móvil: logo + nombre centrados (siempre visible) */}
                 <header
                     className="flex max-lg:flex lg:hidden shrink-0 z-50 border-b border-[var(--border)] bg-[var(--bg-card)]"
                     style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
                 >
-                    <div className="flex items-center gap-2.5 h-12 w-full px-4">
+                    <div className="flex items-center justify-center gap-2.5 h-14 w-full px-4">
                         <img
                             src="/logo.png"
                             alt="NexLift"
-                            width={28}
-                            height={28}
-                            className="w-7 h-7 rounded-lg object-cover shrink-0"
+                            width={32}
+                            height={32}
+                            className="w-8 h-8 rounded-xl object-cover shrink-0 shadow-sm shadow-[var(--primary)]/25"
                         />
-                        <span className="text-[17px] font-bold tracking-tight text-white select-none">
+                        <span className="text-lg font-bold tracking-tight text-white select-none">
                             <span className="text-[var(--primary)]">Nex</span>Lift
                         </span>
                     </div>
