@@ -4,6 +4,7 @@ import { ChevronLeft, Target, Dumbbell, ChevronDown, Loader2, AlertCircle, User,
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { canonicalExerciseKey, normalizeExerciseName, groupHistoryByExercise, best1RMRecent } from '../utils/exerciseName';
+import { toSpanishMuscleGroup } from '../utils/muscleGroup';
 
 const MUSCLE_GROUPS = ['Pecho', 'Espalda', 'Hombros', 'Piernas', 'Bíceps', 'Tríceps', 'Core'];
 
@@ -78,7 +79,9 @@ export default function NewGoal() {
                     if (!e) { e = { key, name, muscleGroup: null, fromRoutine: false }; map.set(key, e); }
                     // Preferir el nombre tal como aparece en una rutina visible (lo que el usuario ve hoy)
                     if (fromRoutine && !e.fromRoutine) { e.name = name; e.fromRoutine = true; }
-                    if (!e.muscleGroup && muscleGroup) e.muscleGroup = muscleGroup;
+                    if (!e.muscleGroup && muscleGroup) {
+                        e.muscleGroup = toSpanishMuscleGroup(muscleGroup) || muscleGroup;
+                    }
                 };
 
                 routines.forEach(r => r.days?.forEach(d => d.exercises?.forEach(e => addExercise(e.name, e.muscleGroup, true))));
@@ -94,7 +97,7 @@ export default function NewGoal() {
                     list.push({
                         key: e.key,
                         name: e.name,
-                        muscleGroup: e.muscleGroup || g?.muscleGroup || null,
+                        muscleGroup: toSpanishMuscleGroup(e.muscleGroup || g?.muscleGroup) || null,
                         sessionCount,
                         best1RM
                     });
@@ -111,7 +114,8 @@ export default function NewGoal() {
         fetchData();
     }, []);
 
-    const muscleMatches = (e, muscle) => (e.muscleGroup || '').toLowerCase() === muscle.toLowerCase();
+    const muscleMatches = (e, muscle) =>
+        toSpanishMuscleGroup(e.muscleGroup).toLowerCase() === muscle.toLowerCase();
 
     const filteredExercises = useMemo(() => {
         const q = normalizeExerciseName(search);
@@ -147,9 +151,9 @@ export default function NewGoal() {
         try {
             const goalData = {
                 exerciseName: selectedExercise,
-                muscleGroup: selectedMuscle,
+                muscleGroup: toSpanishMuscleGroup(selectedMuscle) || selectedMuscle || null,
                 targetWeight: parseFloat(targetWeight),
-                targetReps: parseInt(targetReps)
+                targetReps: parseInt(targetReps, 10)
             };
 
             if (needsManualData) {
@@ -158,15 +162,14 @@ export default function NewGoal() {
                 goalData.experienceLevel = experienceLevel;
                 goalData.frequencyPerWeek = frequencyPerWeek;
             } else if (best1RMForSelected > 0) {
-                // Guardamos un snapshot del 1RM real (mejor de las últimas sesiones) como
-                // respaldo. Así la tarjeta del objetivo nunca queda sin "fuerza inicial"
-                // aunque el emparejado con el historial falle por una variante del nombre.
+                // Snapshot del 1RM real como respaldo si el match de historial falla después
                 goalData.currentOneRepMax = Math.round(best1RMForSelected * 10) / 10;
             }
 
             await api.createGoal(goalData);
             toast.success('Objetivo creado');
-            navigate('/progress');
+            // Abre Progress en la pestaña de objetivos (si el tab se lee de state local, al menos aterriza en Progress)
+            navigate('/progress', { state: { tab: 'goals' } });
         } catch (err) {
             toast.error(err.message || 'Error al crear objetivo');
         } finally {
@@ -184,7 +187,7 @@ export default function NewGoal() {
     function handleExerciseSelect(ex) {
         setSelectedExercise(ex.name);
         // Hereda el músculo real del ejercicio (importante si se llegó por búsqueda global)
-        if (ex.muscleGroup) setSelectedMuscle(ex.muscleGroup);
+        if (ex.muscleGroup) setSelectedMuscle(toSpanishMuscleGroup(ex.muscleGroup) || ex.muscleGroup);
         setSessionCountForSelected(ex.sessionCount);
         setBest1RMForSelected(ex.best1RM);
         setStep(3);
@@ -192,6 +195,18 @@ export default function NewGoal() {
 
     function handleTargetContinue() {
         if (!targetWeight) return;
+        const tw = parseFloat(targetWeight);
+        if (!Number.isFinite(tw) || tw <= 0) {
+            toast.error('El peso objetivo no es válido');
+            return;
+        }
+        // Aviso si la meta está por debajo del 1RM actual estimado
+        if (best1RMForSelected > 0 && tw < best1RMForSelected * 0.85 && parseInt(targetReps, 10) <= 3) {
+            const ok = window.confirm(
+                `Tu 1RM reciente es ~${Math.round(best1RMForSelected)} kg y la meta es ${tw} kg × ${targetReps}. ¿Seguro?`
+            );
+            if (!ok) return;
+        }
 
         // Solo pedimos datos manuales si NO hay historial utilizable (sesiones + 1RM real)
         if (sessionCountForSelected < 2 || best1RMForSelected <= 0) {

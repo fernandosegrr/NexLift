@@ -430,7 +430,10 @@ export const api = {
         const res = await authFetch(`${API_URL}/workouts/${logId}`, {
             method: 'DELETE',
         });
-        if (!res.ok) throw new Error('Failed to delete session');
+        if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody.error || 'No se pudo eliminar la sesión');
+        }
         return res.json();
     },
 
@@ -449,7 +452,10 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ muscleGroup }),
         });
-        if (!res.ok) throw new Error('Failed to update muscle group');
+        if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody.error || 'No se pudo actualizar el grupo muscular');
+        }
         return res.json();
     },
 
@@ -475,10 +481,10 @@ export const api = {
     },
 
     async getBodyPhotos() {
-        const res = await authFetch(`${API_URL}/body/logs?limit=100`);
+        // Endpoint dedicado (solo filas con photoUrl), más ligero que filtrar /logs
+        const res = await authFetch(`${API_URL}/body/photos`);
         if (!res.ok) throw new Error('Failed to fetch photos');
-        const logs = await res.json();
-        return logs.filter(log => log.photo);
+        return res.json();
     },
 
     async getLatestWeight() {
@@ -547,7 +553,10 @@ export const api = {
             },
             body: JSON.stringify(data),
         });
-        if (!res.ok) throw new Error('Failed to update profile');
+        if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody.error || 'No se pudo actualizar el perfil');
+        }
         return res.json();
     },
 
@@ -557,7 +566,10 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ avatar: avatarBase64 }),
         });
-        if (!res.ok) throw new Error('Failed to upload avatar');
+        if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody.error || 'No se pudo subir la foto');
+        }
         return res.json();
     },
 

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp, TrendingUp, Trash2, Calendar, Target, Zap, Dumbbell, CheckCircle2 } from 'lucide-react';
 import { api } from '../../services/api';
+import { useToast } from '../ui/Toast';
 import { computeGoalPrediction, computeGoalProgress, filterVisibleWeeks } from '../../utils/goalPlanner';
 
 // --- COMPONENTES AUXILIARES ---
@@ -21,11 +22,16 @@ function WeekRow({ weekData, isCompleted, isManuallyCompleted, onToggle, id }) {
             : 'bg-[var(--bg-card)] border-[var(--border)] hover:border-[var(--primary)]/40'
             }`}>
             <div
+                role="button"
+                tabIndex={0}
                 onClick={() => setExpanded(!expanded)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpanded(!expanded); }}
                 className="flex items-center justify-between p-3 cursor-pointer select-none"
             >
                 <div className="flex items-center gap-4">
                     <button
+                        type="button"
+                        aria-label={isDone ? `Desmarcar semana ${weekData.week}` : `Marcar semana ${weekData.week} completada`}
                         onClick={(e) => {
                             e.stopPropagation();
                             onToggle(!isManuallyCompleted);
@@ -88,54 +94,58 @@ function WeekRow({ weekData, isCompleted, isManuallyCompleted, onToggle, id }) {
 // --- COMPONENTE PRINCIPAL ---
 
 export default function GoalCard({ goal, history, onDelete, onUpdate }) {
+    const toast = useToast();
     const [expanded, setExpanded] = useState(false);
     const [toggling, setToggling] = useState(null);
 
-    // FIX CRÍTICO: Si goal es undefined o null, no renderizar nada para evitar crash
-    if (!goal) return null;
+    // Hooks SIEMPRE antes de cualquier return (reglas de React)
+    const prediction = useMemo(
+        () => (goal ? computeGoalPrediction(goal, history) : { hasData: false, error: null, plan: [], achieved: false }),
+        [goal, history]
+    );
 
-    // --- LÓGICA DE PREDICCIÓN --- extraída a client/src/utils/goalPlanner.js:
-    // misma función que usa el chip de "objetivo activo" en Workout.jsx.
-    const prediction = useMemo(() => computeGoalPrediction(goal, history), [goal, history]);
-
-    // Auto-detect completion from real workout history
-    // A week is completed if the user has achieved a 1RM >= the week's projected1RM
-    // at any point in their training history
     const { completedAutoWeeks, currentReal1RM, realProgressPct } = useMemo(
-        () => computeGoalProgress(goal, history, prediction),
+        () => (goal ? computeGoalProgress(goal, history, prediction) : { completedAutoWeeks: [], currentReal1RM: 0, realProgressPct: 0 }),
         [goal, history, prediction]
     );
 
-    // Filter visible plan: hide both manually and auto-completed weeks
-    const visiblePlan = filterVisibleWeeks(prediction.plan, goal, completedAutoWeeks);
+    const visiblePlan = useMemo(
+        () => (goal ? filterVisibleWeeks(prediction.plan, goal, completedAutoWeeks) : []),
+        [goal, prediction.plan, completedAutoWeeks]
+    );
 
     const hiddenWeeksCount = (prediction.plan?.length || 0) - visiblePlan.length;
 
-    // Manejador de toggle
     const handleToggleWeek = async (weekNum, completed) => {
+        if (!goal || toggling != null) return;
         setToggling(weekNum);
         try {
             const updatedGoal = await api.updateGoalWeek(goal.id, weekNum, completed);
             if (onUpdate) onUpdate(updatedGoal);
         } catch (err) {
             console.error(err);
+            toast.error('No se pudo actualizar la semana');
         } finally {
             setToggling(null);
         }
     };
 
+    if (!goal) return null;
+
     // ESTADO DE ERROR CONTROLADO
     if (!prediction.hasData && prediction.error) {
         return (
-            <div className="p-4 bg-[var(--bg-card)] rounded-2xl border border-red-500/20 text-center flex items-center justify-between">
-                <div className="text-left">
-                    <p className="font-bold text-white">{goal.exerciseName}</p>
+            <div className="p-4 bg-[var(--bg-card)] rounded-2xl border border-red-500/20 flex items-center justify-between gap-3">
+                <div className="text-left min-w-0">
+                    <p className="font-bold text-white truncate">{goal.exerciseName}</p>
                     <p className="text-xs text-red-400">{prediction.error}</p>
-                    <p className="text-xs text-[var(--text-secondary)]">Faltan datos para generar el plan.</p>
+                    <p className="text-xs text-[var(--text-secondary)]">Faltan datos para generar el plan. Entrena el ejercicio o edita con 1RM manual.</p>
                 </div>
                 <button
+                    type="button"
                     onClick={onDelete}
-                    className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20"
+                    aria-label="Eliminar objetivo"
+                    className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 shrink-0"
                 >
                     <Trash2 size={16} />
                 </button>
@@ -152,24 +162,37 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
     return (
         <div className="bg-[var(--bg-card)] rounded-2xl border border-[var(--border)] overflow-hidden transition-all hover:border-[var(--primary)]/30">
             {/* Header */}
-            <div onClick={() => setExpanded(!expanded)} className="p-5 cursor-pointer">
-                <div className="flex justify-between items-start mb-4">
-                    <div className="flex gap-3">
-                        <div className="mt-1">
+            <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setExpanded(!expanded)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpanded(!expanded); }}
+                className="p-5 cursor-pointer"
+            >
+                <div className="flex justify-between items-start mb-4 gap-2">
+                    <div className="flex gap-3 min-w-0">
+                        <div className="mt-1 shrink-0">
                             {prediction.achieved ? <Target className="text-green-400" size={20} /> : <Dumbbell className="text-purple-400" size={20} />}
                         </div>
-                        <div>
-                            <h3 className="font-bold text-lg">{goal.exerciseName}</h3>
+                        <div className="min-w-0">
+                            <h3 className="font-bold text-lg truncate">{goal.exerciseName}</h3>
                             <p className="text-xs text-[var(--text-secondary)] uppercase tracking-wider font-bold mt-0.5">
-                                Metodología {prediction.source === 'history' ? 'Basada en Datos' : 'Estimada'}
+                                {prediction.achieved
+                                    ? 'Logrado'
+                                    : prediction.source === 'history'
+                                        ? 'Plan basado en tu historial'
+                                        : 'Plan estimado (datos manuales)'}
                             </p>
+                            {goal.muscleGroup && (
+                                <p className="text-[10px] text-[var(--text-secondary)] mt-0.5">{goal.muscleGroup}</p>
+                            )}
                         </div>
                     </div>
-                    <div className="text-right">
-                        <span className="text-2xl font-black italic text-white block">
+                    <div className="text-right shrink-0">
+                        <span className="text-2xl font-black italic text-white block tabular-nums">
                             {goal.targetWeight}<span className="text-sm font-normal text-[var(--text-secondary)]">kg</span>
                         </span>
-                        <span className="text-xs text-[var(--text-secondary)]">x{goal.targetReps} reps</span>
+                        <span className="text-xs text-[var(--text-secondary)]">× {goal.targetReps} reps</span>
                     </div>
                 </div>
 
@@ -204,59 +227,60 @@ export default function GoalCard({ goal, history, onDelete, onUpdate }) {
 
                 {prediction.achieved && (
                     <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 text-center">
-                        <p className="text-green-400 font-bold">¡Objetivo Superado!</p>
-                        <p className="text-xs text-green-300/80">Tu 1RM actual es superior a la meta.</p>
+                        <p className="text-green-400 font-bold">¡Objetivo superado!</p>
+                        <p className="text-xs text-green-300/80">
+                            Tu 1RM real ({currentReal1RM || prediction.current1RM} kg) ya cubre la meta ({prediction.target1RM} kg est.).
+                        </p>
                     </div>
                 )}
             </div>
 
-            {/* EXPANDED PLAN */}
-            {expanded && !prediction.achieved && prediction.plan && (
+            {/* Plan expandible (también si está logrado, para poder borrar) */}
+            {expanded && (
                 <div className="border-t border-[var(--border)] bg-[var(--bg-dark)]/50 p-4 animate-fade-in">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                            <Calendar size={18} className="text-[var(--text-secondary)]" />
-                            <h4 className="font-bold text-sm text-[var(--text-secondary)]">Plan de Periodización Ondulatoria</h4>
-                        </div>
-                        {hiddenWeeksCount > 0 && (
-                            <span className="text-xs text-green-400 bg-green-500/10 px-2 py-1 rounded-lg">
-                                {hiddenWeeksCount} semanas completadas ocultas
-                            </span>
-                        )}
-                    </div>
-
-                    <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                        {visiblePlan.length === 0 && (
-                            <div className="text-center py-8 text-[var(--text-secondary)]">
-                                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-500/50" />
-                                {/* Si llegamos aquí, prediction.achieved es false (este bloque solo
-                                    se renderiza cuando !prediction.achieved), así que las semanas se
-                                    ocultaron por checklist manual, no por progreso real verificado.
-                                    No decir "completado" para no repetir la confusión del bug original. */}
-                                <p>Marcaste todas las semanas del checklist como completadas a mano.</p>
-                                <p className="text-xs mt-1">Esto no significa que hayas alcanzado la meta — revisa tu 1RM real arriba.</p>
+                    {!prediction.achieved && prediction.plan && (
+                        <>
+                            <div className="flex items-center justify-between mb-4 gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <Calendar size={18} className="text-[var(--text-secondary)] shrink-0" aria-hidden />
+                                    <h4 className="font-bold text-sm text-[var(--text-secondary)]">Plan semana a semana</h4>
+                                </div>
+                                {hiddenWeeksCount > 0 && (
+                                    <span className="text-xs text-green-400 bg-green-500/10 px-2 py-1 rounded-lg shrink-0">
+                                        {hiddenWeeksCount} hechas
+                                    </span>
+                                )}
                             </div>
-                        )}
 
-                        {visiblePlan.map((weekData) => {
-                            return (
-                                <WeekRow
-                                    key={weekData.week}
-                                    id={`week-${goal.id}-${weekData.week}`}
-                                    weekData={weekData}
-                                    isCompleted={false}
-                                    isManuallyCompleted={false}
-                                    onToggle={(completed) => handleToggleWeek(weekData.week, completed)}
-                                />
-                            );
-                        })}
-                    </div>
+                            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                                {visiblePlan.length === 0 && (
+                                    <div className="text-center py-8 text-[var(--text-secondary)]">
+                                        <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-500/50" />
+                                        <p>Marcaste todas las semanas del checklist a mano.</p>
+                                        <p className="text-xs mt-1">Eso no implica haber alcanzado la meta — mira el 1RM real arriba.</p>
+                                    </div>
+                                )}
+
+                                {visiblePlan.map((weekData) => (
+                                    <WeekRow
+                                        key={weekData.week}
+                                        id={`week-${goal.id}-${weekData.week}`}
+                                        weekData={weekData}
+                                        isCompleted={false}
+                                        isManuallyCompleted={false}
+                                        onToggle={(completed) => handleToggleWeek(weekData.week, completed)}
+                                    />
+                                ))}
+                            </div>
+                        </>
+                    )}
 
                     <button
+                        type="button"
                         onClick={(e) => { e.stopPropagation(); onDelete(); }}
                         className="w-full mt-4 flex items-center justify-center gap-2 text-red-400 text-xs font-bold uppercase tracking-wider hover:text-red-300 py-3"
                     >
-                        <Trash2 size={14} /> Eliminar Objetivo
+                        <Trash2 size={14} /> Eliminar objetivo
                     </button>
                 </div>
             )}

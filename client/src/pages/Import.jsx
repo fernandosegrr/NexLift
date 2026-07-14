@@ -5,9 +5,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  ArrowLeft, Upload, CheckCircle, AlertCircle, FileJson, Copy,
+  ArrowLeft, Upload, CheckCircle, AlertCircle, FileJson,
   Sparkles, PenTool, Plus, Trash2, ArrowUp, ArrowDown, Dumbbell,
-  Calendar, Trophy, ChevronRight, X, Save, Search, MoreVertical, Bot
+  Calendar, ChevronRight, X, Save, Search, Bot
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
@@ -15,6 +15,7 @@ import { Portal } from '../components/ui/Portal';
 import { ROUTINE_TEMPLATES, getTemplate } from '../data/routineTemplates';
 import { EXERCISES, searchExercises, getExercisesByMuscle } from '../data/exercises';
 import MuscleIcon, { MUSCLE_LIST } from '../components/ui/MuscleIcon';
+import { toSpanishMuscleGroup } from '../utils/muscleGroup';
 
 // Tabs con diseño más compacto
 const TABS = [
@@ -58,7 +59,6 @@ export default function CreateRoutine() {
     }
   }, [showExerciseLibrary]);
 
-  // ... (MANTENEMOS TUS HANDLERS EXACTAMENTE IGUAL - SIN CAMBIOS DE LÓGICA) ...
   const handleSelectTemplate = async () => {
     if (!selectedTemplate) { toast.error('Selecciona una plantilla primero'); return; }
     setSaving(true);
@@ -69,11 +69,11 @@ export default function CreateRoutine() {
       days: template.days.map(day => ({
         dayName: day.dayName,
         isRestDay: day.isRestDay,
-        exercises: day.exercises.map(ex => {
+        exercises: (day.exercises || []).map(ex => {
           const exerciseData = EXERCISES.find(e => e.id === ex.exerciseId);
           return {
             name: exerciseData?.name || ex.exerciseId,
-            muscleGroup: exerciseData?.muscleGroup,
+            muscleGroup: toSpanishMuscleGroup(exerciseData?.muscleGroup),
             isUnilateral: exerciseData?.isUnilateral || false,
             targetSets: parseInt(exerciseData?.defaultSets, 10) || 3,
             targetReps: exerciseData?.defaultReps || '8-12',
@@ -86,8 +86,13 @@ export default function CreateRoutine() {
     try {
       await api.importRoutine(routineData);
       toast.success(`¡"${template.name}" creada!`);
-      setTimeout(() => navigate('/routines'), 1000);
-    } catch (error) { console.error(error); toast.error('Error al crear rutina'); } finally { setSaving(false); }
+      navigate('/routines');
+    } catch (error) {
+      console.error(error);
+      toast.error('Error al crear rutina');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const addDay = () => {
@@ -105,6 +110,7 @@ export default function CreateRoutine() {
   };
 
   const removeDay = (index) => {
+    if (!window.confirm('¿Borrar este día y sus ejercicios?')) return;
     setManualRoutine(prev => ({ ...prev, days: prev.days.filter((_, i) => i !== index) }));
   };
 
@@ -123,10 +129,11 @@ export default function CreateRoutine() {
     const newExercise = {
       name: isCustom ? exerciseName : (existingEx?.name || exerciseName),
       targetSets: existingEx?.defaultSets || 3,
-      targetReps: existingEx?.defaultReps || '10-12',
-      restSeconds: 90,
+      targetReps: existingEx?.defaultReps || '8-12',
+      restSeconds: existingEx?.restSeconds || 90,
       note: '',
-      muscleGroup: existingEx?.muscleGroup || 'default'
+      muscleGroup: toSpanishMuscleGroup(existingEx?.muscleGroup),
+      isUnilateral: !!existingEx?.isUnilateral
     };
     setManualRoutine(prev => ({
       ...prev,
@@ -171,25 +178,45 @@ export default function CreateRoutine() {
   };
 
   const handleSaveManual = async () => {
-    if (!manualRoutine.name.trim()) { toast.error('Falta el nombre'); return; }
-    if (manualRoutine.days.length === 0) { toast.error('Agrega días'); return; }
+    if (!manualRoutine.name.trim()) { toast.error('Falta el nombre de la rutina'); return; }
+    if (manualRoutine.days.length === 0) { toast.error('Agrega al menos un día'); return; }
+
+    const emptyDay = manualRoutine.days.find(d => !d.isRestDay && d.exercises.length === 0);
+    if (emptyDay) {
+      toast.error(`"${emptyDay.dayName}" no tiene ejercicios. Agrégalos o márcalo como descanso.`);
+      return;
+    }
+    const emptyName = manualRoutine.days.some(d =>
+      !d.isRestDay && d.exercises.some(ex => !String(ex.name || '').trim())
+    );
+    if (emptyName) { toast.error('Hay ejercicios sin nombre'); return; }
+
     setSaving(true);
     const payload = {
-      ...manualRoutine,
+      name: manualRoutine.name.trim(),
+      description: manualRoutine.description || '',
       days: manualRoutine.days.map(day => ({
         ...day,
-        exercises: day.exercises.map(ex => ({
+        dayName: day.dayName.trim() || 'Día',
+        exercises: day.isRestDay ? [] : day.exercises.map(ex => ({
           ...ex,
+          name: ex.name.trim(),
+          muscleGroup: toSpanishMuscleGroup(ex.muscleGroup) || null,
           targetSets: parseInt(ex.targetSets, 10) || 3,
-          restSeconds: parseInt(ex.restSeconds, 10) || 90
+          restSeconds: parseInt(ex.restSeconds, 10) || 90,
+          isUnilateral: !!ex.isUnilateral
         }))
       }))
     };
     try {
       await api.importRoutine(payload);
-      toast.success(`¡Creada!`);
-      setTimeout(() => navigate('/routines'), 1000);
-    } catch (error) { toast.error('Error al guardar'); } finally { setSaving(false); }
+      toast.success('¡Rutina creada!');
+      navigate('/routines');
+    } catch (error) {
+      toast.error('Error al guardar');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleImportJson = async () => {
@@ -200,7 +227,7 @@ export default function CreateRoutine() {
       parsed = JSON.parse(jsonText);
     } catch (e) {
       setJsonStatus('error');
-      setJsonMessage('JSON inválido - revisa comillas y comas');
+      setJsonMessage('JSON inválido — revisa comillas y comas');
       return;
     }
 
@@ -209,19 +236,25 @@ export default function CreateRoutine() {
       setJsonMessage('Faltan campos: "name" o "days"');
       return;
     }
+    if (!Array.isArray(parsed.days) || parsed.days.length === 0) {
+      setJsonStatus('error');
+      setJsonMessage('"days" debe ser un array con al menos un día');
+      return;
+    }
 
     setJsonStatus('loading');
     setJsonMessage('Importando...');
 
-    // Normalizar datos para aceptar múltiples formatos
     const normalizedRoutine = {
-      name: parsed.name,
+      name: String(parsed.name).trim(),
       description: parsed.description || '',
       days: parsed.days.map(day => ({
         dayName: day.dayName || day.name || 'Día',
-        isRestDay: day.isRestDay || false,
-        exercises: (day.exercises || []).map(ex => ({
+        isRestDay: !!day.isRestDay,
+        exercises: day.isRestDay ? [] : (day.exercises || []).map(ex => ({
           name: ex.name || 'Ejercicio',
+          muscleGroup: toSpanishMuscleGroup(ex.muscleGroup || ex.muscle) || null,
+          isUnilateral: !!ex.isUnilateral,
           targetSets: parseInt(ex.targetSets ?? ex.sets, 10) || 3,
           targetReps: ex.targetReps || ex.reps || '8-12',
           restSeconds: parseInt(ex.restSeconds ?? ex.rest, 10) || 90,
@@ -234,10 +267,10 @@ export default function CreateRoutine() {
       await api.importRoutine(normalizedRoutine);
       setJsonStatus('success');
       setJsonMessage(`¡"${parsed.name}" importada!`);
-      setTimeout(() => navigate('/routines'), 1500);
+      setTimeout(() => navigate('/routines'), 800);
     } catch (error) {
       setJsonStatus('error');
-      setJsonMessage('Error del servidor');
+      setJsonMessage(error.message || 'Error del servidor');
     }
   };
 
@@ -252,7 +285,7 @@ export default function CreateRoutine() {
       {/* Header Sticky con Blur */}
       <div className="sticky top-0 z-30 bg-[var(--bg-card)]/80 backdrop-blur-md border-b border-white/5 pt-4 pb-2 px-4 mb-4">
         <div className="flex items-center gap-3 mb-4">
-          <Link to="/routines" className="p-2 -ml-2 text-[var(--text-secondary)] hover:text-white active:scale-95 transition-transform">
+          <Link to="/routines" aria-label="Volver a rutinas" className="p-2 -ml-2 text-[var(--text-secondary)] hover:text-white active:scale-95 transition-transform">
             <ArrowLeft size={22} />
           </Link>
           <h1 className="text-xl font-bold tracking-tight">Crear Rutina</h1>
@@ -266,6 +299,7 @@ export default function CreateRoutine() {
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-1.5 py-2 px-2 rounded-md text-[11px] sm:text-sm font-medium transition-all ${isActive
                   ? 'bg-[var(--primary)] text-white shadow-md'
@@ -293,7 +327,10 @@ export default function CreateRoutine() {
                   className={`rounded-2xl border transition-all duration-200 overflow-hidden ${isSelected ? 'border-[var(--primary)] bg-[var(--primary)]/5 ring-1 ring-[var(--primary)]' : 'border-white/10 bg-[var(--bg-card)]'}`}>
 
                   <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelectedTemplate(template.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedTemplate(template.id); }}
                     className="p-4 flex gap-4 cursor-pointer active:bg-white/5"
                   >
                     <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[var(--primary)] to-purple-800 flex items-center justify-center shrink-0 shadow-lg">
@@ -416,7 +453,7 @@ export default function CreateRoutine() {
                               </div>
                               <div className="min-w-0">
                                 <h4 className="font-semibold text-sm truncate text-white">{ex.name}</h4>
-                                <span className="text-[10px] text-[var(--text-secondary)] uppercase">{ex.muscleGroup}</span>
+                                <span className="text-[10px] text-[var(--text-secondary)] uppercase">{ex.muscleGroup || 'Sin grupo'}</span>
                               </div>
                             </div>
                             <div className="flex items-center">

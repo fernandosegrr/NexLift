@@ -20,7 +20,8 @@ import {
     mexicoCityDateStr, mexicoCityDayBounds, dayOfWeekFromDateStr, mexicoCityHour,
     resolveTargetDate, getTodayName, normalizeDay,
     getActiveBlock, currentWeekInBlock, getRoutinePhaseStatus, adjustRepRangeForPhase,
-    computeWorkoutSuggestion, roundWorkoutWeight, detectPlateauForExercise, convertShortcutRir
+    computeWorkoutSuggestion, roundWorkoutWeight, detectPlateauForExercise, convertShortcutRir,
+    resolveWeightIncrement
 } from './logic.js';
 
 dotenv.config();
@@ -948,13 +949,33 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
 app.put('/api/auth/profile', authMiddleware, async (req, res) => {
     try {
         const { firstName, lastName, phone, birthDate } = req.body;
+        if (firstName !== undefined && !String(firstName || '').trim()) {
+            return res.status(400).json({ error: 'El nombre es obligatorio' });
+        }
+        if (lastName !== undefined && !String(lastName || '').trim()) {
+            return res.status(400).json({ error: 'Los apellidos son obligatorios' });
+        }
+
+        // birthDate: string ISO día → Date; string vacío/null → limpia el campo
+        let birthDateValue = undefined;
+        if (birthDate === null || birthDate === '') {
+            birthDateValue = null;
+        } else if (birthDate) {
+            // Anclar a mediodía UTC para no desfasar el día calendario
+            const day = String(birthDate).split('T')[0];
+            birthDateValue = new Date(`${day}T12:00:00.000Z`);
+            if (Number.isNaN(birthDateValue.getTime())) {
+                return res.status(400).json({ error: 'Fecha de nacimiento inválida' });
+            }
+        }
+
         const user = await prisma.user.update({
             where: { id: req.userId },
             data: {
-                firstName: firstName || undefined,
-                lastName: lastName || undefined,
-                phone: phone || undefined,
-                birthDate: birthDate ? new Date(birthDate) : undefined
+                firstName: firstName !== undefined ? String(firstName).trim() : undefined,
+                lastName: lastName !== undefined ? String(lastName).trim() : undefined,
+                phone: phone !== undefined ? (String(phone).trim() || null) : undefined,
+                birthDate: birthDateValue
             },
             select: { id: true, username: true, email: true, firstName: true, lastName: true, phone: true, birthDate: true, avatarUrl: true }
         });
@@ -2615,7 +2636,7 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
             return res.json({ ...base, rationale: 'sin historial' });
         }
 
-        const increment = nextExercise.muscleGroup === 'Piernas' ? 5 : 2.5;
+        const increment = resolveWeightIncrement(nextExercise.muscleGroup, nextExercise.name);
         const suggestion = computeWorkoutSuggestion(history, nextExercise.targetReps, increment, phaseStatus.phase);
 
         if (!suggestion) {
@@ -2969,7 +2990,12 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
     try {
         const todayBounds = mexicoCityDayBounds();
         const thirtyDaysAgo = new Date(todayBounds.start.getTime() - 30 * 24 * 60 * 60 * 1000);
+        // La racha se calcula hasta 365 días atrás: hay que cargar esa ventana
+        // completa. Antes solo se pedían 30 días y el bucle de 365 se quedaba
+        // "ciego" al pasar del día 30 (racha artificialmente cortada).
+        const yearAgo = new Date(todayBounds.start.getTime() - 365 * 24 * 60 * 60 * 1000);
         const weekAgo = new Date(todayBounds.start.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const thirtyDaysAgoStr = mexicoCityDateStr(thirtyDaysAgo);
 
         // Las 7 consultas son independientes entre sí (ninguna depende del
         // resultado de otra) — antes corrían en 7 round-trips secuenciales a la
@@ -2989,14 +3015,14 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
             }),
             prisma.workoutLog.findMany({
                 where: {
-                    date: { gte: thirtyDaysAgo },
+                    date: { gte: yearAgo },
                     exercise: { routineDay: { routine: { userId: req.userId } } }
                 },
                 select: { date: true }
             }),
             prisma.restLog.findMany({
                 where: {
-                    date: { gte: thirtyDaysAgo },
+                    date: { gte: yearAgo },
                     userId: req.userId
                 },
                 select: { date: true }
@@ -3016,11 +3042,17 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
             })
         ]);
 
-        // Calculate unique training days (día calendario de CDMX, no UTC)
+        // Días con actividad real (entreno o descanso logueado) — día calendario CDMX
         const uniqueDays = new Set([
             ...recentWorkouts.map(w => mexicoCityDateStr(w.date)),
             ...recentRestLogs.map(r => mexicoCityDateStr(r.date))
         ]);
+        // trainingDaysLast30 sigue siendo "últimos 30 días", aunque la query
+        // traiga un año para la racha.
+        let trainingDaysLast30 = 0;
+        for (const d of uniqueDays) {
+            if (d >= thirtyDaysAgoStr) trainingDaysLast30++;
+        }
 
         // Build a map of which day-of-week is a rest day in the routine
         const DAY_NAMES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -3066,7 +3098,7 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
             totalRoutines,
             totalPRs,
             currentStreak: streak,
-            trainingDaysLast30: uniqueDays.size,
+            trainingDaysLast30,
             weeklyVolume: Math.round(weeklyVolume)
         });
     } catch (error) {
@@ -3593,13 +3625,27 @@ app.delete('/api/goals/:id', authMiddleware, async (req, res) => {
 // Health Check
 // ============================================
 app.get('/api/health', async (req, res) => {
+    // Público a propósito (load balancers / EasyPanel). NO exponer usernames ni
+    // datos por cuenta — solo señales operativas agregadas.
     const health = { status: 'ok', timestamp: new Date().toISOString() };
     try {
         const users = await prisma.user.findMany({
             where: { isActive: true },
-            select: { username: true, lastBackupAt: true, lastBackupError: true }
+            select: { lastBackupAt: true, lastBackupError: true }
         });
-        health.backup = { cloudinaryConfigured: CLOUDINARY_CONFIGURED, users };
+        const withBackup = users.filter(u => u.lastBackupAt);
+        const withError = users.filter(u => u.lastBackupError);
+        const latestBackupAt = withBackup.reduce(
+            (max, u) => (!max || u.lastBackupAt > max ? u.lastBackupAt : max),
+            null
+        );
+        health.backup = {
+            cloudinaryConfigured: CLOUDINARY_CONFIGURED,
+            activeUsers: users.length,
+            usersWithBackup: withBackup.length,
+            usersWithBackupError: withError.length,
+            latestBackupAt
+        };
     } catch (err) {
         // No bloquear el healthcheck si esto falla — el status base ya respondió.
     }

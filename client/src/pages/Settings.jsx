@@ -3,18 +3,34 @@ import { useNavigate } from 'react-router-dom';
 import {
     Settings as SettingsIcon, Dumbbell, Check, ChevronDown, Info, History,
     Trash2, Edit3, AlertTriangle, X, User, Lock, Shield, Download, Eye, EyeOff,
-    Loader2, ChevronLeft, Save, CheckCircle, AlertCircle, Search, Filter, ChevronRight,
-    Calendar, Bell, BellOff
+    Loader2, ChevronLeft, Save, CheckCircle, AlertCircle, Search, Filter,
+    Bell, BellOff, FileDown
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
 import { useAuth } from '../context/AuthContext';
 import { isPushSupported, getCurrentPushSubscription, subscribeToPush, unsubscribeFromPush } from '../utils/push';
+import { downloadSessionPdf } from '../utils/sessionPdf';
+import { MUSCLE_OPTIONS as MUSCLE_OPTION_DEFS, toSpanishMuscleGroup } from '../utils/muscleGroup';
+import { mexicoCityDateStr } from '../utils/dates';
 
+// Valores canónicos en español (+ Otros para residuales)
 const MUSCLE_OPTIONS = [
-    'Pecho', 'Espalda', 'Hombros', 'Bíceps', 'Tríceps', 'Piernas', 'Core', 'Otros'
+    ...MUSCLE_OPTION_DEFS.map(o => o.value),
+    'Otros'
 ];
+
+// Agrupa logs por día CDMX (no por toLocaleDateString del device — falla de noche)
+function formatHistoryDateLabel(dateStr) {
+    if (!dateStr) return 'Sin fecha';
+    const dayKey = mexicoCityDateStr(new Date(dateStr));
+    const [year, month, day] = dayKey.split('-').map(Number);
+    const date = new Date(year, month - 1, day, 12, 0, 0);
+    return date.toLocaleDateString('es-MX', {
+        weekday: 'long', day: 'numeric', month: 'short'
+    });
+}
 
 // Fuzzy search utilities
 function normalizeForSearch(str) {
@@ -96,6 +112,7 @@ const MUSCLE_COLORS = {
     'Bíceps': 'bg-green-500/20 text-green-400 border-green-500/30',
     'Tríceps': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
     'Piernas': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+    'Antebrazos': 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
     'Core': 'bg-pink-500/20 text-pink-400 border-pink-500/30',
     'Otros': 'bg-gray-500/20 text-gray-400 border-gray-500/30',
     'Sin clasificar': 'bg-amber-500/20 text-amber-400 border-amber-500/30'
@@ -199,9 +216,14 @@ export default function Settings() {
                 firstName: user.firstName || '',
                 lastName: user.lastName || '',
                 phone: user.phone || '',
-                birthDate: user.birthDate ? user.birthDate.split('T')[0] : ''
+                birthDate: user.birthDate ? String(user.birthDate).split('T')[0] : ''
             });
-            setSecurityData({ question: user.securityQuestion || '', answer: '' });
+            // Solo sincronizar la pregunta mostrada; no tocar respuesta/contraseña
+            // del form (evitar borrar lo que el usuario está escribiendo al refresh).
+            setSecurityData(prev => ({
+                ...prev,
+                question: user.securityQuestion || prev.question || ''
+            }));
         }
     }, [user]);
 
@@ -218,6 +240,7 @@ export default function Settings() {
             setHasMoreHistory((historyData || []).length >= 50);
         } catch (err) {
             console.error(err);
+            toast.error('No se pudo cargar la configuración');
         } finally {
             setLoading(false);
         }
@@ -247,6 +270,7 @@ export default function Settings() {
             setHasMoreHistory((data || []).length >= 50);
         } catch (err) {
             console.error(err);
+            if (reqId === historyReqId.current) toast.error('No se pudo filtrar el historial');
         } finally {
             if (reqId === historyReqId.current) setHistoryLoading(false);
         }
@@ -258,8 +282,11 @@ export default function Settings() {
         setHistoryPage(nextPage);
         setHistoryLoading(true);
         try {
+            // Misma pre-filtro de 1ª palabra que fetchFilteredHistory (coherente con fuzzy)
+            const serverSearch = historyFilters.search ? historyFilters.search.split(' ')[0] : '';
             const data = await api.getWorkoutHistory(50, {
                 ...historyFilters,
+                search: serverSearch,
                 offset: nextPage * 50
             });
             // Ignore stale responses (a newer fetch was started after this one)
@@ -268,6 +295,7 @@ export default function Settings() {
             setHasMoreHistory((data || []).length >= 50);
         } catch (err) {
             console.error(err);
+            toast.error('No se pudieron cargar más sesiones');
         } finally {
             if (reqId === historyReqId.current) setHistoryLoading(false);
         }
@@ -275,14 +303,28 @@ export default function Settings() {
 
     // Profile handlers
     const handleUpdateProfile = async () => {
-        setError(''); setSuccess(''); setProfileLoading(true);
+        setError(''); setSuccess('');
+        const first = (profileData.firstName || '').trim();
+        const last = (profileData.lastName || '').trim();
+        if (!first || !last) {
+            setError('Nombre y apellidos son obligatorios');
+            return;
+        }
+        setProfileLoading(true);
         try {
-            await api.updateProfile(token, profileData);
+            await api.updateProfile(token, {
+                ...profileData,
+                firstName: first,
+                lastName: last,
+                phone: (profileData.phone || '').trim(),
+                birthDate: profileData.birthDate || null
+            });
             await refreshProfile();
             setSuccess('Perfil actualizado');
+            toast.success('Perfil actualizado');
             setTimeout(() => setSuccess(''), 3000);
         } catch (err) {
-            setError(err.message);
+            setError(err.message || 'No se pudo actualizar el perfil');
         } finally {
             setProfileLoading(false);
         }
@@ -305,10 +347,11 @@ export default function Settings() {
             // persistir el token nuevo que devuelve para no cerrar la sesión actual.
             if (result?.token) updateToken(result.token);
             setSuccess('Contraseña cambiada');
+            toast.success('Contraseña actualizada');
             setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
             setTimeout(() => setSuccess(''), 3000);
         } catch (err) {
-            setError(err.message);
+            setError(err.message || 'No se pudo cambiar la contraseña');
         } finally {
             setProfileLoading(false);
         }
@@ -320,6 +363,9 @@ export default function Settings() {
         setError(''); setSuccess('');
         if (!securityData.question || !securityData.answer) {
             setError('Pregunta y respuesta requeridas'); return;
+        }
+        if ((securityData.answer || '').trim().length < 2) {
+            setError('La respuesta de seguridad es demasiado corta'); return;
         }
         if (!securityData.currentPassword) {
             setError('Ingresa tu contraseña actual para confirmar'); return;
@@ -334,10 +380,11 @@ export default function Settings() {
             if (result?.token) updateToken(result.token);
             await refreshProfile(result?.token);
             setSuccess('Pregunta actualizada');
+            toast.success('Pregunta de seguridad actualizada');
             setSecurityData(prev => ({ ...prev, answer: '', currentPassword: '' }));
             setTimeout(() => setSuccess(''), 3000);
         } catch (err) {
-            setError(err.message);
+            setError(err.message || 'No se pudo actualizar la pregunta');
         } finally {
             setProfileLoading(false);
         }
@@ -404,8 +451,9 @@ export default function Settings() {
             }));
 
             const exportData = {
-                version: '2.0.0',
+                version: '2.7.0',
                 exportDate: new Date().toISOString(),
+                exportDateCdmx: mexicoCityDateStr(),
                 routines: sanitizeRoutines,
                 workouts: sanitizeWorkouts,
                 bodyLogs: sanitizeBodyLogs,
@@ -416,29 +464,39 @@ export default function Settings() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `nexlift-backup-${new Date().toISOString().split('T')[0]}.json`;
+            a.download = `nexlift-backup-${mexicoCityDateStr()}.json`;
+            document.body.appendChild(a);
             a.click();
+            a.remove();
             URL.revokeObjectURL(url);
             toast.success('Datos exportados');
         } catch (err) {
-            toast.error('Error exportando datos');
+            console.error(err);
+            toast.error(err.message || 'Error exportando datos');
         } finally {
             setExporting(false);
         }
     }
 
-    // Muscle update
+    // Muscle update — siempre valor español canónico (piernas +5 kg en Smart Loading)
     async function updateMuscle(exerciseId, muscleGroup) {
         if (saving) return;
+        const canonical = toSpanishMuscleGroup(muscleGroup) || muscleGroup;
         setSaving(exerciseId);
         try {
-            await api.updateExerciseMuscle(exerciseId, muscleGroup);
-            setExercises(prev => prev.map(ex =>
-                ex.id === exerciseId ? { ...ex, muscleGroup } : ex
-            ));
-            toast.success(`Clasificado como ${muscleGroup}`);
+            await api.updateExerciseMuscle(exerciseId, canonical);
+            // Misma regla que el backend: mismo nombre → mismo grupo en toda la cuenta
+            setExercises(prev => prev.map(ex => {
+                const target = prev.find(e => e.id === exerciseId);
+                if (!target) return ex;
+                if (ex.id === exerciseId || ex.name === target.name) {
+                    return { ...ex, muscleGroup: canonical };
+                }
+                return ex;
+            }));
+            toast.success(`Clasificado como ${canonical}`);
         } catch (err) {
-            toast.error('Error al guardar');
+            toast.error('Error al guardar el grupo muscular');
         } finally {
             setSaving(null);
         }
@@ -460,16 +518,41 @@ export default function Settings() {
         }
     }
 
+    const [exportingSessionId, setExportingSessionId] = useState(null);
+    async function handleSessionPdf(session) {
+        if (!session?.id || exportingSessionId) return;
+        setExportingSessionId(session.id);
+        try {
+            // Refresca el log completo (historial listado a veces trae menos detalle)
+            const full = await api.getWorkoutSession(session.id);
+            await downloadSessionPdf(full, {
+                userName: user?.firstName
+                    ? `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`
+                    : user?.username
+            });
+            toast.success('PDF de la sesión descargado');
+        } catch (err) {
+            console.error(err);
+            toast.error(err.message || 'No se pudo generar el PDF');
+        } finally {
+            setExportingSessionId(null);
+        }
+    }
+
     const exercisesByMuscle = useMemo(() => {
         const groups = exercises.reduce((acc, ex) => {
-            const muscle = ex.muscleGroup || 'Sin clasificar';
+            const raw = toSpanishMuscleGroup(ex.muscleGroup);
+            const muscle = raw || 'Sin clasificar';
             if (!acc[muscle]) acc[muscle] = [];
             acc[muscle].push(ex);
             return acc;
         }, {});
         const ordered = {};
         MUSCLE_OPTIONS.forEach(m => { if (groups[m]) ordered[m] = groups[m]; });
-        if (groups['Sin clasificar']) ordered['Sin clasificar'] = groups['Sin clasificar'];
+        // Residuales (p.ej. etiquetas raras no mapeadas)
+        Object.keys(groups).forEach(m => {
+            if (!ordered[m]) ordered[m] = groups[m];
+        });
         return ordered;
     }, [exercises]);
 
@@ -488,21 +571,37 @@ export default function Settings() {
                 .map(item => item.session);
         }
 
+        // Orden estable por día CDMX (más reciente primero; el API suele venir desc)
         const groups = {};
+        const dayOrder = [];
         filtered.forEach(session => {
-            const dateStr = new Date(session.date).toLocaleDateString('es-ES', {
-                weekday: 'long', day: 'numeric', month: 'short'
-            });
-            if (!groups[dateStr]) groups[dateStr] = [];
-            groups[dateStr].push(session);
+            const dayKey = session.date ? mexicoCityDateStr(new Date(session.date)) : 'unknown';
+            const label = formatHistoryDateLabel(session.date);
+            if (!groups[dayKey]) {
+                groups[dayKey] = { label, sessions: [] };
+                dayOrder.push(dayKey);
+            }
+            groups[dayKey].sessions.push(session);
         });
-        return { sessionsByDate: groups, fuzzyFilteredCount: filtered.length };
+        const ordered = {};
+        dayOrder.forEach(k => {
+            const { label, sessions } = groups[k];
+            if (ordered[label]) ordered[label] = [...ordered[label], ...sessions];
+            else ordered[label] = sessions;
+        });
+        return { sessionsByDate: ordered, fuzzyFilteredCount: filtered.length };
     }, [workoutHistory, historyFilters.search]);
 
     const stats = useMemo(() => ({
         total: exercises.length,
-        classified: exercises.filter(e => e.muscleGroup && e.muscleGroup !== 'Sin clasificar').length,
-        unclassified: exercises.filter(e => !e.muscleGroup || e.muscleGroup === 'Sin clasificar').length
+        classified: exercises.filter(e => {
+            const m = toSpanishMuscleGroup(e.muscleGroup);
+            return m && m !== 'Sin clasificar';
+        }).length,
+        unclassified: exercises.filter(e => {
+            const m = toSpanishMuscleGroup(e.muscleGroup);
+            return !m || m === 'Sin clasificar';
+        }).length
     }), [exercises]);
 
     if (loading) {
@@ -525,14 +624,16 @@ export default function Settings() {
             {/* Header with Back Button */}
             <div className="flex items-center gap-3">
                 <button
+                    type="button"
                     onClick={() => navigate('/profile')}
+                    aria-label="Volver al perfil"
                     className="w-10 h-10 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] flex items-center justify-center hover:border-purple-500/50 transition-colors"
                 >
                     <ChevronLeft size={20} />
                 </button>
                 <div>
                     <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <SettingsIcon size={24} className="text-[var(--primary)]" />
+                        <SettingsIcon size={24} className="text-[var(--primary)]" aria-hidden="true" />
                         Configuración
                     </h1>
                     <p className="text-[var(--text-secondary)] text-sm">Ajusta tu cuenta y preferencias</p>
@@ -540,17 +641,20 @@ export default function Settings() {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1.5 bg-[var(--bg-dark)] p-1 rounded-xl overflow-x-auto">
+            <div className="flex gap-1.5 bg-[var(--bg-dark)] p-1 rounded-xl overflow-x-auto" role="tablist" aria-label="Secciones de configuración">
                 {tabs.map(tab => (
                     <button
                         key={tab.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={activeSection === tab.id}
                         onClick={() => { setActiveSection(tab.id); setError(''); setSuccess(''); }}
                         className={`flex-1 py-2.5 min-w-[70px] rounded-lg text-xs font-medium transition-all flex flex-col items-center gap-1 ${activeSection === tab.id
                             ? 'bg-[var(--primary)] text-white shadow-lg shadow-purple-900/30'
                             : 'text-[var(--text-secondary)] hover:text-white'
                             }`}
                     >
-                        <tab.icon size={16} />
+                        <tab.icon size={16} aria-hidden="true" />
                         {tab.label}
                     </button>
                 ))}
@@ -629,8 +733,12 @@ export default function Settings() {
                                     Recordatorio de Descanso
                                 </h3>
                                 <button
+                                    type="button"
                                     onClick={handleTogglePush}
                                     disabled={pushLoading}
+                                    role="switch"
+                                    aria-checked={pushSubscribed}
+                                    aria-label={pushSubscribed ? 'Desactivar recordatorio de descanso' : 'Activar recordatorio de descanso'}
                                     className={`relative w-12 h-7 rounded-full transition-colors disabled:opacity-50 ${pushSubscribed ? 'bg-purple-500' : 'bg-[var(--bg-dark)] border border-[var(--border)]'}`}
                                 >
                                     <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${pushSubscribed ? 'translate-x-5' : ''}`} />
@@ -684,7 +792,12 @@ export default function Settings() {
                                 className="w-full px-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white pr-10 focus:border-red-500 focus:outline-none"
                                 required
                             />
-                            <button type="button" onClick={() => setShowPasswords(!showPasswords)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]">
+                            <button
+                                type="button"
+                                onClick={() => setShowPasswords(!showPasswords)}
+                                aria-label={showPasswords ? 'Ocultar contraseñas' : 'Mostrar contraseñas'}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]"
+                            >
                                 {showPasswords ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
                         </div>
@@ -734,6 +847,10 @@ export default function Settings() {
                         >
                             <option value="">Selecciona pregunta...</option>
                             {securityQuestions.map((q, i) => <option key={i} value={q}>{q}</option>)}
+                            {/* Si la pregunta actual no está en la lista (dato legacy), mostrarla igual */}
+                            {securityData.question && !securityQuestions.includes(securityData.question) && (
+                                <option value={securityData.question}>{securityData.question}</option>
+                            )}
                         </select>
                         <input
                             type="text"
@@ -752,7 +869,12 @@ export default function Settings() {
                                 className="w-full px-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white pr-10 focus:border-teal-500 focus:outline-none"
                                 required
                             />
-                            <button type="button" onClick={() => setShowPasswords(!showPasswords)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]">
+                            <button
+                                type="button"
+                                onClick={() => setShowPasswords(!showPasswords)}
+                                aria-label={showPasswords ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]"
+                            >
                                 {showPasswords ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
                         </div>
@@ -815,12 +937,14 @@ export default function Settings() {
                                                 <p className="text-sm font-semibold truncate mb-3">{exercise.name}</p>
                                                 <div className="grid grid-cols-4 gap-1.5">
                                                     {MUSCLE_OPTIONS.map(option => {
-                                                        const isSelected = exercise.muscleGroup === option;
+                                                        const isSelected = toSpanishMuscleGroup(exercise.muscleGroup) === option;
                                                         return (
                                                             <button
                                                                 key={option}
+                                                                type="button"
                                                                 onClick={() => !isSelected && updateMuscle(exercise.id, option)}
                                                                 disabled={saving === exercise.id || isSelected}
+                                                                aria-pressed={isSelected}
                                                                 className={`px-2 py-2 rounded-lg text-[11px] font-medium transition-all border ${isSelected
                                                                     ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                                                                     : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--primary)]/50'
@@ -912,16 +1036,27 @@ export default function Settings() {
                                     <option value="0">Domingo</option>
                                 </select>
                             </div>
-                            <button
-                                onClick={() => {
-                                    const cleared = { search: '', dateFrom: '', dateTo: '', dayOfWeek: '' };
-                                    setHistoryFilters(cleared);
-                                    fetchFilteredHistory(true, cleared);
-                                }}
-                                className="w-full py-2 text-xs text-[var(--text-secondary)] hover:text-white border border-[var(--border)] rounded-lg transition-colors"
-                            >
-                                Limpiar filtros
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => fetchFilteredHistory(true)}
+                                    disabled={historyLoading}
+                                    className="flex-1 py-2 text-xs font-medium text-white bg-[var(--primary)] rounded-lg transition-colors disabled:opacity-50"
+                                >
+                                    Aplicar filtros
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const cleared = { search: '', dateFrom: '', dateTo: '', dayOfWeek: '' };
+                                        setHistoryFilters(cleared);
+                                        fetchFilteredHistory(true, cleared);
+                                    }}
+                                    className="flex-1 py-2 text-xs text-[var(--text-secondary)] hover:text-white border border-[var(--border)] rounded-lg transition-colors"
+                                >
+                                    Limpiar
+                                </button>
+                            </div>
                         </div>
                     )}
 
@@ -972,11 +1107,14 @@ export default function Settings() {
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                                                         <p className="font-semibold text-sm">{session.exercise?.name || 'Ejercicio'}</p>
-                                                        {session.exercise?.muscleGroup && (
-                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${MUSCLE_COLORS[session.exercise.muscleGroup] || MUSCLE_COLORS['Otros']}`}>
-                                                                {session.exercise.muscleGroup}
-                                                            </span>
-                                                        )}
+                                                        {session.exercise?.muscleGroup && (() => {
+                                                            const mg = toSpanishMuscleGroup(session.exercise.muscleGroup) || session.exercise.muscleGroup;
+                                                            return (
+                                                                <span className={`text-[10px] px-1.5 py-0.5 rounded border ${MUSCLE_COLORS[mg] || MUSCLE_COLORS['Otros']}`}>
+                                                                    {mg}
+                                                                </span>
+                                                            );
+                                                        })()}
                                                     </div>
                                                     <div className="flex gap-1.5 flex-wrap">
                                                         {session.sets?.map((set, i) => (
@@ -991,16 +1129,40 @@ export default function Settings() {
                                                                         <span className="text-[var(--primary)] font-bold">{set.weight}</span>kg × <span className="font-bold">{set.reps}</span>
                                                                     </>
                                                                 )}
-                                                                {set.rpe && <span className="text-[var(--text-secondary)] ml-1">R{10 - set.rpe}</span>}
+                                                                {set.rpe != null && set.rpe !== '' && (
+                                                                    <span className="text-[var(--text-secondary)] ml-1">R{10 - set.rpe}</span>
+                                                                )}
                                                             </span>
                                                         ))}
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-1.5 shrink-0">
-                                                    <button onClick={() => navigate(`/session/${session.id}/edit`)} className="w-11 h-11 rounded-xl bg-[var(--bg-dark)] hover:bg-[var(--primary)]/20 text-[var(--text-secondary)] hover:text-[var(--primary)] transition-all flex items-center justify-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleSessionPdf(session)}
+                                                        disabled={exportingSessionId === session.id}
+                                                        aria-label="Descargar PDF de la sesión"
+                                                        title="PDF"
+                                                        className="w-11 h-11 rounded-xl bg-[var(--bg-dark)] hover:bg-[var(--primary)]/20 text-[var(--text-secondary)] hover:text-[var(--primary)] transition-all flex items-center justify-center disabled:opacity-50"
+                                                    >
+                                                        {exportingSessionId === session.id
+                                                            ? <Loader2 size={18} className="animate-spin" />
+                                                            : <FileDown size={18} />}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => navigate(`/session/${session.id}/edit`)}
+                                                        aria-label="Editar sesión"
+                                                        className="w-11 h-11 rounded-xl bg-[var(--bg-dark)] hover:bg-[var(--primary)]/20 text-[var(--text-secondary)] hover:text-[var(--primary)] transition-all flex items-center justify-center"
+                                                    >
                                                         <Edit3 size={18} />
                                                     </button>
-                                                    <button onClick={() => setDeletingSession(session)} className="w-11 h-11 rounded-xl bg-[var(--bg-dark)] hover:bg-red-500/20 text-[var(--text-secondary)] hover:text-red-500 transition-all flex items-center justify-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setDeletingSession(session)}
+                                                        aria-label="Eliminar sesión"
+                                                        className="w-11 h-11 rounded-xl bg-[var(--bg-dark)] hover:bg-red-500/20 text-[var(--text-secondary)] hover:text-red-500 transition-all flex items-center justify-center"
+                                                    >
                                                         <Trash2 size={18} />
                                                     </button>
                                                 </div>
@@ -1038,23 +1200,35 @@ export default function Settings() {
             {/* Delete Modal */}
             {deletingSession && (
                 <Portal>
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => !deleting && setDeletingSession(null)}>
-                    <div className="bg-[var(--bg-card)]/95 backdrop-blur-md rounded-2xl p-6 max-w-sm w-full border border-[var(--border)]" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => !deleting && setDeletingSession(null)} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[var(--bg-dark)] flex items-center justify-center text-[var(--text-secondary)]">
+                <div
+                    className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                    onClick={() => !deleting && setDeletingSession(null)}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="delete-session-title"
+                >
+                    <div className="relative bg-[var(--bg-card)]/95 backdrop-blur-md rounded-2xl p-6 max-w-sm w-full border border-[var(--border)]" onClick={e => e.stopPropagation()}>
+                        <button
+                            type="button"
+                            onClick={() => !deleting && setDeletingSession(null)}
+                            disabled={deleting}
+                            aria-label="Cerrar"
+                            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[var(--bg-dark)] flex items-center justify-center text-[var(--text-secondary)]"
+                        >
                             <X size={16} />
                         </button>
                         <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                             <Trash2 size={32} className="text-red-500" />
                         </div>
-                        <h3 className="text-xl font-bold text-center mb-2">¿Eliminar sesión?</h3>
+                        <h3 id="delete-session-title" className="text-xl font-bold text-center mb-2">¿Eliminar sesión?</h3>
                         <p className="text-sm text-[var(--text-secondary)] text-center mb-6">
                             Se eliminará <strong>{deletingSession.exercise?.name}</strong>. <span className="text-red-400 text-xs">Esta acción no se puede deshacer.</span>
                         </p>
                         <div className="flex gap-3">
-                            <button onClick={() => setDeletingSession(null)} disabled={deleting} className="flex-1 py-3.5 rounded-xl font-semibold bg-[var(--bg-dark)] text-white border border-[var(--border)]">
+                            <button type="button" onClick={() => setDeletingSession(null)} disabled={deleting} className="flex-1 py-3.5 rounded-xl font-semibold bg-[var(--bg-dark)] text-white border border-[var(--border)]">
                                 Cancelar
                             </button>
-                            <button onClick={confirmDeleteSession} disabled={deleting} className="flex-1 py-3.5 rounded-xl font-semibold bg-red-500 text-white flex items-center justify-center gap-2">
+                            <button type="button" onClick={confirmDeleteSession} disabled={deleting} className="flex-1 py-3.5 rounded-xl font-semibold bg-red-500 text-white flex items-center justify-center gap-2">
                                 {deleting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Trash2 size={18} />Eliminar</>}
                             </button>
                         </div>

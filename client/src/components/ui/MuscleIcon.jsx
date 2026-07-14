@@ -4,7 +4,7 @@
  * Usando emojis porque representan mejor los músculos que iconos genéricos
  */
 
-// Emojis y colores por grupo muscular
+// Emojis y colores por grupo muscular (ids en inglés del catálogo)
 const MUSCLE_DATA = {
     chest: { emoji: '🏋️', name: 'Pecho', color: '#ef4444' },
     back: { emoji: '🧍', name: 'Espalda', color: '#f97316' },
@@ -22,6 +22,28 @@ const MUSCLE_DATA = {
     default: { emoji: '⚡', name: 'Otro', color: '#a1a1aa' }
 };
 
+// Alias en español (lo que guardamos en DB / Smart Loading) → id del mapa
+const ES_TO_ID = {
+    pecho: 'chest',
+    espalda: 'back',
+    hombros: 'shoulders',
+    piernas: 'legs',
+    bíceps: 'biceps',
+    biceps: 'biceps',
+    tríceps: 'triceps',
+    triceps: 'triceps',
+    antebrazos: 'forearms',
+    core: 'core',
+    'core / abdomen': 'core'
+};
+
+function resolveMuscleKey(muscle) {
+    if (!muscle) return 'default';
+    if (MUSCLE_DATA[muscle]) return muscle;
+    const mapped = ES_TO_ID[String(muscle).toLowerCase().trim()];
+    return mapped && MUSCLE_DATA[mapped] ? mapped : 'default';
+}
+
 /**
  * Componente MuscleIcon - Muestra emoji del grupo muscular
  */
@@ -30,7 +52,7 @@ export default function MuscleIcon({
     size = 24,
     className = ''
 }) {
-    const data = MUSCLE_DATA[muscle] || MUSCLE_DATA.default;
+    const data = MUSCLE_DATA[resolveMuscleKey(muscle)] || MUSCLE_DATA.default;
 
     return (
         <span
@@ -48,21 +70,21 @@ export default function MuscleIcon({
  * Obtener color de un grupo muscular
  */
 export function getMuscleColor(muscle) {
-    return MUSCLE_DATA[muscle]?.color || MUSCLE_DATA.default.color;
+    return MUSCLE_DATA[resolveMuscleKey(muscle)]?.color || MUSCLE_DATA.default.color;
 }
 
 /**
  * Obtener nombre de un grupo muscular
  */
 export function getMuscleName(muscle) {
-    return MUSCLE_DATA[muscle]?.name || MUSCLE_DATA.default.name;
+    return MUSCLE_DATA[resolveMuscleKey(muscle)]?.name || MUSCLE_DATA.default.name;
 }
 
 /**
  * Obtener emoji de un grupo muscular
  */
 export function getMuscleEmoji(muscle) {
-    return MUSCLE_DATA[muscle]?.emoji || MUSCLE_DATA.default.emoji;
+    return MUSCLE_DATA[resolveMuscleKey(muscle)]?.emoji || MUSCLE_DATA.default.emoji;
 }
 
 /**

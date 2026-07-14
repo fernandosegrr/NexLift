@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Trash2, Plus } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Plus, FileDown, Loader2 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
+import { useAuth } from '../context/AuthContext';
+import { mexicoCityDateStr } from '../utils/dates';
+import { downloadSessionPdf } from '../utils/sessionPdf';
 
 export default function EditSession() {
     const { logId } = useParams();
     const navigate = useNavigate();
     const toast = useToast();
+    const { user } = useAuth();
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [exportingPdf, setExportingPdf] = useState(false);
     const [session, setSession] = useState(null);
     const [sets, setSets] = useState([]);
     const [isUnilateral, setIsUnilateral] = useState(false);
@@ -114,6 +119,38 @@ export default function EditSession() {
         }
     }
 
+    async function handleDownloadPdf() {
+        if (!session || exportingPdf) return;
+        setExportingPdf(true);
+        try {
+            // PDF con datos del server (sets del log), no el form a medio editar
+            const fresh = await api.getWorkoutSession(logId);
+            await downloadSessionPdf(fresh, {
+                userName: user?.firstName
+                    ? `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`
+                    : user?.username
+            });
+            toast.success('PDF de la sesión descargado');
+        } catch (err) {
+            console.error(err);
+            toast.error(err.message || 'No se pudo generar el PDF');
+        } finally {
+            setExportingPdf(false);
+        }
+    }
+
+    const sessionDayLabel = (() => {
+        if (!session?.date) return '';
+        const key = mexicoCityDateStr(new Date(session.date));
+        const [y, m, d] = key.split('-').map(Number);
+        return new Date(y, m - 1, d, 12, 0, 0).toLocaleDateString('es-ES', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+    })();
+
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
@@ -126,21 +163,36 @@ export default function EditSession() {
         <div className="min-h-screen bg-[var(--bg-dark)]">
             {/* Header */}
             <div className="sticky top-0 z-10 bg-[var(--bg-dark)] border-b border-[var(--border)]">
-                <div className="flex items-center gap-3 p-4">
+                <div className="flex items-center gap-2 p-4">
                     <button
-                        onClick={() => navigate('/settings')}
+                        type="button"
+                        onClick={() => navigate(-1)}
+                        aria-label="Volver"
                         className="p-2 rounded-full hover:bg-[var(--bg-card)]"
                     >
                         <ArrowLeft size={20} />
                     </button>
-                    <div className="flex-1">
-                        <h1 className="font-bold text-lg">Editar Sesión</h1>
-                        <p className="text-xs text-[var(--text-secondary)]">
+                    <div className="flex-1 min-w-0">
+                        <h1 className="font-bold text-lg">Editar sesión</h1>
+                        <p className="text-xs text-[var(--text-secondary)] truncate">
                             {session?.exercise?.name}
                             {isUnilateral && <span className="ml-1 text-orange-400">(Unilateral)</span>}
                         </p>
                     </div>
                     <button
+                        type="button"
+                        onClick={handleDownloadPdf}
+                        disabled={exportingPdf || !session}
+                        aria-label="Descargar PDF de esta sesión"
+                        className="p-2.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--primary)] hover:border-[var(--primary)]/40 disabled:opacity-50"
+                        title="PDF de la sesión"
+                    >
+                        {exportingPdf
+                            ? <Loader2 size={18} className="animate-spin" />
+                            : <FileDown size={18} />}
+                    </button>
+                    <button
+                        type="button"
                         onClick={saveChanges}
                         disabled={saving}
                         className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50"
@@ -161,14 +213,20 @@ export default function EditSession() {
             <div className="p-4">
                 <div className="bg-[var(--bg-card)] rounded-xl p-4 mb-4 border border-[var(--border)]">
                     <h2 className="font-bold text-lg">{session?.exercise?.name}</h2>
-                    <p className="text-sm text-[var(--text-secondary)]">
-                        {new Date(session?.date).toLocaleDateString('es-ES', {
-                            weekday: 'long',
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric'
-                        })}
+                    <p className="text-sm text-[var(--text-secondary)] capitalize">
+                        {sessionDayLabel}
                     </p>
+                    <button
+                        type="button"
+                        onClick={handleDownloadPdf}
+                        disabled={exportingPdf}
+                        className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border border-[var(--primary)]/40 bg-[var(--primary)]/10 text-[var(--primary)] active:scale-[0.98] disabled:opacity-50"
+                    >
+                        {exportingPdf
+                            ? <Loader2 size={16} className="animate-spin" />
+                            : <FileDown size={16} />}
+                        Descargar PDF de esta sesión
+                    </button>
                 </div>
 
                 {/* Sets Editor */}

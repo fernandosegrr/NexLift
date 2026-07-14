@@ -1,16 +1,21 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Scale, Camera, TrendingUp, Plus, X, Check, Activity, Droplet, Dumbbell, ChevronDown, ChevronUp, Flame, Waves, Heart, Bone } from 'lucide-react';
+import { Scale, Camera, TrendingUp, Plus, X, Check, Activity, Droplet, Dumbbell, ChevronDown, ChevronUp, Flame, Waves, Heart, Bone, AlertTriangle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from 'recharts';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
+import { mexicoCityDateStr } from '../utils/dates';
+
+const MAX_PHOTO_BYTES = 12 * 1024 * 1024; // 12 MB pre-compresión
 
 // Compress image to max 1200px and 85% quality
 async function compressImage(file, maxSize = 1200, quality = 0.85) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const reader = new FileReader();
+        reader.onerror = () => reject(new Error('No se pudo leer la imagen'));
         reader.onload = (e) => {
             const img = new Image();
+            img.onerror = () => reject(new Error('Imagen inválida'));
             img.onload = () => {
                 const canvas = document.createElement('canvas');
                 let { width, height } = img;
@@ -38,7 +43,6 @@ async function compressImage(file, maxSize = 1200, quality = 0.85) {
     });
 }
 
-// Helper: Get BMI range with color
 function getBMIRange(bmi) {
     if (!bmi) return null;
     if (bmi < 18.5) return { label: 'Bajo peso', color: 'text-blue-400', bg: 'bg-blue-500/20' };
@@ -47,26 +51,22 @@ function getBMIRange(bmi) {
     return { label: 'Obesidad', color: 'text-red-400', bg: 'bg-red-500/20' };
 }
 
-// Helper: Calculate change over period. Returns the delta plus the actual elapsed
-// days between the two compared entries, since the closest reference log available
-// may be much further away than `days` (e.g. only one old entry from 6 months ago).
+// Delta ~N días: referencia = log más cercano al corte (día calendario CDMX).
+// logs se asumen ordenados DESC (más reciente primero), como devuelve la API.
 function calculateChange(logs, field, days = 30) {
     const filtered = logs.filter(l => l[field] != null);
     if (filtered.length < 2) return null;
 
     const latestLog = filtered[0];
     const latest = latestLog[field];
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - days);
-    const cutoffTime = cutoffDate.getTime();
+    const cutoffKey = mexicoCityDateStr(new Date(Date.now() - days * 24 * 60 * 60 * 1000));
+    const cutoffTime = new Date(`${cutoffKey}T12:00:00Z`).getTime();
 
-    // Pick the log whose date is closest to exactly `days` ago (the cutoff),
-    // so the delta reflects ~30 days and not an arbitrarily older span.
-    // Skip the latest entry itself; fall back to the oldest log if needed.
     let reference = null;
     let bestDiff = Infinity;
     for (let i = 1; i < filtered.length; i++) {
-        const diff = Math.abs(new Date(filtered[i].date).getTime() - cutoffTime);
+        const t = new Date(filtered[i].date).getTime();
+        const diff = Math.abs(t - cutoffTime);
         if (diff < bestDiff) {
             bestDiff = diff;
             reference = filtered[i];
@@ -74,19 +74,30 @@ function calculateChange(logs, field, days = 30) {
     }
 
     if (!reference) return null;
-    const elapsedDays = Math.round((new Date(latestLog.date).getTime() - new Date(reference.date).getTime()) / (1000 * 60 * 60 * 24));
+    const latestKey = mexicoCityDateStr(new Date(latestLog.date));
+    const refKey = mexicoCityDateStr(new Date(reference.date));
+    const a = new Date(`${latestKey}T12:00:00Z`).getTime();
+    const b = new Date(`${refKey}T12:00:00Z`).getTime();
+    const elapsedDays = Math.round((a - b) / (1000 * 60 * 60 * 24));
     return { value: (latest - reference[field]).toFixed(1), days: elapsedDays };
 }
 
-// Fix timezone: parse date string as local, not UTC
+// Fecha de un log en día CDMX (no el date part UTC del ISO, que falla de noche)
 function formatLocalDate(dateStr, options = { day: 'numeric', month: 'short' }) {
     if (!dateStr) return '';
-    // Extract just the date part (YYYY-MM-DD) and parse as local
-    const dateOnly = dateStr.split('T')[0];
-    const [year, month, day] = dateOnly.split('-').map(Number);
-    // Create date using local timezone (month is 0-indexed)
-    const date = new Date(year, month - 1, day);
+    const dayKey = mexicoCityDateStr(new Date(dateStr));
+    const [year, month, day] = dayKey.split('-').map(Number);
+    const date = new Date(year, month - 1, day, 12, 0, 0);
     return date.toLocaleDateString('es-ES', options);
+}
+
+// Color del delta: bajar peso/grasa = bueno (verde); subir músculo = bueno
+function changeColorClass(field, deltaStr) {
+    const v = parseFloat(deltaStr);
+    if (!Number.isFinite(v) || v === 0) return 'text-[var(--text-secondary)]';
+    if (field === 'muscleMass') return v > 0 ? 'text-green-400' : 'text-orange-400';
+    // weight, bodyFat, bmi: bajar suele ser el objetivo en tracking
+    return v < 0 ? 'text-green-400' : 'text-orange-400';
 }
 
 export default function BodyTracking() {
@@ -98,6 +109,7 @@ export default function BodyTracking() {
     const [logs, setLogs] = useState([]);
     const [photos, setPhotos] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(false);
 
     // Form state - basic fields
     const [weight, setWeight] = useState('');
@@ -133,20 +145,24 @@ export default function BodyTracking() {
 
     useEffect(() => {
         return () => {
-            if (photoPreviewRef.current) URL.revokeObjectURL(photoPreviewRef.current);
+            const p = photoPreviewRef.current;
+            if (p && p.startsWith('blob:')) URL.revokeObjectURL(p);
         };
     }, []);
 
     async function fetchData() {
         try {
+            setLoadError(false);
             const [logsData, photosData] = await Promise.all([
-                api.getBodyLogs(90),
+                api.getBodyLogs(180),
                 api.getBodyPhotos()
             ]);
-            setLogs(logsData);
-            setPhotos(photosData);
+            setLogs(Array.isArray(logsData) ? logsData : []);
+            setPhotos(Array.isArray(photosData) ? photosData : []);
         } catch (error) {
             console.error('Error:', error);
+            setLoadError(true);
+            toast.error('Error al cargar datos corporales');
         } finally {
             setLoading(false);
         }
@@ -156,25 +172,34 @@ export default function BodyTracking() {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        if (!file.type.startsWith('image/')) {
+            toast.error('Solo se permiten imágenes');
+            e.target.value = '';
+            return;
+        }
+        if (file.size > MAX_PHOTO_BYTES) {
+            toast.error('La imagen es muy grande (máx. 12 MB)');
+            e.target.value = '';
+            return;
+        }
+
         try {
             const compressed = await compressImage(file);
-            const objectUrl = URL.createObjectURL(file);
-            // Revoke the previous blob URL before replacing it to avoid leaks
+            // Preview = lo que se sube (comprimido), no el original
             setPhotoPreview(prev => {
-                if (prev) URL.revokeObjectURL(prev);
-                return objectUrl;
+                if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+                return compressed;
             });
             setPhotoData(compressed);
-            toast.success('Foto cargada');
+            toast.success('Foto lista');
         } catch (error) {
-            toast.error('Error al procesar imagen');
+            toast.error(error.message || 'Error al procesar imagen');
         }
     }
 
     const clearPhoto = useCallback(() => {
-        // Revoke the blob URL when clearing to avoid leaks
         setPhotoPreview(prev => {
-            if (prev) URL.revokeObjectURL(prev);
+            if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
             return null;
         });
         setPhotoData(null);
@@ -196,29 +221,39 @@ export default function BodyTracking() {
     }, [clearPhoto]);
 
     async function handleSubmit() {
-        if (!weight && !photoData) {
-            toast.error('Ingresa peso o sube una foto');
+        const hasAdvanced = [bmi, bodyFat, muscleMass, bmr, bodyWater, visceralFat, boneMass, protein]
+            .some(v => v !== '' && v != null);
+        if (!weight && !photoData && !hasAdvanced) {
+            toast.error('Ingresa peso, sube una foto o llena datos de composición');
             return;
+        }
+
+        if (weight !== '') {
+            const w = parseFloat(weight);
+            if (!Number.isFinite(w) || w <= 0 || w > 500) {
+                toast.error('Peso inválido (0–500 kg)');
+                return;
+            }
         }
 
         setSaving(true);
         try {
             const result = await api.logBodyData({
-                weight: weight ? parseFloat(weight) : null,
+                weight: weight !== '' ? parseFloat(weight) : null,
                 photo: photoData,
-                note: note || null,
-                bmi: bmi ? parseFloat(bmi) : null,
-                bodyFat: bodyFat ? parseFloat(bodyFat) : null,
-                muscleMass: muscleMass ? parseFloat(muscleMass) : null,
-                bmr: bmr ? parseFloat(bmr) : null,
-                bodyWater: bodyWater ? parseFloat(bodyWater) : null,
-                visceralFat: visceralFat ? parseFloat(visceralFat) : null,
-                boneMass: boneMass ? parseFloat(boneMass) : null,
-                protein: protein ? parseFloat(protein) : null
+                note: note.trim() || null,
+                bmi: bmi !== '' ? parseFloat(bmi) : null,
+                bodyFat: bodyFat !== '' ? parseFloat(bodyFat) : null,
+                muscleMass: muscleMass !== '' ? parseFloat(muscleMass) : null,
+                bmr: bmr !== '' ? parseFloat(bmr) : null,
+                bodyWater: bodyWater !== '' ? parseFloat(bodyWater) : null,
+                visceralFat: visceralFat !== '' ? parseFloat(visceralFat) : null,
+                boneMass: boneMass !== '' ? parseFloat(boneMass) : null,
+                protein: protein !== '' ? parseFloat(protein) : null
             });
 
             if (result.photoFailed) {
-                toast.error('Datos guardados, pero la foto no se pudo subir. Intenta subirla de nuevo.');
+                toast.error('Datos guardados, pero la foto no se pudo subir. Intenta de nuevo.');
             } else {
                 toast.success('¡Datos guardados!');
             }
@@ -231,26 +266,26 @@ export default function BodyTracking() {
         }
     }
 
-    // Memoized chart data
+    // Chart: últimos 30 puntos con al menos un dato del tab activo
     const chartData = useMemo(() => {
         return logs
-            .filter(l => l.weight || l.bodyFat || l.muscleMass)
-            .slice(0, 30)
+            .filter(l => l.weight != null || l.bodyFat != null || l.muscleMass != null)
+            .slice(0, 45)
             .reverse()
             .map(l => ({
                 date: formatLocalDate(l.date, { day: 'numeric', month: 'short' }),
+                fullDate: formatLocalDate(l.date, { day: 'numeric', month: 'short', year: 'numeric' }),
                 weight: l.weight,
                 bodyFat: l.bodyFat,
                 muscleMass: l.muscleMass
             }));
     }, [logs]);
 
-    // Memoized latest stats
     const stats = useMemo(() => {
-        const latestWithWeight = logs.find(l => l.weight);
-        const latestWithBMI = logs.find(l => l.bmi);
-        const latestWithFat = logs.find(l => l.bodyFat);
-        const latestWithMuscle = logs.find(l => l.muscleMass);
+        const latestWithWeight = logs.find(l => l.weight != null);
+        const latestWithBMI = logs.find(l => l.bmi != null);
+        const latestWithFat = logs.find(l => l.bodyFat != null);
+        const latestWithMuscle = logs.find(l => l.muscleMass != null);
 
         return {
             weight: latestWithWeight?.weight,
@@ -258,11 +293,12 @@ export default function BodyTracking() {
             bodyFat: latestWithFat?.bodyFat,
             muscleMass: latestWithMuscle?.muscleMass,
             weightChange: calculateChange(logs, 'weight', 30),
+            fatChange: calculateChange(logs, 'bodyFat', 30),
+            muscleChange: calculateChange(logs, 'muscleMass', 30),
             bmiRange: getBMIRange(latestWithBMI?.bmi)
         };
     }, [logs]);
 
-    // Chart config based on active tab
     const chartConfig = useMemo(() => {
         const configs = {
             weight: { key: 'weight', color: '#8b5cf6', label: 'Peso', unit: 'kg' },
@@ -272,10 +308,34 @@ export default function BodyTracking() {
         return configs[activeChart];
     }, [activeChart]);
 
+    const chartHasSeries = useMemo(
+        () => chartData.some(d => d[chartConfig.key] != null),
+        [chartData, chartConfig.key]
+    );
+
+    const canSubmit = weight !== '' || !!photoData
+        || [bmi, bodyFat, muscleMass, bmr, bodyWater, visceralFat, boneMass, protein].some(v => v !== '');
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-[60vh]">
                 <div className="w-10 h-10 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    if (loadError && logs.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh] px-6 text-center space-y-3">
+                <AlertTriangle size={32} className="text-[var(--warning)]" />
+                <p className="font-bold text-lg">No se pudo cargar el seguimiento</p>
+                <button
+                    type="button"
+                    onClick={() => { setLoading(true); fetchData(); }}
+                    className="mt-2 px-4 py-2 rounded-xl bg-[var(--primary)] text-white font-semibold text-sm active:scale-95"
+                >
+                    Reintentar
+                </button>
             </div>
         );
     }
@@ -285,10 +345,10 @@ export default function BodyTracking() {
             {/* Header */}
             <div>
                 <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <Scale className="text-[var(--primary)]" />
-                    Seguimiento Corporal
+                    <Scale className="text-[var(--primary)]" aria-hidden />
+                    Seguimiento corporal
                 </h1>
-                <p className="text-[var(--text-secondary)] text-sm">Composición corporal y progreso</p>
+                <p className="text-[var(--text-secondary)] text-sm">Peso, composición y fotos de progreso</p>
             </div>
 
             {/* Quick Stats - 4 Cards */}
@@ -306,8 +366,11 @@ export default function BodyTracking() {
                         <span className="text-sm font-normal text-[var(--text-secondary)] ml-1">kg</span>
                     </p>
                     {stats.weightChange && (
-                        <p className={`text-xs mt-1 ${parseFloat(stats.weightChange.value) > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {parseFloat(stats.weightChange.value) > 0 ? '+' : ''}{stats.weightChange.value} kg ({Math.abs(stats.weightChange.days - 30) <= 3 ? '~30d' : `${stats.weightChange.days}d`})
+                        <p className={`text-xs mt-1 tabular-nums ${changeColorClass('weight', stats.weightChange.value)}`}>
+                            {parseFloat(stats.weightChange.value) > 0 ? '+' : ''}{stats.weightChange.value} kg
+                            <span className="text-[var(--text-secondary)]">
+                                {' '}({Math.abs(stats.weightChange.days - 30) <= 5 ? '~30d' : `${stats.weightChange.days}d`})
+                            </span>
                         </p>
                     )}
                 </div>
@@ -316,11 +379,11 @@ export default function BodyTracking() {
                 <div className="bg-gradient-to-br from-[var(--bg-card)] to-[#1a1a2e] rounded-xl p-4 border border-[var(--border)]">
                     <div className="flex items-center gap-2 mb-2">
                         <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                            <Activity size={16} className="text-blue-400" />
+                            <Activity size={16} className="text-blue-400" aria-hidden />
                         </div>
                         <span className="text-xs text-[var(--text-secondary)]">IMC</span>
                     </div>
-                    <p className="text-2xl font-bold">{stats.bmi?.toFixed(1) || '--'}</p>
+                    <p className="text-2xl font-bold tabular-nums">{stats.bmi?.toFixed(1) || '--'}</p>
                     {stats.bmiRange && (
                         <span className={`inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full ${stats.bmiRange.bg} ${stats.bmiRange.color}`}>
                             {stats.bmiRange.label}
@@ -332,28 +395,44 @@ export default function BodyTracking() {
                 <div className="bg-gradient-to-br from-[var(--bg-card)] to-[#1a1a2e] rounded-xl p-4 border border-[var(--border)]">
                     <div className="flex items-center gap-2 mb-2">
                         <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
-                            <Droplet size={16} className="text-orange-400" />
+                            <Droplet size={16} className="text-orange-400" aria-hidden />
                         </div>
-                        <span className="text-xs text-[var(--text-secondary)]">Grasa Corporal</span>
+                        <span className="text-xs text-[var(--text-secondary)]">Grasa corporal</span>
                     </div>
-                    <p className="text-2xl font-bold">
+                    <p className="text-2xl font-bold tabular-nums">
                         {stats.bodyFat?.toFixed(1) || '--'}
                         <span className="text-sm font-normal text-[var(--text-secondary)] ml-1">%</span>
                     </p>
+                    {stats.fatChange && (
+                        <p className={`text-xs mt-1 tabular-nums ${changeColorClass('bodyFat', stats.fatChange.value)}`}>
+                            {parseFloat(stats.fatChange.value) > 0 ? '+' : ''}{stats.fatChange.value}%
+                            <span className="text-[var(--text-secondary)]">
+                                {' '}({Math.abs(stats.fatChange.days - 30) <= 5 ? '~30d' : `${stats.fatChange.days}d`})
+                            </span>
+                        </p>
+                    )}
                 </div>
 
                 {/* Muscle Mass Card */}
                 <div className="bg-gradient-to-br from-[var(--bg-card)] to-[#1a1a2e] rounded-xl p-4 border border-[var(--border)]">
                     <div className="flex items-center gap-2 mb-2">
                         <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
-                            <Dumbbell size={16} className="text-green-400" />
+                            <Dumbbell size={16} className="text-green-400" aria-hidden />
                         </div>
-                        <span className="text-xs text-[var(--text-secondary)]">Masa Muscular</span>
+                        <span className="text-xs text-[var(--text-secondary)]">Masa muscular</span>
                     </div>
-                    <p className="text-2xl font-bold">
+                    <p className="text-2xl font-bold tabular-nums">
                         {stats.muscleMass?.toFixed(1) || '--'}
                         <span className="text-sm font-normal text-[var(--text-secondary)] ml-1">kg</span>
                     </p>
+                    {stats.muscleChange && (
+                        <p className={`text-xs mt-1 tabular-nums ${changeColorClass('muscleMass', stats.muscleChange.value)}`}>
+                            {parseFloat(stats.muscleChange.value) > 0 ? '+' : ''}{stats.muscleChange.value} kg
+                            <span className="text-[var(--text-secondary)]">
+                                {' '}({Math.abs(stats.muscleChange.days - 30) <= 5 ? '~30d' : `${stats.muscleChange.days}d`})
+                            </span>
+                        </p>
+                    )}
                 </div>
             </div>
 
@@ -385,15 +464,18 @@ export default function BodyTracking() {
                             ref={fileInputRef}
                             type="file"
                             accept="image/*"
+                            capture="environment"
                             onChange={handlePhotoSelect}
                             className="hidden"
                         />
 
                         {photoPreview ? (
                             <div className="relative">
-                                <img src={photoPreview} alt="Preview" className="w-full h-48 object-cover rounded-lg" />
+                                <img src={photoPreview} alt="Vista previa de progreso" className="w-full h-48 object-cover rounded-lg" />
                                 <button
+                                    type="button"
                                     onClick={clearPhoto}
+                                    aria-label="Quitar foto"
                                     className="absolute top-2 right-2 p-2 bg-black/60 rounded-full hover:bg-black/80 transition-colors"
                                 >
                                     <X size={16} />
@@ -401,11 +483,12 @@ export default function BodyTracking() {
                             </div>
                         ) : (
                             <button
+                                type="button"
                                 onClick={() => fileInputRef.current?.click()}
                                 className="w-full border-2 border-dashed border-[var(--border)] rounded-lg p-6 text-center hover:border-[var(--primary)] transition-colors"
                             >
-                                <Camera size={24} className="mx-auto text-[var(--text-secondary)] mb-2" />
-                                <p className="text-sm text-[var(--text-secondary)]">Toca para subir foto</p>
+                                <Camera size={24} className="mx-auto text-[var(--text-secondary)] mb-2" aria-hidden />
+                                <p className="text-sm text-[var(--text-secondary)]">Toca para subir o tomar foto</p>
                             </button>
                         )}
                     </div>
@@ -424,10 +507,11 @@ export default function BodyTracking() {
 
                     {/* Advanced Section Toggle */}
                     <button
+                        type="button"
                         onClick={() => setShowAdvanced(!showAdvanced)}
                         className="w-full flex items-center justify-center gap-2 py-2 text-sm text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded-lg transition-colors"
                     >
-                        {showAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {showAdvanced ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}
                         Datos de báscula inteligente
                     </button>
 
@@ -558,15 +642,16 @@ export default function BodyTracking() {
 
                     {/* Submit Button */}
                     <button
+                        type="button"
                         onClick={handleSubmit}
-                        disabled={saving || (!weight && !photoData)}
-                        className="w-full bg-gradient-to-r from-[var(--primary)] to-purple-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:brightness-110 transition-all shadow-lg shadow-purple-500/20"
+                        disabled={saving || !canSubmit}
+                        className="w-full bg-gradient-to-r from-[var(--primary)] to-purple-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:brightness-110 transition-all shadow-lg shadow-purple-500/20 active:scale-[0.98]"
                     >
                         {saving ? (
                             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         ) : (
                             <>
-                                <Check size={18} />
+                                <Check size={18} aria-hidden />
                                 Guardar
                             </>
                         )}
@@ -577,7 +662,6 @@ export default function BodyTracking() {
             {/* Charts with Tabs */}
             {chartData.length > 1 && (
                 <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)]">
-                    {/* Chart Tabs */}
                     <div className="flex gap-1 mb-4 bg-[var(--bg-dark)] p-1 rounded-lg">
                         {[
                             { key: 'weight', label: 'Peso', icon: Scale },
@@ -586,44 +670,52 @@ export default function BodyTracking() {
                         ].map(tab => (
                             <button
                                 key={tab.key}
+                                type="button"
                                 onClick={() => setActiveChart(tab.key)}
                                 className={`flex-1 flex items-center justify-center gap-1 py-2 text-xs rounded-md transition-all ${activeChart === tab.key
                                     ? 'bg-[var(--primary)] text-white'
                                     : 'text-[var(--text-secondary)] hover:text-white'
                                     }`}
                             >
-                                <tab.icon size={12} />
+                                <tab.icon size={12} aria-hidden />
                                 {tab.label}
                             </button>
                         ))}
                     </div>
 
-                    {/* Chart */}
                     <div className="h-48">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#a1a1aa' }} />
-                                <YAxis
-                                    tick={{ fontSize: 10, fill: '#a1a1aa' }}
-                                    domain={['dataMin - 1', 'dataMax + 1']}
-                                    width={35}
-                                />
-                                <Tooltip
-                                    contentStyle={{ background: '#1a1a1a', border: '1px solid #27272a', borderRadius: '8px', fontSize: '12px' }}
-                                    formatter={(value) => value ? [`${value} ${chartConfig.unit}`, chartConfig.label] : ['--', chartConfig.label]}
-                                />
-                                <Line
-                                    type="monotone"
-                                    dataKey={chartConfig.key}
-                                    stroke={chartConfig.color}
-                                    strokeWidth={2}
-                                    dot={{ fill: chartConfig.color, r: 4 }}
-                                    activeDot={{ r: 6 }}
-                                    connectNulls
-                                />
-                            </LineChart>
-                        </ResponsiveContainer>
+                        {chartHasSeries ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={chartData}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#a1a1aa' }} />
+                                    <YAxis
+                                        tick={{ fontSize: 10, fill: '#a1a1aa' }}
+                                        domain={['dataMin - 1', 'dataMax + 1']}
+                                        width={35}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{ background: '#1a1a1a', border: '1px solid #27272a', borderRadius: '8px', fontSize: '12px' }}
+                                        labelFormatter={(_, payload) => payload?.[0]?.payload?.fullDate || ''}
+                                        formatter={(value) => value != null ? [`${value} ${chartConfig.unit}`, chartConfig.label] : ['--', chartConfig.label]}
+                                    />
+                                    <Line
+                                        type="monotone"
+                                        dataKey={chartConfig.key}
+                                        stroke={chartConfig.color}
+                                        strokeWidth={2}
+                                        dot={{ fill: chartConfig.color, r: 4 }}
+                                        activeDot={{ r: 6 }}
+                                        connectNulls
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-[var(--text-secondary)] text-sm">
+                                <p>Sin datos de {chartConfig.label.toLowerCase()} aún</p>
+                                <p className="text-xs mt-1">Registra mediciones para ver la curva</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -687,10 +779,16 @@ export default function BodyTracking() {
                         {photos.map((photo) => (
                             <button
                                 key={photo.id}
+                                type="button"
                                 onClick={() => { setSelectedPhoto(photo); setShowPhotoModal(true); }}
                                 className="relative aspect-square rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--primary)] transition-colors"
                             >
-                                <img src={photo.photo} alt="Progreso" className="w-full h-full object-cover" />
+                                <img
+                                    src={photo.photo}
+                                    alt={`Progreso ${formatLocalDate(photo.date, { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                />
                                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1">
                                     <p className="text-[10px] text-white text-center">
                                         {formatLocalDate(photo.date, { day: 'numeric', month: 'short' })}

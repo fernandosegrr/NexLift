@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Target, Plus, Loader2 } from 'lucide-react';
+import { Target, Plus, Loader2, AlertTriangle } from 'lucide-react';
 import { api } from '../../services/api';
 import { useToast } from '../ui/Toast';
 import GoalCard from './GoalCard';
@@ -11,30 +11,49 @@ export default function GoalSection() {
     const toast = useToast();
     const [goals, setGoals] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(false);
     // Map: clave canónica de ejercicio -> { names, muscleGroup, sessions }
     const [workoutHistory, setWorkoutHistory] = useState(() => new Map());
 
     useEffect(() => {
         async function loadAll() {
             try {
-                // Cargar goals e historial EN PARALELO para evitar race condition
+                setLoadError(false);
                 const [goalsData, historyData] = await Promise.all([
                     api.getGoals(),
                     api.getWorkoutHistory(500)
                 ]);
                 setGoals(goalsData || []);
-                // Consolida el historial por ejercicio canónico (une variantes del nombre)
                 setWorkoutHistory(groupHistoryByExercise(historyData));
             } catch (err) {
                 console.error('Error loading goals data:', err);
+                setLoadError(true);
+                toast.error('Error al cargar objetivos');
             } finally {
                 setLoading(false);
             }
         }
         loadAll();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Activos primero, logrados al final; dentro de cada grupo por fecha de creación
+    const sortedGoals = useMemo(() => {
+        return [...goals].sort((a, b) => {
+            const aDone = a.achievedAt ? 1 : 0;
+            const bDone = b.achievedAt ? 1 : 0;
+            if (aDone !== bDone) return aDone - bDone;
+            return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        });
+    }, [goals]);
+
+    const activeCount = goals.filter(g => !g.achievedAt).length;
+    const achievedCount = goals.length - activeCount;
+
     async function handleDeleteGoal(goalId) {
+        if (!window.confirm('¿Eliminar este objetivo? Se pierde el plan y el checklist de semanas.')) {
+            return;
+        }
         try {
             await api.deleteGoal(goalId);
             setGoals(prev => prev.filter(g => g.id !== goalId));
@@ -45,9 +64,6 @@ export default function GoalSection() {
     }
 
     function getHistoryForGoal(goalExerciseName) {
-        // El historial est\u00e1 indexado por clave can\u00f3nica; el objetivo se empareja por
-        // la misma clave, as\u00ed que tolera variantes del nombre (abreviaturas, plurales,
-        // sufijos de grupo muscular, tildes, etc.).
         return workoutHistory.get(canonicalExerciseKey(goalExerciseName)) || null;
     }
 
@@ -63,16 +79,41 @@ export default function GoalSection() {
         );
     }
 
+    if (loadError && goals.length === 0) {
+        return (
+            <div className="bg-[var(--bg-card)] rounded-2xl p-8 border border-[var(--border)] text-center space-y-3">
+                <AlertTriangle className="w-10 h-10 text-[var(--warning)] mx-auto" />
+                <p className="font-semibold">No se pudieron cargar los objetivos</p>
+                <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 bg-purple-500 text-white rounded-xl text-sm font-medium"
+                >
+                    Reintentar
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <Target className="w-5 h-5 text-purple-400" />
-                    <h2 className="text-lg font-bold">Mis Objetivos</h2>
+            <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                    <Target className="w-5 h-5 text-purple-400 shrink-0" aria-hidden />
+                    <div>
+                        <h2 className="text-lg font-bold">Mis Objetivos</h2>
+                        {goals.length > 0 && (
+                            <p className="text-[10px] text-[var(--text-secondary)]">
+                                {activeCount} activo{activeCount === 1 ? '' : 's'}
+                                {achievedCount > 0 ? ` · ${achievedCount} logrado${achievedCount === 1 ? '' : 's'}` : ''}
+                            </p>
+                        )}
+                    </div>
                 </div>
                 <button
+                    type="button"
                     onClick={() => navigate('/goals/new')}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-purple-500 text-white text-sm font-medium rounded-xl hover:bg-purple-600 transition-colors shadow-lg shadow-purple-500/25"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-purple-500 text-white text-sm font-medium rounded-xl hover:bg-purple-600 transition-colors shadow-lg shadow-purple-500/25 shrink-0"
                 >
                     <Plus size={16} />
                     Nuevo
@@ -84,18 +125,19 @@ export default function GoalSection() {
                     <Target className="w-12 h-12 text-[var(--text-secondary)] mx-auto mb-4 opacity-50" />
                     <h3 className="font-semibold mb-2">Sin objetivos</h3>
                     <p className="text-[var(--text-secondary)] text-sm mb-5">
-                        Crea un objetivo para recibir predicciones de cuándo lo alcanzarás
+                        Elige un ejercicio y una meta (ej. 120 kg × 1). Con tu historial la app arma un plan semana a semana.
                     </p>
                     <button
+                        type="button"
                         onClick={() => navigate('/goals/new')}
                         className="px-5 py-2.5 bg-purple-500 text-white rounded-xl font-medium hover:bg-purple-600 transition-colors"
                     >
-                        Crear Primer Objetivo
+                        Crear primer objetivo
                     </button>
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {goals.map(goal => (
+                    {sortedGoals.map(goal => (
                         <GoalCard
                             key={goal.id}
                             goal={goal}

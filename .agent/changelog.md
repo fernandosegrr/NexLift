@@ -3,7 +3,24 @@
 > Historial completo de versiones, movido desde `context.md` (8 Jul 2026) para mantener el contexto principal en un tamaño legible de una sola pasada.
 > Las reglas vivas del proyecto están en `.agent/context.md` — este archivo es solo historia.
 
-### v2.7.0 (9 Julio 2026) - **Current**
+### v2.7.1 (13 Julio 2026) - **Current**
+Origen: auditoría de producto sección por sección (lógica de entrenamiento + UI, menos foco en seguridad), con la cuenta real: Sugerencias → Workout → Dashboard → Rutinas → Import/EditRoutine → Progress → PDF → Goals + PDF de sesión → Body → Perfil/Configuración. Cada bloque se revisó y se corrigió al cerrarlo.
+
+*   **FIX CRÍTICO — Smart Loading (cliente + servidor, con paridad):** la referencia de trabajo anclaba mal (tope/mínimos vs serie de trabajo real). `pickWorkReference` / lógica alineada en `client/src/utils/smartLoading.js` y `server/src/logic.js`: ancla a la serie de trabajo más fuerte (1RM estimado), usa las **mejores** reps a ese peso (todas las series top), incremento piernas solo si `muscleGroup === 'Piernas'` (vacío/`legs` ya no se confunde), deload ~0.9 tras la doble progresión. Tests de paridad ampliados.
+*   **FIX — Fechas en el cliente (mismo patrón CDMX que el server):** nuevo `client/src/utils/dates.js` (`mexicoCityDateStr`, `mexicoCityDayOfWeek`, `mexicoCityTodayName`, `mexicoCityLastNDays`). Historial de Settings, Body, ExportReport y dashboards dejan de agrupar con `toLocaleDateString` del device / `toISOString` UTC que fallan de noche o en otra zona.
+*   **FIX — Grupos musculares en español canónico:** nuevo `client/src/utils/muscleGroup.js` (`toSpanishMuscleGroup`, `MUSCLE_OPTIONS` compartidas). Import, EditRoutine, Progress, Goals, Settings y `MuscleIcon` normalizan `legs`→`Piernas` etc. para no romper el +5 kg de piernas ni buckets de UI.
+*   **FEATURE — PDF de una sesión:** `client/src/utils/sessionPdf.js` + puntos de entrada en Workout (ejercicio completado), EditSession y Settings → Historial (además del PDF de periodo en ExportReport). Filtros de periodo del PDF revisados para no perder días por zona.
+*   **FIX — Racha / health / stats:** streak y ventanas de "hoy" consolidadas con helpers CDMX; `GET /api/health` no filtra por usernames hardcodeados de forma confusa; overview/consistency ya paralelos desde v2.6.1, sin regresión.
+*   **UI/UX por sección (resumen):**
+    - **Workout:** sugerencia, banner de fase, calentamiento, chip de objetivo, timer, sesiones parciales — alineados con la lógica corregida.
+    - **Dashboard / Routines / Import / EditRoutine:** estados vacíos, rutina IA, activación, edición de bloques y músculos.
+    - **Progress / Goals:** plateau con clave canónica, orden/confirmaciones de goals, aterrizaje de tabs, `goalPlanner` reusado.
+    - **Body:** validación, fotos, deltas con color (bajar peso/grasa = bueno; subir músculo = bueno), fechas CDMX.
+    - **Perfil / Settings:** avatar (validación tamaño/tipo, reset input), chips teléfono/cumpleaños, "Mediciones"; perfil con validación server-side; músculos con Antebrazos + normalización; historial con filtros Aplicar/Limpiar, load-more coherente, RIR visible, modal borrar con `relative`; export JSON v2.7.0+ fecha CDMX; push/tabs a11y; errores API en español.
+*   **API:** mensajes de error ES en updateProfile/avatar/muscle/deleteSession; `PUT /auth/profile` valida nombre, permite limpiar teléfono/fecha, birthDate anclado a mediodía UTC.
+*   **Verificado:** `npm test` cliente (48) + server en verde en el flujo de la pasada; build de producción OK.
+
+### v2.7.0 (9 Julio 2026)
 Origen: backlog de 13 ideas de producto generado leyendo el código real (no lluvia de ideas genérica), del cual el usuario eligió 3 para construir en esta pasada: calculadora de porcentajes, objetivo visible en el entrenamiento, y una idea discutida en conversación (rutina diaria asistida por IA). Se armó un plan detallado (UI + mecánica, con exploración de código propia) antes de tocar código, aprobado explícitamente antes de implementar.
 
 *   **FEATURE — Calculadora de calentamiento:** panel `<details>` en `Workout.jsx` con rampa 40/60/80% del peso base + tabla libre "peso @ X%", reusando `estimate1RM`/`roundWeight` ya existentes. 100% informativo, cero cambios de schema.

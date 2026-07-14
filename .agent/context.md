@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 2.7.0 | **Última actualización:** 9 Julio 2026
+> **Versión:** 2.7.1 | **Última actualización:** 13 Julio 2026
 > **Historial de versiones:** [`changelog.md`](changelog.md) (movido ahí para que este archivo quepa en una sola lectura de una IA) | **Schema:** `server/prisma/schema.prisma` (única copia, no se duplica aquí)
 
 ---
@@ -209,22 +209,23 @@ Generador de reportes PDF de alta calidad:
 ### 9. Profile (`Profile.jsx`)
 **Ruta:** `/profile`
 
-Hub del usuario:
-- Avatar (click para subir/cambiar).
-- Resumen de antigüedad y stats "lifetime".
-- Navegación a Settings.
+Hub del usuario (pulido v2.7.1):
+- Avatar (click para ver a pantalla completa / cambiar; validación tipo+tamaño, reset del input, errores ES).
+- Resumen de antigüedad ("Miembro por N días"), stats lifetime (`_count`: Rutinas / Mediciones / PRs).
+- Chips de teléfono y fecha de nacimiento si están en el perfil (nacimiento parseado por día calendario, sin desfase UTC).
+- Navegación a Settings (engranaje) + Cerrar sesión (revoca push best-effort vía `AuthContext`).
 
 ### 10. Settings (`Settings.jsx`)
 **Ruta:** `/settings`
 
-Panel de control rediseñado (v1.9.3):
+Panel de control (v1.9.3 + auditoría v2.7.1):
 
 - **Tabs:**
-  1.  **Perfil:** Editar nombre, email, bio.
-  2.  **Seguridad:** Cambio de contraseña, Pregunta de Seguridad (Recuperación).
-  3.  **Músculos:** Interfaz visual para clasificar ejercicios "Sin Grupo" en categorías (Pecho, Espalda, etc.).
-  4.  **Historial:** Tabla de todas las sesiones pasadas con opción de **Editar** (`EditSession.jsx`) o **Eliminar**.
-  5.  **Data:** Botón para **Exportar Backup JSON** completo.
+  1.  **Cuenta:** nombre/apellidos (obligatorios), teléfono, fecha de nacimiento; toggle Web Push de descanso; **Exportar Backup JSON** (sanitizado, versión en export alineada a la app, nombre de archivo con fecha CDMX).
+  2.  **Seguridad:** cambio de contraseña y pregunta de seguridad (exigen contraseña actual; backend rota `tokenVersion` y devuelve token nuevo — `updateToken` + `refreshProfile(token)`).
+  3.  **Músculos:** clasificar ejercicios con `MUSCLE_OPTIONS` / `toSpanishMuscleGroup` (incluye Antebrazos; ids EN se agrupan al ES canónico). Actualizar un ejercicio propaga por **mismo nombre** en la cuenta (misma regla server).
+  4.  **Historial:** búsqueda fuzzy, filtros fecha/día, paginación; **PDF de sesión** / Editar / Eliminar; papelera de historial. Fechas de cabecera por **día CDMX** (`mexicoCityDateStr`), no `toLocaleDateString` del device.
+- **API de errores** en español en updateProfile / avatar / muscle / deleteSession.
 
 ### 11. Autenticación (`Login.jsx`, `Register.jsx`, `ForgotPassword.jsx`)
 **Rutas:** `/login`, `/register`, `/forgot-password`
@@ -268,8 +269,11 @@ NexLift utiliza matemáticas estándar de powerlifting:
     - **Fase Peaking:** Intensidad específica (0.86 → 1.0 1RM) para preparar el sistema nervioso.
     - **Validación:** Si el usuario tiene un 1RM histórico real > input manual, el sistema usa el real.
 
-3.  **Smart Loading (Workout) — cálculo local, sin IA:**
+3.  **Smart Loading (Workout) — cálculo local, sin IA (v2.7.1):**
     Doble progresión con autorregulación por RIR sobre la última sesión completa. Sugiere peso y reps.
+    - **Referencia de trabajo** (`pickWorkReference` / equivalente server): la serie con mayor 1RM estimado (no el single máximo absoluto ni el mínimo de reps). A ese peso se usan las **mejores** reps logradas (no se penaliza la fatiga entre series).
+    - **Incremento:** 5 kg solo si `muscleGroup` canónico es `'Piernas'`; resto 2.5 kg. Siempre normalizar con `toSpanishMuscleGroup` (`client/src/utils/muscleGroup.js`) — un `legs` o vacío rompe el redondeo de piernas en silencio.
+    - **Fases** (`adjustRepRangeForPhase`, cliente `smartLoading.js` + server `logic.js`, test de paridad): intensification reduce rango; accumulation sube techo; deload ~0.9 al peso final tras la doble progresión.
     *Ejemplo: si hiciste 100kg x 12 (tope del rango 8-12) con RIR 2, sugerirá 102.5kg x 8 (sube carga, reinicia reps). Si hiciste 100kg x 9 con RIR 3, sugerirá 100kg x 10 (suma una rep).*
 
 ### 4. Entrenador inteligente (v2.4.0) — plateau, mesociclos, descarga adaptativa
@@ -413,10 +417,10 @@ Definido en `MuscleIcon.jsx` y `Settings.jsx`.
 ## ⚠️ Gotchas y Consideraciones Técnicas
 
 ### 1. Manejo de Fechas
-PostgreSQL guarda en UTC. El frontend debe siempre castear a local para visualización y a `YYYY-MM-DD` (ISO) para comparaciones de strings.
-*   **Correcto:** `new Date(utcDate).toLocaleDateString()`
-*   **API:** Usa formato `sv` (Sweden/ISO) `date.toLocaleDateString('sv')` para enviar al backend.
-*   **Backend (v2.2.0) — regla obligatoria:** el contenedor corre en UTC, la app es de un solo usuario siempre en CDMX. Este desfase (hasta 6h) causó el mismo bug 3 veces en distintos endpoints antes de centralizarse. Cualquier código que agrupe/filtre por "día" (streak, heatmap, ventanas de "hoy", día de la semana) DEBE usar los helpers de `server/src/index.js` — `mexicoCityDateStr(date)`, `mexicoCityDayBounds(date)`, `mexicoCityHour(date)`, `dayOfWeekFromDateStr(dateStr)` — nunca `new Date()`/`.getDay()`/`.toISOString()` directo para esto.
+PostgreSQL guarda en UTC. Agrupar o etiquetar "días de gym" por la zona del device o por el date-part UTC del ISO **falla de noche** (ventana gym ~18:00–00:00 CDMX).
+*   **Backend (v2.2.0, vive en `server/src/logic.js`):** `mexicoCityDateStr`, `mexicoCityDayBounds`, `mexicoCityHour`, `dayOfWeekFromDateStr` — obligatorios para streak/heatmap/hoy/día de semana. Nunca `new Date()`/`.getDay()`/`.toISOString()` para eso.
+*   **Frontend (v2.7.1):** mismo criterio en `client/src/utils/dates.js` (`mexicoCityDateStr`, `mexicoCityDayOfWeek`, `mexicoCityTodayName`, `mexicoCityLastNDays`). Usar al **mostrar o agrupar** logs (Settings historial, Body, ExportReport, etc.). No asumir que el reloj del teléfono está en CDMX.
+*   **Enviar fechas al API:** preferir `mexicoCityDateStr()` o `toLocaleDateString('sv')` solo cuando el valor es "día civil local del usuario" y el endpoint lo documenta; para "hoy en la app" el server debe calcular con helpers CDMX (ver `GET /api/workouts/today-log`).
 
 ### 2. Backend único
 Desde v1.9.9 hay **un solo backend**: `server/src/index.js`. Existe una sola copia del schema (`server/prisma/schema.prisma`). Se eliminaron `api/` (serverless de Vercel) y `shared/` al migrar el deploy a Docker en VPS. Ya no hay regla de sincronización de schema ni lógica duplicada.
@@ -541,7 +545,7 @@ Para mantener esta documentación al día:
 
 El historial completo de versiones vive en [`changelog.md`](changelog.md).
 
-**Versión actual: 2.7.0** (9 Julio 2026) — 3 funcionalidades nuevas del backlog de producto: calculadora de calentamiento, objetivo visible durante el entrenamiento, y Rutina diaria con IA (cuestionario → la app decide qué entrenar cada día, con fallback 100% determinista sin `OPENAI_API_KEY`) — ver Gotchas #12/#13. Sobre v2.6.2 (instrumentación de calibración), v2.6.1 (auditoría de rendimiento), v2.6.0 (registro offline), v2.5.1 (recordatorios persistentes) y v2.5.0 (backup automático + primera suite de tests).
+**Versión actual: 2.7.1** (13 Julio 2026) — auditoría de producto end-to-end (Smart Loading + fechas CDMX en cliente + músculos ES canónicos + PDF de sesión + pulido Dashboard→Perfil/Settings). Sobre v2.7.0 (calentamiento, chip de objetivo, Rutina diaria con IA — Gotchas #12/#13), v2.6.x (calibración, perf, offline) y v2.5.x (backup, tests, recordatorios persistentes).
 
 ---
 

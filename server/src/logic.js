@@ -162,6 +162,18 @@ export function parseRepRange(targetReps) {
     return { lo: Math.min(a, b), hi: Math.max(a, b) };
 }
 
+// Incremento de carga por grupo: 5kg piernas, 2.5kg el resto.
+// Si muscleGroup viene vacío (import/edición a mano — caso real en la cuenta
+// principal), infiere piernas por el nombre del ejercicio para no quedarse en
+// +2.5kg en hack/prensa/etc.
+const LEGS_NAME_RE = /sentadilla|prensa|hack|femoral|cuadr[ií]cep|aductor|abductor|gemelo|pantorrilla|zancada|b[uú]lgara|hip\s*thrust|peso\s*muerto|deadlift|\bleg\b|extensi[oó]n(es)?\s+de\s+cu[aá]/i;
+export function resolveWeightIncrement(muscleGroup, exerciseName = '') {
+    // 'Piernas' (canónico) o 'legs' (catálogo cliente en inglés, por si llegó sin normalizar)
+    if (muscleGroup === 'Piernas' || muscleGroup === 'legs') return 5;
+    if (!muscleGroup && LEGS_NAME_RE.test(exerciseName || '')) return 5;
+    return 2.5;
+}
+
 // Devuelve los valores efectivos de una serie (en unilateral usa el lado débil,
 // que es el que limita la progresión)
 export function effectiveWorkoutSet(set) {
@@ -233,10 +245,50 @@ export function adjustRepRangeForPhase(lo, hi, phase) {
 }
 
 /**
- * Sugerencia de peso y reps por DOBLE PROGRESIÓN — idéntico a Workout.jsx.
- * Toma como referencia la SERIE DE TRABAJO MÁS FUERTE de la última sesión (mayor
- * 1RM estimado), y a ese peso usa las MEJORES reps logradas. `sessions` debe venir
- * ordenado por fecha DESC (igual que GET /api/workouts/exercise/:id/history).
+ * Elige la serie de TRABAJO de la última sesión (no el single de tope ni el drop).
+ *
+ * Antes se usaba la de mayor 1RM estimado: con top-set + backoffs (p.ej. 110×1,
+ * 100×4, 100×3) anclaba en 110×1 y sugería "110×2" — inútil para progresar el
+ * trabajo real. Ahora:
+ *  1. Descarta drop/backoff claros (<75% del peso máximo de la sesión).
+ *  2. Prefiere el peso MÁS PESADO con el que ya tocaste el suelo del rango (lo).
+ *  3. Si ninguno llegó al suelo, el peso más pesado entre los de MÁS reps
+ *     (compromiso entre top set fallido y trabajo real).
+ *  4. Fallback: mayor 1RM entre las series principales.
+ */
+export function pickWorkReference(working, lo) {
+    if (!working || working.length === 0) return null;
+    const maxW = Math.max(...working.map(s => s.weight));
+    const main = working.filter(s => s.weight >= maxW * 0.75);
+    const pool = main.length > 0 ? main : working;
+
+    let candidates = pool.filter(s => s.reps >= lo);
+    if (candidates.length === 0) {
+        const maxReps = Math.max(...pool.map(s => s.reps));
+        candidates = pool.filter(s => s.reps === maxReps);
+    }
+    if (candidates.length === 0) candidates = pool;
+
+    const refWeight = Math.max(...candidates.map(s => s.weight));
+    const sameWeight = pool.filter(s => Math.abs(s.weight - refWeight) < 0.01);
+    const refReps = Math.max(...sameWeight.map(s => s.reps));
+    const knownRir = sameWeight.map(s => s.rir).filter(v => v != null);
+    const rir = knownRir.length ? Math.min(...knownRir) : null;
+    const minReps = Math.min(...sameWeight.map(s => s.reps));
+
+    return { weight: refWeight, reps: refReps, minReps, rir, setsAtWeight: sameWeight };
+}
+
+/**
+ * Sugerencia de peso y reps por DOBLE PROGRESIÓN — idéntico a client smartLoading.
+ * `sessions` debe venir ordenado por fecha DESC (igual que el historial del ejercicio).
+ *
+ * Reglas:
+ *  - Referencia = serie de trabajo real (ver pickWorkReference), no el peak e1RM.
+ *  - Sube de peso solo cuando TODAS las series a ese peso alcanzaron el techo del
+ *    rango (doble progresión clásica). Si solo la mejor llegó al tope, mantiene
+ *    peso y empareja reps hacia el mínimo rezagado.
+ *  - Si aún no: +1 rep (o +2 si RIR≥3). Nunca sugiere bajar el peso.
  */
 export function computeWorkoutSuggestion(sessions, targetReps, increment, phase = null) {
     if (!sessions || sessions.length === 0) return null;
@@ -248,27 +300,39 @@ export function computeWorkoutSuggestion(sessions, targetReps, increment, phase 
         .filter(s => s.weight > 0 && s.reps > 0);
     if (working.length === 0) return null;
 
-    const rm = (s) => s.weight * (1 + s.reps / 30);
-    const ref = working.reduce((best, s) => (rm(s) > rm(best) ? s : best), working[0]);
+    const ref = pickWorkReference(working, lo);
+    if (!ref) return null;
 
-    const sameWeight = working.filter(s => Math.abs(s.weight - ref.weight) < 0.01);
-    const refReps = Math.max(...sameWeight.map(s => s.reps));
-    const knownRir = sameWeight.map(s => s.rir).filter(v => v != null);
-    const rir = knownRir.length ? Math.min(...knownRir) : null;
+    const { weight: refWeight, reps: refReps, minReps, rir, setsAtWeight } = ref;
+    const allHitTop = setsAtWeight.every(s => s.reps >= hi);
 
     let weight, reps, rationale;
 
-    if (refReps >= hi) {
-        weight = roundWorkoutWeight(ref.weight + increment, increment, ref.weight);
+    if (allHitTop) {
+        // Todas las series al peso de trabajo tocaron el techo → progresión de carga
+        weight = roundWorkoutWeight(refWeight + increment, increment, refWeight);
         reps = lo;
-        rationale = `Alcanzaste ${refReps} reps con ${ref.weight}kg (tope del rango): sube a ${weight}kg y reinicia en ${lo}.`;
+        rationale = setsAtWeight.length > 1
+            ? `Todas las series a ${refWeight}kg llegaron a ≥${hi} reps: sube a ${weight}kg y reinicia en ${lo}.`
+            : `Alcanzaste ${refReps} reps con ${refWeight}kg (tope del rango): sube a ${weight}kg y reinicia en ${lo}.`;
+    } else if (refReps >= hi) {
+        // La mejor tocó el techo pero otras se quedaron atrás → emparejar, no subir
+        weight = refWeight;
+        reps = Math.min(hi, minReps + 1);
+        rationale = `La mejor serie fue ${refWeight}kg × ${refReps}, pero no todas llegaron a ${hi}: mantén ${weight}kg y apunta a ${reps} en todas.`;
     } else {
         const bump = (rir != null && rir >= 3) ? 2 : 1;
-        weight = ref.weight;
+        weight = refWeight;
         reps = Math.min(hi, refReps + bump);
-        rationale = rir != null
-            ? `Hiciste ${ref.weight}kg × ${refReps} (RIR ${rir}): mantén el peso y apunta a ${reps} reps.`
-            : `Hiciste ${ref.weight}kg × ${refReps}: mantén el peso y apunta a ${reps} reps.`;
+        if (refReps < lo) {
+            rationale = rir != null
+                ? `Trabajo de referencia ${refWeight}kg × ${refReps} (RIR ${rir}), por debajo del rango ${lo}–${hi}: mantén el peso y apunta a ${reps} reps.`
+                : `Trabajo de referencia ${refWeight}kg × ${refReps}, por debajo del rango ${lo}–${hi}: mantén el peso y apunta a ${reps} reps.`;
+        } else {
+            rationale = rir != null
+                ? `Hiciste ${refWeight}kg × ${refReps} (RIR ${rir}): mantén el peso y apunta a ${reps} reps.`
+                : `Hiciste ${refWeight}kg × ${refReps}: mantén el peso y apunta a ${reps} reps.`;
+        }
     }
 
     if (weight <= 0 || reps <= 0) return null;

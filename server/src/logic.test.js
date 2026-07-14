@@ -5,7 +5,7 @@ import {
     resolveTargetDate, getTodayName, normalizeDay,
     getActiveBlock, currentWeekInBlock, getRoutinePhaseStatus, adjustRepRangeForPhase,
     parseRepRange, roundWorkoutWeight, computeWorkoutSuggestion, detectPlateauForExercise,
-    convertShortcutRir, pickNextSplitDay
+    convertShortcutRir, pickNextSplitDay, resolveWeightIncrement
 } from './logic.js';
 
 describe('helpers CDMX (zona horaria)', () => {
@@ -117,6 +117,23 @@ describe('parseRepRange', () => {
     });
 });
 
+describe('resolveWeightIncrement', () => {
+    it('Piernas -> 5kg', () => {
+        assert.equal(resolveWeightIncrement('Piernas'), 5);
+    });
+    it('otro grupo -> 2.5kg', () => {
+        assert.equal(resolveWeightIncrement('Pecho'), 2.5);
+    });
+    it('sin grupo: infiere piernas por nombre', () => {
+        assert.equal(resolveWeightIncrement(null, 'sentadilla hack'), 5);
+        assert.equal(resolveWeightIncrement('', 'prensa'), 5);
+        assert.equal(resolveWeightIncrement(null, 'press de banca plano'), 2.5);
+    });
+    it('legs (inglés del catálogo cliente) también es 5kg', () => {
+        assert.equal(resolveWeightIncrement('legs'), 5);
+    });
+});
+
 describe('roundWorkoutWeight', () => {
     it('usa la rejilla del incremento si el peso base ya cae en ella', () => {
         assert.equal(roundWorkoutWeight(102.5, 2.5, 100), 102.5);
@@ -127,7 +144,7 @@ describe('roundWorkoutWeight', () => {
 });
 
 describe('computeWorkoutSuggestion', () => {
-    it('tope del rango alcanzado: sube peso (increment) y reinicia en el mínimo', () => {
+    it('tope del rango alcanzado (una sola serie): sube peso y reinicia en el mínimo', () => {
         // 100kg x 12 (tope de 8-12) con RIR 2 (rpe guardado = 10-2 = 8)
         const sessions = [{ sets: [{ weight: 100, reps: 12, rpe: 8 }] }];
         const result = computeWorkoutSuggestion(sessions, '8-12', 2.5, null);
@@ -175,6 +192,61 @@ describe('computeWorkoutSuggestion', () => {
         // Lado débil: weight=18, reps=10 -> no llega al tope (12), suma reps
         assert.equal(result.weight, 18);
         assert.equal(result.reps, 11);
+    });
+
+    it('top-set + backoffs: ancla en el trabajo real, no en el single de tope', () => {
+        // Caso real del usuario (banca): 110×1 top + 100×4/3 backoffs.
+        // En intensificación (rango 4-6) debe sugerir progresar 100kg, no 110×2.
+        const sessions = [{
+            sets: [
+                { weight: 110, reps: 1, rpe: 10 },
+                { weight: 100, reps: 4, rpe: 10 },
+                { weight: 100, reps: 3, rpe: 10 }
+            ]
+        }];
+        const result = computeWorkoutSuggestion(sessions, '8-12', 2.5, 'intensification');
+        assert.equal(result.weight, 100);
+        assert.equal(result.reps, 5); // mejor al peso de trabajo = 4, +1
+    });
+
+    it('drop set ligero no se convierte en la referencia de trabajo', () => {
+        // Top 167×2, segundo 147×3, drop 87×8 — el drop queda fuera (<75% del max)
+        // y al no tocar el suelo del rango (4), se elige el de más reps entre los main: 147×3.
+        const sessions = [{
+            sets: [
+                { weight: 167.6, reps: 2, rpe: 10 },
+                { weight: 147.6, reps: 3, rpe: 10 },
+                { weight: 87.6, reps: 8, rpe: 9 }
+            ]
+        }];
+        const result = computeWorkoutSuggestion(sessions, '8-12', 5, 'intensification');
+        assert.equal(result.weight, 147.6);
+        assert.equal(result.reps, 4);
+    });
+
+    it('sube de peso solo si TODAS las series al peso de trabajo tocan el techo', () => {
+        // Mejor 12, otra 10 — no subir todavía; emparejar a 11
+        const sessions = [{
+            sets: [
+                { weight: 100, reps: 12, rpe: 8 },
+                { weight: 100, reps: 10, rpe: 9 }
+            ]
+        }];
+        const result = computeWorkoutSuggestion(sessions, '8-12', 2.5, null);
+        assert.equal(result.weight, 100);
+        assert.equal(result.reps, 11);
+    });
+
+    it('todas las series al techo: sí sube de peso', () => {
+        const sessions = [{
+            sets: [
+                { weight: 100, reps: 12, rpe: 8 },
+                { weight: 100, reps: 12, rpe: 8 }
+            ]
+        }];
+        const result = computeWorkoutSuggestion(sessions, '8-12', 2.5, null);
+        assert.equal(result.weight, 102.5);
+        assert.equal(result.reps, 8);
     });
 });
 

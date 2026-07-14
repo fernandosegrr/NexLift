@@ -8,6 +8,7 @@ import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { useAuth } from '../context/AuthContext';
+import { mexicoCityDateStr, mexicoCityTodayName } from '../utils/dates';
 
 // ==========================================
 // CONSTANTS & CONFIG
@@ -39,9 +40,6 @@ const COLORS = {
 // ==========================================
 // HELPER FUNCTIONS
 // ==========================================
-function getLocalDateStr(dateObj) {
-    return dateObj.toLocaleDateString('en-CA');
-}
 
 // Trunca por grafemas (no por code units UTF-16) para no partir un emoji o
 // caracter combinado a la mitad al cortar nombres largos en el PDF.
@@ -50,14 +48,20 @@ function truncateText(str, maxLength) {
     return Array.from(str).slice(0, maxLength).join('');
 }
 
-// Fix timezone: parse a stored UTC date string by its date part and format as
-// the intended local calendar day (avoids off-by-one shifts in negative-UTC zones).
+// Formatea un instante UTC como día de calendario CDMX (misma convención que el resto de la app).
 function formatLocalDate(dateStr, options = { day: 'numeric', month: 'short' }, locale = 'es-ES') {
     if (!dateStr) return '';
-    const dateOnly = String(dateStr).split('T')[0];
-    const [year, month, day] = dateOnly.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
+    const dayKey = mexicoCityDateStr(new Date(dateStr)); // YYYY-MM-DD CDMX
+    const [year, month, day] = dayKey.split('-').map(Number);
+    // Mediodía local del calendar day — evita que toLocaleDateString cruce de día
+    const date = new Date(year, month - 1, day, 12, 0, 0);
     return date.toLocaleDateString(locale, options);
+}
+
+// RIR: SetLog.rpe guarda 10-RIR. rpe=10 es RIR 0 (truthy); rpe=0 no debería
+// usarse, pero `rpe != null` es la condición correcta (no `if (rpe)`).
+function rirFromRpe(rpe) {
+    return rpe != null && Number.isFinite(Number(rpe)) ? 10 - Number(rpe) : null;
 }
 
 async function loadLogoBase64(retries = 2) {
@@ -204,8 +208,13 @@ class PDFBuilder {
         this.doc.text(subtitle, logoBase64 ? this.margin + 34 : this.margin, 29);
 
         this.doc.setFontSize(10);
+        // Fecha de generación en CDMX (no UTC del toISOString del filename)
+        const genDay = mexicoCityDateStr();
+        const [gy, gm, gd] = genDay.split('-').map(Number);
+        const genLabel = new Date(gy, gm - 1, gd, 12, 0, 0)
+            .toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
         this.doc.text(
-            new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }),
+            genLabel,
             this.pageWidth - this.margin,
             20,
             { align: 'right' }
@@ -280,7 +289,7 @@ export default function ExportReport() {
                 const consistencyMap = {};
                 if (consistencyRaw?.events) {
                     consistencyRaw.events.forEach(d => {
-                        const k = getLocalDateStr(new Date(d));
+                        const k = mexicoCityDateStr(new Date(d));
                         consistencyMap[k] = (consistencyMap[k] || 0) + 1;
                     });
                 }
@@ -306,23 +315,27 @@ export default function ExportReport() {
         loadLogoBase64().then(l => isMounted && setLogoBase64(l));
 
         return () => { isMounted = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Computed Data
     const computed = useMemo(() => {
         const selectedP = PERIODS.find(p => p.id === period) || PERIODS[2];
 
-        const date = new Date();
-        if (selectedP.id === 'daily') date.setHours(0, 0, 0, 0);
-        else {
-            date.setDate(date.getDate() - selectedP.days);
-            date.setHours(0, 0, 0, 0);
+        // Ventana del período en días calendario CDMX
+        const todayCdmx = mexicoCityDateStr();
+        let cutoffStr = todayCdmx;
+        if (selectedP.id !== 'daily') {
+            const daysBack = selectedP.days - 1; // inclusivo: 30d = hoy + 29 atrás
+            cutoffStr = mexicoCityDateStr(new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000));
         }
-        const cutoffStr = getLocalDateStr(date);
-        const isAfterCutoff = (d) => getLocalDateStr(new Date(d)) >= cutoffStr;
+        const isAfterCutoff = (d) => mexicoCityDateStr(new Date(d)) >= cutoffStr;
 
-        const allPeriodPRs = data.prs.filter(pr => isAfterCutoff(pr.date));
-        const prsCount = allPeriodPRs.length; // true total for the period (before truncating the table)
+        const allPeriodPRs = data.prs
+            .filter(pr => isAfterCutoff(pr.date))
+            .slice()
+            .sort((a, b) => (b.estimated1RM || b.weight || 0) - (a.estimated1RM || a.weight || 0));
+        const prsCount = allPeriodPRs.length;
         const filteredPRs = allPeriodPRs.slice(0, 15);
         const filteredLogs = data.bodyLogs.filter(l => l.weight && isAfterCutoff(l.date));
         const filteredHistory = data.history.filter(h => isAfterCutoff(h.date));
@@ -330,32 +343,23 @@ export default function ExportReport() {
         // ============ COMPARACIÓN DIARIA POR DÍA DE SEMANA ============
         let dailyComparison = null;
         if (selectedP.id === 'daily') {
-            const today = new Date();
-            const todayStr = getLocalDateStr(today);
-            const todayWeekday = today.getDay(); // 0=Domingo, 1=Lunes, etc.
+            const todayStr = mexicoCityDateStr();
+            // Hace 7 días calendario CDMX
+            const lastWeekStr = mexicoCityDateStr(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
 
-            // Encontrar entrenamientos de hoy
             const todaySessions = data.history.filter(h =>
-                getLocalDateStr(new Date(h.date)) === todayStr
+                mexicoCityDateStr(new Date(h.date)) === todayStr
             );
-
-            // Buscar mismo día de semana anterior (7 días atrás)
-            const lastWeekDate = new Date(today);
-            lastWeekDate.setDate(lastWeekDate.getDate() - 7);
-            const lastWeekStr = getLocalDateStr(lastWeekDate);
-
             const lastWeekSessions = data.history.filter(h =>
-                getLocalDateStr(new Date(h.date)) === lastWeekStr
+                mexicoCityDateStr(new Date(h.date)) === lastWeekStr
             );
 
-            // Calcular volumen total (peso x reps de todas las series)
             const calculateVolume = (sessions) => {
                 let total = 0;
                 let sets = 0;
                 sessions.forEach(session => {
                     (session.sets || []).forEach(s => {
                         total += (s.weight || 0) * (s.reps || 0);
-                        // En unilateral cuenta también el volumen del lado derecho
                         if (s.repsRight != null || s.weightRight != null) {
                             total += (s.weightRight ?? s.weight ?? 0) * (s.repsRight ?? s.reps ?? 0);
                         }
@@ -368,12 +372,10 @@ export default function ExportReport() {
             const todayStats = calculateVolume(todaySessions);
             const lastWeekStats = calculateVolume(lastWeekSessions);
 
-            // PRs logrados hoy
             const todayPRs = data.prs.filter(pr =>
-                getLocalDateStr(new Date(pr.date)) === todayStr
+                mexicoCityDateStr(new Date(pr.date)) === todayStr
             );
 
-            // Agrupar por ejercicio con detalle de series (incluye RIR)
             const groupByExercise = (sessions) => {
                 const grouped = {};
                 sessions.forEach(session => {
@@ -385,7 +387,7 @@ export default function ExportReport() {
                         reps: s.reps,
                         weightRight: s.weightRight ?? null,
                         repsRight: s.repsRight ?? null,
-                        rir: s.rpe ? (10 - s.rpe) : null
+                        rir: rirFromRpe(s.rpe)
                     })));
                 });
                 return grouped;
@@ -394,13 +396,11 @@ export default function ExportReport() {
             const todayExercises = groupByExercise(todaySessions);
             const lastWeekExercises = groupByExercise(lastWeekSessions);
 
-            // Combinar para comparación
             const allExerciseNames = [...new Set([
                 ...Object.keys(todayExercises),
                 ...Object.keys(lastWeekExercises)
             ])];
 
-            // Calcular cambio porcentual de volumen
             const volumeChange = lastWeekStats.volume > 0
                 ? ((todayStats.volume - lastWeekStats.volume) / lastWeekStats.volume * 100).toFixed(1)
                 : null;
@@ -408,19 +408,15 @@ export default function ExportReport() {
             dailyComparison = {
                 todayDate: todayStr,
                 lastWeekDate: lastWeekStr,
-                weekdayName: today.toLocaleDateString('es-ES', { weekday: 'long' }),
-                // Stats de hoy
+                weekdayName: mexicoCityTodayName().toLowerCase(),
                 todayVolume: todayStats.volume,
                 todaySets: todayStats.sets,
                 todayExerciseCount: Object.keys(todayExercises).length,
                 todayPRs: todayPRs,
-                // Stats de la semana pasada
                 lastWeekVolume: lastWeekStats.volume,
                 lastWeekSets: lastWeekStats.sets,
-                // Comparación
                 volumeChange: volumeChange,
                 volumeDelta: todayStats.volume - lastWeekStats.volume,
-                // Ejercicios detallados
                 exercises: allExerciseNames.map(name => ({
                     name,
                     today: todayExercises[name] || [],
@@ -438,7 +434,10 @@ export default function ExportReport() {
             weight: l.weight
         }));
 
-        const trainingDays = Object.keys(data.consistency).filter(d => d >= cutoffStr).length;
+        // Días con ENTRENO real (WorkoutLog), no consistency (que incluye descansos auto)
+        const trainingDays = new Set(
+            filteredHistory.map(h => mexicoCityDateStr(new Date(h.date)))
+        ).size;
         const totalSessions = filteredHistory.length;
 
         let weightChange = null;
@@ -470,7 +469,7 @@ export default function ExportReport() {
             if (!bestSet) return;
 
             if (!exerciseGroups[name]) exerciseGroups[name] = [];
-            const bestRIR = bestSet.rpe ? (10 - bestSet.rpe) : null;
+            const bestRIR = rirFromRpe(bestSet.rpe);
             // Adjusted 1RM considers RIR: effective reps = reps + RIR
             const effectiveReps = (bestSet.reps || 0) + (bestRIR || 0);
             exerciseGroups[name].push({
@@ -596,7 +595,7 @@ export default function ExportReport() {
                 const dailyStats = [
                     { val: dc.todayExerciseCount, lbl: 'Ejercicios', col: COLORS.purple },
                     { val: dc.todaySets, lbl: 'Series', col: [59, 130, 246] },
-                    { val: Math.round(dc.todayVolume / 1000) + 'k', lbl: 'Volumen (kg)', col: [34, 197, 94] },
+                    { val: Math.round(dc.todayVolume / 1000) + 'k', lbl: 'Volumen kg×r', col: [34, 197, 94] },
                     { val: dc.todayPRs.length, lbl: 'PRs', col: COLORS.yellow }
                 ];
 
@@ -1000,7 +999,7 @@ export default function ExportReport() {
             setProgress(100);
             builder.renderFooters();
 
-            doc.save(`NexLift_${computed.period.label}_${new Date().toISOString().split('T')[0]}.pdf`);
+            doc.save(`NexLift_${computed.period.label}_${mexicoCityDateStr()}.pdf`);
             toast.success('Reporte descargado');
 
         } catch (error) {
@@ -1091,8 +1090,8 @@ export default function ExportReport() {
                                         </p>
                                     </div>
                                     <div className="text-right text-xs text-[var(--text-secondary)]">
-                                        <p>Hoy: <span className="text-[var(--text-primary)] font-medium">{Math.round(computed.dailyComparison.todayVolume).toLocaleString()}kg</span></p>
-                                        <p>Anterior: {Math.round(computed.dailyComparison.lastWeekVolume).toLocaleString()}kg</p>
+                                        <p>Hoy: <span className="text-[var(--text-primary)] font-medium">{Math.round(computed.dailyComparison.todayVolume).toLocaleString()} kg×reps</span></p>
+                                        <p>Anterior: {Math.round(computed.dailyComparison.lastWeekVolume).toLocaleString()} kg×reps</p>
                                     </div>
                                 </div>
                             </div>

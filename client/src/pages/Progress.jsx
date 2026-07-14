@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
     TrendingUp, Calendar, Trophy, Dumbbell, ChevronDown, ChevronRight, Activity,
     CheckCircle, Search, FileText, Loader2, Flame, X, Clock, Target, Zap
@@ -11,6 +11,8 @@ import { Portal } from '../components/ui/Portal';
 import GoalSection from '../components/goals/GoalSection';
 import { epley1RM, classifyLift } from '../utils/strength';
 import { canonicalExerciseKey, groupHistoryByExercise, detectPlateau } from '../utils/exerciseName';
+import { mexicoCityDateStr, mexicoCityLastNDays } from '../utils/dates';
+import { toSpanishMuscleGroup } from '../utils/muscleGroup';
 
 // ==========================================
 // CONSTANTS & UTILITIES
@@ -38,22 +40,26 @@ const MUSCLE_COLORS = {
 };
 
 function getMuscleGroup(exerciseName, dbMuscle) {
-    if (dbMuscle) return dbMuscle;
-    const name = exerciseName.toLowerCase();
+    // DB puede traer inglés ('legs') o español ('Piernas')
+    const fromDb = toSpanishMuscleGroup(dbMuscle);
+    if (fromDb) return fromDb;
+    const name = (exerciseName || '').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     for (const [group, keywords] of Object.entries(MUSCLE_KEYWORDS)) {
-        if (keywords.some(k => name.includes(k))) return group;
+        if (keywords.some(k => name.includes(k.normalize('NFD').replace(/[\u0300-\u036f]/g, '')))) {
+            return group;
+        }
     }
     return 'Otros';
 }
 
-function getLocalDateStr(dateObj) {
-    return dateObj.toLocaleDateString('en-CA');
-}
-
 function getRelativeTime(date) {
-    const now = new Date();
-    const diff = Math.floor((now - new Date(date)) / (1000 * 60 * 60 * 24));
-    if (diff === 0) return 'Hoy';
+    // Diferencia en días calendario CDMX (no ms crudos / zona del browser)
+    const dayMs = 24 * 60 * 60 * 1000;
+    const a = new Date(mexicoCityDateStr(date) + 'T12:00:00Z').getTime();
+    const b = new Date(mexicoCityDateStr() + 'T12:00:00Z').getTime();
+    const diff = Math.round((b - a) / dayMs);
+    if (diff <= 0) return 'Hoy';
     if (diff === 1) return 'Ayer';
     if (diff < 7) return `Hace ${diff} días`;
     if (diff < 30) return `Hace ${Math.floor(diff / 7)} sem`;
@@ -73,7 +79,8 @@ function useProgressData() {
         exercises: [],
         // Map: clave canónica de ejercicio -> { names, muscleGroup, sessions } (ver exerciseName.js)
         workoutHistory: new Map(),
-        loading: true
+        loading: true,
+        loadError: false
     });
 
     useEffect(() => {
@@ -91,39 +98,56 @@ function useProgressData() {
 
                 if (!isMounted) return;
 
+                // Día calendario CDMX (mismo criterio que Dashboard / server)
                 const consistencyMap = {};
                 if (consistencyRes.events) {
                     consistencyRes.events.forEach(dateStr => {
-                        const localDate = getLocalDateStr(new Date(dateStr));
-                        consistencyMap[localDate] = (consistencyMap[localDate] || 0) + 1;
+                        const dayKey = mexicoCityDateStr(new Date(dateStr));
+                        consistencyMap[dayKey] = (consistencyMap[dayKey] || 0) + 1;
                     });
                 } else {
                     Object.assign(consistencyMap, consistencyRes);
                 }
 
+                const historyMap = groupHistoryByExercise(historyData || []);
                 const allExercises = [];
                 const seen = new Set();
-                routinesData.forEach(r => r.days.forEach(d => {
-                    d.exercises.forEach(e => {
-                        if (!seen.has(e.name)) {
-                            allExercises.push({ name: e.name, muscleGroup: e.muscleGroup });
-                            seen.add(e.name);
-                        }
+
+                const pushEx = (name, muscleGroup) => {
+                    if (!name || seen.has(name)) return;
+                    seen.add(name);
+                    allExercises.push({
+                        name,
+                        muscleGroup: toSpanishMuscleGroup(muscleGroup) || null
                     });
+                };
+
+                // 1) Rutinas actuales
+                (routinesData || []).forEach(r => (r.days || []).forEach(d => {
+                    (d.exercises || []).forEach(e => pushEx(e.name, e.muscleGroup));
                 }));
+                // 2) Historial (ejercicios archivados / renombrados que aún tienen logs)
+                for (const [, group] of historyMap) {
+                    (group.names || []).forEach(n => pushEx(n, group.muscleGroup));
+                }
+                // 3) PRs sueltos
+                (Array.isArray(prsData) ? prsData : []).forEach(pr => pushEx(pr.exerciseName, null));
+
+                allExercises.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 
                 setDataState({
                     stats: statsData,
                     consistency: consistencyMap,
-                    prs: prsData,
+                    prs: Array.isArray(prsData) ? prsData : [],
                     exercises: allExercises,
-                    workoutHistory: groupHistoryByExercise(historyData),
-                    loading: false
+                    workoutHistory: historyMap,
+                    loading: false,
+                    loadError: false
                 });
             } catch (error) {
                 if (isMounted) {
                     console.error('Error fetching data:', error);
-                    setDataState(prev => ({ ...prev, loading: false }));
+                    setDataState(prev => ({ ...prev, loading: false, loadError: true }));
                 }
             }
         }
@@ -282,9 +306,12 @@ function HeatmapCalendar({ days }) {
         return result;
     }, [days]);
 
-    const getIntensityClass = (hasWorkout) => {
-        if (!hasWorkout) return 'bg-[var(--bg-dark)]';
-        return 'bg-green-500/60';
+    const getIntensityClass = (day) => {
+        if (!day?.hasWorkout) return 'bg-[var(--bg-dark)]';
+        const c = day.count || 1;
+        if (c >= 4) return 'bg-green-400';
+        if (c >= 2) return 'bg-green-500/80';
+        return 'bg-green-500/50';
     };
 
     return (
@@ -305,7 +332,7 @@ function HeatmapCalendar({ days }) {
                         <div
                             key={dayIdx}
                             title={day ? `${day.date}${day.hasWorkout ? ' ✓' : ''}` : ''}
-                            className={`aspect-square rounded-md min-h-[36px] transition-all cursor-default ${day ? getIntensityClass(day.hasWorkout) : 'opacity-0'
+                            className={`aspect-square rounded-md min-h-[36px] transition-all cursor-default ${day ? getIntensityClass(day) : 'opacity-0'
                                 }`}
                         />
                     ))}
@@ -525,17 +552,19 @@ function CustomTooltip({ active, payload, label }) {
 
 export default function Progress() {
     const toast = useToast();
-    const { stats, consistency, prs, exercises, workoutHistory, loading } = useProgressData();
+    const location = useLocation();
+    const { stats, consistency, prs, exercises, workoutHistory, loading, loadError } = useProgressData();
 
     const [uiState, setUIState] = useState({
-        activeTab: 'overview',
+        // Permite aterrizar en Objetivos desde /goals/new (navigate state.tab)
+        activeTab: location.state?.tab === 'goals' ? 'goals' : 'overview',
         showAllPRs: false,
         expandedMuscle: null
     });
 
     const [filtersState, setFiltersState] = useState({
         selectedExercise: localStorage.getItem('nexlift_lastExercise') || '',
-        selectedYear: new Date().getFullYear(),
+        selectedYear: parseInt(mexicoCityDateStr().slice(0, 4), 10),
         prSearch: ''
     });
 
@@ -581,79 +610,73 @@ export default function Progress() {
 
     // Dynamic years
     const years = useMemo(() => {
+        const currentYear = parseInt(mexicoCityDateStr().slice(0, 4), 10);
         if (Object.keys(consistency).length === 0) {
-            return [new Date().getFullYear()];
+            return [currentYear];
         }
         const yearsWithData = Object.keys(consistency)
-            .map(dateStr => parseInt(dateStr.split('-')[0]))
+            .map(dateStr => parseInt(dateStr.split('-')[0], 10))
             .filter((year, index, arr) => arr.indexOf(year) === index)
             .sort((a, b) => b - a);
 
-        const currentYear = new Date().getFullYear();
         if (!yearsWithData.includes(currentYear)) {
             yearsWithData.unshift(currentYear);
         }
         return yearsWithData.slice(0, 5);
     }, [consistency]);
 
-    // Compliance calculation with robust streak
+    // Cumplimiento 30d + racha: fechas CDMX; racha = server si está disponible
+    // (incluye descansos programados de la rutina).
     const compliance = useMemo(() => {
-        const today = new Date();
-        const last30Days = Array.from({ length: 30 }, (_, i) => {
-            const date = new Date(today);
-            date.setDate(date.getDate() - (29 - i));
-            const dateStr = getLocalDateStr(date);
-            return { date: dateStr, hasWorkout: (consistency[dateStr] || 0) > 0 };
-        });
+        const last30 = mexicoCityLastNDays(30);
+        const last30Days = last30.map(dateStr => ({
+            date: dateStr,
+            hasWorkout: (consistency[dateStr] || 0) > 0,
+            count: consistency[dateStr] || 0
+        }));
 
         const daysWithWorkout = last30Days.reduce((sum, d) => sum + (d.hasWorkout ? 1 : 0), 0);
 
-        // Robust streak calculation (consecutive days from today backwards)
-        let streak = 0;
-        let startedCounting = false;
-        for (let i = 0; i < 365; i++) {
-            const date = new Date(today);
-            date.setDate(date.getDate() - i);
-            const dateStr = getLocalDateStr(date);
-            const hasWorkout = (consistency[dateStr] || 0) > 0;
-
-            if (hasWorkout) {
-                streak++;
-                startedCounting = true;
-            } else if (i === 0) {
-                // Today has no workout, continue checking from yesterday
-                continue;
-            } else if (startedCounting) {
-                break;
-            }
+        // Fallback local solo si overview no trajo racha
+        let localStreak = 0;
+        const todayStr = mexicoCityDateStr();
+        const todayLogged = (consistency[todayStr] || 0) > 0;
+        const checkFrom = todayLogged ? 0 : 1;
+        for (let i = checkFrom; i < 365; i++) {
+            const dateStr = mexicoCityDateStr(new Date(Date.now() - i * 24 * 60 * 60 * 1000));
+            if ((consistency[dateStr] || 0) > 0) localStreak++;
+            else break;
         }
 
         return {
             daysWithWorkout,
             complianceRate: Math.round((daysWithWorkout / 30) * 100),
             last30Days,
-            currentStreak: streak
+            currentStreak: stats?.currentStreak != null ? stats.currentStreak : localStreak
         };
-    }, [consistency]);
+    }, [consistency, stats]);
 
     // Weekly data (memoized)
     const weeklyData = useMemo(() => {
         const weeks = [];
-        const yearStart = new Date(filtersState.selectedYear, 0, 1);
-        const today = new Date();
+        const year = filtersState.selectedYear;
+        const currentYear = parseInt(mexicoCityDateStr().slice(0, 4), 10);
+        if (year > currentYear) return [];
 
-        if (filtersState.selectedYear > today.getFullYear()) return [];
+        // Semanas del año ancladas a mediodía UTC (día estable)
+        const yearStart = new Date(`${year}-01-01T12:00:00Z`);
+        const todayStr = mexicoCityDateStr();
 
         for (let w = 0; w < 52; w++) {
             const weekStart = new Date(yearStart);
-            weekStart.setDate(weekStart.getDate() + (w * 7));
+            weekStart.setUTCDate(weekStart.getUTCDate() + (w * 7));
             const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekEnd.getDate() + 6);
+            weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
 
-            if (filtersState.selectedYear === today.getFullYear() && weekStart > today) break;
+            const weekStartStr = weekStart.toISOString().slice(0, 10);
+            const weekEndStr = weekEnd.toISOString().slice(0, 10);
 
-            const weekStartStr = getLocalDateStr(weekStart);
-            const weekEndStr = getLocalDateStr(weekEnd);
+            if (year === currentYear && weekStartStr > todayStr) break;
 
             let count = 0;
             Object.keys(consistency).forEach(dateStr => {
@@ -677,11 +700,12 @@ export default function Progress() {
         }, {});
     }, [prs]);
 
-    // Filtered PRs
+    // PRs filtrados y ordenados por 1RM (el rank 🥇 no era por fuerza antes)
     const displayedPRs = useMemo(() => {
         const filtered = filtersState.prSearch
             ? prs.filter(pr => pr.exerciseName.toLowerCase().includes(filtersState.prSearch.toLowerCase()))
-            : prs;
+            : [...prs];
+        filtered.sort((a, b) => (b.estimated1RM || b.weight || 0) - (a.estimated1RM || a.weight || 0));
         return uiState.showAllPRs ? filtered : filtered.slice(0, 5);
     }, [prs, filtersState.prSearch, uiState.showAllPRs]);
 
@@ -705,6 +729,22 @@ export default function Progress() {
                     <SkeletonCard />
                 </div>
                 <SkeletonCard />
+            </div>
+        );
+    }
+
+    if (loadError && !stats) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh] px-6 text-center space-y-3">
+                <p className="font-bold text-lg">No se pudo cargar el progreso</p>
+                <p className="text-sm text-[var(--text-secondary)]">Revisa tu conexión e intenta de nuevo</p>
+                <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="mt-2 px-4 py-2 rounded-xl bg-[var(--primary)] text-white font-semibold text-sm active:scale-95"
+                >
+                    Reintentar
+                </button>
             </div>
         );
     }
@@ -737,6 +777,7 @@ export default function Progress() {
                     ].map(tab => (
                         <button
                             key={tab.id}
+                            type="button"
                             onClick={() => setUIState(prev => ({ ...prev, activeTab: tab.id }))}
                             className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${uiState.activeTab === tab.id
                                 ? 'bg-[var(--primary)] text-white shadow-lg shadow-purple-900/30'
@@ -758,6 +799,20 @@ export default function Progress() {
                         <StatCard icon={TrendingUp} value={stats?.totalWorkouts || 0} label="Sesiones" color="#8b5cf6" />
                         <StatCard icon={Trophy} value={prs.length} label="PRs" color="#eab308" />
                         <StatCard icon={CheckCircle} value={`${compliance.complianceRate}%`} label="Cumplimiento" color="#10b981" />
+                    </div>
+
+                    {/* Volumen semanal (kg×reps) — mismo dato que Dashboard */}
+                    <div className="bg-[var(--bg-card)]/80 border border-[var(--border)] rounded-xl p-4 flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-xl bg-[var(--primary)]/20 flex items-center justify-center shrink-0">
+                            <Dumbbell size={20} className="text-[var(--primary)]" aria-hidden />
+                        </div>
+                        <div>
+                            <p className="text-xs text-[var(--text-secondary)]">Volumen esta semana</p>
+                            <p className="font-bold text-lg tabular-nums">
+                                {(stats?.weeklyVolume || 0).toLocaleString('es')}
+                                <span className="text-sm font-semibold text-[var(--text-secondary)] ml-1">kg×reps</span>
+                            </p>
+                        </div>
                     </div>
 
                     {/* Compliance Card */}

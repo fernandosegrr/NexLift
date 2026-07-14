@@ -1,6 +1,8 @@
 # Plan de mejoras de NexLift — para ejecutar con una IA (Sonnet)
 
-> **Cómo usar este plan:** ejecuta UNA fase por sesión, en orden de prioridad (P0 → P5). Cada fase es independiente y deja la app en estado funcional. Al terminar una fase: verificar a mano (no hay tests que te salven, salvo los que crea la P1), actualizar `.agent/context.md` + `.agent/changelog.md`, subir la versión, y commitear con prefijo `feat:`/`fix:` en español.
+> **Estado (13 Julio 2026):** P0–P5 **completadas** (v2.5.0 → v2.6.2). Después: producto v2.7.0 (calentamiento, chip de objetivo, rutina IA) y **auditoría de producto v2.7.1** (fix/polish sección por sección — ver `.agent/changelog.md`). Este archivo queda como referencia histórica del plan técnico; no re-ejecutar fases ya cerradas sin leer el changelog.
+>
+> **Cómo se usó este plan:** UNA fase por sesión, en orden (P0 → P5). Al terminar cada fase: verificar a mano (+ tests de P1 en adelante), actualizar `.agent/context.md` + `.agent/changelog.md`, versionar, commitear con prefijo `feat:`/`fix:` en español.
 
 ---
 

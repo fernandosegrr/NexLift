@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Play, Calendar, Dumbbell, Clock, Pencil, Layers, ChevronRight } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
+import { mexicoCityTodayName } from '../utils/dates';
 
 const BLOCK_PHASE_LABELS = {
     accumulation: 'Acumulación',
@@ -10,6 +11,14 @@ const BLOCK_PHASE_LABELS = {
     deload: 'Descarga',
     custom: 'Personalizado'
 };
+
+function normalizeDay(day) {
+    return String(day || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .slice(0, 3);
+}
 
 export default function RoutineDetail() {
     const { id } = useParams();
@@ -25,12 +34,20 @@ export default function RoutineDetail() {
                 setRoutine(data);
             } catch (error) {
                 console.error('Error:', error);
+                toast.error('Error al cargar la rutina');
             } finally {
                 setLoading(false);
             }
         }
         fetchRoutine();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
+
+    const todayKey = normalizeDay(mexicoCityTodayName());
+    const todayDayId = useMemo(() => {
+        if (!routine?.days || routine.source === 'ai') return null;
+        return routine.days.find(d => normalizeDay(d.dayName) === todayKey)?.id || null;
+    }, [routine, todayKey]);
 
     const sortedBlocks = [...(routine?.blocks || [])].sort((a, b) => a.order - b.order);
     const activeIndex = sortedBlocks.findIndex(b => b.id === routine?.activeBlock?.id);
@@ -144,33 +161,44 @@ export default function RoutineDetail() {
 
             {/* Days */}
             <div className="space-y-4">
-                {routine.days.map((day) => (
-                    <div key={day.id} className="card overflow-hidden bg-[var(--bg-card)] rounded-xl">
+                {routine.days.map((day) => {
+                    const isToday = day.id === todayDayId;
+                    return (
+                    <div
+                        key={day.id}
+                        className={`card overflow-hidden bg-[var(--bg-card)] rounded-xl border ${isToday ? 'border-[var(--primary)]/40' : 'border-transparent'}`}
+                    >
                         <div className="p-4 border-b border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div className="flex items-center gap-3 flex-1 min-w-0">
                                 <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/20 flex items-center justify-center flex-shrink-0">
-                                    <Calendar size={20} className="text-[var(--primary)]" />
+                                    <Calendar size={20} className="text-[var(--primary)]" aria-hidden />
                                 </div>
                                 <div className="min-w-0">
-                                    <h3 className="font-semibold truncate">{day.dayName}</h3>
+                                    <h3 className="font-semibold truncate">
+                                        {day.dayName}
+                                        {isToday && (
+                                            <span className="ml-2 text-[10px] font-bold text-[var(--primary)] bg-[var(--primary)]/15 px-1.5 py-0.5 rounded">
+                                                HOY
+                                            </span>
+                                        )}
+                                    </h3>
                                     <p className="text-sm text-[var(--text-secondary)]">
-                                        {day.exercises.length} ejercicios
+                                        {day.isRestDay ? 'Descanso' : `${day.exercises.length} ejercicios`}
                                     </p>
                                 </div>
                             </div>
 
-                            {/* Actions area - prevenimos que se salga también */}
                             {day.isRestDay ? (
                                 <span className="shrink-0 text-sm font-medium text-[var(--text-secondary)] bg-[var(--bg-dark)] px-3 py-1 rounded-lg border border-[var(--border)] self-start sm:self-auto">
-                                    ☕ Día de Descanso
+                                    ☕ Día de descanso
                                 </span>
                             ) : (
                                 <Link
                                     to={`/workout/${day.id}`}
                                     className="shrink-0 btn-primary flex items-center gap-2 text-sm py-2 px-4 w-full sm:w-auto justify-center bg-[var(--primary)] rounded-lg text-white"
                                 >
-                                    <Play size={16} />
-                                    Empezar
+                                    <Play size={16} aria-hidden />
+                                    {isToday ? 'Entrenar hoy' : 'Empezar'}
                                 </Link>
                             )}
                         </div>
@@ -215,7 +243,8 @@ export default function RoutineDetail() {
                             ))}
                         </div>
                     </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );

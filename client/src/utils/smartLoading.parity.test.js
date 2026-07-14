@@ -5,8 +5,18 @@
 // server/ — son módulos ES planos sin dependencias de DOM ni Prisma) para
 // detectar si algún día se corrige un bug en un lado y se olvida el otro.
 import { describe, it, expect } from 'vitest';
-import { adjustRepRangeForPhase as clientAdjust } from './smartLoading.js';
-import { adjustRepRangeForPhase as serverAdjust, detectPlateauForExercise } from '../../../server/src/logic.js';
+import {
+    adjustRepRangeForPhase as clientAdjust,
+    computeWorkoutSuggestion as clientSuggest,
+    pickWorkReference as clientPick
+} from './smartLoading.js';
+import {
+    adjustRepRangeForPhase as serverAdjust,
+    computeWorkoutSuggestion as serverSuggest,
+    pickWorkReference as serverPick,
+    detectPlateauForExercise,
+    effectiveWorkoutSet
+} from '../../../server/src/logic.js';
 import { detectPlateau, epley1RM } from './exerciseName.js';
 
 describe('adjustRepRangeForPhase: paridad cliente/servidor', () => {
@@ -32,6 +42,82 @@ describe('adjustRepRangeForPhase: paridad cliente/servidor', () => {
     it('accumulation: 8-12 -> 8-18 en ambos lados', () => {
         expect(clientAdjust(8, 12, 'accumulation')).toEqual({ lo: 8, hi: 18 });
         expect(serverAdjust(8, 12, 'accumulation')).toEqual({ lo: 8, hi: 18 });
+    });
+});
+
+describe('computeWorkoutSuggestion: paridad cliente/servidor', () => {
+    const fixtures = [
+        {
+            name: 'single set al tope',
+            sessions: [{ sets: [{ weight: 100, reps: 12, rpe: 8 }] }],
+            targetReps: '8-12', increment: 2.5, phase: null
+        },
+        {
+            name: 'top-set + backoffs (banca real)',
+            sessions: [{
+                sets: [
+                    { weight: 110, reps: 1, rpe: 10 },
+                    { weight: 100, reps: 4, rpe: 10 },
+                    { weight: 100, reps: 3, rpe: 10 }
+                ]
+            }],
+            targetReps: '8-12', increment: 2.5, phase: 'intensification'
+        },
+        {
+            name: 'drop set no contamina',
+            sessions: [{
+                sets: [
+                    { weight: 167.6, reps: 2, rpe: 10 },
+                    { weight: 147.6, reps: 3, rpe: 10 },
+                    { weight: 87.6, reps: 8, rpe: 9 }
+                ]
+            }],
+            targetReps: '8-12', increment: 5, phase: 'intensification'
+        },
+        {
+            name: 'no todas al techo: no sube peso',
+            sessions: [{
+                sets: [
+                    { weight: 100, reps: 12, rpe: 8 },
+                    { weight: 100, reps: 10, rpe: 9 }
+                ]
+            }],
+            targetReps: '8-12', increment: 2.5, phase: null
+        },
+        {
+            name: 'RIR alto bump 2',
+            sessions: [{ sets: [{ weight: 100, reps: 9, rpe: 7 }] }],
+            targetReps: '8-12', increment: 2.5, phase: null
+        },
+        {
+            name: 'unilateral lado débil',
+            sessions: [{ sets: [{ weight: 20, reps: 12, weightRight: 18, repsRight: 10, rpe: 8 }] }],
+            targetReps: '8-12', increment: 2.5, phase: null
+        }
+    ];
+
+    it.each(fixtures)('$name — mismo peso/reps/rationale', ({ sessions, targetReps, increment, phase }) => {
+        const c = clientSuggest(sessions, targetReps, increment, phase);
+        const s = serverSuggest(sessions, targetReps, increment, phase);
+        // El cliente añade `phase` al objeto; el servidor no. Comparar lo numérico + rationale.
+        expect(c?.weight).toEqual(s?.weight);
+        expect(c?.reps).toEqual(s?.reps);
+        expect(c?.rationale).toEqual(s?.rationale);
+        expect(c?.basedOn).toEqual(s?.basedOn);
+    });
+
+    it('pickWorkReference coincide en el caso top+backoff', () => {
+        const sets = [
+            { weight: 110, reps: 1, rpe: 10 },
+            { weight: 100, reps: 4, rpe: 10 },
+            { weight: 100, reps: 3, rpe: 10 }
+        ].map(effectiveWorkoutSet);
+        const c = clientPick(sets, 4);
+        const s = serverPick(sets, 4);
+        expect(c.weight).toEqual(s.weight);
+        expect(c.reps).toEqual(s.reps);
+        expect(c.minReps).toEqual(s.minReps);
+        expect(c.rir).toEqual(s.rir);
     });
 });
 
