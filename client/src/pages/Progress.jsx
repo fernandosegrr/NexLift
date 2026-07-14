@@ -9,7 +9,7 @@ import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
 import { epley1RM, classifyLift } from '../utils/strength';
-import { canonicalExerciseKey, groupHistoryByExercise, detectPlateau } from '../utils/exerciseName';
+import { groupHistoryByExercise } from '../utils/exerciseName';
 import { mexicoCityDateStr, mexicoCityLastNDays } from '../utils/dates';
 import { toSpanishMuscleGroup } from '../utils/muscleGroup';
 import { downloadDayPdf } from '../utils/dayPdf';
@@ -83,8 +83,10 @@ function useProgressData() {
         exercises: [],
         // Map: clave canónica de ejercicio -> { names, muscleGroup, sessions } (ver exerciseName.js)
         workoutHistory: new Map(),
-        // Logs crudos para PDF por día
+        // Logs crudos para PDF por día / gráficas
         rawHistory: [],
+        // Plateau server-side: Set de exerciseName en minúsculas
+        plateauedNames: new Set(),
         loading: true,
         loadError: false,
         historyLoading: false
@@ -95,12 +97,13 @@ function useProgressData() {
 
         async function fetchAllData() {
             try {
-                // Ola 1: lo necesario para pintar General (sin history pesado)
-                const [statsData, consistencyRes, prsData, routinesData] = await Promise.all([
+                // Ola 1: General + plateau del server (sin history pesado)
+                const [statsData, consistencyRes, prsData, routinesData, plateausData] = await Promise.all([
                     api.getOverviewStats(),
                     api.getConsistency(),
                     api.getPersonalRecords(),
-                    api.getRoutines()
+                    api.getRoutines(),
+                    api.getPlateaus().catch(() => ({ plateaued: [] }))
                 ]);
 
                 if (!isMounted) return;
@@ -131,7 +134,10 @@ function useProgressData() {
                 (Array.isArray(prsData) ? prsData : []).forEach(pr => pushEx(pr.exerciseName, null));
                 allExercises.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 
-                // Primera pintura: UI usable sin history
+                const plateauedNames = new Set(
+                    (plateausData?.plateaued || []).map(n => String(n).toLowerCase())
+                );
+
                 setDataState({
                     stats: statsData,
                     consistency: consistencyMap,
@@ -139,13 +145,14 @@ function useProgressData() {
                     exercises: allExercises,
                     workoutHistory: new Map(),
                     rawHistory: [],
+                    plateauedNames,
                     loading: false,
                     loadError: false,
                     historyLoading: true
                 });
 
-                // Ola 2: history (plateau, PDF día) — no bloquea el primer paint
-                const historyData = await api.getWorkoutHistory(200);
+                // Ola 2: history para gráficas/PDF (no para plateau)
+                const historyData = await api.getWorkoutHistory(120);
                 if (!isMounted) return;
                 const rawHistory = historyData || [];
                 const historyMap = groupHistoryByExercise(rawHistory);
@@ -235,7 +242,7 @@ function SkeletonCard() {
     );
 }
 
-function StatCard({ icon: Icon, value, label, color, trend }) {
+function StatCard({ icon: Icon, value, label, color }) {
     return (
         <div className="bg-[var(--bg-card)]/80 backdrop-blur-md rounded-xl p-4 text-center border border-[var(--border)] hover:border-[var(--primary)]/30 transition-all">
             <div
@@ -492,7 +499,7 @@ function ExerciseSelector({ exercises, selected, onSelect, loading }) {
     );
 }
 
-function PRCard({ pr, rank, historyGroup }) {
+function PRCard({ pr, rank, isPlateaued }) {
     const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
     const isTop3 = rank <= 3;
     const muscle = getMuscleGroup(pr.exerciseName, null);
@@ -501,7 +508,7 @@ function PRCard({ pr, rank, historyGroup }) {
     // Mostrar 1RM estimado si existe
     const estimated1RM = pr.estimated1RM ? Math.round(pr.estimated1RM) : null;
 
-    const plateau = detectPlateau(historyGroup?.sessions);
+    const plateau = { isPlateaued: !!isPlateaued };
 
     return (
         <div className={`relative bg-[var(--bg-card)] rounded-xl p-4 border transition-all hover:border-[var(--primary)]/30 ${isTop3
@@ -525,7 +532,7 @@ function PRCard({ pr, rank, historyGroup }) {
                         </span>
                         {plateau.isPlateaued && (
                             <span
-                                title={`Sin mejora en ${plateau.sessionsConsidered} sesiones (${Math.round(plateau.olderBest1RM)}kg → ${Math.round(plateau.recentBest1RM)}kg est. 1RM)`}
+                                title="Sin mejora reciente (plateau, últimas sesiones)"
                                 className="text-[9px] px-1.5 py-0.5 rounded border border-[var(--warning)]/40 bg-[var(--warning)]/15 text-[var(--warning)] font-semibold"
                             >
                                 Estancado
@@ -586,7 +593,7 @@ export default function Progress() {
     const toast = useToast();
     const location = useLocation();
     const { user } = useAuth();
-    const { stats, consistency, prs, exercises, workoutHistory, rawHistory, loading, loadError } = useProgressData();
+    const { stats, consistency, prs, exercises, rawHistory, plateauedNames, loading, loadError } = useProgressData();
 
     const [uiState, setUIState] = useState({
         // Permite aterrizar en Objetivos desde /goals/new (navigate state.tab)
@@ -1049,7 +1056,7 @@ export default function Progress() {
                                     key={`${pr.exerciseName}-${i}`}
                                     pr={pr}
                                     rank={i + 1}
-                                    historyGroup={workoutHistory.get(canonicalExerciseKey(pr.exerciseName))}
+                                    isPlateaued={plateauedNames?.has(String(pr.exerciseName || '').toLowerCase())}
                                 />
                             ))}
                             {displayedPRs.length === 0 && (
@@ -1244,7 +1251,7 @@ export default function Progress() {
                                 {uiState.expandedMuscle === muscle && (
                                     <div className="px-4 pb-4 space-y-2 animate-fade-in bg-[var(--bg-dark)]/30 pt-2">
                                         {musclePs.map((pr, i) => {
-                                            const plateau = detectPlateau(workoutHistory.get(canonicalExerciseKey(pr.exerciseName))?.sessions);
+                                            const isPlateaued = plateauedNames?.has(String(pr.exerciseName || '').toLowerCase());
                                             return (
                                                 <button
                                                     key={i}
@@ -1256,9 +1263,9 @@ export default function Progress() {
                                                 >
                                                     <span className="text-sm truncate pr-3 flex items-center gap-1.5">
                                                         {pr.exerciseName}
-                                                        {plateau.isPlateaued && (
+                                                        {isPlateaued && (
                                                             <span
-                                                                title={`Estancado: sin mejora en ${plateau.sessionsConsidered} sesiones`}
+                                                                title="Estancado: sin mejora reciente"
                                                                 className="w-1.5 h-1.5 rounded-full bg-[var(--warning)] shrink-0"
                                                             />
                                                         )}

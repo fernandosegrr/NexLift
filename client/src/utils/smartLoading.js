@@ -136,3 +136,80 @@ export function computeWorkoutSuggestion(sessions, targetReps, increment, phase 
     if (weight <= 0 || reps <= 0) return null;
     return { weight, reps, rationale, basedOn: sessions.length, phase };
 }
+
+/**
+ * Autorregulación INTRA-sesión: sugiere la siguiente serie mirando TODAS las
+ * series completadas HOY del mismo ejercicio. Requiere RIR en cada una.
+ * A diferencia de computeWorkoutSuggestion (entre sesiones), SÍ puede bajar peso.
+ *
+ * @param {Array<{weight:number,reps:number,rir:number|null}>} completedToday
+ *   Series efectivas ya hechas hoy, en orden (1ª → última).
+ * @param {{ lo:number, hi:number, increment:number, phase?:string|null }} opts
+ *   lo/hi del rango guardado del ejercicio (se ajustan por fase aquí).
+ * @returns {{ weight:number, reps:number, rationale:string, phase:string|null, source:'intra' }|null}
+ */
+export function suggestNextSetFromToday(completedToday, { lo = 8, hi = 12, increment = 2.5, phase = null } = {}) {
+    if (!completedToday || completedToday.length === 0) return null;
+
+    const sets = completedToday
+        .map(s => ({
+            weight: Number(s.weight) || 0,
+            reps: Number(s.reps) || 0,
+            rir: s.rir != null && s.rir !== '' ? Number(s.rir) : null
+        }))
+        .filter(s => s.weight > 0 && s.reps > 0);
+
+    if (!sets.length) return null;
+    // RIR obligatorio en TODAS las series de hoy usadas para el cálculo
+    if (sets.some(s => s.rir == null || !Number.isFinite(s.rir))) return null;
+
+    const range = adjustRepRangeForPhase(lo, hi, phase);
+    const adjLo = range.lo;
+    const adjHi = range.hi;
+
+    const last = sets[sets.length - 1];
+    const first = sets[0];
+    const minRir = Math.min(...sets.map(s => s.rir));
+    const minReps = Math.min(...sets.map(s => s.reps));
+    const avgRir = sets.reduce((a, s) => a + s.rir, 0) / sets.length;
+    const rirDrop = first.rir - last.rir;
+    const repDrop = first.reps - last.reps;
+
+    let weight = last.weight;
+    let reps = last.reps;
+    let rationale;
+
+    const groundOut = minRir <= 0 || last.rir <= 0;
+    const failedFloor = last.reps < adjLo || minReps < adjLo;
+
+    if (groundOut || failedFloor) {
+        // Puede bajar: un incremento (o 0.5 kg si el incremento no mueve la rejilla)
+        const stepped = roundWorkoutWeight(
+            Math.max(0, last.weight - increment),
+            increment,
+            last.weight
+        );
+        weight = stepped < last.weight
+            ? Math.max(increment > 0 ? increment : 0.5, stepped)
+            : roundWorkoutWeight(Math.max(0.5, last.weight - Math.max(increment, 0.5)), increment, last.weight);
+        reps = Math.min(adjHi, Math.max(adjLo, last.reps));
+        rationale = groundOut
+            ? `Hoy RIR ${minRir} en alguna serie → baja a ${weight} kg × ${reps}.`
+            : `Reps bajo el rango ${adjLo}–${adjHi} → baja a ${weight} kg × ${reps}.`;
+    } else if (last.rir === 1 || rirDrop >= 2 || (repDrop >= 2 && last.rir <= 2)) {
+        weight = last.weight;
+        reps = Math.min(adjHi, Math.max(adjLo, last.reps));
+        rationale = `Fatiga de hoy (RIR min ${minRir}) → mantén ${weight} kg × ${reps}.`;
+    } else if (avgRir >= 2.5 && minRir >= 2 && last.reps >= adjLo) {
+        weight = last.weight;
+        reps = Math.min(adjHi, Math.max(last.reps, adjLo));
+        rationale = `Series de hoy cómodas (RIR min ${minRir}) → ${weight} kg × ${reps}.`;
+    } else {
+        weight = last.weight;
+        reps = Math.min(adjHi, Math.max(adjLo, last.reps));
+        rationale = `Según series de hoy (RIR min ${minRir}) → ${weight} kg × ${reps}.`;
+    }
+
+    if (weight <= 0 || reps <= 0) return null;
+    return { weight, reps, rationale, phase, source: 'intra' };
+}

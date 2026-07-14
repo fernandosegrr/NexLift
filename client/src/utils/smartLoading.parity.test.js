@@ -8,12 +8,14 @@ import { describe, it, expect } from 'vitest';
 import {
     adjustRepRangeForPhase as clientAdjust,
     computeWorkoutSuggestion as clientSuggest,
-    pickWorkReference as clientPick
+    pickWorkReference as clientPick,
+    suggestNextSetFromToday as clientIntra
 } from './smartLoading.js';
 import {
     adjustRepRangeForPhase as serverAdjust,
     computeWorkoutSuggestion as serverSuggest,
     pickWorkReference as serverPick,
+    suggestNextSetFromToday as serverIntra,
     detectPlateauForExercise,
     effectiveWorkoutSet
 } from '../../../server/src/logic.js';
@@ -118,6 +120,50 @@ describe('computeWorkoutSuggestion: paridad cliente/servidor', () => {
         expect(c.reps).toEqual(s.reps);
         expect(c.minReps).toEqual(s.minReps);
         expect(c.rir).toEqual(s.rir);
+    });
+});
+
+describe('suggestNextSetFromToday: paridad + reglas', () => {
+    const opts = { lo: 8, hi: 12, increment: 2.5, phase: null };
+
+    it('sin RIR en alguna serie → null en ambos lados', () => {
+        const sets = [{ weight: 100, reps: 10, rir: 2 }, { weight: 100, reps: 8, rir: null }];
+        expect(clientIntra(sets, opts)).toBeNull();
+        expect(serverIntra(sets, opts)).toBeNull();
+    });
+
+    it('RIR 0 → baja un incremento (puede bajar peso)', () => {
+        const sets = [{ weight: 100, reps: 8, rir: 0 }];
+        const c = clientIntra(sets, opts);
+        const s = serverIntra(sets, opts);
+        expect(c).not.toBeNull();
+        expect(s).not.toBeNull();
+        expect(c.weight).toBe(s.weight);
+        expect(c.reps).toBe(s.reps);
+        expect(c.weight).toBe(97.5);
+        expect(c.source).toBe('intra');
+    });
+
+    it('todas las de hoy con RIR cómodo → mantiene peso', () => {
+        const sets = [
+            { weight: 100, reps: 10, rir: 3 },
+            { weight: 100, reps: 9, rir: 2 }
+        ];
+        const c = clientIntra(sets, opts);
+        const s = serverIntra(sets, opts);
+        expect(c.weight).toBe(s.weight);
+        expect(c.reps).toBe(s.reps);
+        expect(c.weight).toBe(100);
+    });
+
+    it('paridad: fatiga acumulada (RIR cae de 3 a 1)', () => {
+        const sets = [
+            { weight: 100, reps: 12, rir: 3 },
+            { weight: 100, reps: 8, rir: 1 }
+        ];
+        const c = clientIntra(sets, opts);
+        const s = serverIntra(sets, opts);
+        expect(c).toEqual(s);
     });
 });
 

@@ -174,6 +174,13 @@ export const api = {
         return res.json();
     },
 
+    /** Plateau calculado en servidor (últimas 10 sesiones/ejercicio). */
+    async getPlateaus() {
+        const res = await authFetch(`${API_URL}/stats/plateaus`);
+        if (!res.ok) throw new Error('Failed to fetch plateaus');
+        return res.json();
+    },
+
     /** Bundle del Dashboard: 1 round-trip (stats + constancia + PRs + plateau + rutina). */
     async getHome() {
         const res = await authFetch(`${API_URL}/stats/home`);

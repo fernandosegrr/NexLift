@@ -96,6 +96,8 @@ model Routine {
   user        User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  // Dashboard / active routine: WHERE userId AND isActive
+  @@index([userId, isActive])
 }
 
 // Mesociclo/bloque de periodización (opcional — una rutina sin bloques se
@@ -131,6 +133,8 @@ model RoutineDay {
   routineId   String
   routine     Routine    @relation(fields: [routineId], references: [id], onDelete: Cascade)
   exercises   Exercise[]
+
+  @@index([routineId])
 }
 
 model Exercise {
@@ -151,6 +155,8 @@ model Exercise {
 
   @@index([routineDayId])
   @@index([name])
+  // Historial por nombre (insensitive) + join a RoutineDay
+  @@index([routineDayId, name])
 }
 
 // ==================== WORKOUTS ====================
@@ -169,6 +175,8 @@ model WorkoutLog {
 
   @@index([exerciseId])
   @@index([date])
+  // Camino caliente: historial de un ejercicio ordenado por fecha DESC
+  @@index([exerciseId, date])
 }
 
 model SetLog {
@@ -182,6 +190,8 @@ model SetLog {
   repsRight    Int?
   workoutLogId String
   workoutLog   WorkoutLog @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
+
+  @@index([workoutLogId])
 }
 
 // ==================== PERSONAL RECORDS ====================
@@ -319,10 +329,11 @@ model SuggestionLog {
   suggestedWeight Float
   suggestedReps   Int
   phase           String? // fase activa al momento de sugerir (ver getRoutinePhaseStatus), null si ninguna
-  source          String  // 'client' (Workout.jsx, al tocar "SUGERIDO") | 'shortcut' (GET /api/shortcuts/next-set)
+  source          String  // 'client' | 'shortcut' | 'intra' (autorregulación por serie dentro de la sesión)
 
   @@index([userId])
   @@index([exerciseId])
+  @@index([userId, date])
 }
 
 // ==================== RUTINA DIARIA CON IA ====================

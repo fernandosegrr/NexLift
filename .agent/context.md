@@ -1,7 +1,7 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 2.7.1 | **Última actualización:** 13 Julio 2026
+> **Versión:** 2.8.0 | **Última actualización:** 14 Julio 2026
 > **Historial de versiones:** [`changelog.md`](changelog.md) (movido ahí para que este archivo quepa en una sola lectura de una IA) | **Schema:** `server/prisma/schema.prisma` (única copia, no se duplica aquí)
 
 ---
@@ -67,17 +67,13 @@ Página crítica para registrar el entrenamiento del día. Ha recibido actualiza
   - Detecta ejercicios ya completados hoy (persistencia).
   - Determina si es un día de descanso.
 - **Algoritmo de Sugerencia (Smart Loading) — 100% local, sin IA:**
-  - Analiza la última sesión completa (peso, reps, series y RIR).
-  - Doble progresión con autorregulación por RIR: sube peso y reinicia reps al llegar al tope del rango; suma reps si sobró fuerza; descarga si hubo fallo bajo el rango.
-  - Sugiere **peso Y reps** (no solo peso). En unilateral usa el lado débil.
-  - Incremento de carga: 5kg en piernas, 2.5kg en el resto.
-- **Cards de Ejercicio (`SetCard.jsx`):**
-  - Componente optimizado (React.memo).
-  - Inputs para Peso (kg), Reps y **RIR** (Reps in Reserve).
-  - Feedback visual inmediato al completar (verde/check).
-  - Badge de "PR" animado si se rompe un récord.
+  - **Entre sesiones (S1):** analiza la última sesión completa (ventana 10). Doble progresión + RIR: sube peso al tope del rango; suma reps si sobró fuerza. Nunca sugiere bajar entre días.
+  - **Intra-sesión (S2…, v2.8.0):** `suggestNextSetFromToday` con **todas** las series de hoy; RIR obligatorio; **sí puede bajar peso**. Chip chico + auto-fill de filas vacías. Modal de pregunta RIR al completar sin RIR.
+  - Sugiere **peso Y reps**. Unilateral = lado débil. Incremento: 5kg piernas / 2.5kg resto.
+- **Cards de serie (`SetCard` en Workout.jsx):**
+  - React.memo; peso/reps/RIR; chip de sugerencia de esa serie; PR animado.
 - **Acciones:**
-  - Tocar la insignia "SUGERIDO" (o "DESCARGA" durante una semana de descarga, v2.4.0 — ver Roadmap/Lógica de Negocio) rellena la primera serie vacía con el peso/reps sugeridos (v2.2.0 — antes no hacía nada pese a parecer tappable).
+  - Insignia "SUGERIDO" rellena series vacías con la sugerencia **inter-sesión**. El chip por serie aplica la sugerencia **intra**.
   - "Copiar peso a todo": Facilita el llenado rápido.
   - "Ver historial": Modal con sesiones pasadas.
   - Guardado por ejercicio (granularidad) y finalización global.

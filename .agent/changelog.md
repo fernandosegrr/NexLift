@@ -3,7 +3,17 @@
 > Historial completo de versiones, movido desde `context.md` (8 Jul 2026) para mantener el contexto principal en un tamaño legible de una sola pasada.
 > Las reglas vivas del proyecto están en `.agent/context.md` — este archivo es solo historia.
 
-### v2.7.1 (13 Julio 2026) - **Current**
+### v2.8.0 (14 Julio 2026) - **Current**
+Origen: tras el resumen post-sesión / saltar ejercicio (v2.7.x), el usuario pidió (1) el resto de la pista de **velocidad** (no backups) y (2) un coach que sugiera **por serie**, recalculando con lo de hoy y RIR obligatorio, pudiendo bajar peso.
+
+*   **FEATURE — Autorregulación intra-sesión:** `suggestNextSetFromToday` (cliente `smartLoading.js` + server `logic.js`, tests de paridad). Entrada = todas las series completadas **hoy** con RIR; salida = peso/reps de la siguiente. RIR 0 o reps bajo el rango → **baja 1 incremento**; fatiga acumulada → mantiene; cómodo → mantiene. S1 sigue siendo el Smart Loading entre sesiones (`computeWorkoutSuggestion`).
+*   **UI — RIR como pregunta + chip chico:** al marcar ✓ sin RIR, modal "¿Cuántas te quedaban en la recámara?" (0 al fallo / 1 / 2 / 3+). Chip `✨ kg×reps` en la serie siguiente; auto-relleno solo si la fila está vacía. Atajo `next-set` reutiliza la misma lógica si ya hay series de hoy con RIR.
+*   **PERF — Ventana de 10 sesiones:** constante `HISTORY_SESSIONS_WINDOW = 10` en history por ejercicio, next-set y agrupación de plateau. Progress history 120 (gráficas/PDF), no 200+ solo para dots de plateau.
+*   **PERF — Plateau server-side:** `GET /api/stats/plateaus` (`plateaued[]` en minúsculas, `plateauCount`). Progress y home dejan de depender de bajar todo el history para estancamiento.
+*   **PERF — Cache HTTP + índices:** `setPrivateCache` en GETs de lectura; índices Prisma `WorkoutLog[exerciseId,date]`, `SetLog[workoutLogId]`, `RoutineDay[routineId]`, `Routine[userId,isActive]`, etc. (`prisma db push`).
+*   **Verificado:** `npm test` client (52) + server (60) en verde; schema sincronizado con la DB remota.
+
+### v2.7.1 (13 Julio 2026)
 Origen: auditoría de producto sección por sección (lógica de entrenamiento + UI, menos foco en seguridad), con la cuenta real: Sugerencias → Workout → Dashboard → Rutinas → Import/EditRoutine → Progress → PDF → Goals + PDF de sesión → Body → Perfil/Configuración. Cada bloque se revisó y se corrigió al cerrarlo.
 
 *   **FIX CRÍTICO — Smart Loading (cliente + servidor, con paridad):** la referencia de trabajo anclaba mal (tope/mínimos vs serie de trabajo real). `pickWorkReference` / lógica alineada en `client/src/utils/smartLoading.js` y `server/src/logic.js`: ancla a la serie de trabajo más fuerte (1RM estimado), usa las **mejores** reps a ese peso (todas las series top), incremento piernas solo si `muscleGroup === 'Piernas'` (vacío/`legs` ya no se confunde), deload ~0.9 tras la doble progresión. Tests de paridad ampliados.

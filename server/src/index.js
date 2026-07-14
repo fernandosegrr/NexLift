@@ -21,9 +21,19 @@ import {
     mexicoCityDateStr, mexicoCityDayBounds, dayOfWeekFromDateStr, mexicoCityHour,
     resolveTargetDate, getTodayName, normalizeDay,
     getActiveBlock, currentWeekInBlock, getRoutinePhaseStatus, adjustRepRangeForPhase,
-    computeWorkoutSuggestion, roundWorkoutWeight, detectPlateauForExercise, convertShortcutRir,
-    resolveWeightIncrement
+    computeWorkoutSuggestion, suggestNextSetFromToday, roundWorkoutWeight, detectPlateauForExercise,
+    convertShortcutRir, resolveWeightIncrement, parseRepRange, effectiveWorkoutSet
 } from './logic.js';
+
+// Cache HTTP privado (auth) — datos de un solo usuario, se invalidan al mutar
+// en el cliente vía re-fetch; max-age corto evita re-descargas al navegar.
+function setPrivateCache(res, seconds = 30) {
+    res.set('Cache-Control', `private, max-age=${seconds}`);
+}
+
+// Ventana de sesiones para Smart Loading / plateau / next-set (bastante para
+// señal de estancamiento 4–6 y doble progresión; no hincha payloads).
+const HISTORY_SESSIONS_WINDOW = 10;
 
 dotenv.config();
 
@@ -1305,6 +1315,7 @@ app.get('/api/routines', authMiddleware, async (req, res) => {
             })
         ]);
         const routines = [...manualRoutines, ...aiRoutines].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        setPrivateCache(res, 30);
         res.json(routines.map(r => {
             const activeBlock = getActiveBlock(r.blocks);
             const phaseStatus = getRoutinePhaseStatus(r);
@@ -1364,6 +1375,7 @@ app.get('/api/routines/active', authMiddleware, async (req, res) => {
         if (!routine) return res.json(routine);
         const activeBlock = getActiveBlock(routine.blocks);
         const phaseStatus = getRoutinePhaseStatus(routine);
+        setPrivateCache(res, 20);
         res.json({ ...routine, activeBlock, currentWeek: currentWeekInBlock(activeBlock), isDeload: phaseStatus.isDeload, phase: phaseStatus.phase });
     } catch (error) {
         console.error('Error fetching active routine:', error);
@@ -2467,7 +2479,7 @@ app.get('/api/workouts/history', authMiddleware, async (req, res) => {
             filtered = logs.filter(log => dayOfWeekFromDateStr(mexicoCityDateStr(log.date)) === dow);
         }
 
-        res.set('Cache-Control', 'private, max-age=15');
+        setPrivateCache(res, 20);
         res.json(filtered);
     } catch (error) {
         console.error('Error fetching history:', error);
@@ -2546,7 +2558,12 @@ app.get('/api/workouts/exercise/:exerciseId/history', authMiddleware, async (req
             return res.json([]);
         }
 
-        // Find all workout logs for exercises with the same name (case-insensitive)
+        // Últimas N sesiones bastan para Smart Loading + plateau + modal de historial.
+        // ?limit= permite pedir más (export/modal); techo 50.
+        const take = Math.min(
+            Math.max(parseInt(req.query.limit, 10) || HISTORY_SESSIONS_WINDOW, 1),
+            50
+        );
         const logs = await prisma.workoutLog.findMany({
             where: {
                 exercise: {
@@ -2563,8 +2580,9 @@ app.get('/api/workouts/exercise/:exerciseId/history', authMiddleware, async (req
                 sets: { orderBy: { setNumber: 'asc' } }
             },
             orderBy: { date: 'desc' },
-            take: 20
+            take
         });
+        setPrivateCache(res, 15);
         res.json(logs);
     } catch (error) {
         console.error('Error fetching exercise history:', error);
@@ -2667,8 +2685,7 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
 
         const setsLoggedToday = loggedCountByExercise[nextExercise.id] || 0;
 
-        // Historial: mismo criterio que GET /api/workouts/exercise/:exerciseId/history
-        // (match por nombre, insensible a mayúsculas, últimas 20 sesiones)
+        // Historial: mismas últimas N sesiones que la PWA (Smart Loading).
         const history = await prisma.workoutLog.findMany({
             where: {
                 exercise: {
@@ -2678,7 +2695,7 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
             },
             include: { sets: { orderBy: { setNumber: 'asc' } } },
             orderBy: { date: 'desc' },
-            take: 20
+            take: HISTORY_SESSIONS_WINDOW
         });
 
         const base = {
@@ -2696,12 +2713,46 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
             phase: phaseStatus.phase
         };
 
-        if (history.length === 0) {
+        const increment = resolveWeightIncrement(nextExercise.muscleGroup, nextExercise.name);
+        const { lo, hi } = parseRepRange(nextExercise.targetReps);
+
+        // Si ya hay series de HOY con RIR en este ejercicio → autorregulación
+        // intra-sesión (puede bajar peso). Usa todayLogs ya cargados arriba.
+        const todayLogForExercise = todayLogs.find(l => l.exerciseId === nextExercise.id);
+        if (todayLogForExercise && (todayLogForExercise.sets || []).length > 0) {
+            const completedToday = todayLogForExercise.sets
+                .map(effectiveWorkoutSet)
+                .filter(s => s.weight > 0 && s.reps > 0);
+            const intra = suggestNextSetFromToday(completedToday, {
+                lo, hi, increment, phase: phaseStatus.phase
+            });
+            if (intra) {
+                // No re-aplicar deload: las series de hoy ya van al peso de la sesión
+                return res.json({
+                    ...base,
+                    suggestedWeight: intra.weight,
+                    suggestedReps: intra.reps,
+                    rationale: intra.rationale,
+                    source: 'intra'
+                });
+            }
+        }
+
+        // Historial para entre-sesiones: excluye el log de hoy (parcial) si existe
+        const historyForInter = todayLogForExercise
+            ? history.filter(h => h.id !== todayLogForExercise.id)
+            : history;
+
+        if (historyForInter.length === 0 && history.length === 0) {
             return res.json({ ...base, rationale: 'sin historial' });
         }
 
-        const increment = resolveWeightIncrement(nextExercise.muscleGroup, nextExercise.name);
-        const suggestion = computeWorkoutSuggestion(history, nextExercise.targetReps, increment, phaseStatus.phase);
+        const suggestion = computeWorkoutSuggestion(
+            historyForInter.length ? historyForInter : history,
+            nextExercise.targetReps,
+            increment,
+            phaseStatus.phase
+        );
 
         if (!suggestion) {
             return res.json({ ...base, rationale: 'sin historial' });
@@ -3164,6 +3215,7 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
             return acc + (set.weight * set.reps);
         }, 0);
 
+        setPrivateCache(res, 30);
         res.json({
             totalWorkouts,
             totalRoutines,
@@ -3315,6 +3367,7 @@ app.get('/api/stats/prs', authMiddleware, async (req, res) => {
             }
         });
 
+        setPrivateCache(res, 45);
         res.json(Object.values(prsByExercise).sort((a, b) => b.weight - a.weight));
     } catch (error) {
         console.error('Error fetching PRs:', error);
@@ -3377,11 +3430,12 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
                     date: true
                 }
             }),
-            // Últimos logs para plateau — solo weight/reps/date/name, sin notes
+            // Logs para plateau — solo weight/reps/date/name. Ventana por ejercicio
+            // se recorta a HISTORY_SESSIONS_WINDOW al agrupar (abajo).
             prisma.workoutLog.findMany({
                 where: exerciseScope,
                 orderBy: { date: 'desc' },
-                take: 160,
+                take: 200,
                 select: {
                     date: true,
                     exercise: { select: { name: true } },
@@ -3406,13 +3460,14 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
         }
         const prs = Object.values(prsByExercise).sort((a, b) => b.weight - a.weight);
 
-        // Agrupar plateauLogs por nombre de ejercicio (minúsculas) → detectPlateauForExercise
+        // Agrupar por nombre (minúsculas), quedarse con las últimas N sesiones/ejercicio
         const logsByName = new Map();
         for (const log of plateauLogs) {
             const name = (log.exercise?.name || '').toLowerCase();
             if (!name) continue;
             if (!logsByName.has(name)) logsByName.set(name, []);
-            logsByName.get(name).push(log);
+            const arr = logsByName.get(name);
+            if (arr.length < HISTORY_SESSIONS_WINDOW) arr.push(log);
         }
         let plateauCount = 0;
         for (const pr of prs) {
@@ -3543,7 +3598,7 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
 
         const weeklyVolume = Math.round(weekSets.reduce((acc, s) => acc + (s.weight * s.reps), 0));
 
-        res.set('Cache-Control', 'private, max-age=20');
+        setPrivateCache(res, 20);
         res.json({
             stats: {
                 totalWorkouts,
@@ -3566,6 +3621,70 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Error fetching home stats:', error);
         res.status(500).json({ error: 'Failed to fetch home' });
+    }
+});
+
+// GET /api/stats/plateaus — plateau calculado en servidor (últimas N sesiones
+// por ejercicio). Progress deja de bajar history solo para pintar el dot.
+// Claves = exerciseName en minúsculas (mismo criterio que PersonalRecord).
+app.get('/api/stats/plateaus', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.userId;
+        const exerciseScope = { exercise: { routineDay: { routine: { userId } } } };
+        const [allPRs, plateauLogs] = await Promise.all([
+            prisma.personalRecord.findMany({
+                where: { userId },
+                select: { exerciseName: true, estimated1RM: true }
+            }),
+            prisma.workoutLog.findMany({
+                where: exerciseScope,
+                orderBy: { date: 'desc' },
+                take: 200,
+                select: {
+                    date: true,
+                    exercise: { select: { name: true } },
+                    sets: {
+                        select: { weight: true, reps: true, weightRight: true, repsRight: true }
+                    }
+                }
+            })
+        ]);
+
+        const prsByExercise = {};
+        for (const pr of allPRs) {
+            const key = pr.exerciseName;
+            if (!prsByExercise[key] || (pr.estimated1RM || 0) > (prsByExercise[key].estimated1RM || 0)) {
+                prsByExercise[key] = pr;
+            }
+        }
+
+        const logsByName = new Map();
+        for (const log of plateauLogs) {
+            const name = (log.exercise?.name || '').toLowerCase();
+            if (!name) continue;
+            if (!logsByName.has(name)) logsByName.set(name, []);
+            const arr = logsByName.get(name);
+            if (arr.length < HISTORY_SESSIONS_WINDOW) arr.push(log);
+        }
+
+        const plateaued = [];
+        for (const pr of Object.values(prsByExercise)) {
+            const key = (pr.exerciseName || '').toLowerCase();
+            const logs = logsByName.get(key);
+            if (logs && detectPlateauForExercise(logs)) {
+                plateaued.push(key);
+            }
+        }
+
+        setPrivateCache(res, 60);
+        res.json({
+            plateaued,
+            plateauCount: plateaued.length,
+            window: HISTORY_SESSIONS_WINDOW
+        });
+    } catch (error) {
+        console.error('Error fetching plateaus:', error);
+        res.status(500).json({ error: 'Failed to fetch plateaus' });
     }
 });
 

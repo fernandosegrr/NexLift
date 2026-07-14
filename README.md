@@ -32,7 +32,8 @@ Funciona instalada como app nativa (offline-first) y también admite registrar s
 
 ### 🧠 Entrenador Inteligente
 - **Sugerencia de carga (Smart Loading):** doble progresión con autorregulación por RIR sobre la última sesión completa — sube peso y reinicia reps al llegar al tope del rango, suma reps si sobró margen, ajusta si hubo fallo. 100% cálculo local, sin IA.
-- **Detección de plateau:** marca un ejercicio como estancado si su mejor 1RM estimado no mejora entre la mitad antigua y la reciente de sus últimas sesiones.
+- **Autorregulación por serie (v2.8.0):** tras la primera serie, el coach recalcula la siguiente mirando **todas las series de hoy** (RIR obligatorio, con pregunta al completar). Puede **bajar el peso** si la sesión se puso dura; chip chico en cada serie siguiente.
+- **Detección de plateau:** marca un ejercicio como estancado si su mejor 1RM estimado no mejora entre la mitad antigua y la reciente de sus últimas sesiones (calculado en el servidor, últimas 10 sesiones).
 - **Descarga adaptativa:** si el volumen semanal cae por debajo del 85% del anterior y 3+ ejercicios están en plateau al mismo tiempo, la rutina entra en una ventana de descarga automática con la carga sugerida reducida — siempre avisado con un banner visible, nunca en silencio.
 - La fase activa de un mesociclo ajusta en tiempo real el rango de reps usado para sugerir (más reps en acumulación, más peso/menos reps en intensificación).
 - **Calculadora de calentamiento (v2.7.0):** rampa 40/60/80% del peso sugerido + tabla libre "peso a X%", visible junto a la sugerencia de cada ejercicio.
@@ -217,7 +218,10 @@ cd server && npm test   # node --test — server/src/logic.js
 
 ## 📜 Changelog
 
-Historial completo y detallado (con causa raíz de cada fix) en [`.agent/context.md`](.agent/context.md). Resumen de versiones recientes:
+Historial completo y detallado (con causa raíz de cada fix) en [`.agent/changelog.md`](.agent/changelog.md). Resumen de versiones recientes:
+
+### v2.8.0 (14 Jul 2026) — Coach por serie + rendimiento
+Autorregulación **dentro** de la sesión (`suggestNextSetFromToday`): RIR obligatorio con pregunta al completar, chip por serie, puede bajar peso según las series de hoy. Plateau en servidor (`GET /api/stats/plateaus`), historial acotado a 10 sesiones para Smart Loading, cache HTTP en GETs de lectura e índices Prisma en el camino caliente.
 
 ### v2.6.2 (9 Jul 2026) — Instrumentación de calibración del entrenador inteligente
 Cada sugerencia de peso/reps (mostrada por el Atajo de iOS o aplicada en la app) ahora queda registrada (`SuggestionLog`). Nuevo script `server/analyze-suggestions.mjs` (solo lectura) compara sugerido vs. realizado — no cambia ningún umbral todavía, solo recolecta datos para decidir eso después con semanas de uso real.

@@ -9,9 +9,11 @@ import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
 import {
     computeWorkoutSuggestion,
+    suggestNextSetFromToday,
     effectiveWorkoutSet,
     resolveWeightIncrement,
-    roundWorkoutWeight
+    roundWorkoutWeight,
+    parseRepRange
 } from '../utils/smartLoading';
 import { hasPendingWrite, subscribeQueueChange } from '../services/offlineQueue';
 import { canonicalExerciseKey } from '../utils/exerciseName';
@@ -353,8 +355,16 @@ const SkeletonLoader = () => (
     </div>
 );
 
+// Preguntas RIR (obligatorio al completar) — lenguaje de gym, no jerga fría
+const RIR_QUESTIONS = [
+    { value: 0, label: '0', desc: 'Al fallo' },
+    { value: 1, label: '1', desc: '1 en recámara' },
+    { value: 2, label: '2', desc: '2 en recámara' },
+    { value: 3, label: '3+', desc: 'Cómodo' }
+];
+
 // Componente memoizado - compara props específicas para detectar cambios
-const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, previousBest, isUnilateral, lastSet }) => {
+const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, previousBest, isUnilateral, lastSet, setSuggestion, onApplySetSuggestion }) => {
     const handleFocus = (e) => e.target.select();
 
     const isPR = useMemo(() => {
@@ -375,11 +385,26 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
         [set.weight, set.reps, lastSet]
     );
 
+    // Chip siempre en la serie "siguiente" con sugerencia (rellena o no)
+    const showChip = !isLocked && !set.completed && !!setSuggestion;
+
     return (
         <div className={`group relative rounded-2xl p-3 transition-all duration-300 ${set.completed
             ? 'bg-[var(--success)]/10 ring-1 ring-[var(--success)]/50'
             : 'bg-[var(--bg-card)] border border-[var(--border)]'
             }`}>
+            {/* Chip chico: sugerencia de ESTA serie (intra-sesión) */}
+            {showChip && (
+                <button
+                    type="button"
+                    onClick={() => onApplySetSuggestion?.(index, setSuggestion)}
+                    className="absolute -top-2 left-10 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--primary)]/20 border border-[var(--primary)]/40 text-[var(--primary)] text-[10px] font-bold shadow-sm active:scale-95"
+                    title={setSuggestion.rationale || 'Sugerencia de esta serie'}
+                >
+                    <Sparkles size={10} />
+                    {setSuggestion.weight}×{setSuggestion.reps}
+                </button>
+            )}
             <div className="grid grid-cols-10 gap-3 items-center">
                 {/* Número de serie horizontal — más legible en móvil que el label vertical */}
                 <div className="col-span-1 flex flex-col items-start pt-3 gap-1">
@@ -498,15 +523,15 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
                         </div>
                     )}
 
-                    {/* RIR Selector */}
+                    {/* RIR — obligatorio al completar (también se pide en modal) */}
                     <div className="flex items-center bg-[var(--bg-dark)]/50 rounded-lg p-1 h-9">
                         <span className="text-[10px] text-[var(--text-secondary)] w-8 text-center font-bold">RIR</span>
                         <div className="flex flex-1 justify-end gap-1 h-full">
-                            {[0, 1, 2, 3].map(rir => (
+                            {RIR_QUESTIONS.map(({ value: rir, label }) => (
                                 <button
                                     key={rir}
                                     type="button"
-                                    onClick={() => onSetRIR(index, set.rir === rir ? null : rir)}
+                                    onClick={() => onSetRIR(index, rir)}
                                     disabled={isLocked}
                                     aria-label={`RIR ${rir}`}
                                     aria-pressed={set.rir === rir}
@@ -515,7 +540,7 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
                                         : 'text-[var(--text-secondary)] hover:bg-[var(--bg-card)]'
                                         }`}
                                 >
-                                    {rir}
+                                    {label}
                                 </button>
                             ))}
                         </div>
@@ -568,6 +593,11 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
         </div>
     );
 }, (prevProps, nextProps) => {
+    const sugEq = (a, b) => {
+        if (!a && !b) return true;
+        if (!a || !b) return false;
+        return a.weight === b.weight && a.reps === b.reps;
+    };
     return prevProps.set.weight === nextProps.set.weight &&
         prevProps.set.reps === nextProps.set.reps &&
         prevProps.set.weightR === nextProps.set.weightR &&
@@ -578,7 +608,8 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
         prevProps.isLocked === nextProps.isLocked &&
         prevProps.isUnilateral === nextProps.isUnilateral &&
         prevProps.previousBest === nextProps.previousBest &&
-        prevProps.lastSet === nextProps.lastSet;
+        prevProps.lastSet === nextProps.lastSet &&
+        sugEq(prevProps.setSuggestion, nextProps.setSuggestion);
 });
 
 // Aviso por fase del bloque activo (nunca silencioso). Compacto por defecto
@@ -990,32 +1021,167 @@ export default function Workout() {
         });
     }, [isAlreadyLogged]);
 
+    // Modal RIR obligatorio al marcar serie completa sin RIR
+    const [rirPrompt, setRirPrompt] = useState(null); // { index } | null
+
+    const markSetCompleted = useCallback((index, withRir = null) => {
+        if (isAlreadyLogged) return;
+        setSets(prev => {
+            const updated = [...prev];
+            const cur = updated[index];
+            if (!cur) return prev;
+            updated[index] = {
+                ...cur,
+                completed: true,
+                ...(withRir != null ? { rir: withRir } : {})
+            };
+            return updated;
+        });
+        if (navigator.vibrate) navigator.vibrate(50);
+    }, [isAlreadyLogged]);
+
     const toggleComplete = useCallback((index) => {
         if (isAlreadyLogged) return;
         const s = sets[index];
         if (!s) return;
-        if (!s.completed) {
-            if (!s.weight || !s.reps) {
-                toast.error('Pon peso y reps antes de marcar la serie');
-                return;
-            }
-            if (isUnilateral && (!s.weightR || !s.repsR)) {
-                toast.error('Completa ambos lados (izq y der)');
-                return;
-            }
+        if (s.completed) {
+            // Desmarcar: no pide RIR
+            setSets(prev => {
+                const updated = [...prev];
+                updated[index] = { ...updated[index], completed: false };
+                return updated;
+            });
+            return;
         }
-        setSets(prev => {
-            const updated = [...prev];
-            updated[index] = { ...updated[index], completed: !updated[index].completed };
-            return updated;
-        });
-        if (navigator.vibrate) navigator.vibrate(50);
-    }, [isAlreadyLogged, isUnilateral, toast, sets]);
+        if (!s.weight || !s.reps) {
+            toast.error('Pon peso y reps antes de marcar la serie');
+            return;
+        }
+        if (isUnilateral && (!s.weightR || !s.repsR)) {
+            toast.error('Completa ambos lados (izq y der)');
+            return;
+        }
+        // RIR obligatorio: si no lo eligió, abrimos pregunta
+        if (s.rir == null) {
+            setRirPrompt({ index });
+            return;
+        }
+        markSetCompleted(index);
+    }, [isAlreadyLogged, isUnilateral, toast, sets, markSetCompleted]);
+
+    const answerRirPrompt = useCallback((rir) => {
+        if (!rirPrompt) return;
+        const { index } = rirPrompt;
+        setRirPrompt(null);
+        markSetCompleted(index, rir);
+    }, [rirPrompt, markSetCompleted]);
 
     const setRIR = useCallback((index, rir) => {
         if (isAlreadyLogged) return;
         updateSet(index, 'rir', rir);
     }, [isAlreadyLogged, updateSet]);
+
+    // Autorregulación intra-sesión: con series de HOY (RIR en todas) sugiere la siguiente
+    const { lo: repLo, hi: repHi } = useMemo(
+        () => parseRepRange(currentExercise?.targetReps),
+        [currentExercise?.targetReps]
+    );
+    const weightIncrement = useMemo(
+        () => resolveWeightIncrement(currentExercise?.muscleGroup, currentExercise?.name),
+        [currentExercise?.muscleGroup, currentExercise?.name]
+    );
+
+    const intraByIndex = useMemo(() => {
+        if (isAlreadyLogged || !currentExercise) return {};
+        const completedToday = [];
+        const map = {};
+        for (let i = 0; i < sets.length; i++) {
+            const s = sets[i];
+            if (s.completed && s.weight && s.reps) {
+                const eff = effectiveSet({
+                    weight: s.weight,
+                    reps: s.reps,
+                    weightRight: s.weightR,
+                    repsRight: s.repsR,
+                    rir: s.rir,
+                    rpe: s.rir != null ? 10 - s.rir : null
+                });
+                // effectiveWorkoutSet lee rpe→rir; pasamos rir directo también
+                completedToday.push({
+                    weight: eff.weight,
+                    reps: eff.reps,
+                    rir: s.rir
+                });
+            }
+            // Sugerencia para la primera fila incompleta después de al menos 1 completada
+            if (!s.completed && completedToday.length > 0 && Object.keys(map).length === 0) {
+                const sug = suggestNextSetFromToday(completedToday, {
+                    lo: repLo,
+                    hi: repHi,
+                    increment: weightIncrement,
+                    phase: workoutState.phase
+                });
+                if (sug) map[i] = sug;
+            }
+        }
+        return map;
+    }, [sets, isAlreadyLogged, currentExercise, repLo, repHi, weightIncrement, workoutState.phase]);
+
+    // Auto-rellena la siguiente serie vacía cuando aparece una sugerencia intra
+    const lastAutofillKeyRef = useRef('');
+    useEffect(() => {
+        if (isAlreadyLogged) return;
+        const entries = Object.entries(intraByIndex);
+        if (!entries.length) return;
+        const [idxStr, sug] = entries[0];
+        const idx = parseInt(idxStr, 10);
+        const s = sets[idx];
+        if (!s || s.completed) return;
+        // Solo si está vacía (no pisar lo que el usuario escribió)
+        if (s.weight || s.reps) return;
+        const key = `${currentExercise?.id}:${idx}:${sug.weight}x${sug.reps}`;
+        if (lastAutofillKeyRef.current === key) return;
+        lastAutofillKeyRef.current = key;
+        setSets(prev => {
+            const next = [...prev];
+            if (!next[idx] || next[idx].weight || next[idx].reps) return prev;
+            const filled = {
+                ...next[idx],
+                weight: String(sug.weight),
+                reps: String(sug.reps)
+            };
+            if (isUnilateral) {
+                filled.weightR = String(sug.weight);
+                filled.repsR = String(sug.reps);
+            }
+            next[idx] = filled;
+            return next;
+        });
+        // Log de calibración (fire-and-forget)
+        if (currentExercise?.id) {
+            api.logSuggestionApplied(currentExercise.id, sug.weight, sug.reps, workoutState.phase).catch(() => {});
+        }
+    }, [intraByIndex, sets, isAlreadyLogged, isUnilateral, currentExercise, workoutState.phase]);
+
+    const applySetSuggestion = useCallback((index, sug) => {
+        if (isAlreadyLogged || !sug) return;
+        setSets(prev => {
+            const next = [...prev];
+            if (!next[index] || next[index].completed) return prev;
+            const filled = {
+                ...next[index],
+                weight: String(sug.weight),
+                reps: String(sug.reps)
+            };
+            if (isUnilateral) {
+                filled.weightR = String(sug.weight);
+                filled.repsR = String(sug.reps);
+            }
+            next[index] = filled;
+            return next;
+        });
+        toast.success(`${sug.weight} kg × ${sug.reps}`);
+    }, [isAlreadyLogged, isUnilateral, toast]);
 
     const copyWeightToAll = useCallback(() => {
         if (isAlreadyLogged || !sets[0]?.weight) return;
@@ -1707,9 +1873,55 @@ export default function Workout() {
                         previousBest={previousBest}
                         isUnilateral={isUnilateral}
                         lastSet={lastSession?.sets?.[i] || null}
+                        setSuggestion={intraByIndex[i] || null}
+                        onApplySetSuggestion={applySetSuggestion}
                     />
                 ))}
             </div>
+
+            {/* Pregunta RIR obligatoria al completar serie */}
+            {rirPrompt && (
+                <Portal>
+                    <div
+                        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center animate-fade-in"
+                        onClick={() => setRirPrompt(null)}
+                    >
+                        <div
+                            className="bg-[var(--bg-card)] w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 border border-[var(--border)] shadow-2xl animate-slide-up"
+                            onClick={e => e.stopPropagation()}
+                            role="dialog"
+                            aria-labelledby="rir-prompt-title"
+                        >
+                            <h3 id="rir-prompt-title" className="text-lg font-bold text-white mb-1">
+                                ¿Cuántas te quedaban en la recámara?
+                            </h3>
+                            <p className="text-sm text-[var(--text-secondary)] mb-4">
+                                Serie {rirPrompt.index + 1} — el coach ajusta la siguiente con tu RIR
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                                {RIR_QUESTIONS.map(({ value, label, desc }) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => answerRirPrompt(value)}
+                                        className="flex flex-col items-start gap-0.5 p-4 rounded-2xl bg-[var(--bg-dark)] border border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--primary)]/10 active:scale-[0.98] transition-all text-left"
+                                    >
+                                        <span className="text-2xl font-black text-[var(--primary)] tabular-nums">{label}</span>
+                                        <span className="text-xs text-[var(--text-secondary)] font-medium">{desc}</span>
+                                    </button>
+                                ))}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setRirPrompt(null)}
+                                className="w-full mt-3 py-2.5 text-sm text-[var(--text-secondary)]"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </Portal>
+            )}
 
             {/* Botón Copiar Peso (Solo si hay datos y no está bloqueado) */}
             {!isAlreadyLogged && sets[0]?.weight && sets.length > 1 && (
