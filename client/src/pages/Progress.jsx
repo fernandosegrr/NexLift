@@ -317,9 +317,9 @@ function HeatmapCalendar({ days }) {
         let currentWeek = new Array(7).fill(null);
 
         days.forEach(day => {
-            const date = new Date(day.date + 'T12:00:00'); // Avoid timezone issues
+            // Ancla UTC mediodía (misma regla que dayOfWeekFromDateStr server)
+            const dow = new Date(`${day.date}T12:00:00Z`).getUTCDay();
             // Convert JS day (0=Sun) to Mon-first (0=Mon, 6=Sun)
-            const dow = date.getDay();
             const mondayDow = dow === 0 ? 6 : dow - 1;
 
             // If we need to start a new week

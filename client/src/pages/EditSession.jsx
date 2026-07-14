@@ -37,7 +37,8 @@ export default function EditSession() {
                 reps: s.reps.toString(),
                 weightRight: s.weightRight?.toString() || '',
                 repsRight: s.repsRight?.toString() || '',
-                rpe: s.rpe || null
+                // DB guarda 10-RIR; UI edita RIR crudo
+                rir: s.rpe != null ? (10 - s.rpe) : null
             })));
         } catch (error) {
             console.error('Error:', error);
@@ -55,7 +56,7 @@ export default function EditSession() {
     }
 
     function addSet() {
-        setSets([...sets, { weight: '', reps: '', weightRight: '', repsRight: '', rpe: null }]);
+        setSets([...sets, { weight: '', reps: '', weightRight: '', repsRight: '', rir: null }]);
     }
 
     function removeSet(index) {
@@ -72,18 +73,23 @@ export default function EditSession() {
             .map(s => {
                 const setData = {
                     weight: parseFloat(s.weight),
-                    reps: parseInt(s.reps),
-                    rpe: s.rpe ? parseFloat(s.rpe) : null
+                    reps: parseInt(s.reps, 10),
+                    rpe: s.rir != null ? (10 - s.rir) : null,
+                    completed: true
                 };
                 if (isUnilateral) {
                     setData.weightRight = s.weightRight ? parseFloat(s.weightRight) : null;
-                    setData.repsRight = s.repsRight ? parseInt(s.repsRight) : null;
+                    setData.repsRight = s.repsRight ? parseInt(s.repsRight, 10) : null;
                 }
                 return setData;
             });
 
         if (validSets.length === 0) {
             toast.error('Debe haber al menos 1 serie válida');
+            return;
+        }
+        if (validSets.some(s => s.rpe == null)) {
+            toast.error('Marca el RIR (0–3) en cada serie');
             return;
         }
 
@@ -307,6 +313,26 @@ export default function EditSession() {
                                             </div>
                                         </div>
                                     )}
+                                    {/* RIR obligatorio */}
+                                    <div className="flex items-center gap-1 min-h-[44px]">
+                                        <span className="text-[10px] font-bold text-[var(--text-secondary)] w-8">RIR</span>
+                                        {[0, 1, 2, 3].map(rir => (
+                                            <button
+                                                key={rir}
+                                                type="button"
+                                                onClick={() => updateSet(index, 'rir', rir)}
+                                                aria-label={`RIR ${rir}`}
+                                                aria-pressed={set.rir === rir}
+                                                className={`flex-1 min-h-[40px] rounded-lg text-xs font-bold ${
+                                                    set.rir === rir
+                                                        ? 'bg-[var(--primary)] text-white'
+                                                        : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] border border-[var(--border)]'
+                                                }`}
+                                            >
+                                                {rir === 3 ? '3+' : rir}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
 
                                 {/* Delete Button */}

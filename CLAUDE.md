@@ -134,7 +134,16 @@ Capa **intra-sesión** encima del Smart Loading entre sesiones (sin reemplazarlo
 ## UI polish (v2.8.1)
 Pase de auditoría UI: series-first en Workout, header contextual, 4-tab nav, tokens OLED unificados, a11y (zoom + targets + labels login), Perfil sin hardcode de “Creador”, accesos a Cuerpo desde Perfil/Progreso.
 
-## Current Version: 2.8.1
+## Cero bugs / invariantes (v2.8.2)
+Objetivo: **0 bugs en camino caliente** (registrar, sugerir, fechas, RIR, offline, Atajo).
+
+- **Checklist:** `.agent/checklist-cero-bugs.md` — correr tests + smoke gym antes de merge.
+- **`getTodayName`:** día de semana en CDMX (`dayOfWeekFromDateStr(mexicoCityDateStr(...))`), nunca `date.getDay()` del proceso UTC.
+- **Filtros history `dateFrom`/`dateTo`:** `parseCdmxDateRangeQuery` (bounds CDMX), no `setHours` local del contenedor.
+- **Validación única:** `sanitizeSets` / `sanitizeWorkoutLogBody` / `sanitizeShortcutLogSet` en `server/src/logic.js` (testeadas). RIR obligatorio en series con trabajo; Atajo exige RIR 0–4 crudo.
+- **UI save:** Workout y EditSession bloquean guardar sin RIR en series con peso/reps.
+
+## Current Version: 2.8.2
 
 ## Conventions
 - Spanish UI, Spanish commit messages preferred

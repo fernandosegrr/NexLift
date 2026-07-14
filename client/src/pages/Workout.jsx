@@ -1272,19 +1272,26 @@ export default function Workout() {
             .map(s => {
                 const setData = {
                     weight: parseFloat(s.weight),
-                    reps: parseInt(s.reps),
-                    rpe: s.rir !== null ? (10 - s.rir) : null,
-                    completed: s.completed !== false
+                    reps: parseInt(s.reps, 10),
+                    rpe: s.rir != null ? (10 - s.rir) : null,
+                    // Solo true si el usuario marcó ✓ (RIR obligatorio en esas)
+                    completed: !!s.completed
                 };
                 if (isUnilateral) {
                     setData.weightRight = s.weightR ? parseFloat(s.weightR) : parseFloat(s.weight);
-                    setData.repsRight = s.repsR ? parseInt(s.repsR) : parseInt(s.reps);
+                    setData.repsRight = s.repsR ? parseInt(s.repsR, 10) : parseInt(s.reps, 10);
                 }
                 return setData;
             });
 
         if (validSets.length === 0) {
             toast.error('Registra al menos 1 serie');
+            return;
+        }
+
+        const missingRir = validSets.some(s => s.rpe == null);
+        if (missingRir) {
+            toast.error('Marca el RIR (0–3) en cada serie con peso y reps');
             return;
         }
 

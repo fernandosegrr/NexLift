@@ -220,6 +220,9 @@ cd server && npm test   # node --test — server/src/logic.js
 
 Historial completo y detallado (con causa raíz de cada fix) en [`.agent/changelog.md`](.agent/changelog.md). Resumen de versiones recientes:
 
+### v2.8.2 (14 Jul 2026) — Camino caliente a prueba de bugs
+Fix `getTodayName` (día de semana CDMX, no UTC del contenedor), filtros de historial por día CDMX, validación centralizada de series/RIR (API + Atajo), tests ampliados y checklist anti-regresión (`.agent/checklist-cero-bugs.md`).
+
 ### v2.8.0 (14 Jul 2026) — Coach por serie + rendimiento
 Autorregulación **dentro** de la sesión (`suggestNextSetFromToday`): RIR obligatorio con pregunta al completar, chip por serie, puede bajar peso según las series de hoy. Plateau en servidor (`GET /api/stats/plateaus`), historial acotado a 10 sesiones para Smart Loading, cache HTTP en GETs de lectura e índices Prisma en el camino caliente.
 

@@ -22,7 +22,8 @@ import {
     resolveTargetDate, getTodayName, normalizeDay,
     getActiveBlock, currentWeekInBlock, getRoutinePhaseStatus, adjustRepRangeForPhase,
     computeWorkoutSuggestion, suggestNextSetFromToday, roundWorkoutWeight, detectPlateauForExercise,
-    convertShortcutRir, resolveWeightIncrement, parseRepRange, effectiveWorkoutSet
+    convertShortcutRir, resolveWeightIncrement, parseRepRange, effectiveWorkoutSet,
+    parseCdmxDateRangeQuery, sanitizeSets, sanitizeShortcutLogSet, sanitizeWorkoutLogBody
 } from './logic.js';
 
 // Cache HTTP privado (auth) — datos de un solo usuario, se invalidan al mutar
@@ -790,39 +791,8 @@ async function recalcPRForExercise(exerciseName, userId) {
     }
 }
 
-// Valida y normaliza un array de sets entrante. Devuelve { error } o { sets }.
-function sanitizeSets(rawSets, { unilateral = false } = {}) {
-    if (!Array.isArray(rawSets) || rawSets.length === 0) {
-        return { error: 'Se requiere al menos 1 serie' };
-    }
-    const sets = [];
-    for (const s of rawSets) {
-        const weight = parseFloat(s.weight);
-        const reps = parseInt(s.reps);
-        if (!Number.isFinite(weight) || weight < 0 || weight > 2000) {
-            return { error: 'Peso inválido (0-2000 kg)' };
-        }
-        if (!Number.isInteger(reps) || reps < 0 || reps > 1000) {
-            return { error: 'Repeticiones inválidas (0-1000)' };
-        }
-        const clean = {
-            weight,
-            reps,
-            rpe: s.rpe != null && Number.isFinite(parseFloat(s.rpe)) ? parseFloat(s.rpe) : null,
-            completed: s.completed !== false
-        };
-        if (s.weightRight != null) {
-            const wR = parseFloat(s.weightRight);
-            clean.weightRight = Number.isFinite(wR) && wR >= 0 && wR <= 2000 ? wR : null;
-        }
-        if (s.repsRight != null) {
-            const rR = parseInt(s.repsRight);
-            clean.repsRight = Number.isInteger(rR) && rR >= 0 && rR <= 1000 ? rR : null;
-        }
-        sets.push(clean);
-    }
-    return { sets };
-}
+// sanitizeSets / sanitizeWorkoutLogBody / sanitizeShortcutLogSet: server/src/logic.js
+// (únicas, testeadas). No redefinir aquí.
 
 // Valida/normaliza las métricas de composición corporal. Antes se guardaban con
 // un parseFloat sin ningún límite (un NaN o un valor absurdo como bodyFat: -50 se
@@ -2289,17 +2259,9 @@ app.get('/api/workouts/today-log', authMiddleware, async (req, res) => {
 
 app.post('/api/workouts/log', authMiddleware, async (req, res) => {
     try {
-        const { exerciseId, sets, notes } = req.body;
-
-        if (!exerciseId || !sets || !Array.isArray(sets)) {
-            return res.status(400).json({
-                error: 'Required: exerciseId, sets[]'
-            });
-        }
-
-        // Validación/normalización server-side (evita pesos negativos/absurdos y NaN)
-        const { sets: cleanSets, error: setsError } = sanitizeSets(sets);
-        if (setsError) return res.status(400).json({ error: setsError });
+        const parsed = sanitizeWorkoutLogBody(req.body);
+        if (parsed.error) return res.status(400).json({ error: parsed.error });
+        const { exerciseId, sets: cleanSets, notes } = parsed.clean;
 
         // Verify exercise belongs to user
         const exercise = await prisma.exercise.findFirst({
@@ -2316,7 +2278,7 @@ app.post('/api/workouts/log', authMiddleware, async (req, res) => {
         const workoutLog = await prisma.workoutLog.create({
             data: {
                 exerciseId,
-                notes: notes || null,
+                notes,
                 sets: {
                     create: cleanSets.map((set, index) => ({
                         setNumber: index + 1,
@@ -2428,16 +2390,9 @@ app.get('/api/workouts/history', authMiddleware, async (req, res) => {
             };
         }
 
-        // Date range filter
-        if (dateFrom || dateTo) {
-            where.date = {};
-            if (dateFrom) where.date.gte = new Date(dateFrom);
-            if (dateTo) {
-                const end = new Date(dateTo);
-                end.setHours(23, 59, 59, 999);
-                where.date.lte = end;
-            }
-        }
+        // Date range: día calendario CDMX (no setHours del contenedor UTC)
+        const dateRange = parseCdmxDateRangeQuery(dateFrom, dateTo);
+        if (dateRange) where.date = dateRange;
 
         const logs = await prisma.workoutLog.findMany({
             where,
@@ -2797,23 +2752,10 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
 // WorkoutLog cuando el Atajo llama varias veces seguidas).
 app.post('/api/shortcuts/log-set', authMiddleware, async (req, res) => {
     try {
-        const { exerciseId, weight, reps, rpe, weightRight, repsRight } = req.body;
-
-        if (!exerciseId) {
-            return res.status(400).json({ error: 'Required: exerciseId' });
-        }
-
-        // El Atajo pregunta "RIR?" y manda ese número crudo (0-4) bajo el nombre
-        // `rpe` — pero el resto de la app (guardado manual en Workout.jsx) guarda
-        // en SetLog.rpe el valor invertido `10 - RIR`, no el RIR crudo, y lo
-        // revierte igual al leer. Sin esta conversión, la PWA relee un valor fuera
-        // del rango 0-3 de sus botones de RIR y lo muestra como "sin registrar".
-        // Ver convertShortcutRir en server/src/logic.js (extraída para testearla).
-        const convertedRpe = convertShortcutRir(rpe);
-
-        const { sets: cleanSets, error: setsError } = sanitizeSets([{ weight, reps, rpe: convertedRpe, weightRight, repsRight }]);
-        if (setsError) return res.status(400).json({ error: setsError });
-        const cleanSet = cleanSets[0];
+        // RIR crudo obligatorio (0-4) bajo `rpe` → convertShortcutRir → 10-RIR en DB
+        const parsed = sanitizeShortcutLogSet(req.body);
+        if (parsed.error) return res.status(400).json({ error: parsed.error });
+        const { exerciseId, set: cleanSet } = parsed.clean;
 
         const exercise = await prisma.exercise.findFirst({
             where: { id: exerciseId, routineDay: { routine: { userId: req.userId } } }

@@ -3,7 +3,16 @@
 > Historial completo de versiones, movido desde `context.md` (8 Jul 2026) para mantener el contexto principal en un tamaño legible de una sola pasada.
 > Las reglas vivas del proyecto están en `.agent/context.md` — este archivo es solo historia.
 
-### v2.8.1 (14 Julio 2026) - **Current**
+### v2.8.2 (14 Julio 2026) - **Current**
+Objetivo **0 bugs en camino caliente** (fechas, RIR, validación, tests, checklist).
+
+*   **FIX CRÍTICO — `getTodayName`:** usaba `date.getDay()` (zona del contenedor UTC). Tras las 18:00 CDMX el Atajo/`next-set` podía resolver el **día de la semana equivocado**. Ahora = `dayOfWeekFromDateStr(mexicoCityDateStr(...))`. Tests de ventana gym 18–23:59 CDMX.
+*   **FIX — history dateFrom/dateTo:** `setHours(23,59,59)` local del server → `parseCdmxDateRangeQuery` con bounds CDMX.
+*   **Validación única testeada:** `sanitizeSets` / `sanitizeWorkoutLogBody` / `sanitizeShortcutLogSet` en `logic.js`. RIR obligatorio en series con trabajo; Atajo exige RIR 0–4 crudo y convierte a 10-RIR.
+*   **UI:** Workout + EditSession bloquean guardar sin RIR; EditSession con botones RIR.
+*   **Tests:** server 71, client 57 (dates CDMX, offline anti-notify, sanitize, intra). Checklist `.agent/checklist-cero-bugs.md`.
+
+### v2.8.1 (14 Julio 2026)
 Pase de auditoría UI (todo el paquete de mejoras de producto visual/a11y).
 
 *   **Workout series-first:** coach/sugerencia/calentamiento en `<details>` debajo; note del ejercicio como callout 💡; timer con safe-area sobre bottom nav; RIR con targets ≥40px y highlight si falta.

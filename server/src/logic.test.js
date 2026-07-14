@@ -2,10 +2,11 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     mexicoCityDateStr, mexicoCityDayBounds, mexicoCityHour, dayOfWeekFromDateStr,
-    resolveTargetDate, getTodayName, normalizeDay,
+    resolveTargetDate, getTodayName, normalizeDay, parseCdmxDateRangeQuery,
     getActiveBlock, currentWeekInBlock, getRoutinePhaseStatus, adjustRepRangeForPhase,
     parseRepRange, roundWorkoutWeight, computeWorkoutSuggestion, detectPlateauForExercise,
-    convertShortcutRir, pickNextSplitDay, resolveWeightIncrement
+    convertShortcutRir, pickNextSplitDay, resolveWeightIncrement,
+    sanitizeSets, sanitizeShortcutLogSet, sanitizeWorkoutLogBody, suggestNextSetFromToday
 } from './logic.js';
 
 describe('helpers CDMX (zona horaria)', () => {
@@ -62,6 +63,96 @@ describe('helpers CDMX (zona horaria)', () => {
         const name = getTodayName(monday);
         assert.equal(normalizeDay(name), normalizeDay(name)); // idempotente
         assert.equal(normalizeDay('Lunes'), normalizeDay('lunes'));
+    });
+
+    it('getTodayName: NUNCA usa getDay() del proceso — 23:30 CDMX sigue siendo el día CDMX', () => {
+        // 15 ene 2026 23:30 CDMX = 16 ene 2026 05:30 UTC (jueves CDMX / viernes UTC)
+        // getUTCDay() daría Viernes; getTodayName debe devolver Jueves.
+        const instant = new Date('2026-01-16T05:30:00Z');
+        assert.equal(mexicoCityDateStr(instant), '2026-01-15');
+        assert.equal(getTodayName(instant), 'Jueves');
+        assert.equal(instant.getUTCDay(), 5); // viernes en UTC — el bug que evitamos
+        assert.equal(dayOfWeekFromDateStr('2026-01-15'), 4); // jueves
+    });
+
+    it('getTodayName: ventana de gym 18:00–23:59 CDMX no cruza de día de semana', () => {
+        // 15 ene 2026 20:00 CDMX = 16 ene 2026 02:00 UTC
+        const gymEvening = new Date('2026-01-16T02:00:00Z');
+        assert.equal(mexicoCityDateStr(gymEvening), '2026-01-15');
+        assert.equal(getTodayName(gymEvening), 'Jueves');
+    });
+
+    it('parseCdmxDateRangeQuery: fin de día es exclusive end del día CDMX (no setHours local)', () => {
+        const range = parseCdmxDateRangeQuery('2026-01-15', '2026-01-15');
+        assert.ok(range.gte && range.lt);
+        // Un log a las 23:30 CDMX del 15 debe caer dentro
+        const late = new Date('2026-01-16T05:30:00Z');
+        assert.ok(late >= range.gte && late < range.lt);
+        // Un log a las 00:30 CDMX del 16 debe quedar fuera
+        const nextMorning = new Date('2026-01-16T06:30:00Z'); // 00:30 CDMX 16 ene
+        assert.ok(nextMorning >= range.lt || nextMorning < range.gte || nextMorning >= range.lt);
+        assert.ok(nextMorning >= range.lt);
+    });
+});
+
+describe('sanitizeSets / log body (invariantes camino caliente)', () => {
+    it('rechaza peso negativo o absurdo', () => {
+        assert.ok(sanitizeSets([{ weight: -1, reps: 5, rpe: 8, completed: true }]).error);
+        assert.ok(sanitizeSets([{ weight: 9999, reps: 5, rpe: 8, completed: true }]).error);
+    });
+
+    it('rechaza serie con trabajo sin RIR', () => {
+        const r = sanitizeSets([{ weight: 100, reps: 8, completed: true }]);
+        assert.match(r.error || '', /RIR/i);
+    });
+
+    it('acepta serie con rpe = 10-RIR', () => {
+        const r = sanitizeSets([{ weight: 100, reps: 8, rpe: 8, completed: true }]); // RIR 2
+        assert.equal(r.error, undefined);
+        assert.equal(r.sets.length, 1);
+        assert.equal(r.sets[0].rpe, 8);
+    });
+
+    it('sanitizeWorkoutLogBody exige exerciseId y al menos una serie con trabajo', () => {
+        assert.ok(sanitizeWorkoutLogBody({}).error);
+        assert.ok(sanitizeWorkoutLogBody({ exerciseId: 'x', sets: [] }).error);
+        const ok = sanitizeWorkoutLogBody({
+            exerciseId: 'ex1',
+            sets: [{ weight: 80, reps: 10, rpe: 7, completed: true }]
+        });
+        assert.equal(ok.error, undefined);
+        assert.equal(ok.clean.exerciseId, 'ex1');
+    });
+
+    it('sanitizeShortcutLogSet: RIR crudo obligatorio y conversión a 10-RIR', () => {
+        assert.match(sanitizeShortcutLogSet({ exerciseId: 'e', weight: 100, reps: 5 }).error || '', /RIR/i);
+        assert.match(sanitizeShortcutLogSet({ exerciseId: 'e', weight: 100, reps: 5, rpe: 9 }).error || '', /RIR|0-4/i);
+        const ok = sanitizeShortcutLogSet({ exerciseId: 'e', weight: 100, reps: 5, rpe: 2 });
+        assert.equal(ok.error, undefined);
+        assert.equal(ok.clean.set.rpe, 8); // 10-2
+        assert.equal(ok.clean.rawRir, 2);
+    });
+});
+
+describe('suggestNextSetFromToday (intra-sesión)', () => {
+    const opts = { lo: 8, hi: 12, increment: 2.5, phase: null };
+
+    it('sin RIR → null', () => {
+        assert.equal(suggestNextSetFromToday([{ weight: 100, reps: 10, rir: null }], opts), null);
+    });
+
+    it('RIR 0 → baja un incremento', () => {
+        const s = suggestNextSetFromToday([{ weight: 100, reps: 8, rir: 0 }], opts);
+        assert.equal(s.weight, 97.5);
+        assert.equal(s.source, 'intra');
+    });
+
+    it('RIR cómodo → mantiene peso', () => {
+        const s = suggestNextSetFromToday([
+            { weight: 100, reps: 10, rir: 3 },
+            { weight: 100, reps: 9, rir: 2 }
+        ], opts);
+        assert.equal(s.weight, 100);
     });
 });
 

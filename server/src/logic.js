@@ -75,13 +75,169 @@ export function mexicoCityHour(date = new Date()) {
 }
 
 // ============================================
-// "Qué día toca" (port literal de client/src/pages/Dashboard.jsx:76-87), usado por
-// GET /api/shortcuts/next-set para resolver el RoutineDay de hoy igual que ya lo
-// hace el Dashboard de la PWA.
+// "Qué día toca" — usado por GET /api/shortcuts/next-set y resolución de RoutineDay.
+// INVARIANTE: el día de la semana se calcula en calendario CDMX, NUNCA con
+// dateObj.getDay() (eso es la zona del proceso/contenedor UTC y fallaba 18:00–24:00 CDMX).
+// Misma semántica que client mexicoCityTodayName().
 // ============================================
+const DAY_NAMES_ES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
 export function getTodayName(dateObj = new Date()) {
-    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-    return days[dateObj.getDay()];
+    return DAY_NAMES_ES[dayOfWeekFromDateStr(mexicoCityDateStr(dateObj))];
+}
+
+// Parsea dateFrom/dateTo de query (?dateFrom=YYYY-MM-DD) como día calendario CDMX.
+// Antes: `new Date(dateTo); setHours(23,59,59)` usaba la zona del contenedor (UTC)
+// y cortaba mal el final del día en horario de gym (tarde/noche CDMX).
+export function parseCdmxDateRangeQuery(dateFrom, dateTo) {
+    const range = {};
+    if (dateFrom && /^\d{4}-\d{2}-\d{2}$/.test(String(dateFrom))) {
+        range.gte = mexicoCityDayBounds(new Date(`${dateFrom}T12:00:00Z`)).start;
+    } else if (dateFrom) {
+        // Fallback ISO u otro: no inventar
+        const d = new Date(dateFrom);
+        if (!Number.isNaN(d.getTime())) range.gte = mexicoCityDayBounds(d).start;
+    }
+    if (dateTo && /^\d{4}-\d{2}-\d{2}$/.test(String(dateTo))) {
+        range.lt = mexicoCityDayBounds(new Date(`${dateTo}T12:00:00Z`)).end;
+    } else if (dateTo) {
+        const d = new Date(dateTo);
+        if (!Number.isNaN(d.getTime())) range.lt = mexicoCityDayBounds(d).end;
+    }
+    return Object.keys(range).length ? range : null;
+}
+
+// ============================================
+// VALIDACIÓN de series (camino caliente) — pura, testeable, única fuente
+// ============================================
+
+/**
+ * Normaliza/valida un array de series antes de persistir.
+ * rpe en DB = 10 - RIR (convención del proyecto). Si viene rir crudo, no usar aquí
+ * (el Atajo llama convertShortcutRir antes).
+ * @returns {{ sets?: object[], error?: string }}
+ */
+export function sanitizeSets(rawSets) {
+    if (!Array.isArray(rawSets) || rawSets.length === 0) {
+        return { error: 'Se requiere al menos una serie' };
+    }
+    if (rawSets.length > 50) {
+        return { error: 'Demasiadas series (máx. 50)' };
+    }
+    const sets = [];
+    for (let i = 0; i < rawSets.length; i++) {
+        const s = rawSets[i] || {};
+        const weight = parseFloat(s.weight);
+        const reps = parseInt(s.reps, 10);
+        if (!Number.isFinite(weight) || weight < 0 || weight > 2000) {
+            return { error: `Serie ${i + 1}: peso inválido (0-2000 kg)` };
+        }
+        if (!Number.isInteger(reps) || reps < 0 || reps > 1000) {
+            return { error: `Serie ${i + 1}: repeticiones inválidas (0-1000)` };
+        }
+        // completed: false solo si se manda explícito (filas del form sin marcar ✓)
+        const completed = s.completed !== false && s.completed !== 'false';
+        if (completed && (weight <= 0 || reps <= 0)) {
+            return { error: `Serie ${i + 1}: peso y reps deben ser > 0 si está completada` };
+        }
+        let rpe = null;
+        if (s.rpe != null && s.rpe !== '') {
+            const r = parseFloat(s.rpe);
+            // Guardado: 10-RIR → típico 6–10 para RIR 0–4; permitir 0–10 por compat
+            if (!Number.isFinite(r) || r < 0 || r > 10) {
+                return { error: `Serie ${i + 1}: RPE/RIR guardado inválido (0-10)` };
+            }
+            rpe = r;
+        }
+        // INVARIANTE: cualquier serie con trabajo real exige RIR (rpe = 10-RIR en DB)
+        if (weight > 0 && reps > 0 && rpe == null) {
+            return { error: `Serie ${i + 1}: RIR obligatorio` };
+        }
+        const clean = {
+            weight,
+            reps,
+            rpe,
+            completed
+        };
+        if (s.weightRight != null && s.weightRight !== '') {
+            const wR = parseFloat(s.weightRight);
+            if (!Number.isFinite(wR) || wR < 0 || wR > 2000) {
+                return { error: `Serie ${i + 1}: peso derecho inválido` };
+            }
+            clean.weightRight = wR;
+        } else {
+            clean.weightRight = null;
+        }
+        if (s.repsRight != null && s.repsRight !== '') {
+            const rR = parseInt(s.repsRight, 10);
+            if (!Number.isInteger(rR) || rR < 0 || rR > 1000) {
+                return { error: `Serie ${i + 1}: reps derecha inválidas` };
+            }
+            clean.repsRight = rR;
+        } else {
+            clean.repsRight = null;
+        }
+        sets.push(clean);
+    }
+    return { sets };
+}
+
+/**
+ * Body del Atajo log-set: exerciseId + peso/reps + RIR crudo (0-4) bajo `rpe`.
+ * @returns {{ clean?: object, error?: string }}
+ */
+export function sanitizeShortcutLogSet(body) {
+    if (!body || typeof body !== 'object') {
+        return { error: 'Body inválido' };
+    }
+    const exerciseId = body.exerciseId;
+    if (!exerciseId || typeof exerciseId !== 'string') {
+        return { error: 'Required: exerciseId' };
+    }
+    if (body.rpe == null || body.rpe === '') {
+        return { error: 'RIR obligatorio (0-4)' };
+    }
+    const rawRir = parseFloat(body.rpe);
+    if (!Number.isFinite(rawRir) || rawRir < 0 || rawRir > 4) {
+        return { error: 'RIR inválido (usa 0-4, reps en recámara)' };
+    }
+    const convertedRpe = convertShortcutRir(rawRir);
+    const { sets, error } = sanitizeSets([{
+        weight: body.weight,
+        reps: body.reps,
+        rpe: convertedRpe,
+        weightRight: body.weightRight,
+        repsRight: body.repsRight,
+        completed: true
+    }]);
+    if (error) return { error };
+    return {
+        clean: {
+            exerciseId,
+            set: sets[0],
+            rawRir
+        }
+    };
+}
+
+/**
+ * POST /workouts/log body
+ */
+export function sanitizeWorkoutLogBody(body) {
+    if (!body || typeof body !== 'object') return { error: 'Body inválido' };
+    if (!body.exerciseId || typeof body.exerciseId !== 'string') {
+        return { error: 'Required: exerciseId, sets[]' };
+    }
+    if (!Array.isArray(body.sets)) {
+        return { error: 'Required: exerciseId, sets[]' };
+    }
+    const { sets, error } = sanitizeSets(body.sets);
+    if (error) return { error };
+    // Al menos una serie con trabajo real
+    const hasWork = sets.some(s => s.weight > 0 && s.reps > 0);
+    if (!hasWork) return { error: 'Se requiere al menos una serie con peso y reps' };
+    const notes = body.notes == null ? null : String(body.notes).slice(0, 2000);
+    return { clean: { exerciseId: body.exerciseId, sets, notes } };
 }
 
 export function normalizeDay(day) {

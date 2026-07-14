@@ -81,4 +81,23 @@ describe('offlineQueue', () => {
         enqueueWrite('logRestDay', { note: null });
         expect(fn).toHaveBeenCalledTimes(2); // ya no debe notificar tras desuscribirse
     });
+
+    it('getQueue NO notifica listeners al solo leer (poda silenciosa)', async () => {
+        const { getQueue, subscribeQueueChange } = await import('./offlineQueue.js');
+        const old = Date.now() - 49 * 60 * 60 * 1000;
+        localStorage.setItem('nexlift_offline_queue', JSON.stringify([
+            { id: 'stale', op: 'logWorkout', payload: { exerciseId: 'ex1' }, timestamp: old }
+        ]));
+        const fn = vi.fn();
+        subscribeQueueChange(fn);
+        getQueue(); // poda stale en silencio
+        expect(fn).not.toHaveBeenCalled();
+    });
+
+    it('hasPendingWrite cubre updateWorkoutSession con exerciseId en payload', async () => {
+        const { enqueueWrite, hasPendingWrite } = await import('./offlineQueue.js');
+        enqueueWrite('updateWorkoutSession', { logId: 'l1', sets: [], exerciseId: 'ex9' });
+        expect(hasPendingWrite('ex9')).toBe(true);
+        expect(hasPendingWrite('other')).toBe(false);
+    });
 });
