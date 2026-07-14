@@ -22,7 +22,7 @@ import {
     resolveTargetDate, getTodayName, normalizeDay,
     getActiveBlock, currentWeekInBlock, getRoutinePhaseStatus, adjustRepRangeForPhase,
     computeWorkoutSuggestion, suggestNextSetFromToday, roundWorkoutWeight, detectPlateauForExercise,
-    convertShortcutRir, resolveWeightIncrement, parseRepRange, effectiveWorkoutSet,
+    resolveWeightIncrement, parseRepRange, effectiveWorkoutSet,
     parseCdmxDateRangeQuery, sanitizeSets, sanitizeShortcutLogSet, sanitizeWorkoutLogBody
 } from './logic.js';
 
