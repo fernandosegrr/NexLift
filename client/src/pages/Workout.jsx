@@ -32,6 +32,7 @@ function makeEmptySet() {
 function useWorkoutPersistence(dayId) {
     const [workoutData, setWorkoutData] = useState({});
     const [completedExerciseIds, setCompletedExerciseIds] = useState([]);
+    const [skippedExerciseIds, setSkippedExerciseIds] = useState([]);
 
     useEffect(() => {
         const savedData = localStorage.getItem(`workout_${dayId}`);
@@ -45,16 +46,18 @@ function useWorkoutPersistence(dayId) {
                 }
                 setWorkoutData(parsed.workoutData || {});
                 setCompletedExerciseIds(parsed.completedExerciseIds || []);
+                setSkippedExerciseIds(parsed.skippedExerciseIds || []);
             } catch (error) {
                 console.error('Error parsing saved workout:', error);
             }
         }
     }, [dayId]);
 
-    const saveToStorage = useCallback((data, completed) => {
+    const saveToStorage = useCallback((data, completed, skipped = []) => {
         localStorage.setItem(`workout_${dayId}`, JSON.stringify({
             workoutData: data,
             completedExerciseIds: completed,
+            skippedExerciseIds: skipped,
             timestamp: Date.now()
         }));
     }, [dayId]);
@@ -63,7 +66,12 @@ function useWorkoutPersistence(dayId) {
         localStorage.removeItem(`workout_${dayId}`);
     }, [dayId]);
 
-    return { workoutData, setWorkoutData, completedExerciseIds, setCompletedExerciseIds, saveToStorage, clearStorage };
+    return {
+        workoutData, setWorkoutData,
+        completedExerciseIds, setCompletedExerciseIds,
+        skippedExerciseIds, setSkippedExerciseIds,
+        saveToStorage, clearStorage
+    };
 }
 
 // Alias locales: effectiveSet/roundWeight se usan en varios sitios del archivo
@@ -83,7 +91,7 @@ function estimate1RM(set) {
 function deriveHistoryDerived(history, targetReps, muscleGroup, phase, exerciseName) {
     const sessions = (history || []).filter(s => s.sets && s.sets.length > 0);
     if (sessions.length === 0) {
-        return { previousBest: null, suggestion: null, goalSessions: [] };
+        return { previousBest: null, suggestion: null, goalSessions: [], lastSession: null };
     }
 
     const allSets = sessions.flatMap(s => s.sets);
@@ -91,6 +99,12 @@ function deriveHistoryDerived(history, targetReps, muscleGroup, phase, exerciseN
         (b, s) => (estimate1RM(s) > estimate1RM(b) ? s : b),
         allSets[0]
     );
+
+    // Historial viene DESC (más reciente primero) → última sesión completa
+    const lastSession = {
+        date: sessions[0].date,
+        sets: [...(sessions[0].sets || [])].sort((a, b) => (a.setNumber || 0) - (b.setNumber || 0))
+    };
 
     const increment = resolveWeightIncrement(muscleGroup, exerciseName);
     const raw = computeWorkoutSuggestion(sessions, targetReps, increment, phase);
@@ -114,7 +128,7 @@ function deriveHistoryDerived(history, targetReps, muscleGroup, phase, exerciseN
         };
     });
 
-    return { previousBest, suggestion, goalSessions };
+    return { previousBest, suggestion, goalSessions, lastSession };
 }
 
 // Hook para gestión de historial de ejercicio (mejor marca previa + sugerencia).
@@ -126,12 +140,14 @@ function useExerciseHistory(exerciseId, targetReps, muscleGroup, phase, exercise
     const [suggestion, setSuggestion] = useState(null);
     const [loading, setLoading] = useState(false);
     const [goalSessions, setGoalSessions] = useState([]);
+    const [lastSession, setLastSession] = useState(null);
     const currentRequestRef = useRef(null);
 
     useEffect(() => {
         setPreviousBest(null);
         setSuggestion(null);
         setGoalSessions([]);
+        setLastSession(null);
         if (!exerciseId) return;
 
         const requestId = exerciseId;
@@ -143,6 +159,7 @@ function useExerciseHistory(exerciseId, targetReps, muscleGroup, phase, exercise
             setPreviousBest(derived.previousBest);
             setSuggestion(derived.suggestion);
             setGoalSessions(derived.goalSessions);
+            setLastSession(derived.lastSession);
             setLoading(false);
         }
 
@@ -163,13 +180,49 @@ function useExerciseHistory(exerciseId, targetReps, muscleGroup, phase, exercise
                     setPreviousBest(null);
                     setSuggestion(null);
                     setGoalSessions([]);
+                    setLastSession(null);
                     setLoading(false);
                 }
             }
         })();
     }, [exerciseId, targetReps, muscleGroup, phase, exerciseName, preloadedHistory]);
 
-    return { previousBest, suggestion, loading, goalSessions };
+    return { previousBest, suggestion, loading, goalSessions, lastSession };
+}
+
+function sessionVolumeFromSets(sets) {
+    let v = 0;
+    for (const s of sets || []) {
+        const w = Number(s.weight) || 0;
+        const r = Number(s.reps) || 0;
+        v += w * r;
+        if (s.weightRight != null || s.repsRight != null || s.weightR || s.repsR) {
+            v += (Number(s.weightRight ?? s.weightR) || w) * (Number(s.repsRight ?? s.repsR) || r);
+        }
+    }
+    return v;
+}
+
+function setDeltaLabel(current, last) {
+    if (!last || current == null || current === '') return null;
+    const cw = Number(current.weight);
+    const cr = Number(current.reps);
+    const lw = Number(last.weight);
+    const lr = Number(last.reps);
+    if (!Number.isFinite(cw) || !Number.isFinite(cr) || !Number.isFinite(lw) || !Number.isFinite(lr)) return null;
+    if (lw <= 0 || lr <= 0) return null;
+    const dW = Math.round((cw - lw) * 10) / 10;
+    const dR = cr - lr;
+    if (dW === 0 && dR === 0) return { text: '= última', tone: 'neutral' };
+    const parts = [];
+    if (dW !== 0) parts.push(`${dW > 0 ? '+' : ''}${dW} kg`);
+    if (dR !== 0) parts.push(`${dR > 0 ? '+' : ''}${dR} reps`);
+    const better = dW > 0 || (dW === 0 && dR > 0);
+    const worse = dW < 0 || (dW === 0 && dR < 0);
+    return {
+        text: parts.join(' · '),
+        tone: better ? 'up' : worse ? 'down' : 'neutral'
+    };
 }
 
 // Objetivo activo (no alcanzado) para el ejercicio actual, si existe — reusa la
@@ -278,7 +331,7 @@ const SkeletonLoader = () => (
 );
 
 // Componente memoizado - compara props específicas para detectar cambios
-const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, previousBest, isUnilateral }) => {
+const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, previousBest, isUnilateral, lastSet }) => {
     const handleFocus = (e) => e.target.select();
 
     const isPR = useMemo(() => {
@@ -291,6 +344,14 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
         return currentScore > estimate1RM(previousBest);
     }, [set, previousBest, isLocked, isUnilateral]);
 
+    const vsLast = useMemo(
+        () => setDeltaLabel(
+            { weight: set.weight, reps: set.reps },
+            lastSet ? { weight: lastSet.weight, reps: lastSet.reps } : null
+        ),
+        [set.weight, set.reps, lastSet]
+    );
+
     return (
         <div className={`group relative rounded-2xl p-3 transition-all duration-300 ${set.completed
             ? 'bg-[var(--success)]/10 ring-1 ring-[var(--success)]/50'
@@ -298,7 +359,7 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
             }`}>
             <div className="grid grid-cols-10 gap-3 items-center">
                 {/* Número de serie horizontal — más legible en móvil que el label vertical */}
-                <div className="col-span-1 flex items-start pt-3">
+                <div className="col-span-1 flex flex-col items-start pt-3 gap-1">
                     <span
                         className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black tabular-nums ${set.completed
                             ? 'bg-[var(--success)] text-white'
@@ -455,6 +516,26 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
                 </div>
             </div>
 
+            {/* Comparativa vs misma serie de la última sesión */}
+            {(lastSet || vsLast) && (
+                <div className="mt-2 flex items-center justify-between gap-2 text-[10px] px-1">
+                    {lastSet ? (
+                        <span className="text-[var(--text-secondary)] tabular-nums">
+                            Última: <span className="font-semibold text-[var(--text-primary)]/80">{lastSet.weight} kg × {lastSet.reps}</span>
+                        </span>
+                    ) : <span />}
+                    {vsLast && (
+                        <span className={`font-bold tabular-nums ${
+                            vsLast.tone === 'up' ? 'text-[var(--success)]'
+                            : vsLast.tone === 'down' ? 'text-orange-400'
+                            : 'text-[var(--text-secondary)]'
+                        }`}>
+                            {vsLast.text}
+                        </span>
+                    )}
+                </div>
+            )}
+
             {/* PR Badge */}
             {isPR && (
                 <div className="absolute -top-2 -right-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 animate-in zoom-in z-20">
@@ -473,7 +554,8 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
         prevProps.index === nextProps.index &&
         prevProps.isLocked === nextProps.isLocked &&
         prevProps.isUnilateral === nextProps.isUnilateral &&
-        prevProps.previousBest === nextProps.previousBest;
+        prevProps.previousBest === nextProps.previousBest &&
+        prevProps.lastSet === nextProps.lastSet;
 });
 
 // Aviso por fase del bloque activo (nunca silencioso). Compacto por defecto
@@ -587,6 +669,8 @@ export default function Workout() {
         showSuccess: false,
         history: []
     });
+    // Resumen del día al terminar / salir (punto 1 producto)
+    const [sessionSummary, setSessionSummary] = useState(null);
 
     const [sets, setSets] = useState([]);
     const [isUnilateral, setIsUnilateral] = useState(false);
@@ -595,6 +679,8 @@ export default function Workout() {
     // enlace "Editar sesión" cuando el ejercicio ya está completo.
     const [todayLogId, setTodayLogId] = useState(null);
     const currentExerciseIdRef = useRef(null);
+    // Resultados de ESTA sesión (para el resumen): { [exId]: { name, sets, volume, skipped } }
+    const sessionResultsRef = useRef({});
     // Historial por ejercicio precargado en fetchDay (evita N+1 + refetch de
     // useExerciseHistory al cambiar de ejercicio). historiesLoaded=false → el
     // hook hace fetch propio; true → usa el mapa (array vacío = sin historial).
@@ -602,14 +688,19 @@ export default function Workout() {
     const [historiesLoaded, setHistoriesLoaded] = useState(false);
 
     // Custom hooks
-    const { workoutData, setWorkoutData, completedExerciseIds, setCompletedExerciseIds, saveToStorage, clearStorage } = useWorkoutPersistence(dayId);
+    const {
+        workoutData, setWorkoutData,
+        completedExerciseIds, setCompletedExerciseIds,
+        skippedExerciseIds, setSkippedExerciseIds,
+        saveToStorage, clearStorage
+    } = useWorkoutPersistence(dayId);
     const restTimer = useRestTimer();
 
     const currentExercise = workoutState.exercises[workoutState.currentIndex];
     const preloadedHistory = currentExercise && historiesLoaded
         ? (historyByExerciseId[currentExercise.id] ?? [])
         : undefined;
-    const { previousBest, suggestion, goalSessions } = useExerciseHistory(
+    const { previousBest, suggestion, goalSessions, lastSession } = useExerciseHistory(
         currentExercise?.id,
         currentExercise?.targetReps,
         currentExercise?.muscleGroup,
@@ -651,9 +742,9 @@ export default function Workout() {
     // Guardado automático en localStorage
     useEffect(() => {
         if (workoutState.exercises.length > 0) {
-            saveToStorage(workoutData, completedExerciseIds);
+            saveToStorage(workoutData, completedExerciseIds, skippedExerciseIds);
         }
-    }, [workoutData, completedExerciseIds, saveToStorage, workoutState.exercises.length]);
+    }, [workoutData, completedExerciseIds, skippedExerciseIds, saveToStorage, workoutState.exercises.length]);
 
     // Sincronizar sets al cambiar datos
     useEffect(() => {
@@ -1017,6 +1108,16 @@ export default function Workout() {
                 });
             }
 
+            // Acumula para el resumen post-sesión
+            sessionResultsRef.current[currentExercise.id] = {
+                name: currentExercise.name,
+                sets: validSets,
+                volume: sessionVolumeFromSets(validSets),
+                skipped: false
+            };
+            // Si estaba saltado y ahora se guardó, quitar del set de saltados
+            setSkippedExerciseIds(prev => prev.filter(id => id !== currentExercise.id));
+
             if (queued) {
                 toast.info('Guardado local — se sincronizará cuando vuelva la conexión');
             } else {
@@ -1037,22 +1138,152 @@ export default function Workout() {
         }
     }
 
+    function buildSessionSummary() {
+        const rows = workoutState.exercises.map(ex => {
+            const logged = sessionResultsRef.current[ex.id];
+            const skipped = skippedExerciseIds.includes(ex.id) || logged?.skipped;
+            const done = completedExerciseIds.includes(ex.id) && !skipped;
+            if (logged && !logged.skipped) {
+                return {
+                    id: ex.id,
+                    name: ex.name,
+                    status: 'done',
+                    setsCount: logged.sets?.length || 0,
+                    volume: logged.volume || 0
+                };
+            }
+            if (skipped) {
+                return { id: ex.id, name: ex.name, status: 'skipped', setsCount: 0, volume: 0 };
+            }
+            if (done) {
+                // Completado al abrir (historial de hoy) sin pasar por save de esta sesión
+                return { id: ex.id, name: ex.name, status: 'done', setsCount: null, volume: null };
+            }
+            return { id: ex.id, name: ex.name, status: 'pending', setsCount: 0, volume: 0 };
+        });
+        const doneRows = rows.filter(r => r.status === 'done');
+        const skippedRows = rows.filter(r => r.status === 'skipped');
+        const totalVolume = rows.reduce((a, r) => a + (r.volume || 0), 0);
+        return {
+            dayName: workoutState.dayName,
+            rows,
+            doneCount: doneRows.length,
+            skippedCount: skippedRows.length,
+            total: rows.length,
+            totalVolume
+        };
+    }
+
     function finishWorkout() {
+        const summary = buildSessionSummary();
         clearStorage();
+        setSessionSummary(summary);
         setUIState(prev => ({ ...prev, showSuccess: true }));
-        setTimeout(() => navigate('/'), 2000);
+    }
+
+    function skipExercise() {
+        if (!currentExercise || isAlreadyLogged) return;
+        const ok = window.confirm(
+            `¿Saltar "${currentExercise.name}"?\nNo se registra nada de este ejercicio hoy. Puedes volver a él con los puntos de arriba.`
+        );
+        if (!ok) return;
+
+        sessionResultsRef.current[currentExercise.id] = {
+            name: currentExercise.name,
+            sets: [],
+            volume: 0,
+            skipped: true
+        };
+        setSkippedExerciseIds(prev => [...new Set([...prev, currentExercise.id])]);
+        setWorkoutData(prev => {
+            const next = { ...prev };
+            delete next[currentExercise.id];
+            return next;
+        });
+        restTimer.stop();
+        toast.info('Ejercicio saltado');
+
+        // Siguiente no completado (los saltados cuentan como “resueltos” para el avance)
+        const exs = workoutState.exercises;
+        const resolved = new Set([...completedExerciseIds, ...skippedExerciseIds, currentExercise.id]);
+        let nextIdx = -1;
+        for (let i = workoutState.currentIndex + 1; i < exs.length; i++) {
+            if (!resolved.has(exs[i].id)) { nextIdx = i; break; }
+        }
+        if (nextIdx === -1) {
+            for (let i = 0; i < workoutState.currentIndex; i++) {
+                if (!resolved.has(exs[i].id)) { nextIdx = i; break; }
+            }
+        }
+        if (nextIdx >= 0) goToExercise(nextIdx);
+        else finishWorkout();
     }
 
     if (workoutState.loading) return <SkeletonLoader />;
 
-    if (uiState.showSuccess) {
+    if (uiState.showSuccess && sessionSummary) {
         return (
-            <div className="flex flex-col items-center justify-center h-[80vh] px-4 animate-fade-in text-center">
-                <div className="w-24 h-24 bg-[var(--success)]/20 rounded-full flex items-center justify-center mb-6 animate-bounce ring-4 ring-[var(--success)]/10">
-                    <Trophy size={48} className="text-[var(--success)]" />
+            <div className="min-h-[calc(100vh-80px)] max-w-lg mx-auto px-4 py-8 animate-fade-in">
+                <div className="text-center mb-6">
+                    <div className="w-20 h-20 mx-auto bg-[var(--success)]/20 rounded-full flex items-center justify-center mb-4 ring-4 ring-[var(--success)]/10">
+                        <Trophy size={40} className="text-[var(--success)]" />
+                    </div>
+                    <h2 className="text-2xl font-black text-[var(--text-primary)] mb-1">¡Entrenamiento listo!</h2>
+                    <p className="text-[var(--text-secondary)] text-sm capitalize">{sessionSummary.dayName}</p>
                 </div>
-                <h2 className="text-3xl font-black mb-2 text-[var(--text-primary)]">¡Entrenamiento Listo!</h2>
-                <p className="text-[var(--text-secondary)] text-lg mb-8">Gran trabajo hoy 💪</p>
+
+                <div className="grid grid-cols-3 gap-2 mb-5">
+                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-3 text-center">
+                        <p className="text-2xl font-black text-[var(--success)] tabular-nums">{sessionSummary.doneCount}</p>
+                        <p className="text-[10px] text-[var(--text-secondary)] uppercase">Hechos</p>
+                    </div>
+                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-3 text-center">
+                        <p className="text-2xl font-black text-orange-400 tabular-nums">{sessionSummary.skippedCount}</p>
+                        <p className="text-[10px] text-[var(--text-secondary)] uppercase">Saltados</p>
+                    </div>
+                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-3 text-center">
+                        <p className="text-lg font-black text-[var(--primary)] tabular-nums leading-tight">
+                            {Math.round(sessionSummary.totalVolume).toLocaleString('es')}
+                        </p>
+                        <p className="text-[10px] text-[var(--text-secondary)] uppercase">kg×reps</p>
+                    </div>
+                </div>
+
+                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl divide-y divide-[var(--border)] mb-6">
+                    {sessionSummary.rows.map(row => (
+                        <div key={row.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="font-semibold text-sm truncate">{row.name}</p>
+                                {row.status === 'done' && row.setsCount != null && (
+                                    <p className="text-[11px] text-[var(--text-secondary)]">
+                                        {row.setsCount} serie{row.setsCount === 1 ? '' : 's'}
+                                        {row.volume != null ? ` · ${Math.round(row.volume).toLocaleString('es')} kg×r` : ''}
+                                    </p>
+                                )}
+                                {row.status === 'done' && row.setsCount == null && (
+                                    <p className="text-[11px] text-[var(--text-secondary)]">Completado hoy</p>
+                                )}
+                            </div>
+                            <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full shrink-0 ${
+                                row.status === 'done'
+                                    ? 'bg-[var(--success)]/15 text-[var(--success)]'
+                                    : row.status === 'skipped'
+                                        ? 'bg-orange-500/15 text-orange-400'
+                                        : 'bg-[var(--bg-dark)] text-[var(--text-secondary)]'
+                            }`}>
+                                {row.status === 'done' ? 'Hecho' : row.status === 'skipped' ? 'Saltado' : 'Pendiente'}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+
+                <button
+                    type="button"
+                    onClick={() => navigate('/')}
+                    className="w-full py-4 rounded-2xl font-bold text-lg bg-[var(--primary)] text-white shadow-xl active:scale-[0.98]"
+                >
+                    Volver al inicio
+                </button>
             </div>
         );
     }
@@ -1103,19 +1334,26 @@ export default function Workout() {
                     </span>
                     {/* Progress dots tappeables */}
                     <div className="flex gap-1 mt-1.5 items-center" role="tablist" aria-label="Ejercicios del día">
-                        {workoutState.exercises.map((ex, i) => (
+                        {workoutState.exercises.map((ex, i) => {
+                            const done = completedExerciseIds.includes(ex.id);
+                            const skipped = skippedExerciseIds.includes(ex.id);
+                            return (
                             <button
                                 key={ex.id || i}
                                 type="button"
                                 role="tab"
                                 aria-selected={i === workoutState.currentIndex}
-                                aria-label={`Ejercicio ${i + 1}: ${ex.name}${completedExerciseIds.includes(ex.id) ? ' (completado)' : ''}`}
+                                aria-label={`Ejercicio ${i + 1}: ${ex.name}${done ? ' (completado)' : skipped ? ' (saltado)' : ''}`}
                                 onClick={() => goToExercise(i)}
-                                className={`h-2 rounded-full transition-all duration-300 active:scale-90 ${i === workoutState.currentIndex ? 'w-6 bg-[var(--primary)]' :
-                                    completedExerciseIds.includes(ex.id) ? 'w-2 bg-[var(--success)]' : 'w-2 bg-[var(--border)]'
-                                    }`}
+                                className={`h-2 rounded-full transition-all duration-300 active:scale-90 ${
+                                    i === workoutState.currentIndex ? 'w-6 bg-[var(--primary)]'
+                                    : done ? 'w-2 bg-[var(--success)]'
+                                    : skipped ? 'w-2 bg-orange-500/70'
+                                    : 'w-2 bg-[var(--border)]'
+                                }`}
                             />
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -1215,7 +1453,17 @@ export default function Workout() {
                         </details>
                     );
                 })()}
-                {isAlreadyLogged ? (
+                {skippedExerciseIds.includes(currentExercise?.id) && !isAlreadyLogged ? (
+                    <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl p-3 flex items-center gap-3 animate-fade-in">
+                        <div className="bg-orange-500/20 p-2 rounded-full text-orange-400 shrink-0">
+                            <ArrowRight size={16} strokeWidth={2.5} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="font-bold text-orange-400 text-sm">Ejercicio saltado</p>
+                            <p className="text-orange-400/80 text-xs">Puedes registrarlo igual si cambias de idea</p>
+                        </div>
+                    </div>
+                ) : isAlreadyLogged ? (
                     <div className="bg-[var(--success)]/10 border border-[var(--success)]/20 rounded-2xl p-3 flex items-center gap-3 animate-fade-in">
                         <div className="bg-[var(--success)] p-2 rounded-full text-white shadow-sm shrink-0">
                             <Check size={16} strokeWidth={3} />
@@ -1259,8 +1507,28 @@ export default function Workout() {
                             </div>
                         )}
                     </div>
-                ) : (previousBest || suggestion) && (
+                ) : (previousBest || suggestion || lastSession) && (
                     <>
+                    {lastSession?.sets?.length > 0 && (
+                        <div className="bg-[var(--bg-dark)]/60 border border-[var(--border)] rounded-xl px-3 py-2">
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)] mb-1.5">
+                                Última sesión
+                                <span className="font-medium normal-case tracking-normal ml-1 opacity-80">
+                                    · {new Date(lastSession.date).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+                                </span>
+                            </p>
+                            <div className="flex gap-1.5 flex-wrap">
+                                {lastSession.sets.map((s, i) => (
+                                    <span
+                                        key={i}
+                                        className="text-[11px] font-mono font-semibold bg-[var(--bg-card)] border border-[var(--border)] px-2 py-1 rounded-lg tabular-nums text-[var(--text-primary)]"
+                                    >
+                                        {s.weight}×{s.reps}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-1 shadow-sm flex divide-x divide-[var(--border)]">
                         {previousBest && (
                             <div className="flex-1 p-3 flex flex-col items-center">
@@ -1348,6 +1616,7 @@ export default function Workout() {
                         isLocked={isAlreadyLogged}
                         previousBest={previousBest}
                         isUnilateral={isUnilateral}
+                        lastSet={lastSession?.sets?.[i] || null}
                     />
                 ))}
             </div>
@@ -1365,9 +1634,10 @@ export default function Workout() {
                 </div>
             )}
 
-            {/* Botón de acción */}
-            <div className="mt-6 mb-4">
+            {/* Botón de acción + saltar */}
+            <div className="mt-6 mb-4 space-y-2">
                 <button
+                    type="button"
                     onClick={handlePrimaryAction}
                     disabled={uiState.saving || (!isAlreadyLogged && !hasValidSets)}
                     className={`w-full py-4 rounded-2xl font-bold text-lg shadow-xl flex items-center justify-center gap-3 transition-all active:scale-[0.98] ${isAlreadyLogged
@@ -1407,6 +1677,30 @@ export default function Workout() {
                         </>
                     )}
                 </button>
+
+                {!isAlreadyLogged && !uiState.saving && (
+                    <button
+                        type="button"
+                        onClick={skipExercise}
+                        className="w-full py-3 rounded-2xl font-semibold text-sm text-[var(--text-secondary)] border border-[var(--border)] bg-[var(--bg-card)] hover:border-orange-500/40 hover:text-orange-400 transition-all active:scale-[0.98]"
+                    >
+                        Saltar este ejercicio
+                    </button>
+                )}
+
+                {(completedExerciseIds.length > 0 || skippedExerciseIds.length > 0) && !uiState.saving && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (window.confirm('¿Terminar el entrenamiento con lo que ya hiciste?')) {
+                                finishWorkout();
+                            }
+                        }}
+                        className="w-full py-2 text-xs font-medium text-[var(--text-secondary)] hover:text-white transition-colors"
+                    >
+                        Terminar día con lo registrado
+                    </button>
+                )}
             </div>
 
             {/* History Modal */}
