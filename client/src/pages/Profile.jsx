@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
     Settings, LogOut, Camera, Award, Dumbbell, Scale, X,
@@ -10,7 +10,7 @@ import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
 import { cloudinaryThumb, cloudinaryDisplay } from '../utils/cloudinary';
 
-const MAX_AVATAR_BYTES = 8 * 1024 * 1024; // 8 MB antes de comprimir
+const MAX_AVATAR_BYTES = 8 * 1024 * 1024;
 
 export default function Profile() {
     const navigate = useNavigate();
@@ -22,13 +22,16 @@ export default function Profile() {
     const [showAvatarModal, setShowAvatarModal] = useState(false);
     const [avatarReady, setAvatarReady] = useState(false);
 
+    // Nueva URL → reset del fade-in
+    useEffect(() => {
+        setAvatarReady(false);
+    }, [user?.avatarUrl]);
+
     const handleAvatarClick = () => {
-        // Permite re-elegir el mismo archivo (onchange no dispara si no se limpia)
         if (fileInputRef.current) fileInputRef.current.value = '';
         fileInputRef.current?.click();
     };
 
-    // Compress image for avatar
     const compressImage = (file, maxSize = 400) => {
         return new Promise((resolve, reject) => {
             const canvas = document.createElement('canvas');
@@ -71,7 +74,6 @@ export default function Profile() {
         }
 
         setLoading(true);
-
         try {
             const compressedBase64 = await compressImage(file, 400);
             await api.updateAvatar(compressedBase64);
@@ -91,8 +93,6 @@ export default function Profile() {
         navigate('/login');
     };
 
-    // birthDate puede llegar como ISO completo; parsear solo la parte de fecha
-    // para no desfasar un día por zona horaria (UTC vs local).
     const formatDate = (dateStr) => {
         if (!dateStr) return null;
         const dateOnly = String(dateStr).split('T')[0];
@@ -102,73 +102,77 @@ export default function Profile() {
         return date.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
     };
 
-    const getInitials = () => {
-        return `${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`.toUpperCase() || '?';
-    };
+    const getInitials = () =>
+        `${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`.toUpperCase() || '?';
 
     const getMembershipDays = () => {
         if (!user?.createdAt) return 0;
         const created = new Date(user.createdAt);
-        const now = new Date();
-        const days = Math.floor((now - created) / (1000 * 60 * 60 * 24));
-        return Math.max(0, days);
+        return Math.max(0, Math.floor((Date.now() - created.getTime()) / (1000 * 60 * 60 * 24)));
     };
 
     if (!user) return null;
 
+    const isCreator = user.username === 'fernando.segrr';
     const birthLabel = formatDate(user.birthDate);
-    // Miniatura ~200px (retina 96×2), no el full-res de Cloudinary/Catbox
     const avatarThumb = user.avatarUrl
-        ? cloudinaryThumb(user.avatarUrl, { width: 200, height: 200, crop: 'fill', quality: 'auto' })
+        ? cloudinaryThumb(user.avatarUrl, { width: 240, height: 240, crop: 'fill', quality: 'auto' })
         : null;
     const avatarFull = user.avatarUrl ? cloudinaryDisplay(user.avatarUrl) : null;
+    const membershipDays = getMembershipDays();
 
     return (
-        <div className="pb-24 max-w-2xl mx-auto">
-            {/* Hero Header with Gradient + Settings Button */}
-            <div className="relative mb-6">
-                <div className="h-28 bg-gradient-to-br from-[var(--primary)] via-[var(--primary-dark)] to-[var(--primary)]/70 rounded-b-3xl" />
-
+        <div className="max-w-lg mx-auto pb-8 animate-fade-in">
+            {/* Top bar: solo acciones, sin logo de app */}
+            <div className="flex items-center justify-between mb-6">
+                <h1 className="text-xl font-bold text-white">Perfil</h1>
                 <button
                     type="button"
                     onClick={() => navigate('/settings')}
                     aria-label="Configuración"
-                    className="absolute top-3 right-3 w-11 h-11 min-w-[44px] min-h-[44px] bg-black/25 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/40 transition-colors"
+                    className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-[var(--bg-card)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)] hover:text-white hover:border-[var(--primary)]/40 transition-colors"
                 >
                     <Settings className="w-5 h-5" />
                 </button>
+            </div>
 
-                {/* Avatar Floating */}
-                <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
-                    <div className="relative">
+            {/* Identity card */}
+            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-3xl p-6 mb-4">
+                <div className="flex flex-col items-center text-center">
+                    {/* Avatar */}
+                    <div className="relative mb-4">
                         {avatarThumb ? (
                             <button
                                 type="button"
                                 onClick={() => setShowAvatarModal(true)}
                                 aria-label="Ver foto de perfil"
-                                className="relative block rounded-full focus-ring w-24 h-24 overflow-hidden border-4 border-[var(--bg-dark)] shadow-xl bg-[var(--bg-card)]"
+                                className="relative block w-[88px] h-[88px] rounded-full overflow-hidden ring-2 ring-[var(--primary)]/40 ring-offset-2 ring-offset-[var(--bg-card)] focus-ring bg-[var(--bg-dark)]"
                             >
-                                {/* Placeholder iniciales mientras baja la miniatura */}
                                 {!avatarReady && (
-                                    <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-white bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)]" aria-hidden>
+                                    <span
+                                        className="absolute inset-0 flex items-center justify-center text-xl font-bold text-white bg-[var(--primary)]"
+                                        aria-hidden
+                                    >
                                         {getInitials()}
                                     </span>
                                 )}
                                 <img
                                     src={avatarThumb}
-                                    alt={`Foto de ${user.firstName || user.username}`}
-                                    width={96}
-                                    height={96}
+                                    alt=""
+                                    width={88}
+                                    height={88}
                                     decoding="async"
                                     fetchPriority="high"
                                     onLoad={() => setAvatarReady(true)}
-                                    className={`w-full h-full object-cover transition-opacity duration-200 ${avatarReady ? 'opacity-100' : 'opacity-0'}`}
+                                    className={`w-full h-full object-cover transition-opacity duration-200 ${
+                                        avatarReady ? 'opacity-100' : 'opacity-0'
+                                    }`}
                                 />
                             </button>
                         ) : (
                             <div
-                                className="w-24 h-24 rounded-full border-4 border-[var(--bg-dark)] bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] flex items-center justify-center text-3xl font-bold text-white shadow-xl"
-                                aria-hidden="true"
+                                className="w-[88px] h-[88px] rounded-full bg-[var(--primary)] flex items-center justify-center text-2xl font-bold text-white ring-2 ring-[var(--primary)]/40 ring-offset-2 ring-offset-[var(--bg-card)]"
+                                aria-hidden
                             >
                                 {getInitials()}
                             </div>
@@ -179,7 +183,7 @@ export default function Profile() {
                             onClick={handleAvatarClick}
                             disabled={loading}
                             aria-label="Cambiar foto de perfil"
-                            className="absolute -bottom-1 -right-1 w-10 h-10 min-w-[40px] min-h-[40px] bg-[var(--primary)] rounded-full border-2 border-[var(--bg-dark)] flex items-center justify-center shadow-lg hover:brightness-110 transition-colors disabled:opacity-50"
+                            className="absolute -bottom-0.5 -right-0.5 w-9 h-9 min-w-[36px] min-h-[36px] bg-[var(--primary)] rounded-full border-2 border-[var(--bg-card)] flex items-center justify-center shadow-md hover:brightness-110 disabled:opacity-50"
                         >
                             {loading
                                 ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -191,125 +195,111 @@ export default function Profile() {
                             onChange={handleAvatarChange}
                             accept="image/*"
                             className="hidden"
-                            aria-hidden="true"
-                        />
-
-                        <div
-                            className="absolute bottom-1 left-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[var(--bg-dark)]"
-                            title="En línea"
-                            aria-hidden="true"
+                            aria-hidden
                         />
                     </div>
-                </div>
-            </div>
 
-            {/* User Info */}
-            <div className="mt-14 text-center px-4">
-                <div className="flex flex-col items-center justify-center mb-1">
-                    <p className="text-xl font-bold text-[var(--primary)] mb-1 flex items-center justify-center gap-2 flex-wrap">
-                        @{user.username}
-                        {user.username === 'fernando.segrr' && (
-                            <span className="px-2 py-0.5 text-[10px] bg-gradient-to-r from-[var(--primary)] to-pink-500 text-white rounded-full font-bold uppercase tracking-wider shadow-lg shadow-[var(--primary)]/30 border border-white/10">
+                    <h2 className="text-lg font-bold text-white leading-tight">
+                        {user.firstName} {user.lastName}
+                    </h2>
+                    <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
+                        <p className="text-sm text-[var(--text-secondary)]">@{user.username}</p>
+                        {isCreator && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30">
+                                <Crown className="w-3 h-3" aria-hidden />
                                 Creador
                             </span>
                         )}
+                    </div>
+
+                    {user.email && (
+                        <p className="text-xs text-[var(--text-secondary)]/80 mt-2 break-all max-w-full px-2">
+                            {user.email}
+                        </p>
+                    )}
+
+                    {(user.phone || birthLabel) && (
+                        <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+                            {user.phone && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-dark)] border border-[var(--border)] text-xs text-[var(--text-secondary)]">
+                                    <Phone className="w-3 h-3" aria-hidden />
+                                    {user.phone}
+                                </span>
+                            )}
+                            {birthLabel && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-dark)] border border-[var(--border)] text-xs text-[var(--text-secondary)]">
+                                    <Calendar className="w-3 h-3" aria-hidden />
+                                    {birthLabel}
+                                </span>
+                            )}
+                        </div>
+                    )}
+
+                    <p className="mt-3 text-xs text-[var(--text-secondary)] flex items-center gap-1.5">
+                        <Award className="w-3.5 h-3.5 text-[var(--primary)]" aria-hidden />
+                        Miembro · {membershipDays} {membershipDays === 1 ? 'día' : 'días'}
                     </p>
-                    <div className="flex items-center gap-2">
-                        <h1 className="text-lg text-[var(--text-secondary)] font-medium">
-                            {user.firstName} {user.lastName}
-                        </h1>
-                        {user.username === 'fernando.segrr' && (
-                            <Crown className="w-4 h-4 text-yellow-400" aria-label="Creador" />
-                        )}
-                    </div>
                 </div>
-                {user.email && (
-                    <p className="text-sm text-[var(--text-secondary)] mt-1 break-all">{user.email}</p>
-                )}
 
-                {/* Contact / birth chips when set in Configuración */}
-                {(user.phone || birthLabel) && (
-                    <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
-                        {user.phone && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--bg-card)] border border-[var(--border)] text-xs text-[var(--text-secondary)]">
-                                <Phone className="w-3.5 h-3.5" aria-hidden="true" />
-                                {user.phone}
-                            </span>
-                        )}
-                        {birthLabel && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--bg-card)] border border-[var(--border)] text-xs text-[var(--text-secondary)]">
-                                <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
-                                {birthLabel}
-                            </span>
-                        )}
+                {/* Stats row */}
+                {user._count && (
+                    <div className="grid grid-cols-3 gap-2 mt-5 pt-5 border-t border-[var(--border)]">
+                        <div className="text-center">
+                            <Dumbbell className="w-4 h-4 text-[var(--primary)] mx-auto mb-1" aria-hidden />
+                            <p className="text-lg font-bold tabular-nums text-white">{user._count.routines ?? 0}</p>
+                            <p className="text-[10px] text-[var(--text-secondary)]">Rutinas</p>
+                        </div>
+                        <div className="text-center border-x border-[var(--border)]">
+                            <Scale className="w-4 h-4 text-[var(--accent)] mx-auto mb-1" aria-hidden />
+                            <p className="text-lg font-bold tabular-nums text-white">{user._count.bodyLogs ?? 0}</p>
+                            <p className="text-[10px] text-[var(--text-secondary)]">Mediciones</p>
+                        </div>
+                        <div className="text-center">
+                            <Award className="w-4 h-4 text-[var(--warning)] mx-auto mb-1" aria-hidden />
+                            <p className="text-lg font-bold tabular-nums text-white">{user._count.personalRecords ?? 0}</p>
+                            <p className="text-[10px] text-[var(--text-secondary)]">PRs</p>
+                        </div>
                     </div>
                 )}
-
-                <div className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 bg-[var(--primary)]/10 rounded-full border border-[var(--primary)]/30">
-                    <Award className="w-4 h-4 text-[var(--primary)]" aria-hidden="true" />
-                    <span className="text-sm text-[var(--primary)]">
-                        Miembro por {getMembershipDays()} {getMembershipDays() === 1 ? 'día' : 'días'}
-                    </span>
-                </div>
             </div>
 
-            {/* Stats Cards */}
-            {user._count && (
-                <div className="grid grid-cols-3 gap-3 px-4 mt-6">
-                    <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border)] text-center">
-                        <Dumbbell className="w-6 h-6 text-[var(--primary)] mx-auto mb-2" aria-hidden="true" />
-                        <p className="text-2xl font-bold text-white tabular-nums">{user._count.routines ?? 0}</p>
-                        <p className="text-xs text-[var(--text-secondary)]">Rutinas</p>
-                    </div>
-                    <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border)] text-center">
-                        <Scale className="w-6 h-6 text-[var(--accent)] mx-auto mb-2" aria-hidden="true" />
-                        <p className="text-2xl font-bold text-white tabular-nums">{user._count.bodyLogs ?? 0}</p>
-                        <p className="text-xs text-[var(--text-secondary)]">Mediciones</p>
-                    </div>
-                    <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border)] text-center">
-                        <Award className="w-6 h-6 text-[var(--warning)] mx-auto mb-2" aria-hidden="true" />
-                        <p className="text-2xl font-bold text-white tabular-nums">{user._count.personalRecords ?? 0}</p>
-                        <p className="text-xs text-[var(--text-secondary)]">PRs</p>
-                    </div>
-                </div>
-            )}
-
-            {/* Accesos rápidos (Cuerpo salió del tab bar) */}
-            <div className="px-4 mt-5 space-y-2">
+            {/* Menu */}
+            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl overflow-hidden mb-4">
                 <Link
                     to="/body"
-                    className="flex items-center gap-3 w-full min-h-[48px] px-4 py-3 bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl hover:border-[var(--primary)]/40 transition-colors"
+                    className="flex items-center gap-3 min-h-[52px] px-4 py-3 border-b border-[var(--border)] active:bg-[var(--bg-dark)]/60"
                 >
-                    <Scale className="w-5 h-5 text-[var(--accent)] shrink-0" aria-hidden />
-                    <span className="flex-1 font-semibold text-sm text-left">Cuerpo y mediciones</span>
+                    <span className="w-9 h-9 rounded-xl bg-[var(--accent)]/15 flex items-center justify-center shrink-0">
+                        <Scale className="w-4 h-4 text-[var(--accent)]" aria-hidden />
+                    </span>
+                    <span className="flex-1 font-medium text-sm text-left">Cuerpo y mediciones</span>
                     <ChevronRight className="w-4 h-4 text-[var(--text-secondary)]" aria-hidden />
                 </Link>
                 <Link
                     to="/settings"
-                    className="flex items-center gap-3 w-full min-h-[48px] px-4 py-3 bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl hover:border-[var(--primary)]/40 transition-colors"
+                    className="flex items-center gap-3 min-h-[52px] px-4 py-3 active:bg-[var(--bg-dark)]/60"
                 >
-                    <Settings className="w-5 h-5 text-[var(--primary)] shrink-0" aria-hidden />
-                    <span className="flex-1 font-semibold text-sm text-left">Configuración</span>
+                    <span className="w-9 h-9 rounded-xl bg-[var(--primary)]/15 flex items-center justify-center shrink-0">
+                        <Settings className="w-4 h-4 text-[var(--primary)]" aria-hidden />
+                    </span>
+                    <span className="flex-1 font-medium text-sm text-left">Configuración</span>
                     <ChevronRight className="w-4 h-4 text-[var(--text-secondary)]" aria-hidden />
                 </Link>
             </div>
 
-            <div className="px-4 mt-6">
-                <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="w-full min-h-[48px] py-3 bg-red-500/10 text-red-400 font-medium rounded-xl border border-red-500/30 hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
-                >
-                    <LogOut className="w-5 h-5" aria-hidden="true" />
-                    Cerrar Sesión
-                </button>
-            </div>
+            <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full min-h-[48px] py-3 rounded-2xl font-medium text-sm text-red-400 bg-red-500/10 border border-red-500/25 hover:bg-red-500/15 flex items-center justify-center gap-2"
+            >
+                <LogOut className="w-4 h-4" aria-hidden />
+                Cerrar sesión
+            </button>
 
-            {/* Avatar Modal */}
             {showAvatarModal && avatarFull && (
                 <Portal>
                     <div
-                        className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm"
+                        className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 animate-fade-in"
                         onClick={() => setShowAvatarModal(false)}
                         role="dialog"
                         aria-modal="true"
@@ -320,28 +310,26 @@ export default function Profile() {
                                 type="button"
                                 onClick={() => setShowAvatarModal(false)}
                                 aria-label="Cerrar"
-                                className="absolute -top-12 right-0 text-white/70 hover:text-white transition-colors p-2"
+                                className="absolute -top-12 right-0 text-white/70 hover:text-white p-2 min-w-[44px] min-h-[44px]"
                             >
-                                <X size={32} />
+                                <X size={28} />
                             </button>
                             <img
                                 src={avatarFull}
                                 alt={`Foto de ${user.firstName || user.username}`}
-                                className="w-full h-auto rounded-2xl shadow-2xl border border-[var(--border)]"
+                                className="w-full h-auto rounded-2xl border border-[var(--border)]"
                             />
-                            <div className="mt-6 flex justify-center">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowAvatarModal(false);
-                                        handleAvatarClick();
-                                    }}
-                                    className="flex items-center gap-2 px-6 py-3 min-h-[48px] bg-[var(--primary)] text-white rounded-full font-medium hover:brightness-110 transition-colors shadow-lg shadow-[var(--primary)]/25"
-                                >
-                                    <Camera size={20} aria-hidden="true" />
-                                    Cambiar Foto
-                                </button>
-                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowAvatarModal(false);
+                                    handleAvatarClick();
+                                }}
+                                className="mt-4 w-full min-h-[48px] flex items-center justify-center gap-2 py-3 bg-[var(--primary)] text-white rounded-2xl font-medium"
+                            >
+                                <Camera size={18} aria-hidden />
+                                Cambiar foto
+                            </button>
                         </div>
                     </div>
                 </Portal>
