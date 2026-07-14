@@ -306,7 +306,7 @@ export default function Profile() {
             </div>
 
             {/* Avatar Modal */}
-            {showAvatarModal && user.avatarUrl && (
+            {showAvatarModal && avatarFull && (
                 <Portal>
                     <div
                         className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm"
@@ -325,7 +325,7 @@ export default function Profile() {
                                 <X size={32} />
                             </button>
                             <img
-                                src={user.avatarUrl}
+                                src={avatarFull}
                                 alt={`Foto de ${user.firstName || user.username}`}
                                 className="w-full h-auto rounded-2xl shadow-2xl border border-[var(--border)]"
                             />
