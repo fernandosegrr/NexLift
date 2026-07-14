@@ -15,12 +15,20 @@ export default function Login() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (loading) return;
+
+        const user = username.trim();
+        if (!user || !password) {
+            setError('Usuario y contraseña son obligatorios');
+            return;
+        }
+
         setError('');
         setLoading(true);
 
         try {
-            await login(username.trim(), password);
-            navigate('/');
+            await login(user, password);
+            navigate('/', { replace: true });
         } catch (err) {
             setError(err.message || 'Error al iniciar sesión');
         } finally {
@@ -29,9 +37,11 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen bg-[var(--bg-dark)] flex items-center justify-center px-4">
+        <div
+            className="min-h-screen bg-[var(--bg-dark)] flex items-center justify-center px-4"
+            style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        >
             <div className="w-full max-w-md">
-                {/* Logo/Header */}
                 <div className="text-center mb-8">
                     <img
                         src="/logo.png"
@@ -42,53 +52,68 @@ export default function Login() {
                     <p className="text-[var(--text-secondary)] mt-1">Inicia sesión en tu cuenta</p>
                 </div>
 
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="bg-[var(--bg-card)] rounded-2xl p-6 border border-[var(--border)]">
+                <form
+                    onSubmit={handleSubmit}
+                    className="bg-[var(--bg-card)] rounded-2xl p-6 border border-[var(--border)]"
+                    noValidate
+                >
                     {error && (
-                        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-red-400">
-                            <AlertCircle className="w-5 h-5 shrink-0" />
+                        <div
+                            role="alert"
+                            className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-red-400"
+                        >
+                            <AlertCircle className="w-5 h-5 shrink-0" aria-hidden="true" />
                             <span className="text-sm">{error}</span>
                         </div>
                     )}
 
                     <div className="space-y-4">
-                        {/* Username */}
                         <div>
-                            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+                            <label htmlFor="login-username" className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
                                 Usuario o Email
                             </label>
                             <div className="relative">
-                                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
+                                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" aria-hidden="true" />
                                 <input
+                                    id="login-username"
                                     type="text"
+                                    name="username"
                                     value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
+                                    onChange={(e) => { setUsername(e.target.value); if (error) setError(''); }}
                                     placeholder="tu.usuario"
+                                    autoComplete="username"
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    spellCheck={false}
+                                    autoFocus
                                     className="w-full pl-10 pr-4 py-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500 transition-colors"
                                     required
                                 />
                             </div>
                         </div>
 
-                        {/* Password */}
                         <div>
-                            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+                            <label htmlFor="login-password" className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
                                 Contraseña
                             </label>
                             <div className="relative">
-                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
+                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" aria-hidden="true" />
                                 <input
+                                    id="login-password"
                                     type={showPassword ? 'text' : 'password'}
+                                    name="password"
                                     value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
+                                    onChange={(e) => { setPassword(e.target.value); if (error) setError(''); }}
                                     placeholder="••••••••"
+                                    autoComplete="current-password"
                                     className="w-full pl-10 pr-12 py-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500 transition-colors"
                                     required
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] hover:text-white transition-colors"
+                                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] hover:text-white transition-colors p-1"
                                 >
                                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                 </button>
@@ -96,23 +121,21 @@ export default function Login() {
                         </div>
                     </div>
 
-                    {/* Submit Button */}
                     <button
                         type="submit"
-                        disabled={loading}
+                        disabled={loading || !username.trim() || !password}
                         className="w-full mt-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white font-semibold rounded-xl hover:from-purple-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                         {loading ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
                         ) : (
                             <>
-                                <LogIn className="w-5 h-5" />
+                                <LogIn className="w-5 h-5" aria-hidden="true" />
                                 Iniciar Sesión
                             </>
                         )}
                     </button>
 
-                    {/* Links */}
                     <div className="mt-6 text-center space-y-2">
                         <Link
                             to="/forgot-password"

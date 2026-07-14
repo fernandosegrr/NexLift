@@ -14,6 +14,7 @@ import { isPushSupported, getCurrentPushSubscription, subscribeToPush, unsubscri
 import { downloadSessionPdf } from '../utils/sessionPdf';
 import { MUSCLE_OPTIONS as MUSCLE_OPTION_DEFS, toSpanishMuscleGroup } from '../utils/muscleGroup';
 import { mexicoCityDateStr } from '../utils/dates';
+import { SECURITY_QUESTIONS } from '../utils/securityQuestions';
 
 // Valores canónicos en español (+ Otros para residuales)
 const MUSCLE_OPTIONS = [
@@ -117,15 +118,6 @@ const MUSCLE_COLORS = {
     'Otros': 'bg-gray-500/20 text-gray-400 border-gray-500/30',
     'Sin clasificar': 'bg-amber-500/20 text-amber-400 border-amber-500/30'
 };
-
-const securityQuestions = [
-    'Nombre de tu primera mascota',
-    'Ciudad donde naciste',
-    'Nombre de tu mejor amigo de infancia',
-    'Marca de tu primer carro',
-    'Nombre de tu escuela primaria',
-    'Apodo de un familiar cercano'
-];
 
 export default function Settings() {
     const navigate = useNavigate();
@@ -846,9 +838,9 @@ export default function Settings() {
                             required
                         >
                             <option value="">Selecciona pregunta...</option>
-                            {securityQuestions.map((q, i) => <option key={i} value={q}>{q}</option>)}
+                            {SECURITY_QUESTIONS.map((q, i) => <option key={i} value={q}>{q}</option>)}
                             {/* Si la pregunta actual no está en la lista (dato legacy), mostrarla igual */}
-                            {securityData.question && !securityQuestions.includes(securityData.question) && (
+                            {securityData.question && !SECURITY_QUESTIONS.includes(securityData.question) && (
                                 <option value={securityData.question}>{securityData.question}</option>
                             )}
                         </select>

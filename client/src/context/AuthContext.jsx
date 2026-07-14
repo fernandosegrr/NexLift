@@ -52,22 +52,31 @@ export function AuthProvider({ children }) {
         }
     }, []);
 
-    const login = async (username, password) => {
-        const { user: userData, token: authToken } = await api.login(username, password);
-        setUser(userData);
+    // Tras login/register, pedir /auth/me para tener el shape completo
+    // (_count, securityQuestion, etc.) — la respuesta de login/register es más magra.
+    const persistSession = async (authToken, fallbackUser) => {
         setToken(authToken);
         localStorage.setItem(TOKEN_KEY, authToken);
-        localStorage.setItem(USER_KEY, JSON.stringify(userData));
-        return userData;
+        try {
+            const profile = await api.getProfile(authToken);
+            setUser(profile);
+            localStorage.setItem(USER_KEY, JSON.stringify(profile));
+            return profile;
+        } catch {
+            setUser(fallbackUser);
+            localStorage.setItem(USER_KEY, JSON.stringify(fallbackUser));
+            return fallbackUser;
+        }
+    };
+
+    const login = async (username, password) => {
+        const { user: userData, token: authToken } = await api.login(username, password);
+        return persistSession(authToken, userData);
     };
 
     const register = async (userData) => {
         const { user: newUser, token: authToken } = await api.register(userData);
-        setUser(newUser);
-        setToken(authToken);
-        localStorage.setItem(TOKEN_KEY, authToken);
-        localStorage.setItem(USER_KEY, JSON.stringify(newUser));
-        return newUser;
+        return persistSession(authToken, newUser);
     };
 
     const logout = () => {

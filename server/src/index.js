@@ -842,13 +842,25 @@ app.post('/api/auth/register', rateLimit(), async (req, res) => {
         username = username?.trim();
         email = email?.trim();
 
+        firstName = typeof firstName === 'string' ? firstName.trim() : firstName;
+        lastName = typeof lastName === 'string' ? lastName.trim() : lastName;
+
         if (!username || !email || !password || !firstName || !lastName) {
             return res.status(400).json({ error: 'Campos requeridos: username, email, password, firstName, lastName' });
+        }
+        if (/\s/.test(username)) {
+            return res.status(400).json({ error: 'El username no puede tener espacios' });
         }
         if (password.length < 8) {
             return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
         }
-        if (securityAnswer && securityAnswer.trim().length < 2) {
+        // Pregunta y respuesta deben ir juntas (o ninguna)
+        const hasQ = !!(securityQuestion && String(securityQuestion).trim());
+        const hasA = !!(securityAnswer && String(securityAnswer).trim());
+        if (hasQ !== hasA) {
+            return res.status(400).json({ error: 'Pregunta y respuesta de seguridad deben ir juntas' });
+        }
+        if (hasA && securityAnswer.trim().length < 2) {
             return res.status(400).json({ error: 'La respuesta de seguridad es demasiado corta' });
         }
 
@@ -863,7 +875,17 @@ app.post('/api/auth/register', rateLimit(), async (req, res) => {
         }
 
         const passwordHash = await bcrypt.hash(password, 10);
-        const securityAnswerHash = securityAnswer ? await bcrypt.hash(securityAnswer.toLowerCase().trim(), 10) : null;
+        const securityAnswerHash = hasA ? await bcrypt.hash(securityAnswer.toLowerCase().trim(), 10) : null;
+
+        // birthDate: anclar a mediodía UTC para no desfasar el día civil (mismo criterio que PUT /profile)
+        let birthDateValue = null;
+        if (birthDate) {
+            const day = String(birthDate).split('T')[0];
+            birthDateValue = new Date(`${day}T12:00:00.000Z`);
+            if (Number.isNaN(birthDateValue.getTime())) {
+                return res.status(400).json({ error: 'Fecha de nacimiento inválida' });
+            }
+        }
 
         const user = await prisma.user.create({
             data: {
@@ -872,9 +894,9 @@ app.post('/api/auth/register', rateLimit(), async (req, res) => {
                 passwordHash,
                 firstName,
                 lastName,
-                phone: phone || null,
-                birthDate: birthDate ? new Date(birthDate) : null,
-                securityQuestion: securityQuestion || null,
+                phone: (phone && String(phone).trim()) || null,
+                birthDate: birthDateValue,
+                securityQuestion: hasQ ? String(securityQuestion).trim() : null,
                 securityAnswerHash
             },
             select: { id: true, username: true, email: true, firstName: true, lastName: true, phone: true, birthDate: true, avatarUrl: true, createdAt: true, tokenVersion: true }
@@ -896,7 +918,7 @@ app.post('/api/auth/login', rateLimit(), async (req, res) => {
         username = username?.trim();
 
         if (!username || !password) {
-            return res.status(400).json({ error: 'Username y password requeridos' });
+            return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
         }
 
         const user = await prisma.user.findFirst({

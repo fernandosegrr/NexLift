@@ -515,8 +515,8 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Login failed');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Error al iniciar sesión');
         return data;
     },
 
@@ -526,8 +526,8 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(userData),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Registration failed');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Error al crear la cuenta');
         return data;
     },
 
@@ -583,7 +583,7 @@ export const api = {
             body: JSON.stringify({ currentPassword, newPassword }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to change password');
+        if (!res.ok) throw new Error(data.error || 'No se pudo cambiar la contraseña');
         return data;
     },
 
@@ -593,8 +593,8 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'User not found');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Usuario no encontrado o sin pregunta de seguridad');
         return data;
     },
 
@@ -604,8 +604,8 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, answer, newPassword }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Recovery failed');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo restablecer la contraseña');
         return data;
     },
 
@@ -618,8 +618,8 @@ export const api = {
             },
             body: JSON.stringify({ question, answer, currentPassword }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to update security question');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo actualizar la pregunta de seguridad');
         return data;
     },
 
