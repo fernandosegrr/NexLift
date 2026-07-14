@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Scale, Camera, TrendingUp, Plus, X, Check, Activity, Droplet, Dumbbell, ChevronDown, ChevronUp, Flame, Waves, Heart, Bone, AlertTriangle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Scale, Camera, TrendingUp, Plus, X, Check, Activity, Droplet, Dumbbell, ChevronDown, ChevronUp, Flame, Waves, Heart, Bone, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from 'recharts';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
@@ -342,14 +343,21 @@ export default function BodyTracking() {
     }
 
     return (
-        <div className="space-y-5 animate-fade-in max-w-lg mx-auto pb-20">
-            {/* Header */}
+        <div className="space-y-5 animate-fade-in max-w-lg mx-auto pb-6">
+            {/* Header con vuelta clara a Progreso */}
             <div>
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <Scale className="text-[var(--primary)]" aria-hidden />
-                    Seguimiento corporal
+                <Link
+                    to="/progress"
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--primary)] min-h-[40px] -ml-1 px-1 mb-1 active:opacity-80"
+                >
+                    <ArrowLeft size={18} aria-hidden />
+                    Progreso
+                </Link>
+                <h1 className="text-2xl font-bold flex items-center gap-2 leading-tight">
+                    <Scale className="text-[var(--primary)] shrink-0" aria-hidden />
+                    Cuerpo
                 </h1>
-                <p className="text-[var(--text-secondary)] text-sm">Peso, composición y fotos de progreso</p>
+                <p className="text-[var(--text-secondary)] text-sm mt-0.5">Peso, composición y fotos</p>
             </div>
 
             {/* Quick Stats - 4 Cards */}

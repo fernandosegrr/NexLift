@@ -838,35 +838,34 @@ export default function Progress() {
     }
 
     return (
-        <div className="space-y-4 animate-fade-in max-w-2xl mx-auto pb-24">
-            {/* Header */}
-            <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                    <h1 className="text-2xl font-bold">Progreso</h1>
-                    <p className="text-[var(--text-secondary)] text-sm">Tu evolución fitness</p>
+        <div className="space-y-4 animate-fade-in max-w-2xl mx-auto pb-6">
+            {/* Header: título arriba, acciones en fila propia (no se aplastan en móvil) */}
+            <div className="space-y-3">
+                <div>
+                    <h1 className="text-2xl font-bold leading-tight">Progreso</h1>
+                    <p className="text-[var(--text-secondary)] text-sm mt-0.5">Tu evolución fitness</p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex gap-2">
                     <Link
                         to="/body"
-                        className="min-h-[44px] flex items-center gap-1.5 bg-[var(--bg-card)] border border-[var(--border)] px-3 py-2 rounded-xl text-xs font-semibold text-[var(--text-primary)] active:scale-95"
-                        aria-label="Cuerpo y mediciones"
+                        className="flex-1 min-h-[44px] flex items-center justify-center gap-2 bg-[var(--bg-card)] border border-[var(--border)] px-3 py-2.5 rounded-xl text-sm font-semibold text-[var(--text-primary)] active:scale-[0.98]"
                     >
-                        <Scale size={16} className="text-[var(--accent)]" aria-hidden />
+                        <Scale size={18} className="text-[var(--accent)] shrink-0" aria-hidden />
                         Cuerpo
                     </Link>
                     <Link
                         to="/export"
-                        className="min-h-[44px] flex items-center gap-1.5 bg-[var(--primary)] px-3 py-2 rounded-xl text-xs font-semibold text-white shadow-lg shadow-[var(--primary)]/25 active:scale-95"
+                        className="flex-1 min-h-[44px] flex items-center justify-center gap-2 bg-[var(--primary)] px-3 py-2.5 rounded-xl text-sm font-semibold text-white shadow-md shadow-[var(--primary)]/20 active:scale-[0.98]"
                     >
-                        <FileText size={16} aria-hidden />
+                        <FileText size={18} className="shrink-0" aria-hidden />
                         PDF
                     </Link>
                 </div>
             </div>
 
-            {/* Tabs — scroll horizontal en móvil, targets ≥44px */}
-            <div className="bg-[var(--bg-card)] p-1 rounded-2xl border border-[var(--border)] overflow-x-auto">
-                <div className="flex gap-1 min-w-max sm:min-w-0" role="tablist" aria-label="Secciones de progreso">
+            {/* Tabs: grid 2×2 en móvil (sin scroll horizontal raro) */}
+            <div className="bg-[var(--bg-card)] p-1 rounded-2xl border border-[var(--border)]" role="tablist" aria-label="Secciones de progreso">
+                <div className="grid grid-cols-2 gap-1">
                     {[
                         { id: 'overview', label: 'General', icon: Activity },
                         { id: 'goals', label: 'Objetivos', icon: Target },
@@ -879,7 +878,7 @@ export default function Progress() {
                             role="tab"
                             aria-selected={uiState.activeTab === tab.id}
                             onClick={() => setUIState(prev => ({ ...prev, activeTab: tab.id }))}
-                            className={`min-h-[44px] flex-1 sm:flex-1 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${uiState.activeTab === tab.id
+                            className={`min-h-[44px] px-2 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${uiState.activeTab === tab.id
                                 ? 'bg-[var(--primary)] text-white shadow-md shadow-[var(--primary)]/20'
                                 : 'text-[var(--text-secondary)] hover:text-white'
                                 }`}

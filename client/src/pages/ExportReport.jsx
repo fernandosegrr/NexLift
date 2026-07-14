@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import {
     FileText, Download, Calendar, Activity, AlertCircle,
-    TrendingUp
+    TrendingUp, ArrowLeft
 } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
 import { api } from '../services/api';
@@ -1114,14 +1114,21 @@ export default function ExportReport() {
     );
 
     return (
-        <div className="max-w-lg mx-auto space-y-6 pb-24 animate-fade-in">
+        <div className="max-w-lg mx-auto space-y-6 pb-6 animate-fade-in">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <FileText className="text-[var(--primary)]" />
-                    Exportar Reporte
+                <Link
+                    to="/progress"
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--primary)] min-h-[40px] -ml-1 px-1 mb-1 active:opacity-80"
+                >
+                    <ArrowLeft size={18} aria-hidden />
+                    Progreso
+                </Link>
+                <h1 className="text-2xl font-bold flex items-center gap-2 leading-tight">
+                    <FileText className="text-[var(--primary)] shrink-0" aria-hidden />
+                    Exportar PDF
                 </h1>
-                <p className="text-[var(--text-secondary)] text-sm">Resumen de progreso completo</p>
+                <p className="text-[var(--text-secondary)] text-sm mt-0.5">Resumen de progreso</p>
             </div>
 
             {/* 1. Selector de Período */}
