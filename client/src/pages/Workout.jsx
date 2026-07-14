@@ -846,7 +846,6 @@ export default function Workout() {
     // Marca ejercicios completos hoy a partir del mapa de historiales (sin red).
     // "Hoy" = día calendario CDMX (mismo criterio que el server).
     function applyCompletedFromHistories(exerciseList, historyMap) {
-        const today = mexicoCityDateStr();
         const completed = [];
         for (const ex of exerciseList) {
             const history = historyMap[ex.id];
@@ -1072,7 +1071,7 @@ export default function Workout() {
                 showHistory: true,
                 loading: false
             }));
-        } catch (error) {
+        } catch {
             toast.error('Error al cargar historial');
             setUIState(prev => ({ ...prev, loading: false }));
         }
@@ -1576,7 +1575,7 @@ export default function Workout() {
                                                     : user?.username
                                             });
                                             toast.success('PDF descargado');
-                                        } catch (e) {
+                                        } catch {
                                             toast.error('No se pudo generar el PDF');
                                         }
                                     }}
