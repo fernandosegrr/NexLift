@@ -147,12 +147,14 @@ describe('suggestNextSetFromToday (intra-sesión)', () => {
         assert.equal(s.source, 'intra');
     });
 
-    it('RIR cómodo → mantiene peso', () => {
+    it('RIR cómodo → mantiene peso y sube reps', () => {
         const s = suggestNextSetFromToday([
             { weight: 100, reps: 10, rir: 3 },
             { weight: 100, reps: 9, rir: 2 }
         ], opts);
         assert.equal(s.weight, 100);
+        // avgRIR 2.5 → +1 sobre last.reps (9)
+        assert.equal(s.reps, 10);
     });
 });
 

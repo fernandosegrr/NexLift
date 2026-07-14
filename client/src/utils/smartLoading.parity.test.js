@@ -144,16 +144,28 @@ describe('suggestNextSetFromToday: paridad + reglas', () => {
         expect(c.source).toBe('intra');
     });
 
-    it('todas las de hoy con RIR cómodo → mantiene peso', () => {
+    it('todas las de hoy con RIR cómodo → mantiene peso y sube reps', () => {
         const sets = [
             { weight: 100, reps: 10, rir: 3 },
             { weight: 100, reps: 9, rir: 2 }
         ];
+        // avgRir 2.5, minRir 2 → bump +1 sobre last.reps (9) → 10
         const c = clientIntra(sets, opts);
         const s = serverIntra(sets, opts);
         expect(c.weight).toBe(s.weight);
         expect(c.reps).toBe(s.reps);
         expect(c.weight).toBe(100);
+        expect(c.reps).toBe(10);
+        expect(c.reps).toBeGreaterThan(sets[sets.length - 1].reps);
+    });
+
+    it('cómodo con avgRIR ≥3 → +2 reps (tope del rango)', () => {
+        const sets = [{ weight: 80, reps: 8, rir: 3 }];
+        const c = clientIntra(sets, opts);
+        const s = serverIntra(sets, opts);
+        expect(c).toEqual(s);
+        expect(c.weight).toBe(80);
+        expect(c.reps).toBe(10); // 8+2
     });
 
     it('paridad: fatiga acumulada (RIR cae de 3 a 1)', () => {

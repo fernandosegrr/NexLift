@@ -109,7 +109,10 @@ function deriveHistoryDerived(history, targetReps, muscleGroup, phase, exerciseN
     // (recién guardado o reabierto), usamos la siguiente — si no, se "compara"
     // consigo misma y el delta siempre sale 0 / vacío.
     const todayKey = mexicoCityDateStr();
-    const prior = sessions.find(s => mexicoCityDateStr(new Date(s.date)) !== todayKey) || null;
+    const priorSessions = sessions.filter(
+        s => mexicoCityDateStr(new Date(s.date)) !== todayKey
+    );
+    const prior = priorSessions[0] || null;
     const lastSession = prior
         ? {
             date: prior.date,
@@ -117,8 +120,11 @@ function deriveHistoryDerived(history, targetReps, muscleGroup, phase, exerciseN
         }
         : null;
 
+    // S1 (entre sesiones): anclar en la sesión pasada, NO en un log parcial de hoy
+    // (misma regla que GET /api/shortcuts/next-set). Si solo hay datos de hoy, cae a eso.
     const increment = resolveWeightIncrement(muscleGroup, exerciseName);
-    const raw = computeWorkoutSuggestion(sessions, targetReps, increment, phase);
+    const anchorSessions = priorSessions.length > 0 ? priorSessions : sessions;
+    const raw = computeWorkoutSuggestion(anchorSessions, targetReps, increment, phase);
     const suggestion = (raw && phase === 'deload')
         ? { ...raw, weight: roundWeight(raw.weight * 0.9, increment, raw.weight) }
         : raw;
@@ -228,17 +234,19 @@ function findTodayLog(history) {
     return history.find(h => mexicoCityDateStr(new Date(h.date)) === today) || null;
 }
 
+/** Compara lo que YA escribiste/marcaste vs la misma serie de la sesión pasada. No es una sugerencia. */
 function setDeltaLabel(current, last) {
-    if (!last || current == null || current === '') return null;
+    if (!last || current == null) return null;
     const cw = Number(current.weight);
     const cr = Number(current.reps);
     const lw = Number(last.weight);
     const lr = Number(last.reps);
-    if (!Number.isFinite(cw) || !Number.isFinite(cr) || !Number.isFinite(lw) || !Number.isFinite(lr)) return null;
-    if (lw <= 0 || lr <= 0) return null;
+    // Solo con números reales cargados ('' → 0 no cuenta)
+    if (!Number.isFinite(cw) || !Number.isFinite(cr) || cw <= 0 || cr <= 0) return null;
+    if (!Number.isFinite(lw) || !Number.isFinite(lr) || lw <= 0 || lr <= 0) return null;
     const dW = Math.round((cw - lw) * 10) / 10;
     const dR = cr - lr;
-    if (dW === 0 && dR === 0) return { text: '= última', tone: 'neutral' };
+    if (dW === 0 && dR === 0) return { text: 'igual que última', tone: 'neutral' };
     const parts = [];
     if (dW !== 0) parts.push(`${dW > 0 ? '+' : ''}${dW} kg`);
     if (dR !== 0) parts.push(`${dR > 0 ? '+' : ''}${dR} reps`);
@@ -377,6 +385,7 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
         return currentScore > estimate1RM(previousBest);
     }, [set, previousBest, isLocked, isUnilateral]);
 
+    // Delta solo DESPUÉS de tener peso/reps (o completada) — no confundir con sugerencia
     const vsLast = useMemo(
         () => setDeltaLabel(
             { weight: set.weight, reps: set.reps },
@@ -385,26 +394,13 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
         [set.weight, set.reps, lastSet]
     );
 
-    // Chip siempre en la serie "siguiente" con sugerencia (rellena o no)
-    const showChip = !isLocked && !set.completed && !!setSuggestion;
+    const showSuggestion = !isLocked && !set.completed && !!setSuggestion;
 
     return (
         <div className={`group relative rounded-2xl p-3 transition-all duration-300 ${set.completed
             ? 'bg-[var(--success)]/10 ring-1 ring-[var(--success)]/50'
             : 'bg-[var(--bg-card)] border border-[var(--border)]'
             }`}>
-            {/* Chip chico: sugerencia de ESTA serie (intra-sesión) */}
-            {showChip && (
-                <button
-                    type="button"
-                    onClick={() => onApplySetSuggestion?.(index, setSuggestion)}
-                    className="absolute -top-2 left-10 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--primary)]/20 border border-[var(--primary)]/40 text-[var(--primary)] text-[10px] font-bold shadow-sm active:scale-95"
-                    title={setSuggestion.rationale || 'Sugerencia de esta serie'}
-                >
-                    <Sparkles size={10} />
-                    {setSuggestion.weight}×{setSuggestion.reps}
-                </button>
-            )}
             <div className="grid grid-cols-10 gap-3 items-center">
                 {/* Número de serie horizontal — más legible en móvil que el label vertical */}
                 <div className="col-span-1 flex flex-col items-start pt-3 gap-1">
@@ -568,23 +564,36 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
                 </div>
             </div>
 
-            {/* Comparativa vs misma serie de la última sesión */}
-            {(lastSet || vsLast) && (
+            {/* Izq = sesión pasada · Der = sugerencia de ESTA serie (naranja) o delta si ya escribiste */}
+            {(lastSet || showSuggestion || vsLast) && (
                 <div className="mt-2 flex items-center justify-between gap-2 text-[10px] px-1">
                     {lastSet ? (
                         <span className="text-[var(--text-secondary)] tabular-nums">
-                            Última: <span className="font-semibold text-[var(--text-primary)]/80">{lastSet.weight} kg × {lastSet.reps}</span>
+                            Última:{' '}
+                            <span className="font-semibold text-[var(--text-primary)]/80">
+                                {lastSet.weight} kg × {lastSet.reps}
+                            </span>
                         </span>
                     ) : <span />}
-                    {vsLast && (
+                    {showSuggestion ? (
+                        <button
+                            type="button"
+                            onClick={() => onApplySetSuggestion?.(index, setSuggestion)}
+                            title={setSuggestion.rationale || 'Aplicar sugerencia de esta serie'}
+                            className="font-bold tabular-nums text-orange-400 active:scale-95 flex items-center gap-1 min-h-[32px]"
+                        >
+                            <Sparkles size={10} className="shrink-0" aria-hidden />
+                            Sugerido {setSuggestion.weight}×{setSuggestion.reps}
+                        </button>
+                    ) : vsLast ? (
                         <span className={`font-bold tabular-nums ${
                             vsLast.tone === 'up' ? 'text-[var(--success)]'
-                            : vsLast.tone === 'down' ? 'text-orange-400'
+                            : vsLast.tone === 'down' ? 'text-red-400'
                             : 'text-[var(--text-secondary)]'
                         }`}>
                             {vsLast.text}
                         </span>
-                    )}
+                    ) : null}
                 </div>
             )}
 
@@ -600,7 +609,8 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
     const sugEq = (a, b) => {
         if (!a && !b) return true;
         if (!a || !b) return false;
-        return a.weight === b.weight && a.reps === b.reps;
+        return a.weight === b.weight && a.reps === b.reps
+            && (a.rationale || '') === (b.rationale || '');
     };
     return prevProps.set.weight === nextProps.set.weight &&
         prevProps.set.reps === nextProps.set.reps &&
@@ -616,8 +626,7 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
         sugEq(prevProps.setSuggestion, nextProps.setSuggestion);
 });
 
-// Aviso por fase del bloque activo (nunca silencioso). Compacto por defecto
-// (<details>) para no empujar las series fuera de la primera pantalla en móvil.
+// Aviso por fase del bloque activo (nunca silencioso). Compacto en chips del header.
 // Clases Tailwind literales completas — el compilador no genera las interpoladas.
 const PHASE_BANNER = {
     deload: {
@@ -1095,13 +1104,19 @@ export default function Workout() {
         [currentExercise?.muscleGroup, currentExercise?.name]
     );
 
-    const intraByIndex = useMemo(() => {
+    // Sugerencia por fila (derecha naranja en SetCard):
+    // - Antes de completar ninguna: S1…Sn muestran la global (entre sesiones)
+    // - Tras completar con RIR: la siguiente incompleta usa autorregulación de hoy
+    const suggestionByIndex = useMemo(() => {
         if (isAlreadyLogged || !currentExercise) return {};
         const completedToday = [];
         const map = {};
+        let anyCompleted = false;
+
         for (let i = 0; i < sets.length; i++) {
             const s = sets[i];
             if (s.completed && s.weight && s.reps) {
+                anyCompleted = true;
                 const eff = effectiveSet({
                     weight: s.weight,
                     reps: s.reps,
@@ -1110,32 +1125,49 @@ export default function Workout() {
                     rir: s.rir,
                     rpe: s.rir != null ? 10 - s.rir : null
                 });
-                // effectiveWorkoutSet lee rpe→rir; pasamos rir directo también
                 completedToday.push({
                     weight: eff.weight,
                     reps: eff.reps,
                     rir: s.rir
                 });
             }
-            // Sugerencia para la primera fila incompleta después de al menos 1 completada
-            if (!s.completed && completedToday.length > 0 && Object.keys(map).length === 0) {
-                const sug = suggestNextSetFromToday(completedToday, {
-                    lo: repLo,
-                    hi: repHi,
-                    increment: weightIncrement,
-                    phase: workoutState.phase
-                });
-                if (sug) map[i] = sug;
+        }
+
+        if (!anyCompleted) {
+            // Plan de la sesión: misma meta en cada fila vacía (S1 Smart Loading)
+            if (suggestion) {
+                for (let i = 0; i < sets.length; i++) {
+                    if (!sets[i].completed) map[i] = suggestion;
+                }
             }
+            return map;
+        }
+
+        // Siguiente serie tras RIR de hoy
+        for (let i = 0; i < sets.length; i++) {
+            const s = sets[i];
+            if (s.completed) continue;
+            const sug = suggestNextSetFromToday(completedToday, {
+                lo: repLo,
+                hi: repHi,
+                increment: weightIncrement,
+                phase: workoutState.phase
+            });
+            if (sug) map[i] = sug;
+            break; // solo la próxima serie en curso
         }
         return map;
-    }, [sets, isAlreadyLogged, currentExercise, repLo, repHi, weightIncrement, workoutState.phase]);
+    }, [sets, isAlreadyLogged, currentExercise, repLo, repHi, weightIncrement, workoutState.phase, suggestion]);
 
-    // Auto-rellena la siguiente serie vacía cuando aparece una sugerencia intra
+
+    // Auto-rellena la siguiente serie vacía solo con autorregulación de HOY (source:intra).
+    // La sugerencia global (entre sesiones) se aplica tocando "Sugerido" o el coach, no sola.
     const lastAutofillKeyRef = useRef('');
     useEffect(() => {
         if (isAlreadyLogged) return;
-        const entries = Object.entries(intraByIndex);
+        const entries = Object.entries(suggestionByIndex).filter(
+            ([, sug]) => sug && sug.source === 'intra'
+        );
         if (!entries.length) return;
         const [idxStr, sug] = entries[0];
         const idx = parseInt(idxStr, 10);
@@ -1165,7 +1197,7 @@ export default function Workout() {
         if (currentExercise?.id) {
             api.logSuggestionApplied(currentExercise.id, sug.weight, sug.reps, workoutState.phase).catch(() => {});
         }
-    }, [intraByIndex, sets, isAlreadyLogged, isUnilateral, currentExercise, workoutState.phase]);
+    }, [suggestionByIndex, sets, isAlreadyLogged, isUnilateral, currentExercise, workoutState.phase]);
 
     const applySetSuggestion = useCallback((index, sug) => {
         if (isAlreadyLogged || !sug) return;
@@ -1767,29 +1799,9 @@ export default function Workout() {
                 </div>
             )}
 
-            {/* SERIES PRIMERO — flujo gym */}
-            <div className="space-y-2.5">
-                {sets.map((set, i) => (
-                    <SetCard
-                        key={i}
-                        set={set}
-                        index={i}
-                        onUpdate={updateSet}
-                        onToggle={toggleComplete}
-                        onSetRIR={setRIR}
-                        isLocked={isAlreadyLogged}
-                        previousBest={previousBest}
-                        isUnilateral={isUnilateral}
-                        lastSet={lastSession?.sets?.[i] || null}
-                        setSuggestion={intraByIndex[i] || null}
-                        onApplySetSuggestion={applySetSuggestion}
-                    />
-                ))}
-            </div>
-
-            {/* Coach colapsable — debajo de las series para no empujar el fold */}
+            {/* Coach arriba — se ve antes de rellenar series (mismo bloque, solo posición) */}
             {!isAlreadyLogged && (previousBest || suggestion || lastSession) && (
-                <details className="mt-3 bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl group">
+                <details className="mb-3 bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl group">
                     <summary className="px-3 py-3 min-h-[44px] cursor-pointer flex items-center gap-2 select-none list-none [&::-webkit-details-marker]:hidden">
                         <Sparkles size={14} className="text-[var(--primary)] shrink-0" aria-hidden />
                         <span className="font-bold text-sm text-[var(--text-primary)] flex-1">
@@ -1865,6 +1877,26 @@ export default function Workout() {
                     </div>
                 </details>
             )}
+
+            {/* Series — debajo del coach para registrar con la meta ya a la vista */}
+            <div className="space-y-2.5">
+                {sets.map((set, i) => (
+                    <SetCard
+                        key={i}
+                        set={set}
+                        index={i}
+                        onUpdate={updateSet}
+                        onToggle={toggleComplete}
+                        onSetRIR={setRIR}
+                        isLocked={isAlreadyLogged}
+                        previousBest={previousBest}
+                        isUnilateral={isUnilateral}
+                        lastSet={lastSession?.sets?.[i] || null}
+                        setSuggestion={suggestionByIndex[i] || null}
+                        onApplySetSuggestion={applySetSuggestion}
+                    />
+                ))}
+            </div>
 
             {/* Pregunta RIR obligatoria al completar serie */}
             {rirPrompt && (

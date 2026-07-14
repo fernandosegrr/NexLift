@@ -417,11 +417,11 @@ export const api = {
         return res.json();
     },
 
-    async createCardioSession({ activity = 'caminadora', segments, note = null, date = null }) {
+    async createCardioSession({ activity = 'caminadora', segments, note = null, date = null, calories = null }) {
         const res = await authFetch(`${API_URL}/cardio`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ activity, segments, note, date })
+            body: JSON.stringify({ activity, segments, note, date, calories })
         });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
@@ -430,11 +430,13 @@ export const api = {
         return res.json();
     },
 
-    async updateCardioSession(id, { activity, segments, note }) {
+    async updateCardioSession(id, { activity, segments, note, calories }) {
+        const body = { activity, segments, note };
+        if (calories !== undefined) body.calories = calories;
         const res = await authFetch(`${API_URL}/cardio/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ activity, segments, note })
+            body: JSON.stringify(body)
         });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));

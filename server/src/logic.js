@@ -547,14 +547,22 @@ export function suggestNextSetFromToday(completedToday, { lo = 8, hi = 12, incre
             ? `Hoy RIR ${minRir} en alguna serie → baja a ${weight} kg × ${reps}.`
             : `Reps bajo el rango ${adjLo}–${adjHi} → baja a ${weight} kg × ${reps}.`;
     } else if (last.rir === 1 || rirDrop >= 2 || (repDrop >= 2 && last.rir <= 2)) {
+        // Fatiga: mismo peso, no empujar reps
         weight = last.weight;
         reps = Math.min(adjHi, Math.max(adjLo, last.reps));
         rationale = `Fatiga de hoy (RIR min ${minRir}) → mantén ${weight} kg × ${reps}.`;
     } else if (avgRir >= 2.5 && minRir >= 2 && last.reps >= adjLo) {
+        // Cómodo: mismo peso, +1/+2 reps (doble progresión intra-sesión — no clonar la serie anterior)
         weight = last.weight;
-        reps = Math.min(adjHi, Math.max(last.reps, adjLo));
-        rationale = `Series de hoy cómodas (RIR min ${minRir}) → ${weight} kg × ${reps}.`;
+        const bump = avgRir >= 3 ? 2 : 1;
+        reps = Math.min(adjHi, last.reps + bump);
+        if (reps > last.reps) {
+            rationale = `Series de hoy cómodas (RIR min ${minRir}) → ${weight} kg × ${reps} (+${reps - last.reps} rep).`;
+        } else {
+            rationale = `Techo del rango ${adjLo}–${adjHi} con RIR alto → mantén ${weight} kg × ${reps}; la próxima sesión sube peso.`;
+        }
     } else {
+        // Neutro (RIR ~2): mismo peso; si aún no llegas al techo, pide al menos last.reps
         weight = last.weight;
         reps = Math.min(adjHi, Math.max(adjLo, last.reps));
         rationale = `Según series de hoy (RIR min ${minRir}) → ${weight} kg × ${reps}.`;

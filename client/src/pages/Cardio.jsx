@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
     HeartPulse, Plus, Trash2, Loader2, ChevronDown, ChevronUp,
-    Clock, Mountain, Save, X
+    Clock, Mountain, Save, X, Flame
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { mexicoCityDateStr } from '../utils/dates';
+import { estimateCardioCalories } from '../utils/cardioCalories';
 
 const ACTIVITIES = [
     { id: 'caminadora', label: 'Caminadora' },
@@ -41,6 +42,9 @@ export default function Cardio() {
 
     const [activity, setActivity] = useState('caminadora');
     const [note, setNote] = useState('');
+    // kcal: vacío = no guardar; el usuario puede pegar lo de la máquina o usar la estimación
+    const [calories, setCalories] = useState('');
+    const [bodyWeightKg, setBodyWeightKg] = useState(null);
     // Default útil: 10@12 → 5@3 (el patrón del usuario)
     const [segments, setSegments] = useState([
         { durationMin: '10', incline: '12', speed: '', note: '' },
@@ -51,8 +55,15 @@ export default function Cardio() {
     async function load() {
         setLoading(true);
         try {
-            const data = await api.getCardioSessions(40);
+            const [data, bodyLogs] = await Promise.all([
+                api.getCardioSessions(40),
+                api.getBodyLogs(1).catch(() => [])
+            ]);
             setSessions(Array.isArray(data) ? data : []);
+            const w = Array.isArray(bodyLogs) && bodyLogs[0]?.weight
+                ? Number(bodyLogs[0].weight)
+                : null;
+            setBodyWeightKg(Number.isFinite(w) && w > 0 ? w : null);
         } catch (e) {
             console.error(e);
             toast.error('No se pudo cargar el historial de cardio');
@@ -67,6 +78,21 @@ export default function Cardio() {
         () => segments.reduce((a, s) => a + (parseFloat(s.durationMin) || 0), 0),
         [segments]
     );
+
+    const estimatedKcal = useMemo(() => {
+        const clean = segments
+            .map(s => ({
+                durationMin: parseFloat(s.durationMin),
+                incline: s.incline === '' || s.incline == null ? null : parseFloat(s.incline),
+                speed: s.speed === '' || s.speed == null ? null : parseFloat(s.speed)
+            }))
+            .filter(s => Number.isFinite(s.durationMin) && s.durationMin > 0);
+        return estimateCardioCalories({
+            activity,
+            segments: clean,
+            weightKg: bodyWeightKg
+        });
+    }, [activity, segments, bodyWeightKg]);
 
     function updateSegment(i, field, value) {
         setSegments(prev => prev.map((s, idx) => (idx === i ? { ...s, [field]: value } : s)));
@@ -99,22 +125,35 @@ export default function Cardio() {
             return;
         }
 
+        let calPayload = null;
+        if (calories !== '' && calories != null) {
+            const n = parseInt(String(calories).trim(), 10);
+            if (!Number.isFinite(n) || n < 0 || n > 10000) {
+                toast.error('Calorías inválidas (0–10000)');
+                return;
+            }
+            calPayload = n;
+        }
+
         setSaving(true);
         try {
             const created = await api.createCardioSession({
                 activity,
                 segments: clean,
-                note: note.trim() || null
+                note: note.trim() || null,
+                calories: calPayload
             });
             setSessions(prev => [created, ...prev]);
             setShowForm(false);
             setNote('');
+            setCalories('');
             setSegments([
                 { durationMin: '10', incline: '12', speed: '', note: '' },
                 { durationMin: '5', incline: '3', speed: '', note: '' },
                 { durationMin: '10', incline: '12', speed: '', note: '' }
             ]);
-            toast.success(`Cardio guardado · ${created.totalMin} min`);
+            const kcalPart = created.calories != null ? ` · ${created.calories} kcal` : '';
+            toast.success(`Cardio guardado · ${created.totalMin} min${kcalPart}`);
         } catch (e) {
             toast.error(e.message || 'Error al guardar');
         } finally {
@@ -138,6 +177,13 @@ export default function Cardio() {
         return sessions
             .filter(s => mexicoCityDateStr(new Date(s.date)) >= cutoff)
             .reduce((a, s) => a + (s.totalMin || 0), 0);
+    }, [sessions]);
+
+    const weekKcal = useMemo(() => {
+        const cutoff = mexicoCityDateStr(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
+        return sessions
+            .filter(s => mexicoCityDateStr(new Date(s.date)) >= cutoff)
+            .reduce((a, s) => a + (s.calories || 0), 0);
     }, [sessions]);
 
     return (
@@ -167,13 +213,21 @@ export default function Cardio() {
                 <div className="w-11 h-11 rounded-xl bg-[var(--primary)]/15 flex items-center justify-center">
                     <Clock size={20} className="text-[var(--primary)]" aria-hidden />
                 </div>
-                <div>
+                <div className="flex-1 min-w-0">
                     <p className="text-xs text-[var(--text-secondary)]">Esta semana (7 días)</p>
                     <p className="text-xl font-bold tabular-nums">
                         {Math.round(weekMin * 10) / 10}
                         <span className="text-sm font-semibold text-[var(--text-secondary)] ml-1">min</span>
                     </p>
                 </div>
+                {weekKcal > 0 && (
+                    <div className="text-right shrink-0">
+                        <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1 justify-end">
+                            <Flame size={12} className="text-orange-400" aria-hidden /> kcal
+                        </p>
+                        <p className="text-lg font-bold tabular-nums text-orange-300">{weekKcal}</p>
+                    </div>
+                )}
             </div>
 
             {/* Formulario nueva sesión */}
@@ -288,6 +342,41 @@ export default function Cardio() {
                     </div>
 
                     <div>
+                        <label className="text-xs text-[var(--text-secondary)] mb-1 flex items-center gap-1">
+                            <Flame size={12} className="text-orange-400" aria-hidden />
+                            Calorías quemadas (opcional)
+                        </label>
+                        <input
+                            type="number"
+                            inputMode="numeric"
+                            min="0"
+                            max="10000"
+                            step="1"
+                            value={calories}
+                            onChange={e => setCalories(e.target.value)}
+                            placeholder="ej. lo que diga la máquina"
+                            className="w-full min-h-[44px] px-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-sm font-bold tabular-nums focus:border-[var(--primary)] outline-none"
+                        />
+                        {estimatedKcal != null && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <p className="text-[11px] text-[var(--text-secondary)]">
+                                    Estimación ≈ {estimatedKcal} kcal
+                                    {bodyWeightKg
+                                        ? ` (peso ${bodyWeightKg} kg)`
+                                        : ' (peso ref. 70 kg)'}
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => setCalories(String(estimatedKcal))}
+                                    className="text-[11px] font-bold text-[var(--primary)] min-h-[36px] px-2 rounded-lg border border-[var(--primary)]/30"
+                                >
+                                    Usar estimación
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    <div>
                         <label className="text-xs text-[var(--text-secondary)] mb-1 block">Nota (opcional)</label>
                         <input
                             type="text"
@@ -355,6 +444,9 @@ export default function Cardio() {
                                             </div>
                                             <p className="text-xs text-[var(--text-secondary)] mt-0.5 tabular-nums">
                                                 {s.totalMin} min · {s.segmentCount} tramo{s.segmentCount === 1 ? '' : 's'}
+                                                {s.calories != null && (
+                                                    <span className="text-orange-300/90"> · {s.calories} kcal</span>
+                                                )}
                                                 {inclinePath && inclinePath !== '—' && (
                                                     <span className="text-[var(--text-secondary)]/80"> · incl. {inclinePath}</span>
                                                 )}

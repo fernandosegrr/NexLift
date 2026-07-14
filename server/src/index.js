@@ -2408,6 +2408,16 @@ function sanitizeCardioSegments(raw) {
     return { segments };
 }
 
+/** calories opcionales: null / omitido, o entero 1–10000 (kcal de la sesión). */
+function sanitizeCardioCalories(raw) {
+    if (raw === undefined || raw === null || raw === '') return { calories: null };
+    const n = typeof raw === 'number' ? raw : parseInt(String(raw).trim(), 10);
+    if (!Number.isFinite(n) || n < 0 || n > 10000) {
+        return { error: 'Calorías inválidas (0–10000 kcal)' };
+    }
+    return { calories: Math.round(n) };
+}
+
 function mapCardioSession(session) {
     if (!session) return null;
     const segments = session.segments || [];
@@ -2422,7 +2432,8 @@ function mapCardioSession(session) {
 // GET /api/cardio — historial (más recientes primero)
 app.get('/api/cardio', authMiddleware, async (req, res) => {
     try {
-        const take = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 1), 100);
+        // 500 alinea con history export; default 30
+        const take = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 1), 500);
         const sessions = await prisma.cardioSession.findMany({
             where: { userId: req.userId },
             include: { segments: { orderBy: { order: 'asc' } } },
@@ -2445,6 +2456,8 @@ app.post('/api/cardio', authMiddleware, async (req, res) => {
         const note = req.body.note != null ? String(req.body.note).slice(0, 500) : null;
         const { segments, error } = sanitizeCardioSegments(req.body.segments);
         if (error) return res.status(400).json({ error });
+        const cal = sanitizeCardioCalories(req.body.calories);
+        if (cal.error) return res.status(400).json({ error: cal.error });
 
         // Fecha: opcional YYYY-MM-DD (día CDMX); default = ahora
         let date = new Date();
@@ -2459,6 +2472,7 @@ app.post('/api/cardio', authMiddleware, async (req, res) => {
                 userId: req.userId,
                 activity,
                 note,
+                calories: cal.calories,
                 date,
                 segments: { create: segments }
             },
@@ -2471,7 +2485,7 @@ app.post('/api/cardio', authMiddleware, async (req, res) => {
     }
 });
 
-// PUT /api/cardio/:id — reemplaza tramos / nota / activity
+// PUT /api/cardio/:id — reemplaza tramos / nota / activity / calories
 app.put('/api/cardio/:id', authMiddleware, async (req, res) => {
     try {
         const existing = await prisma.cardioSession.findFirst({
@@ -2487,6 +2501,13 @@ app.put('/api/cardio/:id', authMiddleware, async (req, res) => {
         const { segments, error } = sanitizeCardioSegments(req.body.segments);
         if (error) return res.status(400).json({ error });
 
+        let calories = existing.calories;
+        if (req.body.calories !== undefined) {
+            const cal = sanitizeCardioCalories(req.body.calories);
+            if (cal.error) return res.status(400).json({ error: cal.error });
+            calories = cal.calories;
+        }
+
         const session = await prisma.$transaction(async (tx) => {
             await tx.cardioSegment.deleteMany({ where: { sessionId: existing.id } });
             return tx.cardioSession.update({
@@ -2494,6 +2515,7 @@ app.put('/api/cardio/:id', authMiddleware, async (req, res) => {
                 data: {
                     activity,
                     note,
+                    calories,
                     segments: { create: segments }
                 },
                 include: { segments: { orderBy: { order: 'asc' } } }
