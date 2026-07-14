@@ -100,11 +100,17 @@ function deriveHistoryDerived(history, targetReps, muscleGroup, phase, exerciseN
         allSets[0]
     );
 
-    // Historial viene DESC (más reciente primero) → última sesión completa
-    const lastSession = {
-        date: sessions[0].date,
-        sets: [...(sessions[0].sets || [])].sort((a, b) => (a.setNumber || 0) - (b.setNumber || 0))
-    };
+    // Comparativa = sesión ANTERIOR a hoy (DESC). Si sessions[0] es de hoy
+    // (recién guardado o reabierto), usamos la siguiente — si no, se "compara"
+    // consigo misma y el delta siempre sale 0 / vacío.
+    const todayKey = mexicoCityDateStr();
+    const prior = sessions.find(s => mexicoCityDateStr(new Date(s.date)) !== todayKey) || null;
+    const lastSession = prior
+        ? {
+            date: prior.date,
+            sets: [...(prior.sets || [])].sort((a, b) => (a.setNumber || 0) - (b.setNumber || 0))
+        }
+        : null;
 
     const increment = resolveWeightIncrement(muscleGroup, exerciseName);
     const raw = computeWorkoutSuggestion(sessions, targetReps, increment, phase);
@@ -193,14 +199,28 @@ function useExerciseHistory(exerciseId, targetReps, muscleGroup, phase, exercise
 function sessionVolumeFromSets(sets) {
     let v = 0;
     for (const s of sets || []) {
-        const w = Number(s.weight) || 0;
-        const r = Number(s.reps) || 0;
-        v += w * r;
-        if (s.weightRight != null || s.repsRight != null || s.weightR || s.repsR) {
-            v += (Number(s.weightRight ?? s.weightR) || w) * (Number(s.repsRight ?? s.repsR) || r);
+        // Acepta strings del form y números del API
+        const w = parseFloat(s.weight);
+        const r = parseFloat(s.reps);
+        if (Number.isFinite(w) && Number.isFinite(r) && w > 0 && r > 0) {
+            v += w * r;
+        }
+        const wR = s.weightRight != null ? parseFloat(s.weightRight)
+            : (s.weightR != null && s.weightR !== '' ? parseFloat(s.weightR) : NaN);
+        const rR = s.repsRight != null ? parseFloat(s.repsRight)
+            : (s.repsR != null && s.repsR !== '' ? parseFloat(s.repsR) : NaN);
+        if (Number.isFinite(wR) && Number.isFinite(rR) && wR > 0 && rR > 0) {
+            v += wR * rR;
         }
     }
     return v;
+}
+
+/** Log de HOY (CDMX) en un historial DESC, si existe. */
+function findTodayLog(history) {
+    if (!history?.length) return null;
+    const today = mexicoCityDateStr();
+    return history.find(h => mexicoCityDateStr(new Date(h.date)) === today) || null;
 }
 
 function setDeltaLabel(current, last) {
@@ -820,11 +840,20 @@ export default function Workout() {
         for (const ex of exerciseList) {
             const history = historyMap[ex.id];
             if (!history?.length) continue;
-            const logDate = mexicoCityDateStr(history[0].date);
+            const todayLog = findTodayLog(history);
             // No basta con "hay un log hoy": el Atajo registra 1 serie a la vez,
             // así que un log de hoy puede ser sesión PARCIAL (editable).
-            if (logDate === today && (history[0].sets?.length || 0) >= ex.targetSets) {
+            if (todayLog && (todayLog.sets?.length || 0) >= ex.targetSets) {
                 completed.push(ex.id);
+                // Pre-carga volumen para el resumen (si finaliza sin re-guardar)
+                if (!sessionResultsRef.current[ex.id]) {
+                    sessionResultsRef.current[ex.id] = {
+                        name: ex.name,
+                        sets: todayLog.sets,
+                        volume: sessionVolumeFromSets(todayLog.sets),
+                        skipped: false
+                    };
+                }
             }
         }
         const checkedIds = new Set(exerciseList.map(ex => ex.id));
@@ -1143,27 +1172,52 @@ export default function Workout() {
             const logged = sessionResultsRef.current[ex.id];
             const skipped = skippedExerciseIds.includes(ex.id) || logged?.skipped;
             const done = completedExerciseIds.includes(ex.id) && !skipped;
+
+            // 1) Guardado en esta visita (ref)
             if (logged && !logged.skipped) {
+                const vol = logged.volume != null && logged.volume > 0
+                    ? logged.volume
+                    : sessionVolumeFromSets(logged.sets);
                 return {
                     id: ex.id,
                     name: ex.name,
                     status: 'done',
                     setsCount: logged.sets?.length || 0,
-                    volume: logged.volume || 0
+                    volume: vol
                 };
             }
             if (skipped) {
                 return { id: ex.id, name: ex.name, status: 'skipped', setsCount: 0, volume: 0 };
             }
+            // 2) Completado hoy (API / reabrir) — sacar series del historial de hoy
             if (done) {
-                // Completado al abrir (historial de hoy) sin pasar por save de esta sesión
-                return { id: ex.id, name: ex.name, status: 'done', setsCount: null, volume: null };
+                const todayLog = findTodayLog(historyByExerciseId[ex.id]);
+                const sets = todayLog?.sets || [];
+                return {
+                    id: ex.id,
+                    name: ex.name,
+                    status: 'done',
+                    setsCount: sets.length || null,
+                    volume: sets.length ? sessionVolumeFromSets(sets) : 0
+                };
+            }
+            // 3) Series en memoria aún no guardadas (terminar día a medias)
+            const draft = workoutData[ex.id];
+            if (Array.isArray(draft) && draft.some(s => s.weight && s.reps)) {
+                const filled = draft.filter(s => s.weight !== '' && s.reps !== '');
+                return {
+                    id: ex.id,
+                    name: ex.name,
+                    status: 'pending',
+                    setsCount: filled.length,
+                    volume: sessionVolumeFromSets(filled)
+                };
             }
             return { id: ex.id, name: ex.name, status: 'pending', setsCount: 0, volume: 0 };
         });
         const doneRows = rows.filter(r => r.status === 'done');
         const skippedRows = rows.filter(r => r.status === 'skipped');
-        const totalVolume = rows.reduce((a, r) => a + (r.volume || 0), 0);
+        const totalVolume = rows.reduce((a, r) => a + (Number(r.volume) || 0), 0);
         return {
             dayName: workoutState.dayName,
             rows,
