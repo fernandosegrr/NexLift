@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
-    Settings, LogOut, Camera, Award, Dumbbell, Scale, Crown, X,
-    Phone, Calendar
+    Settings, LogOut, Camera, Award, Dumbbell, Scale, X,
+    Phone, Calendar, ChevronRight
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -120,13 +120,13 @@ export default function Profile() {
         <div className="pb-24 max-w-2xl mx-auto">
             {/* Hero Header with Gradient + Settings Button */}
             <div className="relative mb-6">
-                <div className="h-32 bg-gradient-to-br from-purple-600 via-purple-500 to-pink-500 rounded-b-3xl" />
+                <div className="h-28 bg-gradient-to-br from-[var(--primary)] via-[var(--primary-dark)] to-[var(--primary)]/70 rounded-b-3xl" />
 
                 <button
                     type="button"
                     onClick={() => navigate('/settings')}
                     aria-label="Configuración"
-                    className="absolute top-4 right-4 w-10 h-10 bg-black/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/40 transition-colors"
+                    className="absolute top-3 right-3 w-11 h-11 min-w-[44px] min-h-[44px] bg-black/25 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/40 transition-colors"
                 >
                     <Settings className="w-5 h-5" />
                 </button>
@@ -139,7 +139,7 @@ export default function Profile() {
                                 type="button"
                                 onClick={() => setShowAvatarModal(true)}
                                 aria-label="Ver foto de perfil"
-                                className="block rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                                className="block rounded-full focus-ring"
                             >
                                 <img
                                     src={user.avatarUrl}
@@ -150,7 +150,7 @@ export default function Profile() {
                             </button>
                         ) : (
                             <div
-                                className="w-24 h-24 rounded-full border-4 border-[var(--bg-dark)] bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center text-3xl font-bold text-white shadow-xl"
+                                className="w-24 h-24 rounded-full border-4 border-[var(--bg-dark)] bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] flex items-center justify-center text-3xl font-bold text-white shadow-xl"
                                 aria-hidden="true"
                             >
                                 {getInitials()}
@@ -162,7 +162,7 @@ export default function Profile() {
                             onClick={handleAvatarClick}
                             disabled={loading}
                             aria-label="Cambiar foto de perfil"
-                            className="absolute -bottom-1 -right-1 w-8 h-8 bg-[var(--primary)] rounded-full border-2 border-[var(--bg-dark)] flex items-center justify-center shadow-lg hover:bg-purple-600 transition-colors disabled:opacity-50"
+                            className="absolute -bottom-1 -right-1 w-10 h-10 min-w-[40px] min-h-[40px] bg-[var(--primary)] rounded-full border-2 border-[var(--bg-dark)] flex items-center justify-center shadow-lg hover:brightness-110 transition-colors disabled:opacity-50"
                         >
                             {loading
                                 ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -189,20 +189,12 @@ export default function Profile() {
             {/* User Info */}
             <div className="mt-14 text-center px-4">
                 <div className="flex flex-col items-center justify-center mb-1">
-                    <p className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-400 mb-1 flex items-center gap-2">
+                    <p className="text-xl font-bold text-[var(--primary)] mb-1">
                         @{user.username}
-                        {user.username === 'fernando.segrr' && (
-                            <span className="px-2 py-0.5 text-[10px] bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full font-bold uppercase tracking-wider shadow-lg shadow-purple-500/30 border border-white/10">
-                                Creador
-                            </span>
-                        )}
                     </p>
-                    <div className="flex items-center gap-2">
-                        <h1 className="text-lg text-[var(--text-secondary)] font-medium">
-                            {user.firstName} {user.lastName}
-                        </h1>
-                        <Crown className="w-4 h-4 text-yellow-400" aria-hidden="true" />
-                    </div>
+                    <h1 className="text-lg text-[var(--text-secondary)] font-medium">
+                        {user.firstName} {user.lastName}
+                    </h1>
                 </div>
                 {user.email && (
                     <p className="text-sm text-[var(--text-secondary)] mt-1 break-all">{user.email}</p>
@@ -226,9 +218,9 @@ export default function Profile() {
                     </div>
                 )}
 
-                <div className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 bg-purple-500/10 rounded-full border border-purple-500/30">
-                    <Award className="w-4 h-4 text-purple-400" aria-hidden="true" />
-                    <span className="text-sm text-purple-400">
+                <div className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 bg-[var(--primary)]/10 rounded-full border border-[var(--primary)]/30">
+                    <Award className="w-4 h-4 text-[var(--primary)]" aria-hidden="true" />
+                    <span className="text-sm text-[var(--primary)]">
                         Miembro por {getMembershipDays()} {getMembershipDays() === 1 ? 'día' : 'días'}
                     </span>
                 </div>
@@ -237,29 +229,49 @@ export default function Profile() {
             {/* Stats Cards */}
             {user._count && (
                 <div className="grid grid-cols-3 gap-3 px-4 mt-6">
-                    <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 rounded-2xl p-4 border border-purple-500/20 text-center">
-                        <Dumbbell className="w-6 h-6 text-purple-400 mx-auto mb-2" aria-hidden="true" />
-                        <p className="text-2xl font-bold text-white">{user._count.routines ?? 0}</p>
+                    <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border)] text-center">
+                        <Dumbbell className="w-6 h-6 text-[var(--primary)] mx-auto mb-2" aria-hidden="true" />
+                        <p className="text-2xl font-bold text-white tabular-nums">{user._count.routines ?? 0}</p>
                         <p className="text-xs text-[var(--text-secondary)]">Rutinas</p>
                     </div>
-                    <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 rounded-2xl p-4 border border-blue-500/20 text-center">
-                        <Scale className="w-6 h-6 text-blue-400 mx-auto mb-2" aria-hidden="true" />
-                        <p className="text-2xl font-bold text-white">{user._count.bodyLogs ?? 0}</p>
+                    <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border)] text-center">
+                        <Scale className="w-6 h-6 text-[var(--accent)] mx-auto mb-2" aria-hidden="true" />
+                        <p className="text-2xl font-bold text-white tabular-nums">{user._count.bodyLogs ?? 0}</p>
                         <p className="text-xs text-[var(--text-secondary)]">Mediciones</p>
                     </div>
-                    <div className="bg-gradient-to-br from-amber-500/20 to-amber-600/10 rounded-2xl p-4 border border-amber-500/20 text-center">
-                        <Award className="w-6 h-6 text-amber-400 mx-auto mb-2" aria-hidden="true" />
-                        <p className="text-2xl font-bold text-white">{user._count.personalRecords ?? 0}</p>
+                    <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border)] text-center">
+                        <Award className="w-6 h-6 text-[var(--warning)] mx-auto mb-2" aria-hidden="true" />
+                        <p className="text-2xl font-bold text-white tabular-nums">{user._count.personalRecords ?? 0}</p>
                         <p className="text-xs text-[var(--text-secondary)]">PRs</p>
                     </div>
                 </div>
             )}
 
+            {/* Accesos rápidos (Cuerpo salió del tab bar) */}
+            <div className="px-4 mt-5 space-y-2">
+                <Link
+                    to="/body"
+                    className="flex items-center gap-3 w-full min-h-[48px] px-4 py-3 bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl hover:border-[var(--primary)]/40 transition-colors"
+                >
+                    <Scale className="w-5 h-5 text-[var(--accent)] shrink-0" aria-hidden />
+                    <span className="flex-1 font-semibold text-sm text-left">Cuerpo y mediciones</span>
+                    <ChevronRight className="w-4 h-4 text-[var(--text-secondary)]" aria-hidden />
+                </Link>
+                <Link
+                    to="/settings"
+                    className="flex items-center gap-3 w-full min-h-[48px] px-4 py-3 bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl hover:border-[var(--primary)]/40 transition-colors"
+                >
+                    <Settings className="w-5 h-5 text-[var(--primary)] shrink-0" aria-hidden />
+                    <span className="flex-1 font-semibold text-sm text-left">Configuración</span>
+                    <ChevronRight className="w-4 h-4 text-[var(--text-secondary)]" aria-hidden />
+                </Link>
+            </div>
+
             <div className="px-4 mt-6">
                 <button
                     type="button"
                     onClick={handleLogout}
-                    className="w-full py-3 bg-red-500/10 text-red-400 font-medium rounded-xl border border-red-500/30 hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
+                    className="w-full min-h-[48px] py-3 bg-red-500/10 text-red-400 font-medium rounded-xl border border-red-500/30 hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
                 >
                     <LogOut className="w-5 h-5" aria-hidden="true" />
                     Cerrar Sesión
@@ -297,7 +309,7 @@ export default function Profile() {
                                         setShowAvatarModal(false);
                                         handleAvatarClick();
                                     }}
-                                    className="flex items-center gap-2 px-6 py-3 bg-[var(--primary)] text-white rounded-full font-medium hover:bg-purple-700 transition-colors shadow-lg shadow-purple-500/25"
+                                    className="flex items-center gap-2 px-6 py-3 min-h-[48px] bg-[var(--primary)] text-white rounded-full font-medium hover:brightness-110 transition-colors shadow-lg shadow-[var(--primary)]/25"
                                 >
                                     <Camera size={20} aria-hidden="true" />
                                     Cambiar Foto

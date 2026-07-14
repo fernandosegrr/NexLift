@@ -524,9 +524,13 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
                     )}
 
                     {/* RIR — obligatorio al completar (también se pide en modal) */}
-                    <div className="flex items-center bg-[var(--bg-dark)]/50 rounded-lg p-1 h-9">
-                        <span className="text-[10px] text-[var(--text-secondary)] w-8 text-center font-bold">RIR</span>
-                        <div className="flex flex-1 justify-end gap-1 h-full">
+                    <div className={`flex items-center rounded-xl p-1 min-h-[44px] ${
+                        !isLocked && !set.completed && set.rir == null && set.weight && set.reps
+                            ? 'bg-[var(--warning)]/10 ring-1 ring-[var(--warning)]/40'
+                            : 'bg-[var(--bg-dark)]/50'
+                    }`}>
+                        <span className="text-[10px] text-[var(--text-secondary)] w-8 text-center font-bold shrink-0">RIR</span>
+                        <div className="flex flex-1 justify-end gap-1 h-full min-h-[40px]">
                             {RIR_QUESTIONS.map(({ value: rir, label }) => (
                                 <button
                                     key={rir}
@@ -535,8 +539,8 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
                                     disabled={isLocked}
                                     aria-label={`RIR ${rir}`}
                                     aria-pressed={set.rir === rir}
-                                    className={`flex-1 rounded flex items-center justify-center text-xs font-bold transition-all ${set.rir === rir
-                                        ? 'bg-[var(--primary)] text-white shadow-sm scale-105'
+                                    className={`flex-1 min-h-[40px] min-w-[40px] rounded-lg flex items-center justify-center text-xs font-bold transition-all ${set.rir === rir
+                                        ? 'bg-[var(--primary)] text-white shadow-sm'
                                         : 'text-[var(--text-secondary)] hover:bg-[var(--bg-card)]'
                                         }`}
                                 >
@@ -554,7 +558,7 @@ const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, prev
                         disabled={isLocked}
                         aria-label={set.completed ? `Serie ${index + 1} completada` : `Marcar serie ${index + 1} completada`}
                         aria-pressed={set.completed}
-                        className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 active:scale-90 ${set.completed
+                        className={`w-12 h-12 min-w-[48px] min-h-[48px] rounded-xl flex items-center justify-center transition-all duration-200 active:scale-90 ${set.completed
                             ? 'bg-[var(--success)] text-white shadow-lg shadow-[var(--success)]/30 scale-105'
                             : 'bg-[var(--bg-dark)] border-2 border-[var(--border)] text-[var(--text-tertiary)] hover:border-[var(--primary)] hover:text-[var(--primary)]'
                             }`}
@@ -1545,51 +1549,53 @@ export default function Workout() {
     }
 
     return (
-        <div className="min-h-[calc(100vh-80px)] max-w-lg mx-auto bg-[var(--bg-main)] px-4 py-4">
+        <div className="min-h-[calc(100dvh-4rem)] max-w-lg mx-auto bg-[var(--bg-main)] px-3 pt-2 pb-4">
 
-            {/* Temporizador de descanso - respaldo visual de la notificación push (poco fiable en iOS PWA) */}
+            {/* Timer — sobre bottom nav + safe area iOS */}
             {restTimer.secondsLeft !== null && (
-                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-slide-down">
-                    <div className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-xl border backdrop-blur-sm transition-colors ${restTimer.isDone
+                <div
+                    className="fixed left-1/2 -translate-x-1/2 z-40 animate-slide-down"
+                    style={{ bottom: 'calc(4.25rem + env(safe-area-inset-bottom, 0px))' }}
+                >
+                    <div className={`flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-full shadow-xl border backdrop-blur-sm transition-colors ${restTimer.isDone
                         ? 'bg-[var(--success)]/90 border-[var(--success)] text-white'
                         : 'bg-[var(--bg-card)]/95 border-[var(--primary)]/40 text-[var(--text-primary)]'
                         }`}>
                         {restTimer.isDone ? (
                             <>
-                                <Check size={16} strokeWidth={3} />
+                                <Check size={16} strokeWidth={3} aria-hidden />
                                 <span className="font-bold text-sm">¡Listo para la siguiente serie!</span>
                             </>
                         ) : (
                             <>
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Descansa</span>
-                                <span className="font-black text-lg tabular-nums leading-none">
+                                <span className="font-black text-lg tabular-nums leading-none" aria-live="polite">
                                     {Math.floor(restTimer.secondsLeft / 60)}:{String(restTimer.secondsLeft % 60).padStart(2, '0')}
                                 </span>
                             </>
                         )}
                         <button
+                            type="button"
                             onClick={restTimer.stop}
                             aria-label="Cerrar temporizador de descanso"
-                            className="ml-1 p-1 -mr-1 rounded-full hover:bg-white/10 transition-colors active:scale-90"
+                            className="ml-1 p-2 -mr-1 min-w-[44px] min-h-[44px] rounded-full hover:bg-white/10 transition-colors active:scale-90 flex items-center justify-center"
                         >
-                            <X size={14} />
+                            <X size={16} />
                         </button>
                     </div>
                 </div>
             )}
 
-            {/* Header - Al inicio, se desplaza con el contenido */}
-            <div className="flex items-center justify-between mb-6">
-                <button onClick={() => navigate(-1)} aria-label="Volver" className="p-2 -ml-2 hover:bg-[var(--bg-card)] rounded-full transition-colors active:scale-95">
+            {/* Header compacto */}
+            <div className="flex items-center justify-between mb-2">
+                <button type="button" onClick={() => navigate(-1)} aria-label="Volver" className="p-2.5 min-w-[44px] min-h-[44px] -ml-1 hover:bg-[var(--bg-card)] rounded-full transition-colors active:scale-95 flex items-center justify-center">
                     <ArrowLeft size={20} className="text-[var(--text-primary)]" />
                 </button>
-
-                <div className="flex flex-col items-center">
-                    <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">
+                <div className="flex flex-col items-center min-w-0 px-1">
+                    <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest truncate max-w-[12rem]">
                         {workoutState.dayName}
                     </span>
-                    {/* Progress dots tappeables */}
-                    <div className="flex gap-1 mt-1.5 items-center" role="tablist" aria-label="Ejercicios del día">
+                    <div className="flex gap-0.5 mt-1 items-center" role="tablist" aria-label="Ejercicios del día">
                         {workoutState.exercises.map((ex, i) => {
                             const done = completedExerciseIds.includes(ex.id);
                             const skipped = skippedExerciseIds.includes(ex.id);
@@ -1601,266 +1607,161 @@ export default function Workout() {
                                 aria-selected={i === workoutState.currentIndex}
                                 aria-label={`Ejercicio ${i + 1}: ${ex.name}${done ? ' (completado)' : skipped ? ' (saltado)' : ''}`}
                                 onClick={() => goToExercise(i)}
-                                className={`h-2 rounded-full transition-all duration-300 active:scale-90 ${
-                                    i === workoutState.currentIndex ? 'w-6 bg-[var(--primary)]'
-                                    : done ? 'w-2 bg-[var(--success)]'
-                                    : skipped ? 'w-2 bg-orange-500/70'
-                                    : 'w-2 bg-[var(--border)]'
+                                className={`min-h-[28px] min-w-[28px] flex items-center justify-center rounded-full transition-all active:scale-90 ${
+                                    i === workoutState.currentIndex ? 'px-1' : ''
                                 }`}
-                            />
+                            >
+                                <span className={`rounded-full block transition-all ${
+                                    i === workoutState.currentIndex ? 'w-5 h-2 bg-[var(--primary)]'
+                                    : done ? 'w-2 h-2 bg-[var(--success)]'
+                                    : skipped ? 'w-2 h-2 bg-orange-500/70'
+                                    : 'w-2 h-2 bg-[var(--border)]'
+                                }`} />
+                            </button>
                             );
                         })}
                     </div>
                 </div>
-
-                <button onClick={loadHistoryModal} aria-label="Historial del ejercicio" className="p-2 -mr-2 hover:bg-[var(--bg-card)] rounded-full transition-colors text-[var(--text-secondary)] active:scale-95">
+                <button type="button" onClick={loadHistoryModal} aria-label="Historial del ejercicio" className="p-2.5 min-w-[44px] min-h-[44px] -mr-1 hover:bg-[var(--bg-card)] rounded-full transition-colors text-[var(--text-secondary)] active:scale-95 flex items-center justify-center">
                     <History size={20} />
                 </button>
             </div>
 
-            {/* Exercise Title Card */}
-            <div className="mb-6 text-center">
-                <div className="flex items-center justify-between gap-2 mb-2">
+            {/* Título + meta (compacto) */}
+            <div className="mb-3 text-center">
+                <div className="flex items-center justify-between gap-1 mb-1">
                     <button
+                        type="button"
                         onClick={() => goToExercise(workoutState.currentIndex - 1)}
                         disabled={workoutState.currentIndex === 0}
                         aria-label="Ejercicio anterior"
-                        className="p-3 rounded-xl hover:bg-[var(--bg-card)] text-[var(--text-secondary)] disabled:opacity-20 disabled:hover:bg-transparent transition-colors"
+                        className="p-2.5 min-w-[44px] min-h-[44px] rounded-xl hover:bg-[var(--bg-card)] text-[var(--text-secondary)] disabled:opacity-20 flex items-center justify-center"
                     >
-                        <ChevronLeft size={24} />
+                        <ChevronLeft size={22} />
                     </button>
-
-                    <div className="bg-[var(--primary)]/10 px-3 py-1 rounded-full border border-[var(--primary)]/20">
-                        <span className="text-xs font-bold text-[var(--primary)] tracking-wide">
-                            EJERCICIO {workoutState.currentIndex + 1} / {workoutState.exercises.length}
-                        </span>
-                    </div>
-
+                    <h1 className="text-xl font-bold text-[var(--text-primary)] leading-tight px-1 flex-1 min-w-0">
+                        {currentExercise?.name || 'Ejercicio'}
+                    </h1>
                     <button
+                        type="button"
                         onClick={() => goToExercise(workoutState.currentIndex + 1)}
                         disabled={workoutState.currentIndex === workoutState.exercises.length - 1}
                         aria-label="Ejercicio siguiente"
-                        className="p-3 rounded-xl hover:bg-[var(--bg-card)] text-[var(--text-secondary)] disabled:opacity-20 disabled:hover:bg-transparent transition-colors"
+                        className="p-2.5 min-w-[44px] min-h-[44px] rounded-xl hover:bg-[var(--bg-card)] text-[var(--text-secondary)] disabled:opacity-20 flex items-center justify-center"
                     >
-                        <ChevronRight size={24} />
+                        <ChevronRight size={22} />
                     </button>
                 </div>
+                <p className="text-[10px] font-semibold text-[var(--text-secondary)] mb-1.5">
+                    {workoutState.currentIndex + 1} / {workoutState.exercises.length}
+                    <span className="mx-1.5 opacity-40">·</span>
+                    Meta {currentExercise?.targetSets}×{currentExercise?.targetReps}
+                </p>
 
-                <h1 className="text-2xl font-black text-[var(--text-primary)] leading-tight mb-1 px-2">
-                    {currentExercise?.name || 'Ejercicio'}
-                </h1>
                 {!!currentExercise?.note && (
-                    <p className="text-xs text-[var(--text-secondary)] px-4 mb-2 leading-snug">
-                        {currentExercise.note}
-                    </p>
+                    <div className="mx-1 mb-2 text-left bg-[var(--primary)]/10 border border-[var(--primary)]/25 rounded-xl px-3 py-2 flex gap-2">
+                        <span className="text-sm shrink-0" aria-hidden>💡</span>
+                        <p className="text-xs text-[var(--text-primary)]/90 leading-snug font-medium">
+                            {currentExercise.note}
+                        </p>
+                    </div>
                 )}
 
                 {pendingSync && (
                     <div className="flex justify-center mb-2">
-                        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--warning)] bg-[var(--warning)]/10 px-3 py-1 rounded-full border border-[var(--warning)]/30">
-                            <AlertTriangle size={12} />
-                            <span>Guardado local — pendiente de sincronizar</span>
+                        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--warning)] bg-[var(--warning)]/10 px-3 py-1.5 rounded-full border border-[var(--warning)]/30">
+                            <AlertTriangle size={12} aria-hidden />
+                            <span>Guardado local — pendiente</span>
                         </div>
                     </div>
                 )}
 
-                <div className="flex items-center justify-center gap-3">
-                    <div className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)] bg-[var(--bg-card)] px-3 py-1.5 rounded-lg border border-[var(--border)]">
-                        <Target size={14} />
-                        <span>Meta: <span className="font-bold text-[var(--text-primary)]">{currentExercise?.targetSets} × {currentExercise?.targetReps}</span></span>
-                    </div>
+                <div className="flex items-center justify-center gap-2 flex-wrap">
                     <button
+                        type="button"
                         onClick={() => setIsUnilateral(!isUnilateral)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${isUnilateral
+                        aria-pressed={isUnilateral}
+                        className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${isUnilateral
                             ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
                             : 'bg-[var(--bg-card)] text-[var(--text-secondary)] border-[var(--border)]'
                         }`}
                     >
                         {isUnilateral ? 'Unilateral' : 'Bilateral'}
                     </button>
+                    {goalTarget && !goalTarget.planExhausted && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[var(--primary)] bg-[var(--primary)]/10 border border-[var(--primary)]/25 px-2.5 py-1.5 rounded-full">
+                            <Target size={12} aria-hidden />
+                            {goalTarget.achieved
+                                ? 'Objetivo ✓'
+                                : `${goalTarget.weight}kg×${goalTarget.reps} · s${goalTarget.week}/${goalTarget.totalWeeks}`}
+                        </span>
+                    )}
+                    {workoutState.phase && PHASE_BANNER[workoutState.phase] && (
+                        <span className={`text-[10px] font-bold px-2.5 py-1.5 rounded-full border ${PHASE_BANNER[workoutState.phase].wrapperClass} ${PHASE_BANNER[workoutState.phase].titleClass}`}>
+                            {PHASE_BANNER[workoutState.phase].title}
+                        </span>
+                    )}
                 </div>
             </div>
 
-            {/* Chips compactos + sugerencia — series arriba en móvil */}
-            <div className="mb-4 space-y-2">
-                {goalTarget && !goalTarget.planExhausted && (
-                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl px-3 py-2 flex items-center gap-2 animate-fade-in">
-                        <Target size={14} className="text-purple-400 shrink-0" strokeWidth={2.5} />
-                        {goalTarget.achieved ? (
-                            <p className="font-bold text-purple-400 text-xs">Objetivo superado</p>
-                        ) : (
-                            <p className="font-bold text-purple-400 text-xs">
-                                Objetivo: {goalTarget.weight}kg × {goalTarget.reps}
-                                <span className="font-medium text-purple-400/70"> · sem. {goalTarget.week}/{goalTarget.totalWeeks}</span>
-                            </p>
-                        )}
+            {/* Estado del ejercicio (solo si aplica) */}
+            {(skippedExerciseIds.includes(currentExercise?.id) && !isAlreadyLogged) && (
+                <div className="mb-3 bg-orange-500/10 border border-orange-500/20 rounded-2xl p-3 flex items-center gap-3">
+                    <ArrowRight size={16} className="text-orange-400 shrink-0" aria-hidden />
+                    <div className="flex-1 min-w-0">
+                        <p className="font-bold text-orange-400 text-sm">Ejercicio saltado</p>
+                        <p className="text-orange-400/80 text-xs">Puedes registrarlo igual</p>
                     </div>
-                )}
-                {workoutState.phase && PHASE_BANNER[workoutState.phase] && (() => {
-                    const b = PHASE_BANNER[workoutState.phase];
-                    const Icon = b.Icon;
-                    return (
-                        <details className={`${b.wrapperClass} border rounded-xl text-xs`}>
-                            <summary className={`px-3 py-2 cursor-pointer flex items-center gap-2 select-none font-bold ${b.titleClass}`}>
-                                <Icon size={14} strokeWidth={2.5} />
-                                {b.title}
-                            </summary>
-                            <p className={`px-3 pb-2 ${b.descClass}`}>{b.desc}</p>
-                        </details>
-                    );
-                })()}
-                {skippedExerciseIds.includes(currentExercise?.id) && !isAlreadyLogged ? (
-                    <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl p-3 flex items-center gap-3 animate-fade-in">
-                        <div className="bg-orange-500/20 p-2 rounded-full text-orange-400 shrink-0">
-                            <ArrowRight size={16} strokeWidth={2.5} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="font-bold text-orange-400 text-sm">Ejercicio saltado</p>
-                            <p className="text-orange-400/80 text-xs">Puedes registrarlo igual si cambias de idea</p>
-                        </div>
+                </div>
+            )}
+            {isAlreadyLogged && (
+                <div className="mb-3 bg-[var(--success)]/10 border border-[var(--success)]/20 rounded-2xl p-3 flex items-center gap-3">
+                    <div className="bg-[var(--success)] p-2 rounded-full text-white shrink-0">
+                        <Check size={16} strokeWidth={3} aria-hidden />
                     </div>
-                ) : isAlreadyLogged ? (
-                    <div className="bg-[var(--success)]/10 border border-[var(--success)]/20 rounded-2xl p-3 flex items-center gap-3 animate-fade-in">
-                        <div className="bg-[var(--success)] p-2 rounded-full text-white shadow-sm shrink-0">
-                            <Check size={16} strokeWidth={3} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="font-bold text-[var(--success)] text-sm">Ejercicio completado</p>
-                            <p className="text-[var(--success)]/80 text-xs">Hoy a las {(completedAt || new Date()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                        </div>
-                        {todayLogId && (
-                            <div className="flex gap-1.5 shrink-0">
-                                <button
-                                    type="button"
-                                    onClick={async () => {
-                                        try {
-                                            const full = await api.getWorkoutSession(todayLogId);
-                                            await downloadSessionPdf(full, {
-                                                userName: user?.firstName
-                                                    ? `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`
-                                                    : user?.username
-                                            });
-                                            toast.success('PDF descargado');
-                                        } catch {
-                                            toast.error('No se pudo generar el PDF');
-                                        }
-                                    }}
-                                    className="flex items-center gap-1.5 text-xs font-bold text-[var(--primary)] bg-[var(--bg-card)] border border-[var(--primary)]/30 px-3 py-2 rounded-xl active:scale-95"
-                                    aria-label="Descargar PDF de la sesión"
-                                >
-                                    <FileDown size={14} />
-                                    PDF
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => navigate(`/session/${todayLogId}/edit`)}
-                                    className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-primary)] bg-[var(--bg-card)] border border-[var(--border)] px-3 py-2 rounded-xl active:scale-95"
-                                    aria-label="Editar sesión guardada"
-                                >
-                                    <Pencil size={14} />
-                                    Editar
-                                </button>
-                            </div>
-                        )}
+                    <div className="flex-1 min-w-0">
+                        <p className="font-bold text-[var(--success)] text-sm">Completado</p>
+                        <p className="text-[var(--success)]/80 text-xs">Hoy a las {(completedAt || new Date()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
-                ) : (previousBest || suggestion || lastSession) && (
-                    <>
-                    {lastSession?.sets?.length > 0 && (
-                        <div className="bg-[var(--bg-dark)]/60 border border-[var(--border)] rounded-xl px-3 py-2">
-                            <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)] mb-1.5">
-                                Última sesión
-                                <span className="font-medium normal-case tracking-normal ml-1 opacity-80">
-                                    · {new Date(lastSession.date).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
-                                </span>
-                            </p>
-                            <div className="flex gap-1.5 flex-wrap">
-                                {lastSession.sets.map((s, i) => (
-                                    <span
-                                        key={i}
-                                        className="text-[11px] font-mono font-semibold bg-[var(--bg-card)] border border-[var(--border)] px-2 py-1 rounded-lg tabular-nums text-[var(--text-primary)]"
-                                    >
-                                        {s.weight}×{s.reps}
-                                    </span>
-                                ))}
-                            </div>
+                    {todayLogId && (
+                        <div className="flex gap-1.5 shrink-0">
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    try {
+                                        const full = await api.getWorkoutSession(todayLogId);
+                                        await downloadSessionPdf(full, {
+                                            userName: user?.firstName
+                                                ? `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`
+                                                : user?.username
+                                        });
+                                        toast.success('PDF descargado');
+                                    } catch {
+                                        toast.error('No se pudo generar el PDF');
+                                    }
+                                }}
+                                className="min-h-[44px] flex items-center gap-1.5 text-xs font-bold text-[var(--primary)] bg-[var(--bg-card)] border border-[var(--primary)]/30 px-3 py-2 rounded-xl active:scale-95"
+                                aria-label="Descargar PDF de la sesión"
+                            >
+                                <FileDown size={14} />
+                                PDF
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/session/${todayLogId}/edit`)}
+                                className="min-h-[44px] flex items-center gap-1.5 text-xs font-bold text-[var(--text-primary)] bg-[var(--bg-card)] border border-[var(--border)] px-3 py-2 rounded-xl active:scale-95"
+                                aria-label="Editar sesión guardada"
+                            >
+                                <Pencil size={14} />
+                                Editar
+                            </button>
                         </div>
                     )}
-                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-1 shadow-sm flex divide-x divide-[var(--border)]">
-                        {previousBest && (
-                            <div className="flex-1 p-3 flex flex-col items-center">
-                                <span className="text-[10px] uppercase text-[var(--text-secondary)] font-bold mb-1">Mejor Anterior</span>
-                                {(previousBest.repsRight != null || previousBest.weightRight != null) ? (
-                                    <div className="flex flex-col items-center text-[var(--text-primary)] leading-tight tabular-nums">
-                                        <span className="text-sm font-bold">
-                                            <span className="text-orange-400 text-[10px] mr-1">IZQ</span>{previousBest.weight}kg × {previousBest.reps}
-                                        </span>
-                                        <span className="text-sm font-bold">
-                                            <span className="text-orange-400 text-[10px] mr-1">DER</span>{previousBest.weightRight ?? previousBest.weight}kg × {previousBest.repsRight ?? previousBest.reps}
-                                        </span>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-end gap-1 text-[var(--text-primary)]">
-                                        <span className="text-lg font-bold tabular-nums">{previousBest.weight}</span>
-                                        <span className="text-xs mb-1 text-[var(--text-secondary)]">kg</span>
-                                        <span className="mx-1 text-[var(--border)]">/</span>
-                                        <span className="text-lg font-bold tabular-nums">{previousBest.reps}</span>
-                                        <span className="text-xs mb-1 text-[var(--text-secondary)]">reps</span>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        {suggestion && (() => {
-                            const label = suggestion.phase === 'deload' ? 'Descarga'
-                                : suggestion.phase === 'intensification' ? 'Intensificación'
-                                : suggestion.phase === 'accumulation' ? 'Acumulación'
-                                : 'Sugerido';
-                            const isWarning = suggestion.phase === 'deload';
-                            const isPhaseColored = suggestion.phase === 'intensification' || suggestion.phase === 'accumulation';
-                            const tintClass = isWarning ? 'bg-[var(--warning)]/5' : isPhaseColored ? 'bg-[var(--primary)]/5' : 'bg-[var(--success)]/5';
-                            const textClass = isWarning ? 'text-[var(--warning)]' : isPhaseColored ? 'text-[var(--primary)]' : 'text-[var(--success)]';
-                            return (
-                                <button
-                                    onClick={applySuggestion}
-                                    className="flex-1 p-3 flex flex-col items-center hover:bg-[var(--bg-dark)] transition-colors active:scale-95 group relative overflow-hidden"
-                                >
-                                    <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity ${tintClass}`} />
-                                    <span className={`text-[10px] uppercase font-bold mb-1 flex items-center gap-1 ${textClass}`}>
-                                        {label} <Sparkles size={10} />
-                                    </span>
-                                    <div className={`flex items-end gap-1 group-hover:scale-105 transition-transform ${textClass}`}>
-                                        <span className="text-2xl font-black tracking-tight leading-none">{suggestion.weight}</span>
-                                        <span className="text-xs mb-0.5 font-bold">kg</span>
-                                        <span className="mx-1 text-[var(--border)]">/</span>
-                                        <span className="text-lg font-bold">{suggestion.reps}</span>
-                                        <span className="text-xs mb-0.5">reps</span>
-                                    </div>
-                                </button>
-                            );
-                        })()}
-                    </div>
+                </div>
+            )}
 
-                    {/* Explicación del cálculo - colapsable */}
-                    {suggestion?.rationale && (
-                        <details className="text-[10px] text-[var(--text-secondary)] bg-[var(--bg-card)] rounded-lg border border-[var(--border)]">
-                            <summary className="p-2 cursor-pointer flex items-center gap-1 select-none">
-                                <TrendingUp size={10} className="text-[var(--success)]" />
-                                <span className="font-bold text-[var(--success)]">Por qué esta sugerencia</span>
-                            </summary>
-                            <p className="px-2 pb-2">{suggestion.rationale}</p>
-                        </details>
-                    )}
-
-                    {/* Calculadora de porcentajes - guía de calentamiento, informativa (no se guarda) */}
-                    <WarmupCalculator
-                        base1RM={estimate1RM(suggestion || previousBest)}
-                        increment={resolveWeightIncrement(currentExercise?.muscleGroup, currentExercise?.name)}
-                    />
-                    </>
-                )}
-            </div>
-
-            {/* Sets */}
-            <div className="space-y-3">
+            {/* SERIES PRIMERO — flujo gym */}
+            <div className="space-y-2.5">
                 {sets.map((set, i) => (
                     <SetCard
                         key={i}
@@ -1878,6 +1779,85 @@ export default function Workout() {
                     />
                 ))}
             </div>
+
+            {/* Coach colapsable — debajo de las series para no empujar el fold */}
+            {!isAlreadyLogged && (previousBest || suggestion || lastSession) && (
+                <details className="mt-3 bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl group">
+                    <summary className="px-3 py-3 min-h-[44px] cursor-pointer flex items-center gap-2 select-none list-none [&::-webkit-details-marker]:hidden">
+                        <Sparkles size={14} className="text-[var(--primary)] shrink-0" aria-hidden />
+                        <span className="font-bold text-sm text-[var(--text-primary)] flex-1">
+                            {suggestion
+                                ? `Sugerido: ${suggestion.weight} kg × ${suggestion.reps}`
+                                : 'Coach / historial'}
+                        </span>
+                        <span className="text-[10px] text-[var(--text-secondary)] group-open:hidden">tocar</span>
+                    </summary>
+                    <div className="px-3 pb-3 space-y-2 border-t border-[var(--border)] pt-2">
+                        {workoutState.phase && PHASE_BANNER[workoutState.phase] && (
+                            <p className={`text-xs ${PHASE_BANNER[workoutState.phase].descClass}`}>
+                                {PHASE_BANNER[workoutState.phase].desc}
+                            </p>
+                        )}
+                        {lastSession?.sets?.length > 0 && (
+                            <div className="bg-[var(--bg-dark)]/60 border border-[var(--border)] rounded-xl px-3 py-2">
+                                <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)] mb-1.5">
+                                    Última sesión
+                                    <span className="font-medium normal-case tracking-normal ml-1 opacity-80">
+                                        · {new Date(lastSession.date).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+                                    </span>
+                                </p>
+                                <div className="flex gap-1.5 flex-wrap">
+                                    {lastSession.sets.map((s, i) => (
+                                        <span
+                                            key={i}
+                                            className="text-[11px] font-mono font-semibold bg-[var(--bg-card)] border border-[var(--border)] px-2 py-1 rounded-lg tabular-nums"
+                                        >
+                                            {s.weight}×{s.reps}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        <div className="bg-[var(--bg-dark)]/40 border border-[var(--border)] rounded-2xl p-1 flex divide-x divide-[var(--border)]">
+                            {previousBest && (
+                                <div className="flex-1 p-3 flex flex-col items-center">
+                                    <span className="text-[10px] uppercase text-[var(--text-secondary)] font-bold mb-1">Mejor ant.</span>
+                                    <div className="flex items-end gap-1 text-[var(--text-primary)]">
+                                        <span className="text-lg font-bold tabular-nums">{previousBest.weight}</span>
+                                        <span className="text-xs mb-1 text-[var(--text-secondary)]">kg</span>
+                                        <span className="mx-1 text-[var(--border)]">/</span>
+                                        <span className="text-lg font-bold tabular-nums">{previousBest.reps}</span>
+                                    </div>
+                                </div>
+                            )}
+                            {suggestion && (
+                                <button
+                                    type="button"
+                                    onClick={applySuggestion}
+                                    className="flex-1 p-3 flex flex-col items-center hover:bg-[var(--bg-dark)] transition-colors active:scale-95 text-[var(--success)]"
+                                >
+                                    <span className="text-[10px] uppercase font-bold mb-1 flex items-center gap-1">
+                                        Aplicar <Sparkles size={10} aria-hidden />
+                                    </span>
+                                    <div className="flex items-end gap-1">
+                                        <span className="text-2xl font-black tracking-tight leading-none">{suggestion.weight}</span>
+                                        <span className="text-xs mb-0.5 font-bold">kg</span>
+                                        <span className="mx-1 text-[var(--border)]">/</span>
+                                        <span className="text-lg font-bold">{suggestion.reps}</span>
+                                    </div>
+                                </button>
+                            )}
+                        </div>
+                        {suggestion?.rationale && (
+                            <p className="text-[11px] text-[var(--text-secondary)] leading-snug px-0.5">{suggestion.rationale}</p>
+                        )}
+                        <WarmupCalculator
+                            base1RM={estimate1RM(suggestion || previousBest)}
+                            increment={resolveWeightIncrement(currentExercise?.muscleGroup, currentExercise?.name)}
+                        />
+                    </div>
+                </details>
+            )}
 
             {/* Pregunta RIR obligatoria al completar serie */}
             {rirPrompt && (

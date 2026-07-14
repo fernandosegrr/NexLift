@@ -104,7 +104,7 @@ export default function ForgotPassword() {
                     <button
                         type="button"
                         onClick={() => navigate('/login', { replace: true })}
-                        className="w-full py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white font-semibold rounded-xl hover:from-purple-600 hover:to-purple-700 transition-all"
+                        className="w-full py-3 bg-gradient-to-r from-[var(--primary)] to-[var(--primary-dark)] text-white font-semibold rounded-xl hover:brightness-110 transition-all"
                     >
                         Ir a Iniciar Sesión
                     </button>
@@ -125,8 +125,8 @@ export default function ForgotPassword() {
                         Volver al login
                     </Link>
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">
-                            <KeyRound className="w-6 h-6 text-purple-500" aria-hidden="true" />
+                        <div className="w-12 h-12 bg-[var(--primary)]/20 rounded-xl flex items-center justify-center">
+                            <KeyRound className="w-6 h-6 text-[var(--primary)]" aria-hidden="true" />
                         </div>
                         <div>
                             <h1 className="text-xl font-bold text-white">Recuperar Contraseña</h1>
@@ -137,8 +137,8 @@ export default function ForgotPassword() {
                     </div>
                     {/* Step indicator */}
                     <div className="flex gap-2 mt-4" aria-hidden="true">
-                        <div className={`h-1 flex-1 rounded-full ${step >= 1 ? 'bg-purple-500' : 'bg-[var(--border)]'}`} />
-                        <div className={`h-1 flex-1 rounded-full ${step >= 2 ? 'bg-purple-500' : 'bg-[var(--border)]'}`} />
+                        <div className={`h-1 flex-1 rounded-full ${step >= 1 ? 'bg-[var(--primary)]' : 'bg-[var(--border)]'}`} />
+                        <div className={`h-1 flex-1 rounded-full ${step >= 2 ? 'bg-[var(--primary)]' : 'bg-[var(--border)]'}`} />
                     </div>
                 </div>
 
@@ -168,7 +168,7 @@ export default function ForgotPassword() {
                                     autoCorrect="off"
                                     spellCheck={false}
                                     autoFocus
-                                    className="w-full pl-10 pr-4 py-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500"
+                                    className="w-full pl-10 pr-4 py-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--primary)]"
                                     required
                                 />
                             </div>
@@ -177,7 +177,7 @@ export default function ForgotPassword() {
                         <button
                             type="submit"
                             disabled={loading || !username.trim()}
-                            className="w-full mt-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white font-semibold rounded-xl hover:from-purple-600 hover:to-purple-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                            className="w-full mt-6 py-3 bg-gradient-to-r from-[var(--primary)] to-[var(--primary-dark)] text-white font-semibold rounded-xl hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                             {loading ? <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" /> : 'Continuar'}
                         </button>
@@ -193,8 +193,8 @@ export default function ForgotPassword() {
                             </div>
                         )}
 
-                        <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl">
-                            <div className="flex items-center gap-2 text-purple-400 mb-2">
+                        <div className="p-4 bg-[var(--primary)]/10 border border-[var(--primary)]/30 rounded-xl">
+                            <div className="flex items-center gap-2 text-[var(--primary)] mb-2">
                                 <Shield className="w-4 h-4" aria-hidden="true" />
                                 <span className="text-sm font-medium">Pregunta de Seguridad</span>
                             </div>
@@ -214,7 +214,7 @@ export default function ForgotPassword() {
                                 placeholder="Escribe tu respuesta"
                                 autoComplete="off"
                                 autoCapitalize="none"
-                                className="w-full px-4 py-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500"
+                                className="w-full px-4 py-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--primary)]"
                                 required
                             />
                         </div>
@@ -233,7 +233,7 @@ export default function ForgotPassword() {
                                     placeholder="Mínimo 8 caracteres"
                                     autoComplete="new-password"
                                     minLength={8}
-                                    className="w-full pl-10 pr-12 py-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500"
+                                    className="w-full pl-10 pr-12 py-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--primary)]"
                                     required
                                 />
                                 <button
@@ -261,7 +261,7 @@ export default function ForgotPassword() {
                                     placeholder="Repite tu contraseña"
                                     autoComplete="new-password"
                                     minLength={8}
-                                    className={`w-full pl-10 pr-4 py-3 bg-[var(--bg-dark)] border rounded-xl text-white placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500 ${
+                                    className={`w-full pl-10 pr-4 py-3 bg-[var(--bg-dark)] border rounded-xl text-white placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--primary)] ${
                                         passwordsMismatch ? 'border-red-500/60' : 'border-[var(--border)]'
                                     }`}
                                     required
@@ -275,7 +275,7 @@ export default function ForgotPassword() {
                         <button
                             type="submit"
                             disabled={loading || passwordsMismatch || newPassword.length < 8 || !answer.trim()}
-                            className="w-full py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white font-semibold rounded-xl hover:from-purple-600 hover:to-purple-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                            className="w-full py-3 bg-gradient-to-r from-[var(--primary)] to-[var(--primary-dark)] text-white font-semibold rounded-xl hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                             {loading ? <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" /> : 'Restablecer Contraseña'}
                         </button>

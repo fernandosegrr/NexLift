@@ -33,7 +33,11 @@ No existe `server/prisma/migrations/` — el schema siempre se ha sincronizado c
 - **Variables opcionales (nuevas funciones, degradan sin romper si faltan):** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` (Web Push de recordatorio de descanso — sin ellas, `scheduleRestReminder` es no-op), `OPENAI_API_KEY` (deduplicación de ejercicios al importar rutinas — sin ella, cae al matching determinista por `canonicalExerciseKey`), `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET` (avatar/fotos de progreso — sin ellas, `uploadPhoto()` cae a Catbox como antes). Ver `server/.env.example`.
 
 ## Design System
-- OLED black (`#0a0a0a`), card bg (`#141414`), primary violet (`#8b5cf6`)
+- OLED black (`#0a0a0a` = `--bg-dark`/`--bg-main`), card (`#141414` = `--bg-card`), primary violet (`#8b5cf6`)
+- Prefer `var(--primary)` over `purple-500` hardcodes; focus con `focus-visible` / borde primary
+- Touch targets ≥44px en nav, botones de sesión y RIR; viewport **permite zoom** (sin `user-scalable=no`)
+- Layout: 4 tabs (Inicio / Rutinas / Progreso / Perfil); Cuerpo vía Progreso o Perfil. En `/workout/*` se oculta el header de logo
+- Workout: **series primero**; coach/sugerencia/calentamiento en `<details>` debajo; nota del ejercicio como callout 💡
 - All UI is mobile-first, dark theme only
 
 ## Modales: siempre con `<Portal>`
@@ -127,7 +131,10 @@ Capa **intra-sesión** encima del Smart Loading entre sesiones (sin reemplazarlo
 - **Cache HTTP:** helper `setPrivateCache(res, seconds)` en GETs de lectura (home, routines, history, plateaus, overview, PRs).
 - **Índices Prisma (db push):** `WorkoutLog[exerciseId,date]`, `SetLog[workoutLogId]`, `RoutineDay[routineId]`, `Routine[userId,isActive]`, etc.
 
-## Current Version: 2.8.0
+## UI polish (v2.8.1)
+Pase de auditoría UI: series-first en Workout, header contextual, 4-tab nav, tokens OLED unificados, a11y (zoom + targets + labels login), Perfil sin hardcode de “Creador”, accesos a Cuerpo desde Perfil/Progreso.
+
+## Current Version: 2.8.1
 
 ## Conventions
 - Spanish UI, Spanish commit messages preferred

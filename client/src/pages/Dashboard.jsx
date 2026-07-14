@@ -308,7 +308,7 @@ export default function Dashboard() {
     ];
 
     return (
-        <div className="space-y-6 animate-fade-in max-w-lg md:max-w-2xl mx-auto pb-4">
+        <div className="space-y-5 animate-fade-in max-w-2xl mx-auto pb-4">
             {/* Header */}
             <div className="pt-2 px-1">
                 <p className="text-[var(--text-secondary)] text-sm">

@@ -46,7 +46,7 @@ export default function Login() {
                     <img
                         src="/logo.png"
                         alt="NexLift"
-                        className="w-16 h-16 mx-auto mb-4 rounded-2xl shadow-lg shadow-purple-500/25"
+                        className="w-16 h-16 mx-auto mb-4 rounded-2xl shadow-lg shadow-[var(--primary)]/25"
                     />
                     <h1 className="text-2xl font-bold text-white">NexLift</h1>
                     <p className="text-[var(--text-secondary)] mt-1">Inicia sesión en tu cuenta</p>
@@ -60,7 +60,7 @@ export default function Login() {
                     {error && (
                         <div
                             role="alert"
-                            className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-red-400"
+                            className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-red-400"
                         >
                             <AlertCircle className="w-5 h-5 shrink-0" aria-hidden="true" />
                             <span className="text-sm">{error}</span>
@@ -86,7 +86,8 @@ export default function Login() {
                                     autoCorrect="off"
                                     spellCheck={false}
                                     autoFocus
-                                    className="w-full pl-10 pr-4 py-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500 transition-colors"
+                                    aria-invalid={!!error}
+                                    className="w-full min-h-[48px] pl-10 pr-4 py-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--primary)] transition-colors"
                                     required
                                 />
                             </div>
@@ -106,14 +107,15 @@ export default function Login() {
                                     onChange={(e) => { setPassword(e.target.value); if (error) setError(''); }}
                                     placeholder="••••••••"
                                     autoComplete="current-password"
-                                    className="w-full pl-10 pr-12 py-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500 transition-colors"
+                                    aria-invalid={!!error}
+                                    className="w-full min-h-[48px] pl-10 pr-12 py-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--primary)] transition-colors"
                                     required
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
                                     aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] hover:text-white transition-colors p-1"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] hover:text-white transition-colors p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
                                 >
                                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                 </button>
@@ -124,7 +126,7 @@ export default function Login() {
                     <button
                         type="submit"
                         disabled={loading || !username.trim() || !password}
-                        className="w-full mt-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white font-semibold rounded-xl hover:from-purple-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="w-full mt-6 min-h-[48px] py-3 bg-[var(--primary)] text-white font-semibold rounded-xl hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-[var(--primary)]/25"
                     >
                         {loading ? (
                             <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
@@ -139,13 +141,13 @@ export default function Login() {
                     <div className="mt-6 text-center space-y-2">
                         <Link
                             to="/forgot-password"
-                            className="block text-sm text-purple-400 hover:text-purple-300 transition-colors"
+                            className="block text-sm text-[var(--primary)] hover:brightness-125 transition-colors min-h-[44px] leading-[44px]"
                         >
                             ¿Olvidaste tu contraseña?
                         </Link>
                         <p className="text-sm text-[var(--text-secondary)]">
                             ¿No tienes cuenta?{' '}
-                            <Link to="/register" className="text-purple-400 hover:text-purple-300 transition-colors">
+                            <Link to="/register" className="text-[var(--primary)] hover:brightness-125 transition-colors font-medium">
                                 Regístrate
                             </Link>
                         </p>

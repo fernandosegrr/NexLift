@@ -137,7 +137,7 @@ export default function Register() {
                                 onChange={handleChange}
                                 placeholder="Fernando"
                                 autoComplete="given-name"
-                                className="w-full px-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500"
+                                className="w-full px-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--primary)]"
                                 required
                             />
                         </div>
@@ -151,7 +151,7 @@ export default function Register() {
                                 onChange={handleChange}
                                 placeholder="Guerrero"
                                 autoComplete="family-name"
-                                className="w-full px-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500"
+                                className="w-full px-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--primary)]"
                                 required
                             />
                         </div>
@@ -172,7 +172,7 @@ export default function Register() {
                                 autoCapitalize="none"
                                 autoCorrect="off"
                                 spellCheck={false}
-                                className="w-full pl-9 pr-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500"
+                                className="w-full pl-9 pr-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--primary)]"
                                 required
                             />
                         </div>
@@ -191,7 +191,7 @@ export default function Register() {
                                 placeholder="correo@ejemplo.com"
                                 autoComplete="email"
                                 autoCapitalize="none"
-                                className="w-full pl-9 pr-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500"
+                                className="w-full pl-9 pr-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--primary)]"
                                 required
                             />
                         </div>
@@ -210,7 +210,7 @@ export default function Register() {
                                 placeholder="Mínimo 8 caracteres"
                                 autoComplete="new-password"
                                 minLength={8}
-                                className="w-full pl-9 pr-10 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500"
+                                className="w-full pl-9 pr-10 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--primary)]"
                                 required
                             />
                             <button
@@ -237,7 +237,7 @@ export default function Register() {
                                 placeholder="Repite tu contraseña"
                                 autoComplete="new-password"
                                 minLength={8}
-                                className={`w-full pl-9 pr-3 py-2.5 bg-[var(--bg-dark)] border rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500 ${
+                                className={`w-full pl-9 pr-3 py-2.5 bg-[var(--bg-dark)] border rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--primary)] ${
                                     passwordsMismatch ? 'border-red-500/60' : 'border-[var(--border)]'
                                 }`}
                                 required
@@ -265,7 +265,7 @@ export default function Register() {
                                     onChange={handleChange}
                                     placeholder="1234567890"
                                     autoComplete="tel"
-                                    className="w-full pl-9 pr-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500"
+                                    className="w-full pl-9 pr-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--primary)]"
                                 />
                             </div>
                         </div>
@@ -280,7 +280,7 @@ export default function Register() {
                                     value={formData.birthDate}
                                     onChange={handleChange}
                                     autoComplete="bday"
-                                    className="w-full pl-9 pr-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm focus:outline-none focus:border-purple-500"
+                                    className="w-full pl-9 pr-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm focus:outline-none focus:border-[var(--primary)]"
                                 />
                             </div>
                         </div>
@@ -299,7 +299,7 @@ export default function Register() {
                             name="securityQuestion"
                             value={formData.securityQuestion}
                             onChange={handleChange}
-                            className="w-full px-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm focus:outline-none focus:border-purple-500"
+                            className="w-full px-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm focus:outline-none focus:border-[var(--primary)]"
                         >
                             <option value="">Selecciona una pregunta...</option>
                             {SECURITY_QUESTIONS.map((q, i) => (
@@ -319,7 +319,7 @@ export default function Register() {
                                 onChange={handleChange}
                                 placeholder="Tu respuesta secreta"
                                 autoComplete="off"
-                                className="w-full px-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-purple-500"
+                                className="w-full px-3 py-2.5 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-white text-sm placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--primary)]"
                                 required
                             />
                         </div>
@@ -328,7 +328,7 @@ export default function Register() {
                     <button
                         type="submit"
                         disabled={loading || passwordsMismatch || formData.password.length < 8}
-                        className="w-full mt-4 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white font-semibold rounded-xl hover:from-purple-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="w-full mt-4 py-3 bg-gradient-to-r from-[var(--primary)] to-[var(--primary-dark)] text-white font-semibold rounded-xl hover:from-[var(--primary-dark)] hover:to-[var(--primary-dark)] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                         {loading ? (
                             <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
@@ -342,7 +342,7 @@ export default function Register() {
 
                     <p className="text-center text-sm text-[var(--text-secondary)]">
                         ¿Ya tienes cuenta?{' '}
-                        <Link to="/login" className="text-purple-400 hover:text-purple-300">
+                        <Link to="/login" className="text-[var(--primary)] hover:text-[var(--primary)]">
                             Inicia sesión
                         </Link>
                     </p>

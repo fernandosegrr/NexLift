@@ -68,7 +68,7 @@ export default function AiRoutineSetup() {
                 <div className="flex items-center gap-3 px-4 py-4">
                     <button
                         onClick={goBack}
-                        className="w-10 h-10 rounded-full bg-[var(--bg-card)] flex items-center justify-center border border-[var(--border)]"
+                        className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-[var(--bg-card)] flex items-center justify-center border border-[var(--border)]"
                     >
                         <ChevronLeft size={20} />
                     </button>
@@ -81,7 +81,7 @@ export default function AiRoutineSetup() {
                 </div>
                 <div className="h-1 bg-[var(--bg-dark)]">
                     <div
-                        className="h-full bg-purple-500 transition-all duration-300"
+                        className="h-full bg-[var(--primary)] transition-all duration-300"
                         style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
                     />
                 </div>
@@ -98,7 +98,7 @@ export default function AiRoutineSetup() {
                             <button
                                 key={g.id}
                                 onClick={() => { setGoal(g.id); setStep(2); }}
-                                className={`w-full p-4 rounded-xl border text-left transition-colors ${goal === g.id ? 'bg-purple-500/20 border-purple-500' : 'bg-[var(--bg-card)] border-[var(--border)] hover:border-purple-500/40'
+                                className={`w-full p-4 rounded-xl border text-left transition-colors ${goal === g.id ? 'bg-[var(--primary)]/20 border-[var(--primary)]' : 'bg-[var(--bg-card)] border-[var(--border)] hover:border-[var(--primary)]/40'
                                     }`}
                             >
                                 <p className="font-bold">{g.label}</p>
@@ -119,7 +119,7 @@ export default function AiRoutineSetup() {
                                 <button
                                     key={n}
                                     onClick={() => { setDaysPerWeek(n); setStep(3); }}
-                                    className={`py-5 rounded-xl font-bold text-lg border transition-colors ${daysPerWeek === n ? 'bg-purple-500 text-white border-purple-500' : 'bg-[var(--bg-card)] border-[var(--border)] hover:border-purple-500/40'
+                                    className={`py-5 rounded-xl font-bold text-lg border transition-colors ${daysPerWeek === n ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--bg-card)] border-[var(--border)] hover:border-[var(--primary)]/40'
                                         }`}
                                 >
                                     {n}
@@ -142,10 +142,10 @@ export default function AiRoutineSetup() {
                                     <button
                                         key={eq.id}
                                         onClick={() => toggleEquipment(eq.id)}
-                                        className={`p-4 rounded-xl border flex items-center gap-2 transition-colors ${selected ? 'bg-purple-500/20 border-purple-500 text-white' : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-secondary)]'
+                                        className={`p-4 rounded-xl border flex items-center gap-2 transition-colors ${selected ? 'bg-[var(--primary)]/20 border-[var(--primary)] text-white' : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-secondary)]'
                                             }`}
                                     >
-                                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${selected ? 'bg-purple-500 border-purple-500' : 'border-[var(--border)]'
+                                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${selected ? 'bg-[var(--primary)] border-[var(--primary)]' : 'border-[var(--border)]'
                                             }`}>
                                             {selected && <Check size={14} className="text-white" />}
                                         </div>
@@ -157,7 +157,7 @@ export default function AiRoutineSetup() {
                         <button
                             onClick={() => setStep(4)}
                             disabled={equipment.length === 0}
-                            className="w-full py-4 bg-purple-500 text-white font-bold rounded-xl shadow-lg shadow-purple-500/20 disabled:opacity-40"
+                            className="w-full py-4 bg-[var(--primary)] text-white font-bold rounded-xl shadow-lg shadow-[var(--primary)]/20 disabled:opacity-40"
                         >
                             Continuar
                         </button>
@@ -175,7 +175,7 @@ export default function AiRoutineSetup() {
                                 <button
                                     key={level.id}
                                     onClick={() => setExperienceLevel(level.id)}
-                                    className={`w-full p-4 rounded-xl border text-left flex justify-between items-center transition-colors ${experienceLevel === level.id ? 'bg-purple-500/20 border-purple-500' : 'bg-[var(--bg-card)] border-[var(--border)]'
+                                    className={`w-full p-4 rounded-xl border text-left flex justify-between items-center transition-colors ${experienceLevel === level.id ? 'bg-[var(--primary)]/20 border-[var(--primary)]' : 'bg-[var(--bg-card)] border-[var(--border)]'
                                         }`}
                                 >
                                     <span className="font-bold">{level.label}</span>
@@ -185,8 +185,8 @@ export default function AiRoutineSetup() {
                         </div>
 
                         <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border)] flex gap-3">
-                            <div className="w-11 h-11 bg-purple-500/20 rounded-xl flex items-center justify-center shrink-0">
-                                <Dumbbell className="w-5 h-5 text-purple-400" />
+                            <div className="w-11 h-11 bg-[var(--primary)]/20 rounded-xl flex items-center justify-center shrink-0">
+                                <Dumbbell className="w-5 h-5 text-[var(--primary)]" />
                             </div>
                             <p className="text-xs text-[var(--text-secondary)]">
                                 El peso y las reps de cada serie los sigue calculando el Smart Loading determinista de siempre — la IA solo decide qué ejercicios tocan hoy.
@@ -196,7 +196,7 @@ export default function AiRoutineSetup() {
                         <button
                             onClick={handleSubmit}
                             disabled={saving || !experienceLevel}
-                            className="w-full py-4 bg-purple-500 text-white font-bold rounded-xl shadow-lg shadow-purple-500/20 disabled:opacity-40 flex items-center justify-center gap-2"
+                            className="w-full py-4 bg-[var(--primary)] text-white font-bold rounded-xl shadow-lg shadow-[var(--primary)]/20 disabled:opacity-40 flex items-center justify-center gap-2"
                         >
                             {saving ? <Loader2 className="animate-spin" size={20} /> : 'Crear mi rutina IA'}
                         </button>

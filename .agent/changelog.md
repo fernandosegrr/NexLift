@@ -3,7 +3,16 @@
 > Historial completo de versiones, movido desde `context.md` (8 Jul 2026) para mantener el contexto principal en un tamaño legible de una sola pasada.
 > Las reglas vivas del proyecto están en `.agent/context.md` — este archivo es solo historia.
 
-### v2.8.0 (14 Julio 2026) - **Current**
+### v2.8.1 (14 Julio 2026) - **Current**
+Pase de auditoría UI (todo el paquete de mejoras de producto visual/a11y).
+
+*   **Workout series-first:** coach/sugerencia/calentamiento en `<details>` debajo; note del ejercicio como callout 💡; timer con safe-area sobre bottom nav; RIR con targets ≥40px y highlight si falta.
+*   **Layout:** header de logo oculto en `/workout/*`; nav 4 tabs (Cuerpo en Perfil/Progreso); touch targets ≥44–52px.
+*   **Tokens OLED:** `#0a0a0a` / `#141414`; preferir `var(--primary)`; viewport permite zoom.
+*   **Auth/Perfil/Progress:** Login con focus primary + targets; Perfil sin hardcode “Creador”; accesos Cuerpo/Config; Progress tabs scrollables + link Cuerpo.
+*   **Build OK**, tests 52 client en verde.
+
+### v2.8.0 (14 Julio 2026)
 Origen: tras el resumen post-sesión / saltar ejercicio (v2.7.x), el usuario pidió (1) el resto de la pista de **velocidad** (no backups) y (2) un coach que sugiera **por serie**, recalculando con lo de hoy y RIR obligatorio, pudiendo bajar peso.
 
 *   **FEATURE — Autorregulación intra-sesión:** `suggestNextSetFromToday` (cliente `smartLoading.js` + server `logic.js`, tests de paridad). Entrada = todas las series completadas **hoy** con RIR; salida = peso/reps de la siguiente. RIR 0 o reps bajo el rango → **baja 1 incremento**; fatiga acumulada → mantiene; cómodo → mantiene. S1 sigue siendo el Smart Loading entre sesiones (`computeWorkoutSuggestion`).

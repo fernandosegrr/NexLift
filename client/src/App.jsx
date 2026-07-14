@@ -28,8 +28,8 @@ const AiRoutineSetup = lazy(() => import('./pages/AiRoutineSetup'));
 
 function PageLoader() {
   return (
-    <div className="min-h-screen bg-[var(--bg-dark)] flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+    <div className="min-h-screen bg-[var(--bg-dark)] flex items-center justify-center" role="status" aria-label="Cargando">
+      <div className="w-8 h-8 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
     </div>
   );
 }
@@ -39,11 +39,7 @@ function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-[var(--bg-dark)] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!isAuthenticated) {
@@ -58,11 +54,7 @@ function PublicRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-[var(--bg-dark)] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (isAuthenticated) {

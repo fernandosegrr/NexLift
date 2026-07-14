@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
     TrendingUp, Calendar, Trophy, Dumbbell, ChevronDown, ChevronRight, Activity,
-    CheckCircle, Search, FileText, Loader2, Flame, X, Clock, Target, Zap, FileDown
+    CheckCircle, Search, FileText, Loader2, Flame, X, Clock, Target, Zap, FileDown, Scale
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, CartesianGrid, Area, AreaChart } from 'recharts';
 import { api } from '../services/api';
@@ -242,14 +242,15 @@ function SkeletonCard() {
     );
 }
 
-function StatCard({ icon: Icon, value, label, color }) {
+function StatCard({ icon, value, label, color }) {
+    const IconComp = icon;
     return (
         <div className="bg-[var(--bg-card)]/80 backdrop-blur-md rounded-xl p-4 text-center border border-[var(--border)] hover:border-[var(--primary)]/30 transition-all">
             <div
                 className="w-11 h-11 mx-auto rounded-full flex items-center justify-center mb-2"
                 style={{ backgroundColor: `${color}20`, boxShadow: `0 0 15px ${color}25` }}
             >
-                <Icon size={22} style={{ color }} />
+                {IconComp ? <IconComp size={22} style={{ color }} aria-hidden /> : null}
             </div>
             <p className="text-2xl font-bold">{value}</p>
             <p className="text-[10px] uppercase tracking-wide text-[var(--text-secondary)]">{label}</p>
@@ -837,25 +838,35 @@ export default function Progress() {
     }
 
     return (
-        <div className="space-y-5 animate-fade-in max-w-lg mx-auto pb-24">
+        <div className="space-y-4 animate-fade-in max-w-2xl mx-auto pb-24">
             {/* Header */}
-            <div className="flex items-start justify-between">
-                <div>
+            <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
                     <h1 className="text-2xl font-bold">Progreso</h1>
                     <p className="text-[var(--text-secondary)] text-sm">Tu evolución fitness</p>
                 </div>
-                <Link
-                    to="/export"
-                    className="flex items-center gap-2 bg-[var(--primary)] px-4 py-2.5 rounded-xl text-sm font-medium text-white shadow-lg shadow-purple-900/30 active:scale-95 transition-all"
-                >
-                    <FileText size={16} />
-                    PDF
-                </Link>
+                <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                        to="/body"
+                        className="min-h-[44px] flex items-center gap-1.5 bg-[var(--bg-card)] border border-[var(--border)] px-3 py-2 rounded-xl text-xs font-semibold text-[var(--text-primary)] active:scale-95"
+                        aria-label="Cuerpo y mediciones"
+                    >
+                        <Scale size={16} className="text-[var(--accent)]" aria-hidden />
+                        Cuerpo
+                    </Link>
+                    <Link
+                        to="/export"
+                        className="min-h-[44px] flex items-center gap-1.5 bg-[var(--primary)] px-3 py-2 rounded-xl text-xs font-semibold text-white shadow-lg shadow-[var(--primary)]/25 active:scale-95"
+                    >
+                        <FileText size={16} aria-hidden />
+                        PDF
+                    </Link>
+                </div>
             </div>
 
-            {/* Tabs */}
-            <div className="bg-[var(--bg-dark)] p-1 rounded-xl">
-                <div className="flex gap-1">
+            {/* Tabs — scroll horizontal en móvil, targets ≥44px */}
+            <div className="bg-[var(--bg-card)] p-1 rounded-2xl border border-[var(--border)] overflow-x-auto">
+                <div className="flex gap-1 min-w-max sm:min-w-0" role="tablist" aria-label="Secciones de progreso">
                     {[
                         { id: 'overview', label: 'General', icon: Activity },
                         { id: 'goals', label: 'Objetivos', icon: Target },
@@ -865,13 +876,15 @@ export default function Progress() {
                         <button
                             key={tab.id}
                             type="button"
+                            role="tab"
+                            aria-selected={uiState.activeTab === tab.id}
                             onClick={() => setUIState(prev => ({ ...prev, activeTab: tab.id }))}
-                            className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${uiState.activeTab === tab.id
-                                ? 'bg-[var(--primary)] text-white shadow-lg shadow-purple-900/30'
+                            className={`min-h-[44px] flex-1 sm:flex-1 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${uiState.activeTab === tab.id
+                                ? 'bg-[var(--primary)] text-white shadow-md shadow-[var(--primary)]/20'
                                 : 'text-[var(--text-secondary)] hover:text-white'
                                 }`}
                         >
-                            <tab.icon size={14} />
+                            <tab.icon size={14} aria-hidden />
                             {tab.label}
                         </button>
                     ))}
