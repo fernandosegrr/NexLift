@@ -21,7 +21,7 @@ export default function GoalSection() {
                 setLoadError(false);
                 const [goalsData, historyData] = await Promise.all([
                     api.getGoals(),
-                    api.getWorkoutHistory(500)
+                    api.getWorkoutHistory(200)
                 ]);
                 setGoals(goalsData || []);
                 setWorkoutHistory(groupHistoryByExercise(historyData));

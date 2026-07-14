@@ -332,8 +332,9 @@ export default function ExportReport() {
                     api.getOverviewStats(),
                     api.getActiveRoutine(),
                     api.getPersonalRecords(),
-                    api.getBodyLogs(365),
+                    api.getBodyLogs(180),
                     api.getConsistency(),
+                    // 500 con select slim en server (antes ~250KB con exercise:true)
                     api.getWorkoutHistory(500)
                 ]);
 

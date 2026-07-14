@@ -155,7 +155,7 @@ export default function BodyTracking() {
         try {
             setLoadError(false);
             const [logsData, photosData] = await Promise.all([
-                api.getBodyLogs(180),
+                api.getBodyLogs(90),
                 api.getBodyPhotos()
             ]);
             setLogs(Array.isArray(logsData) ? logsData : []);

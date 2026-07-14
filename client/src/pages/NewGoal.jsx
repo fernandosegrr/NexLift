@@ -62,7 +62,7 @@ export default function NewGoal() {
                 // perder ejercicios por nombres/músculos inconsistentes entre rutinas.
                 const [routines, history, catalog] = await Promise.all([
                     api.getRoutines(),
-                    api.getWorkoutHistory(500),
+                    api.getWorkoutHistory(200),
                     api.getExercises().catch(() => [])
                 ]);
 

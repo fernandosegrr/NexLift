@@ -2,14 +2,14 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/layout/Layout';
-// Eager: rutas de primer render (landing logueado + login)
-import Dashboard from './pages/Dashboard';
+// Eager: solo login (sin sesión) — el Dashboard también es lazy para no
+// cargar heatmap/logros en el chunk inicial de quien aún no autenticó.
 import Login from './pages/Login';
 import { ToastProvider } from './components/ui/Toast';
 import './index.css';
 
-// Lazy: el resto de páginas se cargan al navegar (baja el bundle inicial;
-// ExportReport arrastra jsPDF/html2canvas y Progress/BodyTracking arrastran recharts)
+// Lazy: páginas de la app (y Dashboard) se cargan al navegar
+const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Routines = lazy(() => import('./pages/Routines'));
 const RoutineDetail = lazy(() => import('./pages/RoutineDetail'));
 const Workout = lazy(() => import('./pages/Workout'));

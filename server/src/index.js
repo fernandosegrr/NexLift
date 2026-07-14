@@ -2372,9 +2372,15 @@ app.post('/api/workouts/log-rest', authMiddleware, async (req, res) => {
 });
 
 // GET /api/workouts/history - Get workout history with filters
+// Payload optimizado: select explícito (antes exercise:true + SetLog completo
+// hinchaba history(500) ~250KB). Solo campos que usan plateau/goals/PDF/Settings.
 app.get('/api/workouts/history', authMiddleware, async (req, res) => {
     try {
         const { exerciseId, limit = 30, search, dateFrom, dateTo, dayOfWeek, offset = 0 } = req.query;
+        // Techo 2000: export JSON en Settings pide 9999; 500 era demasiado bajo
+        // para backup manual. Dashboard/Progress piden 180–250.
+        const take = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 2000);
+        const skip = Math.max(parseInt(offset, 10) || 0, 0);
 
         // Base filter: logs belonging to user's exercises
         const where = {
@@ -2410,13 +2416,35 @@ app.get('/api/workouts/history', authMiddleware, async (req, res) => {
 
         const logs = await prisma.workoutLog.findMany({
             where,
-            include: {
-                sets: { orderBy: { setNumber: 'asc' } },
-                exercise: true
+            select: {
+                id: true,
+                date: true,
+                notes: true,
+                exerciseId: true,
+                exercise: {
+                    select: {
+                        id: true,
+                        name: true,
+                        muscleGroup: true,
+                        isUnilateral: true
+                    }
+                },
+                sets: {
+                    orderBy: { setNumber: 'asc' },
+                    select: {
+                        id: true,
+                        setNumber: true,
+                        weight: true,
+                        reps: true,
+                        rpe: true,
+                        weightRight: true,
+                        repsRight: true
+                    }
+                }
             },
             orderBy: { date: 'desc' },
-            take: parseInt(limit),
-            skip: parseInt(offset)
+            take,
+            skip
         });
 
         // Filter by day of week on application side (Prisma doesn't support this natively)
@@ -2426,6 +2454,7 @@ app.get('/api/workouts/history', authMiddleware, async (req, res) => {
             filtered = logs.filter(log => dayOfWeekFromDateStr(mexicoCityDateStr(log.date)) === dow);
         }
 
+        res.set('Cache-Control', 'private, max-age=15');
         res.json(filtered);
     } catch (error) {
         console.error('Error fetching history:', error);
@@ -3049,10 +3078,16 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
                 },
                 select: { date: true }
             }),
-            // Active routine, to detect scheduled rest days
+            // Active routine: solo dayName/isRestDay para la racha (no ejercicios)
             prisma.routine.findFirst({
                 where: { userId: req.userId, isActive: true },
-                include: { days: { orderBy: { order: 'asc' } } }
+                select: {
+                    id: true,
+                    days: {
+                        orderBy: { order: 'asc' },
+                        select: { dayName: true, isRestDay: true }
+                    }
+                }
             }),
             prisma.setLog.findMany({
                 where: {
@@ -3060,7 +3095,8 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
                         date: { gte: weekAgo },
                         exercise: { routineDay: { routine: { userId: req.userId } } }
                     }
-                }
+                },
+                select: { weight: true, reps: true }
             })
         ]);
 

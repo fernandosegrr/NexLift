@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Flame, Target, Trophy, Calendar, Play,
@@ -7,8 +7,9 @@ import {
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ui/Toast';
-import AchievementsStrip from '../components/AchievementsStrip';
 import { canonicalExerciseKey, groupHistoryByExercise, detectPlateau } from '../utils/exerciseName';
+
+const AchievementsStrip = lazy(() => import('../components/AchievementsStrip'));
 import {
     mexicoCityDateStr,
     mexicoCityTodayName,
@@ -59,7 +60,9 @@ export default function Dashboard() {
                     api.getActiveRoutine(),
                     api.getConsistency(),
                     api.getPersonalRecords(),
-                    api.getWorkoutHistory(500)
+                    // Plateau solo necesita ~6 sesiones/ejercicio; 180 logs bastan y
+                    // pesan mucho menos que 500 en el home (ruta más caliente).
+                    api.getWorkoutHistory(180)
                 ]);
 
                 if (!isMounted) return;
@@ -476,8 +479,10 @@ export default function Dashboard() {
                 </Link>
             )}
 
-            {/* Logros */}
-            <AchievementsStrip stats={stats} prs={prs} />
+            {/* Logros (chunk aparte — no bloquea el paint del dashboard) */}
+            <Suspense fallback={null}>
+                <AchievementsStrip stats={stats} prs={prs} />
+            </Suspense>
 
             {/* Consistency Calendar */}
             <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)]">

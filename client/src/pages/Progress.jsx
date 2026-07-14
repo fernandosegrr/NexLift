@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
     TrendingUp, Calendar, Trophy, Dumbbell, ChevronDown, ChevronRight, Activity,
@@ -8,13 +8,15 @@ import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, 
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
-import GoalSection from '../components/goals/GoalSection';
 import { epley1RM, classifyLift } from '../utils/strength';
 import { canonicalExerciseKey, groupHistoryByExercise, detectPlateau } from '../utils/exerciseName';
 import { mexicoCityDateStr, mexicoCityLastNDays } from '../utils/dates';
 import { toSpanishMuscleGroup } from '../utils/muscleGroup';
 import { downloadDayPdf } from '../utils/dayPdf';
 import { useAuth } from '../context/AuthContext';
+
+// Goals traen otro history fetch + GoalCard: solo se cargan al abrir el tab
+const GoalSection = lazy(() => import('../components/goals/GoalSection'));
 
 // ==========================================
 // CONSTANTS & UTILITIES
@@ -97,7 +99,8 @@ function useProgressData() {
                     api.getConsistency(),
                     api.getPersonalRecords(),
                     api.getRoutines(),
-                    api.getWorkoutHistory(500)
+                    // Suficiente para plateau + PDF del día reciente; export full usa 500 aparte
+                    api.getWorkoutHistory(250)
                 ]);
 
                 if (!isMounted) return;
@@ -1067,7 +1070,13 @@ export default function Progress() {
             {/* Goals Tab */}
             {uiState.activeTab === 'goals' && (
                 <div className="animate-fade-in">
-                    <GoalSection />
+                    <Suspense fallback={
+                        <div className="flex justify-center py-12">
+                            <Loader2 className="w-8 h-8 animate-spin text-[var(--primary)]" />
+                        </div>
+                    }>
+                        <GoalSection />
+                    </Suspense>
                 </div>
             )}
 

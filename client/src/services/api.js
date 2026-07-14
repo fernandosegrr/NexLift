@@ -709,5 +709,11 @@ export const api = {
 // del plan con un solo punto de entrada — no hace falta llamarlo desde App.jsx.
 if (typeof window !== 'undefined') {
     window.addEventListener('online', () => { replayOfflineQueue(); });
-    replayOfflineQueue();
+    // No competir con el primer paint: drenar la cola cuando el browser esté idle
+    const kickReplay = () => { replayOfflineQueue(); };
+    if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(kickReplay, { timeout: 2500 });
+    } else {
+        setTimeout(kickReplay, 400);
+    }
 }

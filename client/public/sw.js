@@ -4,7 +4,7 @@
 //  - Navegación (HTML): network-first con fallback al shell cacheado (offline)
 //  - API GET: network-first con fallback a la última respuesta cacheada
 //  - Estáticos varios (iconos, manifest, logo): cache-first
-const VERSION = 'v2.1.0';
+const VERSION = 'v2.7.2';
 const STATIC_CACHE = `nexlift-static-${VERSION}`;
 const API_CACHE = `nexlift-api-${VERSION}`;
 const SHELL_URL = '/index.html';
