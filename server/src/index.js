@@ -1417,16 +1417,21 @@ app.delete('/api/routines/:id', authMiddleware, async (req, res) => {
                 include: { exercises: { select: { id: true } } }
             });
 
-            for (const day of routineDays) {
-                for (const ex of day.exercises) {
-                    const logCount = await tx.workoutLog.count({ where: { exerciseId: ex.id } });
-                    if (logCount > 0) {
-                        const binId = await getRecycleBinDay(req.userId, tx);
-                        await tx.exercise.update({
-                            where: { id: ex.id },
-                            data: { routineDayId: binId }
-                        });
-                    }
+            const exerciseIds = routineDays.flatMap(day => day.exercises.map(ex => ex.id));
+            if (exerciseIds.length > 0) {
+                const logs = await tx.workoutLog.findMany({
+                    where: { exerciseId: { in: exerciseIds } },
+                    select: { exerciseId: true },
+                    distinct: ['exerciseId']
+                });
+
+                if (logs.length > 0) {
+                    const binId = await getRecycleBinDay(req.userId, tx);
+                    const exercisesToKeep = logs.map(l => l.exerciseId);
+                    await tx.exercise.updateMany({
+                        where: { id: { in: exercisesToKeep } },
+                        data: { routineDayId: binId }
+                    });
                 }
             }
 
@@ -1992,8 +1997,8 @@ async function resolveOrGenerateAiRoutineDay(routine, profile) {
         take: 14
     });
 
-    const sevenDaysAgoStr = mexicoCityDateStr(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
-    const plan = planToday({ existingToday, recentDays, profile, todayStr, sevenDaysAgoStr });
+    const windowStartStr = mexicoCityDateStr(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
+    const plan = planToday({ existingToday, recentDays, profile, todayStr, windowStartStr });
 
     if (plan.action === 'reuse') return plan.day;
     if (plan.action === 'rest') return { isRestDay: true, dayName: plan.dayName, splitLabel: null, exercises: [] };
@@ -2389,14 +2394,12 @@ function sanitizeCardioSegments(raw) {
             }
             incline = inc;
         }
-        let speed = null;
-        if (s.speed != null && s.speed !== '') {
-            const sp = parseFloat(s.speed);
-            if (!Number.isFinite(sp) || sp < 0 || sp > 50) {
-                return { error: `Tramo ${i + 1}: velocidad inválida` };
-            }
-            speed = sp;
+        // Velocidad obligatoria (km/h) — lo que muestra la máquina
+        const sp = parseFloat(s.speed);
+        if (!Number.isFinite(sp) || sp <= 0 || sp > 50) {
+            return { error: `Tramo ${i + 1}: velocidad obligatoria (km/h, mayor a 0)` };
         }
+        const speed = sp;
         segments.push({
             order: i,
             durationMin,

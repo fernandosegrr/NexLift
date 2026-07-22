@@ -201,11 +201,7 @@ model WorkoutLog {
   id          String    @id @default(cuid())
   date        DateTime  @default(now())
   exerciseId  String
-  // onDelete explícito (antes implícito vía default de Postgres): un ejercicio con
-  // historial NUNCA se borra de verdad (ver getRecycleBinDay/archivo en index.js) —
-  // Restrict lo hace imposible también a nivel de base de datos, en vez de depender
-  // de que nadie "corrija" una relación que parecía incompleta agregando Cascade.
-  exercise    Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  exercise    Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
   sets        SetLog[]
   notes       String?
 

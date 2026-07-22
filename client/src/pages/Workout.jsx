@@ -36,7 +36,7 @@ function useWorkoutPersistence(dayId) {
     const [completedExerciseIds, setCompletedExerciseIds] = useState([]);
     const [skippedExerciseIds, setSkippedExerciseIds] = useState([]);
 
-    useEffect(() => {
+    const loadFromStorage = useCallback(() => {
         const savedData = localStorage.getItem(`workout_${dayId}`);
         if (savedData) {
             try {
@@ -46,14 +46,28 @@ function useWorkoutPersistence(dayId) {
                     localStorage.removeItem(`workout_${dayId}`);
                     return;
                 }
-                setWorkoutData(parsed.workoutData || {});
-                setCompletedExerciseIds(parsed.completedExerciseIds || []);
-                setSkippedExerciseIds(parsed.skippedExerciseIds || []);
+                // Usamos función de actualización para evitar re-renders si el estado es el mismo
+                setWorkoutData(prev => JSON.stringify(prev) !== JSON.stringify(parsed.workoutData || {}) ? (parsed.workoutData || {}) : prev);
+                setCompletedExerciseIds(prev => JSON.stringify(prev) !== JSON.stringify(parsed.completedExerciseIds || []) ? (parsed.completedExerciseIds || []) : prev);
+                setSkippedExerciseIds(prev => JSON.stringify(prev) !== JSON.stringify(parsed.skippedExerciseIds || []) ? (parsed.skippedExerciseIds || []) : prev);
             } catch (error) {
                 console.error('Error parsing saved workout:', error);
             }
         }
     }, [dayId]);
+
+    useEffect(() => {
+        loadFromStorage();
+        
+        const handleStorage = (e) => {
+            if (e.key === `workout_${dayId}` || e.key === null) {
+                loadFromStorage();
+            }
+        };
+
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
+    }, [dayId, loadFromStorage]);
 
     const saveToStorage = useCallback((data, completed, skipped = []) => {
         localStorage.setItem(`workout_${dayId}`, JSON.stringify({

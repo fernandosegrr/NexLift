@@ -14,7 +14,7 @@ describe('planToday', () => {
             recentDays: [],
             profile: { daysPerWeek: 3, goal: 'hypertrophy', equipment: ['barbell'] },
             todayStr: '2026-07-08',
-            sevenDaysAgoStr: '2026-07-01'
+            windowStartStr: '2026-07-01'
         });
         assert.equal(result.action, 'reuse');
         assert.equal(result.day, existingToday);
@@ -31,7 +31,7 @@ describe('planToday', () => {
             recentDays,
             profile: { daysPerWeek: 3, goal: 'hypertrophy', equipment: ['barbell'] },
             todayStr: '2026-07-08',
-            sevenDaysAgoStr: '2026-07-01'
+            windowStartStr: '2026-07-01'
         });
         assert.equal(result.action, 'rest');
         assert.equal(result.dayName, '2026-07-08');
@@ -47,7 +47,7 @@ describe('planToday', () => {
             recentDays,
             profile: { daysPerWeek: 3, goal: 'hypertrophy', equipment: ['barbell'] },
             todayStr: '2026-07-08',
-            sevenDaysAgoStr: '2026-07-01'
+            windowStartStr: '2026-07-01'
         });
         assert.equal(result.action, 'create');
     });
@@ -59,7 +59,7 @@ describe('planToday', () => {
             recentDays,
             profile: { daysPerWeek: 5, goal: 'strength', equipment: ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight'] },
             todayStr: '2026-07-08',
-            sevenDaysAgoStr: '2026-07-01'
+            windowStartStr: '2026-07-01'
         });
         assert.equal(result.action, 'create');
         assert.equal(result.splitLabel, 'Pull'); // rotación: después de Push viene Pull
@@ -72,7 +72,7 @@ describe('planToday', () => {
             recentDays: [],
             profile: { daysPerWeek: 4, goal: 'general', equipment: ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight'] },
             todayStr: '2026-07-08',
-            sevenDaysAgoStr: '2026-07-01'
+            windowStartStr: '2026-07-01'
         });
         assert.equal(result.action, 'create');
         assert.equal(result.splitLabel, 'Upper A');
@@ -84,7 +84,7 @@ describe('planToday', () => {
             recentDays: [],
             profile: { daysPerWeek: 3, goal: 'general', equipment: ['bodyweight'] },
             todayStr: '2026-07-08',
-            sevenDaysAgoStr: '2026-07-01'
+            windowStartStr: '2026-07-01'
         });
         assert.equal(result.action, 'create');
         for (const ex of result.exercises) {

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
     HeartPulse, Plus, Trash2, Loader2, ChevronDown, ChevronUp,
-    Save, X, Flame, Check, Play, Pencil, ChevronLeft, Zap
+    Save, X, Flame, Check, Play, Pencil, ChevronLeft
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
@@ -16,12 +16,16 @@ const ACTIVITIES = [
     { id: 'otro', label: 'Otro', emoji: '💪' }
 ];
 
-/** Atajos del patrón típico en cinta (un toque = tramo ya hecho). */
+/**
+ * Atajos de un toque. Textos en lenguaje normal (no jerga de gym).
+ * "Cuesta" = qué tan empinada va la cinta. Velocidad en km/h es obligatoria.
+ */
+const DEFAULT_SPEED = '5';
 const QUICK_PRESETS = [
-    { durationMin: '10', incline: '12', label: '10′', sub: '@12' },
-    { durationMin: '5', incline: '3', label: '5′', sub: '@3' },
-    { durationMin: '10', incline: '15', label: '10′', sub: '@15' },
-    { durationMin: '5', incline: '0', label: '5′', sub: '@0' }
+    { durationMin: '10', incline: '12', speed: '5', title: '10 minutos', effort: 'Cuesta fuerte' },
+    { durationMin: '5', incline: '3', speed: '5.5', title: '5 minutos', effort: 'Cuesta suave' },
+    { durationMin: '10', incline: '15', speed: '4.5', title: '10 minutos', effort: 'Cuesta muy fuerte' },
+    { durationMin: '5', incline: '0', speed: '5.5', title: '5 minutos', effort: 'Plana (sin cuesta)' }
 ];
 
 const DRAFT_KEY_PREFIX = 'nexlift_cardio_draft_';
@@ -34,12 +38,12 @@ function newSegId() {
     return `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function makeSegment({ durationMin = '10', incline = '12', speed = '', completed = false } = {}) {
+function makeSegment({ durationMin = '10', incline = '12', speed = DEFAULT_SPEED, completed = false } = {}) {
     return {
         id: newSegId(),
         durationMin: String(durationMin),
         incline: incline === '' || incline == null ? '' : String(incline),
-        speed: speed === '' || speed == null ? '' : String(speed),
+        speed: speed === '' || speed == null ? DEFAULT_SPEED : String(speed),
         completed: !!completed,
         completedAt: completed ? Date.now() : null
     };
@@ -47,10 +51,15 @@ function makeSegment({ durationMin = '10', incline = '12', speed = '', completed
 
 function defaultPlanSegments() {
     return [
-        makeSegment({ durationMin: '10', incline: '12', completed: false }),
-        makeSegment({ durationMin: '5', incline: '3', completed: false }),
-        makeSegment({ durationMin: '10', incline: '12', completed: false })
+        makeSegment({ durationMin: '10', incline: '12', speed: '5', completed: false }),
+        makeSegment({ durationMin: '5', incline: '3', speed: '5.5', completed: false }),
+        makeSegment({ durationMin: '10', incline: '12', speed: '5', completed: false })
     ];
+}
+
+function hasValidSpeed(seg) {
+    const sp = parseFloat(seg?.speed);
+    return Number.isFinite(sp) && sp > 0 && sp <= 50;
 }
 
 function emptyDraft() {
@@ -122,10 +131,50 @@ function parseSegNums(seg) {
     };
 }
 
+/**
+ * Traduce el número de inclinación de la máquina a lenguaje humano.
+ * La mayoría de gente no sabe qué es "inclinación 12" sin contexto.
+ */
+function inclineWords(incline) {
+    if (incline === '' || incline == null) {
+        return { short: 'Sin cuesta', detail: 'Sin inclinación definida', bars: 0 };
+    }
+    const n = Number(incline);
+    if (!Number.isFinite(n) || n <= 0) {
+        return { short: 'Plana', detail: 'Suelo plano', bars: 0 };
+    }
+    if (n <= 4) return { short: 'Cuesta suave', detail: `Empinada un poco (${n} en la máquina)`, bars: 1 };
+    if (n <= 8) return { short: 'Cuesta media', detail: `Empinada media (${n} en la máquina)`, bars: 2 };
+    if (n <= 12) return { short: 'Cuesta fuerte', detail: `Bastante empinada (${n} en la máquina)`, bars: 3 };
+    return { short: 'Cuesta muy fuerte', detail: `Muy empinada (${n} en la máquina)`, bars: 4 };
+}
+
 function segLabel(seg) {
     const min = seg.durationMin || '?';
-    const inc = seg.incline !== '' && seg.incline != null ? seg.incline : '—';
-    return `${min}′ @${inc}`;
+    const { short } = inclineWords(seg.incline);
+    const sp = hasValidSpeed(seg) ? ` · ${seg.speed} km/h` : '';
+    return `${min} min · ${short}${sp}`;
+}
+
+function segLabelShort(seg) {
+    return segLabel(seg);
+}
+
+/** Barras tipo “qué tan empinado” (0–4), más intuitivo que un número suelto. */
+function InclineBars({ level = 0 }) {
+    return (
+        <div className="flex items-end gap-0.5 h-3" aria-hidden>
+            {[1, 2, 3, 4].map(i => (
+                <span
+                    key={i}
+                    className={`w-1 rounded-sm ${
+                        i <= level ? 'bg-rose-400' : 'bg-[var(--border)]'
+                    }`}
+                    style={{ height: `${6 + i * 2}px` }}
+                />
+            ))}
+        </div>
+    );
 }
 
 /** Stepper numérico táctil (gym-friendly, sin teclado si no hace falta). */
@@ -133,7 +182,9 @@ function NumStepper({ label, value, onChange, step = 1, min = 0, max = 999, suff
     const n = parseFloat(value);
     const safe = Number.isFinite(n) ? n : 0;
     const bump = (dir) => {
-        const next = Math.round((safe + dir * step) * 10) / 10;
+        const decimals = step < 1 ? 1 : 0;
+        const factor = 10 ** decimals;
+        const next = Math.round((safe + dir * step) * factor) / factor;
         const clamped = Math.min(max, Math.max(min, next));
         onChange(String(clamped));
     };
@@ -157,7 +208,7 @@ function NumStepper({ label, value, onChange, step = 1, min = 0, max = 999, suff
                         inputMode="decimal"
                         value={value}
                         onChange={e => onChange(e.target.value)}
-                        className="w-full bg-transparent text-center text-2xl font-black tabular-nums outline-none focus:text-[var(--primary)]"
+                        className="w-full bg-transparent text-center text-2xl font-black tabular-nums outline-none focus:text-rose-300"
                         aria-label={label}
                     />
                     {suffix && (
@@ -177,35 +228,24 @@ function NumStepper({ label, value, onChange, step = 1, min = 0, max = 999, suff
     );
 }
 
-function ProgressRing({ done, total, size = 64 }) {
-    const pct = total > 0 ? Math.min(1, done / total) : 0;
-    const stroke = 5;
-    const r = (size - stroke) / 2;
-    const c = 2 * Math.PI * r;
-    const offset = c * (1 - pct);
+/** Puntos de progreso (evita anillos SVG raros / líneas visuales raras). */
+function ProgressDots({ done, total }) {
+    const n = Math.max(total, 1);
     return (
-        <svg width={size} height={size} className="shrink-0 -rotate-90" aria-hidden>
-            <circle
-                cx={size / 2}
-                cy={size / 2}
-                r={r}
-                fill="none"
-                stroke="var(--border)"
-                strokeWidth={stroke}
-            />
-            <circle
-                cx={size / 2}
-                cy={size / 2}
-                r={r}
-                fill="none"
-                stroke="var(--success)"
-                strokeWidth={stroke}
-                strokeLinecap="round"
-                strokeDasharray={c}
-                strokeDashoffset={offset}
-                className="transition-[stroke-dashoffset] duration-500"
-            />
-        </svg>
+        <div className="flex items-center gap-1.5" aria-hidden>
+            {Array.from({ length: n }, (_, i) => (
+                <span
+                    key={i}
+                    className={`h-2.5 rounded-full transition-colors ${
+                        i < done
+                            ? 'w-2.5 bg-[var(--success)]'
+                            : i === done
+                                ? 'w-4 bg-rose-400'
+                                : 'w-2.5 bg-[var(--border)]'
+                    }`}
+                />
+            ))}
+        </div>
     );
 }
 
@@ -222,6 +262,7 @@ export default function Cardio() {
 
     const [quickMin, setQuickMin] = useState('10');
     const [quickIncline, setQuickIncline] = useState('12');
+    const [quickSpeed, setQuickSpeed] = useState(DEFAULT_SPEED);
     const [showCustom, setShowCustom] = useState(false);
     const [editingSegId, setEditingSegId] = useState(null);
     const [showFinish, setShowFinish] = useState(false);
@@ -300,6 +341,15 @@ export default function Cardio() {
     const toggleSegmentDone = useCallback((id) => {
         setDraft(prev => {
             if (!prev) return prev;
+            const target = prev.segments.find(s => s.id === id);
+            // Al marcar como hecho, velocidad es obligatoria
+            if (target && !target.completed && !hasValidSpeed(target)) {
+                toast.error('Pon la velocidad (km/h) de la máquina antes de marcar listo');
+                // Abrir editor en el siguiente tick (no anular con setEditingSegId(null))
+                queueMicrotask(() => setEditingSegId(id));
+                return prev;
+            }
+            queueMicrotask(() => setEditingSegId(null));
             return {
                 ...prev,
                 updatedAt: Date.now(),
@@ -310,8 +360,7 @@ export default function Cardio() {
                 })
             };
         });
-        setEditingSegId(null);
-    }, []);
+    }, [toast]);
 
     const removeSegment = useCallback((id) => {
         setDraft(prev => {
@@ -335,7 +384,7 @@ export default function Cardio() {
             const seg = makeSegment({
                 durationMin: nextMin,
                 incline: nextIncline,
-                speed: last?.speed || '',
+                speed: last?.speed || DEFAULT_SPEED,
                 completed: false
             });
             newId = seg.id;
@@ -349,10 +398,17 @@ export default function Cardio() {
     }, []);
 
     const logDoneSegment = useCallback((partial) => {
+        const speed = partial.speed != null && partial.speed !== ''
+            ? String(partial.speed)
+            : DEFAULT_SPEED;
+        if (!hasValidSpeed({ speed })) {
+            toast.error('Velocidad obligatoria (km/h)');
+            return;
+        }
         const nextSeg = makeSegment({
             durationMin: partial.durationMin ?? '10',
             incline: partial.incline ?? '12',
-            speed: partial.speed ?? '',
+            speed,
             completed: true
         });
         setDraft(prev => {
@@ -365,7 +421,7 @@ export default function Cardio() {
                 updatedAt: Date.now()
             };
         });
-        toast.success(`${partial.durationMin || '?'}′ @${partial.incline ?? '—'} · listo`);
+        toast.success(`${segLabel(nextSeg)} · listo`);
     }, [toast]);
 
     const logQuickCustom = useCallback(() => {
@@ -374,14 +430,19 @@ export default function Cardio() {
             toast.error('Minutos inválidos');
             return;
         }
+        if (!hasValidSpeed({ speed: quickSpeed })) {
+            toast.error('Velocidad obligatoria (km/h de la máquina)');
+            return;
+        }
         logDoneSegment({
             durationMin: String(quickMin),
-            incline: quickIncline === '' ? '' : String(quickIncline)
+            incline: quickIncline === '' ? '' : String(quickIncline),
+            speed: String(quickSpeed)
         });
         setQuickIncline(prev => (String(prev) === '12' ? '3' : '12'));
         setQuickMin(prev => (prev === '10' ? '5' : '10'));
         setShowCustom(false);
-    }, [quickMin, quickIncline, logDoneSegment, toast]);
+    }, [quickMin, quickIncline, quickSpeed, logDoneSegment, toast]);
 
     const doneSegments = useMemo(
         () => (draft?.segments || []).filter(s => s.completed),
@@ -394,10 +455,6 @@ export default function Cardio() {
     const doneMin = useMemo(
         () => doneSegments.reduce((a, s) => a + (parseFloat(s.durationMin) || 0), 0),
         [doneSegments]
-    );
-    const planMin = useMemo(
-        () => (draft?.segments || []).reduce((a, s) => a + (parseFloat(s.durationMin) || 0), 0),
-        [draft]
     );
     const estimatedKcal = useMemo(() => {
         if (!draft) return null;
@@ -413,15 +470,19 @@ export default function Cardio() {
 
     const currentPending = pendingSegments[0] || null;
     const currentPendingId = currentPending?.id || null;
-    const progressPct = draft?.segments?.length
-        ? Math.round((doneSegments.length / draft.segments.length) * 100)
-        : 0;
 
     async function handleSave() {
         if (!draft) return;
+        const missingSpeed = doneSegments.find(s => !hasValidSpeed(s));
+        if (missingSpeed) {
+            toast.error('Cada tramo hecho necesita velocidad (km/h)');
+            setEditingSegId(missingSpeed.id);
+            return;
+        }
+
         const clean = doneSegments
             .map(parseSegNums)
-            .filter(s => Number.isFinite(s.durationMin) && s.durationMin > 0);
+            .filter(s => Number.isFinite(s.durationMin) && s.durationMin > 0 && Number.isFinite(s.speed) && s.speed > 0);
 
         if (clean.length === 0) {
             toast.error('Marca al menos un tramo con ✓');
@@ -493,18 +554,31 @@ export default function Cardio() {
 
     // ——— UI bits reutilizados ———
     const QuickPresetGrid = ({ className = '' }) => (
-        <div className={`grid grid-cols-4 gap-2 ${className}`}>
-            {QUICK_PRESETS.map(p => (
-                <button
-                    key={p.label + p.sub}
-                    type="button"
-                    onClick={() => logDoneSegment(p)}
-                    className="flex flex-col items-center justify-center min-h-[72px] rounded-2xl bg-rose-500/12 border border-rose-500/25 active:scale-[0.96] active:bg-rose-500/25 transition-all"
-                >
-                    <span className="text-lg font-black text-rose-200 tabular-nums leading-none">{p.label}</span>
-                    <span className="text-xs font-bold text-rose-300/80 mt-1">{p.sub}</span>
-                </button>
-            ))}
+        <div className={`grid grid-cols-2 gap-2 ${className}`}>
+            {QUICK_PRESETS.map(p => {
+                const lvl = inclineWords(p.incline);
+                return (
+                    <button
+                        key={p.title + p.effort}
+                        type="button"
+                        onClick={() => logDoneSegment(p)}
+                        className="flex flex-col items-start justify-center min-h-[80px] px-3 py-2.5 rounded-2xl bg-[var(--bg-dark)] border border-[var(--border)] active:scale-[0.97] active:border-rose-400/50 active:bg-rose-500/10 transition-all text-left"
+                    >
+                        <span className="text-base font-black text-white tabular-nums leading-none">
+                            {p.title}
+                        </span>
+                        <span className="text-[12px] font-semibold text-rose-200/95 mt-1 leading-tight">
+                            {p.effort}
+                        </span>
+                        <span className="text-[11px] font-semibold text-[var(--text-secondary)] mt-0.5 tabular-nums">
+                            {p.speed} km/h
+                        </span>
+                        <div className="mt-1.5">
+                            <InclineBars level={lvl.bars} />
+                        </div>
+                    </button>
+                );
+            })}
         </div>
     );
 
@@ -543,43 +617,73 @@ export default function Cardio() {
             {/* ========== IDLE ========== */}
             {!draft && (
                 <div className="space-y-4">
-                    {/* Hero CTA */}
-                    <div className="relative overflow-hidden rounded-3xl border border-rose-500/20 bg-gradient-to-br from-rose-500/15 via-[var(--bg-card)] to-[var(--bg-card)] p-5">
-                        <div className="absolute -right-6 -top-6 w-28 h-28 rounded-full bg-rose-500/10 blur-2xl pointer-events-none" />
-                        <p className="text-xs font-bold uppercase tracking-wider text-rose-300/90 mb-1">
-                            En la máquina
-                        </p>
-                        <h2 className="text-lg font-black leading-snug mb-1">
-                            Terminé un tramo → un toque
-                        </h2>
-                        <p className="text-xs text-[var(--text-secondary)] mb-4 leading-relaxed">
-                            Se guarda solo en el teléfono. No se pierde si cierras la app.
-                        </p>
+                    {/* Hero CTA — sin bloques morados; lenguaje simple */}
+                    <div className="rounded-3xl border border-[var(--border)] bg-[var(--bg-card)] p-4 space-y-3">
+                        <div>
+                            <h2 className="text-lg font-black leading-snug">
+                                ¿Qué acabas de hacer?
+                            </h2>
+                            <p className="text-sm text-[var(--text-secondary)] mt-1 leading-relaxed">
+                                Elige <span className="text-white font-semibold">cuánto tiempo</span>,
+                                {' '}<span className="text-white font-semibold">qué tan empinada</span>
+                                {' '}iba y la <span className="text-white font-semibold">velocidad (km/h)</span>
+                                {' '}de la máquina. Un toque y queda en el teléfono.
+                            </p>
+                        </div>
+
+                        {/* Mini guía visual de “cuesta” */}
+                        <div className="rounded-2xl bg-[var(--bg-dark)] border border-[var(--border)] p-3 space-y-2">
+                            <p className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wide">
+                                Qué significa “cuesta”
+                            </p>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                {[
+                                    { bars: 0, t: 'Plana', d: 'Suelo horizontal' },
+                                    { bars: 1, t: 'Suave', d: 'Un poquito arriba' },
+                                    { bars: 3, t: 'Fuerte', d: 'Bien empinada' },
+                                    { bars: 4, t: 'Muy fuerte', d: 'Muy empinada' }
+                                ].map(row => (
+                                    <div key={row.t} className="flex items-center gap-2">
+                                        <InclineBars level={row.bars} />
+                                        <div className="min-w-0">
+                                            <p className="font-bold text-white leading-tight">{row.t}</p>
+                                            <p className="text-[10px] text-[var(--text-secondary)] leading-tight">{row.d}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
                         <QuickPresetGrid />
                         <button
                             type="button"
                             onClick={() => { startSession('empty'); setShowCustom(true); }}
-                            className="w-full mt-3 min-h-[44px] text-sm font-semibold text-rose-300/90 flex items-center justify-center gap-1.5"
+                            className="w-full min-h-[44px] text-sm font-semibold text-[var(--text-secondary)] flex items-center justify-center gap-1.5 border border-dashed border-[var(--border)] rounded-xl"
                         >
-                            Otro valor (min + incl.)…
+                            Otro tiempo o cuesta…
                         </button>
                     </div>
 
-                    {/* Plan opcional */}
-                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-4">
-                        <p className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide mb-2">
-                            O con plan
+                    {/* Plan opcional — rose, no morado primary */}
+                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-4 space-y-2">
+                        <p className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">
+                            Prefieres un plan listo
                         </p>
                         <button
                             type="button"
                             onClick={() => startSession('plan')}
-                            className="w-full min-h-[52px] rounded-2xl bg-[var(--primary)] text-white font-bold flex items-center justify-center gap-2 active:scale-[0.98]"
+                            className="w-full min-h-[52px] px-3 rounded-2xl bg-rose-500/90 text-white font-bold flex items-center justify-center gap-2 active:scale-[0.98] py-3"
                         >
                             <Play size={18} fill="currentColor" aria-hidden />
-                            10′@12 → 5′@3 → 10′@12
+                            Empezar plan de 3 tramos
                         </button>
-                        <p className="text-[11px] text-[var(--text-secondary)] text-center mt-2">
-                            Marcas cada tramo con ✓ al terminarlo
+                        <ul className="text-xs text-[var(--text-secondary)] space-y-1 px-1">
+                            <li>1. 10 min · cuesta fuerte</li>
+                            <li>2. 5 min · cuesta suave</li>
+                            <li>3. 10 min · cuesta fuerte</li>
+                        </ul>
+                        <p className="text-[11px] text-[var(--text-secondary)] text-center pt-1">
+                            Vas marcando cada uno con ✓ cuando lo termines
                         </p>
                     </div>
 
@@ -608,84 +712,38 @@ export default function Cardio() {
             {/* ========== SESIÓN EN CURSO ========== */}
             {draft && (
                 <div className="space-y-3">
-                    {/* Hero progreso */}
-                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-3xl p-4">
-                        <div className="flex items-center gap-4">
-                            <div className="relative">
-                                <ProgressRing done={doneSegments.length} total={Math.max(draft.segments.length, 1)} />
-                                <div className="absolute inset-0 flex flex-col items-center justify-center rotate-0">
-                                    <span className="text-sm font-black tabular-nums leading-none">
-                                        {doneSegments.length}
-                                    </span>
-                                    <span className="text-[9px] text-[var(--text-secondary)] font-bold">
-                                        /{draft.segments.length || 0}
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-0.5">
-                                    <span className="text-xs font-bold text-[var(--success)] uppercase tracking-wide">
-                                        En curso
-                                    </span>
-                                    <span className="text-[10px] text-[var(--text-secondary)]">
-                                        auto-guardado
-                                    </span>
-                                </div>
-                                <p className="text-2xl font-black tabular-nums leading-none">
+                    {/* Hero progreso — limpio, sin anillo ni barra morada */}
+                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-3xl p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="text-xs font-bold text-[var(--success)] uppercase tracking-wide">
+                                    Sesión en curso
+                                </p>
+                                <p className="text-3xl font-black tabular-nums leading-none mt-1">
                                     {Math.round(doneMin * 10) / 10}
-                                    <span className="text-sm font-semibold text-[var(--text-secondary)] ml-1">min</span>
+                                    <span className="text-base font-semibold text-[var(--text-secondary)] ml-1">min</span>
                                 </p>
-                                <p className="text-xs text-[var(--text-secondary)] mt-1 tabular-nums">
-                                    {doneSegments.length} hecho{doneSegments.length === 1 ? '' : 's'}
+                                <p className="text-xs text-[var(--text-secondary)] mt-1.5">
+                                    {doneSegments.length} tramo{doneSegments.length === 1 ? '' : 's'} hecho
+                                    {doneSegments.length === 1 ? '' : 's'}
                                     {pendingSegments.length > 0 && (
-                                        <> · {pendingSegments.length} pendiente{pendingSegments.length === 1 ? '' : 's'}</>
-                                    )}
-                                    {planMin > doneMin && (
-                                        <> · plan {Math.round(planMin * 10) / 10}′</>
+                                        <> · {pendingSegments.length} por hacer</>
                                     )}
                                 </p>
                             </div>
+                            <span className="text-[10px] font-semibold text-[var(--text-secondary)] bg-[var(--bg-dark)] border border-[var(--border)] px-2 py-1 rounded-lg shrink-0">
+                                Auto-guardado
+                            </span>
                         </div>
-                        {/* Barra fina */}
                         {draft.segments.length > 0 && (
-                            <div className="mt-3 h-1.5 rounded-full bg-[var(--bg-dark)] overflow-hidden">
-                                <div
-                                    className="h-full rounded-full bg-[var(--success)] transition-all duration-500"
-                                    style={{ width: `${progressPct}%` }}
-                                />
-                            </div>
-                        )}
-                        {/* Chips timeline */}
-                        {draft.segments.length > 0 && (
-                            <div className="flex gap-1.5 mt-3 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 scrollbar-none">
-                                {draft.segments.map((s, i) => {
-                                    const isCurrent = s.id === currentPendingId;
-                                    return (
-                                        <button
-                                            key={s.id}
-                                            type="button"
-                                            onClick={() => {
-                                                if (s.completed) setEditingSegId(editingSegId === s.id ? null : s.id);
-                                                else setEditingSegId(s.id);
-                                            }}
-                                            className={`shrink-0 text-[11px] font-bold px-2.5 py-1.5 rounded-xl tabular-nums border transition-colors ${
-                                                s.completed
-                                                    ? 'bg-[var(--success)]/15 text-[var(--success)] border-[var(--success)]/30'
-                                                    : isCurrent
-                                                        ? 'bg-rose-500/20 text-rose-200 border-rose-500/40'
-                                                        : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] border-[var(--border)]'
-                                            }`}
-                                        >
-                                            {s.completed ? '✓ ' : isCurrent ? '→ ' : ''}
-                                            {segLabel(s)}
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                            <ProgressDots
+                                done={doneSegments.length}
+                                total={draft.segments.length}
+                            />
                         )}
                     </div>
 
-                    {/* Actividad — chips horizontales */}
+                    {/* Actividad — rose activo, no morado */}
                     <div className="flex gap-2 overflow-x-auto pb-0.5">
                         {ACTIVITIES.map(a => {
                             const on = draft.activity === a.id;
@@ -696,7 +754,7 @@ export default function Cardio() {
                                     onClick={() => updateDraft({ activity: a.id })}
                                     className={`shrink-0 min-h-[44px] px-3.5 rounded-full text-sm font-bold border transition-all ${
                                         on
-                                            ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-lg shadow-purple-900/30'
+                                            ? 'bg-rose-500 text-white border-rose-500'
                                             : 'bg-[var(--bg-card)] text-[var(--text-secondary)] border-[var(--border)]'
                                     }`}
                                 >
@@ -709,22 +767,40 @@ export default function Cardio() {
 
                     {/* CTA del tramo actual del plan */}
                     {currentPending && (
-                        <div className="rounded-3xl border border-rose-500/35 bg-gradient-to-b from-rose-500/10 to-[var(--bg-card)] p-4 space-y-3">
-                            <div className="flex items-center justify-between gap-2">
-                                <div>
-                                    <p className="text-[10px] font-bold uppercase tracking-wider text-rose-300/90">
+                        <div className="rounded-3xl border border-[var(--border)] bg-[var(--bg-card)] p-4 space-y-3">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
                                         Siguiente tramo
                                     </p>
-                                    <p className="text-3xl font-black tabular-nums tracking-tight mt-0.5">
-                                        {segLabel(currentPending)}
+                                    <p className="text-2xl font-black tabular-nums tracking-tight mt-0.5 leading-tight">
+                                        {currentPending.durationMin || '?'} minutos
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-1.5">
+                                        <InclineBars level={inclineWords(currentPending.incline).bars} />
+                                        <p className="text-sm font-semibold text-rose-200/95">
+                                            {inclineWords(currentPending.incline).short}
+                                        </p>
+                                    </div>
+                                    <p className="text-sm font-bold tabular-nums text-white mt-1">
+                                        Velocidad: {hasValidSpeed(currentPending) ? `${currentPending.speed} km/h` : 'falta ponerla'}
+                                    </p>
+                                    <p className="text-[11px] text-[var(--text-secondary)] mt-1 leading-snug">
+                                        {inclineWords(currentPending.incline).detail}
                                     </p>
                                 </div>
-                                <Zap size={22} className="text-rose-400/60 shrink-0" aria-hidden />
                             </div>
+                            {!hasValidSpeed(currentPending) && (
+                                <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 px-3 py-2">
+                                    <p className="text-xs text-amber-100 font-semibold leading-snug">
+                                        Falta la velocidad (km/h de la máquina). Toca “Cambiar…” y ponla antes de marcar listo.
+                                    </p>
+                                </div>
+                            )}
                             <button
                                 type="button"
                                 onClick={() => toggleSegmentDone(currentPending.id)}
-                                className="w-full min-h-[56px] rounded-2xl bg-[var(--success)] text-white text-base font-black flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg shadow-emerald-900/30"
+                                className="w-full min-h-[56px] rounded-2xl bg-[var(--success)] text-white text-base font-black flex items-center justify-center gap-2 active:scale-[0.98]"
                             >
                                 <Check size={22} strokeWidth={3} />
                                 Listo — lo hice
@@ -737,7 +813,7 @@ export default function Cardio() {
                                 className="w-full min-h-[40px] text-xs font-semibold text-[var(--text-secondary)] flex items-center justify-center gap-1"
                             >
                                 <Pencil size={12} />
-                                Ajustar min / inclinación
+                                Cambiar tiempo, cuesta o velocidad
                             </button>
                         </div>
                     )}
@@ -746,20 +822,23 @@ export default function Cardio() {
                     <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-3.5 space-y-3">
                         <div className="flex items-center justify-between">
                             <p className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">
-                                + Tramo extra
+                                + Otro tramo
                             </p>
                             <button
                                 type="button"
                                 onClick={() => setShowCustom(v => !v)}
-                                className="text-xs font-bold text-[var(--primary)] min-h-[36px] px-2"
+                                className="text-xs font-bold text-rose-300 min-h-[36px] px-2"
                             >
-                                {showCustom ? 'Cerrar' : 'Custom'}
+                                {showCustom ? 'Cerrar' : 'Ajustar a mano'}
                             </button>
                         </div>
                         <QuickPresetGrid />
                         {showCustom && (
                             <div className="pt-2 border-t border-[var(--border)] space-y-3 animate-fade-in">
-                                <div className="flex justify-around">
+                                <p className="text-[11px] text-[var(--text-secondary)] text-center leading-snug">
+                                    Usa los números de la pantalla de la máquina. Velocidad es obligatoria.
+                                </p>
+                                <div className="flex justify-around flex-wrap gap-y-3">
                                     <NumStepper
                                         label="Minutos"
                                         value={quickMin}
@@ -770,22 +849,36 @@ export default function Cardio() {
                                         suffix="min"
                                     />
                                     <NumStepper
-                                        label="Inclinación"
+                                        label="Cuesta"
                                         value={quickIncline}
                                         onChange={setQuickIncline}
                                         step={1}
                                         min={0}
                                         max={40}
-                                        suffix="%"
+                                        suffix=""
+                                    />
+                                    <NumStepper
+                                        label="Velocidad"
+                                        value={quickSpeed}
+                                        onChange={setQuickSpeed}
+                                        step={0.1}
+                                        min={0.1}
+                                        max={50}
+                                        suffix="km/h"
                                     />
                                 </div>
+                                <p className="text-center text-xs font-semibold text-rose-200/90">
+                                    {inclineWords(quickIncline).short} · {quickSpeed || '?'} km/h
+                                </p>
                                 <button
                                     type="button"
                                     onClick={logQuickCustom}
-                                    className="w-full min-h-[48px] rounded-2xl bg-rose-500 text-white font-bold flex items-center justify-center gap-2 active:scale-[0.98]"
+                                    className="w-full min-h-[48px] rounded-2xl bg-rose-500 text-white font-bold flex items-center justify-center gap-2 active:scale-[0.98] px-3 text-center leading-snug"
                                 >
-                                    <Check size={18} strokeWidth={3} />
-                                    Añadir {quickMin}′ @{quickIncline || '—'}
+                                    <Check size={18} strokeWidth={3} className="shrink-0" />
+                                    <span>
+                                        Añadir {quickMin} min · {inclineWords(quickIncline).short} · {quickSpeed} km/h
+                                    </span>
                                 </button>
                             </div>
                         )}
@@ -800,9 +893,9 @@ export default function Cardio() {
                             <button
                                 type="button"
                                 onClick={addPendingSegment}
-                                className="text-xs font-bold text-[var(--primary)] flex items-center gap-1 min-h-[36px]"
+                                className="text-xs font-bold text-rose-300 flex items-center gap-1 min-h-[36px]"
                             >
-                                <Plus size={14} /> Pendiente
+                                <Plus size={14} /> Añadir pendiente
                             </button>
                         </div>
 
@@ -849,20 +942,17 @@ export default function Cardio() {
                                                     onClick={() => setEditingSegId(isEditing ? null : seg.id)}
                                                     className="flex-1 min-w-0 text-left min-h-[44px] flex flex-col justify-center"
                                                 >
-                                                    <span className="font-bold text-sm tabular-nums">
+                                                    <span className="font-bold text-sm tabular-nums leading-snug">
                                                         {segLabel(seg)}
-                                                        {seg.speed !== '' && seg.speed != null && (
-                                                            <span className="text-[var(--text-secondary)] font-medium text-xs ml-1.5">
-                                                                · {seg.speed} km/h
-                                                            </span>
-                                                        )}
                                                     </span>
                                                     <span className="text-[10px] text-[var(--text-secondary)]">
                                                         {seg.completed
                                                             ? 'Hecho'
-                                                            : isCurrent
-                                                                ? 'Ahora'
-                                                                : 'Pendiente'}
+                                                            : !hasValidSpeed(seg)
+                                                                ? 'Falta velocidad'
+                                                                : isCurrent
+                                                                    ? 'Ahora'
+                                                                    : 'Pendiente'}
                                                         {' · tocar para editar'}
                                                     </span>
                                                 </button>
@@ -878,7 +968,7 @@ export default function Cardio() {
 
                                             {isEditing && (
                                                 <div className="px-3 pb-3 pt-1 border-t border-[var(--border)]/60 space-y-3 animate-fade-in">
-                                                    <div className="flex justify-around">
+                                                    <div className="flex justify-around flex-wrap gap-y-3">
                                                         <NumStepper
                                                             label="Minutos"
                                                             value={seg.durationMin}
@@ -889,32 +979,28 @@ export default function Cardio() {
                                                             suffix="min"
                                                         />
                                                         <NumStepper
-                                                            label="Inclinación"
+                                                            label="Cuesta"
                                                             value={seg.incline === '' ? '0' : seg.incline}
                                                             onChange={v => updateSegment(seg.id, 'incline', v)}
                                                             step={1}
                                                             min={0}
                                                             max={40}
-                                                            suffix="%"
+                                                            suffix=""
+                                                        />
+                                                        <NumStepper
+                                                            label="Velocidad"
+                                                            value={seg.speed === '' ? DEFAULT_SPEED : seg.speed}
+                                                            onChange={v => updateSegment(seg.id, 'speed', v)}
+                                                            step={0.1}
+                                                            min={0.1}
+                                                            max={50}
+                                                            suffix="km/h"
                                                         />
                                                     </div>
-                                                    {draft.activity === 'caminadora' && (
-                                                        <div>
-                                                            <label className="text-[10px] text-[var(--text-secondary)] mb-1 block text-center">
-                                                                Velocidad km/h (opc.)
-                                                            </label>
-                                                            <input
-                                                                type="number"
-                                                                inputMode="decimal"
-                                                                min="0"
-                                                                step="0.1"
-                                                                value={seg.speed}
-                                                                onChange={e => updateSegment(seg.id, 'speed', e.target.value)}
-                                                                placeholder="—"
-                                                                className="w-full min-h-[44px] bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-center font-bold focus:border-[var(--primary)] outline-none"
-                                                            />
-                                                        </div>
-                                                    )}
+                                                    <p className="text-center text-xs font-semibold text-rose-200/90">
+                                                        {inclineWords(seg.incline).detail}
+                                                        {hasValidSpeed(seg) ? ` · ${seg.speed} km/h` : ' · falta velocidad'}
+                                                    </p>
                                                     {!seg.completed && (
                                                         <button
                                                             type="button"
@@ -967,13 +1053,13 @@ export default function Cardio() {
                                         value={draft.calories}
                                         onChange={e => updateDraft({ calories: e.target.value })}
                                         placeholder="Lo que diga la máquina"
-                                        className="w-full min-h-[48px] px-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-base font-bold tabular-nums focus:border-[var(--primary)] outline-none"
+                                        className="w-full min-h-[48px] px-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-base font-bold tabular-nums focus:border-rose-400 outline-none"
                                     />
                                     {estimatedKcal != null && doneSegments.length > 0 && (
                                         <button
                                             type="button"
                                             onClick={() => updateDraft({ calories: String(estimatedKcal) })}
-                                            className="mt-2 text-xs font-bold text-[var(--primary)] min-h-[36px]"
+                                            className="mt-2 text-xs font-bold text-rose-300 min-h-[36px]"
                                         >
                                             Usar estimación ≈ {estimatedKcal} kcal
                                         </button>
@@ -987,8 +1073,8 @@ export default function Cardio() {
                                         type="text"
                                         value={draft.note}
                                         onChange={e => updateDraft({ note: e.target.value })}
-                                        placeholder="ej. Z2, me sentí bien"
-                                        className="w-full min-h-[44px] px-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-sm focus:border-[var(--primary)] outline-none"
+                                        placeholder="ej. me sentí bien"
+                                        className="w-full min-h-[44px] px-3 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl text-sm focus:border-rose-400 outline-none"
                                     />
                                 </div>
                             </div>
@@ -1013,7 +1099,7 @@ export default function Cardio() {
                                 type="button"
                                 onClick={handleSave}
                                 disabled={saving || doneSegments.length === 0}
-                                className="flex-1 min-h-[54px] rounded-2xl bg-[var(--primary)] text-white font-black text-base flex items-center justify-center gap-2 disabled:opacity-40 shadow-lg shadow-purple-900/40 active:scale-[0.98]"
+                                className="flex-1 min-h-[54px] rounded-2xl bg-rose-500 text-white font-black text-base flex items-center justify-center gap-2 disabled:opacity-40 active:scale-[0.98]"
                             >
                                 {saving ? (
                                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -1093,11 +1179,13 @@ export default function Cardio() {
                                                 {(s.segments || []).map((seg, i) => (
                                                     <span
                                                         key={seg.id || i}
-                                                        className="text-xs font-bold tabular-nums px-2.5 py-1.5 rounded-xl bg-[var(--bg-dark)] border border-[var(--border)]"
+                                                        className="text-xs font-semibold tabular-nums px-2.5 py-1.5 rounded-xl bg-[var(--bg-dark)] border border-[var(--border)]"
                                                     >
-                                                        {seg.durationMin}′
-                                                        {seg.incline != null ? ` @${seg.incline}` : ''}
-                                                        {seg.speed != null ? ` · ${seg.speed}` : ''}
+                                                        {segLabelShort({
+                                                            durationMin: seg.durationMin,
+                                                            incline: seg.incline != null ? String(seg.incline) : '',
+                                                            speed: seg.speed != null ? String(seg.speed) : ''
+                                                        })}
                                                     </span>
                                                 ))}
                                             </div>

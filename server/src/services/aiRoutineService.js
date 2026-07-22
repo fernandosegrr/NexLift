@@ -13,8 +13,8 @@ import { pickNextSplitDay } from '../logic.js';
 // - recentDays: RoutineDay[] de días de ENTRENAMIENTO ya generados para esta
 //   rutina, más reciente primero (dayName DESC) — index.js decide cuántos traer.
 // - profile: TrainingProfile (goal, daysPerWeek, equipment, experienceLevel).
-// - todayStr / sevenDaysAgoStr: mexicoCityDateStr() de hoy y de hace 7 días.
-export function planToday({ existingToday, recentDays, profile, todayStr, sevenDaysAgoStr }) {
+// - todayStr / windowStartStr: mexicoCityDateStr() de hoy y de hace 6 días (ventana de 7 días).
+export function planToday({ existingToday, recentDays, profile, todayStr, windowStartStr }) {
     if (existingToday) {
         return { action: 'reuse', day: existingToday };
     }
@@ -22,7 +22,7 @@ export function planToday({ existingToday, recentDays, profile, todayStr, sevenD
     // Cuota semanal: ¿ya se entrenó daysPerWeek veces en los últimos 7 días? Cada
     // RoutineDay de esta rutina representa un día YA entrenado (los de descanso
     // nunca generan fila), así que contar filas basta — sin tocar WorkoutLog.
-    const trainedLast7Days = (recentDays || []).filter(d => d.dayName >= sevenDaysAgoStr).length;
+    const trainedLast7Days = (recentDays || []).filter(d => d.dayName >= windowStartStr).length;
     if (trainedLast7Days >= profile.daysPerWeek) {
         return { action: 'rest', dayName: todayStr };
     }
