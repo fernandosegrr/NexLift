@@ -164,20 +164,24 @@ Con `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET` configu
   "description": "Descripción opcional",
   "days": [
     {
-      "dayName": "Lunes - Torso",
+      "dayName": "Torso",
+      "weekday": 1,
       "exercises": [
         { "name": "press banca", "sets": 4, "reps": "8-10" },
         { "name": "remo pendlay", "sets": 4, "reps": "8-10" }
       ]
     },
     {
-      "dayName": "Martes - Descanso",
+      "dayName": "Descanso",
+      "weekday": 2,
       "isRestDay": true,
       "exercises": []
     }
   ]
 }
 ```
+
+`weekday`: 0=Domingo … 6=Sábado. Si lo omites y `dayName` trae un día ("Lunes - Torso"), se asigna solo — pero un nombre sin día ("Push", "Día 1") queda sin programar hasta que lo asignes en el editor.
 
 > 💡 **Tip:** Pídele a ChatGPT que genere tu rutina en este formato JSON.
 

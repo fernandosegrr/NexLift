@@ -150,7 +150,18 @@ Sección **aparte de fuerza** (`/cardio`): `CardioSession` + `CardioSegment` (mi
 - UI: tramos editables; default 10′@12 → 5′@3 → 10′@12 (caminadora). Entrada desde Dashboard, Progreso, Perfil.
 - Backup JSON incluye `cardioSessions`.
 
-## Current Version: 2.9.0
+## Día de la semana explícito en rutinas manuales (v2.9.1)
+`RoutineDay.weekday` (`Int?`, 0=Domingo..6=Sábado, `null`=sin programar) es la **única** fuente de verdad para "qué día de rutina toca hoy" en rutinas manuales — `dayName` es puramente decorativo (puede ser "Día 1", "Push", "Pierna A", lo que sea) y **nunca** se vuelve a parsear en lectura.
+
+- **El bug que reemplaza:** antes se comparaba `normalizeDay(dayName)` (= `.slice(0,3)` sin acentos) contra el nombre del día de la semana. Fallaba en silencio para CUALQUIER rutina cuyos días no se llamaran literalmente "Lunes".."Domingo" — es decir, las 4 plantillas incorporadas (`client/src/data/routineTemplates.js`, "Push"/"Upper A"/"Full Body A"...), el botón "Agregar día" (genera "Día N") y el ejemplo de JSON que la propia app mostraba (`"dayName": "Push"`). Todas esas rutinas mostraban "día de descanso" TODOS los días, en Inicio, Rutinas y el Atajo de iOS (`GET /api/shortcuts/next-set`). Además producía falsos positivos: `"Dominadas y remo"` → `"dom"` = Domingo.
+- **Resolver único, duplicado con paridad** (mismo patrón que Smart Loading/plateau — ver Gotcha de duplicación abajo): `findRoutineDayForWeekday(days, weekday)` y `scheduledRestWeekdays(days)` en `server/src/logic.js` **y** `client/src/utils/routineDays.js`, con `routineDays.parity.test.js` corriendo los mismos fixtures por ambas copias. `0` (Domingo) es un valor válido — comparar siempre `!= null`, nunca truthiness.
+- **Inferencia SOLO en escritura:** `inferWeekdayFromName(dayName)` (server, tokenizado — nunca `.slice(0,3)` sobre el nombre completo) corre en `POST /api/routines/import` y `PUT /api/routines/:id` vía `resolveIncomingWeekday(day)`, para que un JSON pegado con `"dayName": "Lunes - Torso"` siga funcionando sin que el usuario asigne nada a mano. `validateRoutineDayWeekdays` rechaza (400) duplicados o valores fuera de rango antes de guardar. La lectura nunca mira `dayName`.
+- **UI:** `client/src/components/ui/WeekdayPicker.jsx` — fila de 7 chips (Lunes→Domingo) en `EditRoutine.jsx` e `Import.jsx` (pestaña Manual). Tocar un chip ya tomado por otro día se lo quita a ese otro día (con toast) en vez de permitir el duplicado; tocar el propio chip lo limpia. `addDay` asigna `firstFreeWeekday()` automáticamente. `DAY_NAME_SUGGESTIONS` de `EditRoutine.jsx` ya no sugiere nombres de día de la semana (enseñaba el modelo mental equivocado) — solo splits.
+- **Plantillas y descanso programado:** las 4 plantillas de `routineTemplates.js` ahora llevan `weekday` explícito, contiguo desde el lunes, y **todo weekday restante recibe un día `isRestDay: true` explícito** (nunca queda un hueco) — necesario porque `scheduledRestWeekdays` (que alimenta la racha/heatmap en los 4 endpoints `stats/*`) solo cuenta días de descanso con weekday asignado, no "cualquier día sin rutina".
+- **⚠ Cualquier `select` de Prisma que traiga `RoutineDay`** debe incluir `weekday` explícitamente — a diferencia de un `include`, un `select` que lo omita hace que el resolver vea "nada es hoy / nada es descanso" en silencio, sin error. Los 3 sitios que ya lo necesitan: `daySelect` de `GET /api/stats/home` y los `select` de `overview`/`progress-page`.
+- **Migración de datos existentes:** `server/backfill-routine-weekday.mjs` (dry-run por defecto, `--apply` para escribir, idempotente) — infiere por nombre si puede (rutinas viejas tipo "Lunes: Torso" quedan intactas), si no asigna posicional contiguo desde el lunes por `order`. Rutinas `source:'ai'` y la papelera del sistema se saltan enteras a propósito.
+
+## Current Version: 2.9.1
 
 ## Conventions
 - Spanish UI, Spanish commit messages preferred

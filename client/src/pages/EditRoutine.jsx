@@ -5,6 +5,8 @@ import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { EXERCISES } from '../data/exercises';
 import { MUSCLE_OPTIONS, toSpanishMuscleGroup } from '../utils/muscleGroup';
+import { duplicateWeekdays, firstFreeWeekday, weekdayLabel } from '../utils/routineDays';
+import WeekdayPicker from '../components/ui/WeekdayPicker';
 
 const BLOCK_PHASES = [
     { value: 'accumulation', label: 'Acumulación' },
@@ -13,10 +15,11 @@ const BLOCK_PHASES = [
     { value: 'custom', label: 'Personalizado' }
 ];
 
-const DAY_NAME_SUGGESTIONS = [
-    'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo',
-    'Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full Body'
-];
+// Días de la semana quitados a propósito: RoutineDay.weekday (asignado con
+// WeekdayPicker) es ahora la única fuente de "qué día toca" — sugerir aquí
+// nombres de días enseñaba el modelo mental que causaba el bug original
+// (dayName nunca se vuelve a parsear en lectura).
+const DAY_NAME_SUGGESTIONS = ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full Body'];
 
 function catalogMatch(name) {
     if (!name?.trim()) return null;
@@ -172,6 +175,16 @@ export default function EditRoutine() {
             return;
         }
 
+        const dupes = duplicateWeekdays(routine.days);
+        if (dupes.length > 0) {
+            toast.error(`Dos días tienen asignado el mismo día de la semana: ${weekdayLabel(dupes[0])}`);
+            return;
+        }
+        if (routine.isActive && !routine.days.some(d => d.weekday != null)) {
+            toast.error('Ningún día tiene día de la semana asignado — la rutina activa no sabría qué toca hoy');
+            return;
+        }
+
         const emptyDay = routine.days.find(day => !day.isRestDay && (day.exercises || []).length === 0);
         if (emptyDay) {
             toast.error(`"${emptyDay.dayName}" no tiene ejercicios. Agrega uno o márcalo como descanso.`);
@@ -226,7 +239,7 @@ export default function EditRoutine() {
             navigate('/routines');
         } catch (error) {
             console.error('Error updating routine:', error);
-            toast.error('Error al guardar. Intenta de nuevo.');
+            toast.error(error.message || 'Error al guardar. Intenta de nuevo.');
         } finally {
             setSaving(false);
         }
@@ -250,8 +263,29 @@ export default function EditRoutine() {
             days: [...prev.days, {
                 dayName: `Día ${prev.days.length + 1}`,
                 isRestDay: false,
+                weekday: firstFreeWeekday(prev.days),
                 exercises: []
             }]
+        }));
+    };
+
+    // Asignar un weekday ya tomado por OTRO día se lo quita a ese otro día
+    // (con aviso) en vez de permitir el duplicado — ver validateRoutineDayWeekdays
+    // en el servidor, que de todos modos lo rechazaría al guardar.
+    const updateDayWeekday = (index, weekday) => {
+        const stolenFrom = weekday != null
+            ? routine.days.find((d, i) => i !== index && d.weekday === weekday)
+            : null;
+        if (stolenFrom) {
+            toast.info(`"${weekdayLabel(weekday)}" se movió de "${stolenFrom.dayName}" a "${routine.days[index].dayName}"`);
+        }
+        setRoutine(prev => ({
+            ...prev,
+            days: prev.days.map((day, i) => {
+                if (i === index) return { ...day, weekday };
+                if (weekday != null && day.weekday === weekday) return { ...day, weekday: null };
+                return day;
+            })
         }));
     };
 
@@ -592,6 +626,17 @@ export default function EditRoutine() {
                             <button type="button" onClick={() => removeDay(dayIndex)} aria-label="Borrar día" className="text-[var(--text-secondary)] hover:text-red-400 p-2 hover:bg-red-500/10 rounded-lg transition-colors">
                                 <Trash2 size={20} />
                             </button>
+                        </div>
+
+                        <div className="px-3 pb-3">
+                            <WeekdayPicker
+                                value={day.weekday ?? null}
+                                takenBy={routine.days.reduce((acc, d, i) => {
+                                    if (i !== dayIndex && d.weekday != null) acc[d.weekday] = d.dayName;
+                                    return acc;
+                                }, {})}
+                                onChange={(weekday) => updateDayWeekday(dayIndex, weekday)}
+                            />
                         </div>
 
                         {!day.isRestDay && (

@@ -3,7 +3,17 @@
 > Historial completo de versiones, movido desde `context.md` (8 Jul 2026) para mantener el contexto principal en un tamaño legible de una sola pasada.
 > Las reglas vivas del proyecto están en `.agent/context.md` — este archivo es solo historia.
 
-### v2.9.0 (14 Julio 2026) - **Current**
+### v2.9.1 (25 Julio 2026) - **Current**
+**FIX CRÍTICO — día de la semana explícito en rutinas manuales.** Reportado en producción: la rutina activa mostraba "día de descanso" en cualquier día de la semana.
+
+*   **Causa:** "qué toca hoy" comparaba `dayName` contra el nombre del día de semana normalizado a 3 letras (`normalizeDay`). Fallaba en silencio para cualquier rutina no nombrada literalmente "Lunes".."Domingo" — las 4 plantillas incorporadas, "Agregar día" (genera "Día N") y el propio ejemplo de JSON de la app. Falsos positivos también: `"Dominadas y remo"` → "dom" = Domingo.
+*   **Fix:** `RoutineDay.weekday` (`Int?`, 0=Domingo..6=Sábado) explícito y asignado por el usuario (`WeekdayPicker.jsx`, 7 chips) — `dayName` pasa a ser decorativo. Resolver único (`findRoutineDayForWeekday`/`scheduledRestWeekdays`) duplicado con paridad en `server/src/logic.js` y `client/src/utils/routineDays.js`. Inferencia por nombre (`inferWeekdayFromName`, tokenizado) SOLO en escritura (import/PUT), nunca en lectura.
+*   **Alcance del fix:** Dashboard, Rutinas, Detalle de rutina, editor (`EditRoutine`/`Import`), Atajo de iOS (`/api/shortcuts/next-set`), y los 4 endpoints que alimentan racha/heatmap (`stats/home|overview|consistency|progress-page`) — sus días de descanso programados vuelven a contar.
+*   **Plantillas:** las 4 ahora llevan `weekday` contiguo desde el lunes + un día `isRestDay` explícito en cada weekday restante (nunca dejan hueco).
+*   **Migración:** `server/backfill-routine-weekday.mjs` (dry-run/`--apply`) corrido contra producción — 27 días asignados en 4 rutinas, 0 sin poder asignar.
+*   **Tests:** server 93 (+22), client 75 (+12, incluye `routineDays.parity.test.js`). Ver Gotcha #14 en `context.md`.
+
+### v2.9.0 (14 Julio 2026)
 **FEATURE — Cardio por tramos** (sección propia, no un ejercicio de pesas).
 
 *   Modelos `CardioSession` + `CardioSegment` (activity, min, inclinación, velocidad opcional).

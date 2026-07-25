@@ -10,9 +10,9 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import {
     mexicoCityDateStr,
-    mexicoCityTodayName,
     mexicoCityLastNDays
 } from '../utils/dates';
+import { resolveTodayRoutineDay } from '../utils/routineDays';
 import { readHomeCache, writeHomeCache } from '../utils/homeCache';
 
 const AchievementsStrip = lazy(() => import('../components/AchievementsStrip'));
@@ -29,14 +29,6 @@ const PHASE_CHIP = {
     intensification: { label: 'Intensificación', className: 'bg-white/20 text-white border-white/30' },
     accumulation: { label: 'Acumulación', className: 'bg-white/20 text-white border-white/30' }
 };
-
-function normalizeDay(day) {
-    return String(day || '')
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .slice(0, 3);
-}
 
 function applyHomePayload(payload, setters) {
     const {
@@ -124,28 +116,13 @@ export default function Dashboard() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // null = sin día asignado a hoy (routine sin días, o ningún RoutineDay con
+    // weekday=hoy) — NUNCA se fabrica un día de descanso sintético: eso es lo
+    // que ocultaba el hueco real (ver render: rama "sin día asignado").
     const nextDay = useMemo(() => {
         if (!activeRoutine) return null;
-
-        if (activeRoutine.source === 'ai') {
-            return aiTodayDay; // null mientras carga
-        }
-
-        if (!activeRoutine.days?.length) return null;
-        // Día de la semana en CDMX (no getDay() del browser)
-        const todayName = mexicoCityTodayName();
-
-        const todayRoutineDay = activeRoutine.days.find(d =>
-            normalizeDay(d.dayName) === normalizeDay(todayName)
-        );
-
-        if (todayRoutineDay) return todayRoutineDay;
-
-        return {
-            isRestDay: true,
-            dayName: todayName,
-            exercises: []
-        };
+        if (activeRoutine.source === 'ai') return aiTodayDay; // null mientras carga
+        return resolveTodayRoutineDay(activeRoutine.days);
     }, [activeRoutine, aiTodayDay]);
 
     const { last30Days, isTodayLogged } = useMemo(() => {
@@ -345,82 +322,86 @@ export default function Dashboard() {
                         </h2>
 
                         {nextDay ? (
-                            <>
-                                {nextDay.isRestDay ? (
-                                    <div className="bg-white/20 backdrop-blur-md rounded-xl p-4 border border-white/10">
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div>
-                                                <p className="text-white/70 text-xs font-medium">HOY</p>
-                                                <p className="text-white font-semibold flex items-center gap-2 mt-1">
-                                                    <Coffee size={18} /> Día de descanso
-                                                </p>
-                                            </div>
-                                            {isTodayLogged && (
-                                                <div className="bg-green-500/30 text-green-100 px-3 py-1.5 rounded-full text-xs flex items-center gap-1 font-medium border border-green-400/30">
-                                                    <CheckCircle2 size={14} /> Registrado
-                                                </div>
-                                            )}
+                            nextDay.isRestDay ? (
+                                <div className="bg-white/20 backdrop-blur-md rounded-xl p-4 border border-white/10">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div>
+                                            <p className="text-white/70 text-xs font-medium">HOY</p>
+                                            <p className="text-white font-semibold flex items-center gap-2 mt-1">
+                                                <Coffee size={18} /> Día de descanso
+                                            </p>
                                         </div>
-
-                                        {!isTodayLogged && (
-                                            <button
-                                                type="button"
-                                                onClick={handleLogRest}
-                                                disabled={loggingRest}
-                                                className="w-full bg-white text-[var(--primary)] py-2.5 rounded-lg font-semibold text-sm hover:bg-white/95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70 shadow-lg"
-                                            >
-                                                {loggingRest ? (
-                                                    <>
-                                                        <Loader2 size={16} className="animate-spin" />
-                                                        <span>Registrando...</span>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <CheckCircle2 size={16} />
-                                                        <div className="flex flex-col items-start">
-                                                            <span>Confirmar descanso</span>
-                                                            <span className="text-xs opacity-70">Mantiene tu racha</span>
-                                                        </div>
-                                                    </>
-                                                )}
-                                            </button>
-                                        )}
-
                                         {isTodayLogged && (
-                                            <p className="text-white/70 text-xs text-center mt-2">
-                                                ¡Disfruta tu recuperación! Mañana será otro día.
-                                            </p>
+                                            <div className="bg-green-500/30 text-green-100 px-3 py-1.5 rounded-full text-xs flex items-center gap-1 font-medium border border-green-400/30">
+                                                <CheckCircle2 size={14} /> Registrado
+                                            </div>
                                         )}
                                     </div>
-                                ) : nextDay?.id ? (
-                                    <Link
-                                        to={`/workout/${nextDay.id}`}
-                                        onPointerEnter={prefetchWorkoutChunk}
-                                        onFocus={prefetchWorkoutChunk}
-                                        className="flex items-center justify-between bg-white/20 backdrop-blur-md rounded-xl p-4 hover:bg-white/30 active:scale-[0.98] transition-all border border-white/10"
-                                    >
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-white/70 text-xs font-medium">
-                                                {isTodayLogged ? 'HOY · YA REGISTRASTE' : 'HOY'}
-                                            </p>
-                                            <p className="text-white font-bold text-lg mt-1 break-words">{nextDay.dayName}</p>
-                                            <p className="text-white/80 text-sm">
-                                                {nextDay.exercises?.length || 0} ejercicio{(nextDay.exercises?.length || 0) === 1 ? '' : 's'}
-                                                {nextDay.splitLabel ? ` · ${nextDay.splitLabel}` : ''}
-                                            </p>
-                                        </div>
-                                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-xl shrink-0 ml-3" aria-hidden>
-                                            <Play size={22} className="text-[var(--primary)] ml-1" fill="currentColor" />
-                                        </div>
-                                    </Link>
-                                ) : (
-                                    <div className="bg-white/10 rounded-xl p-4 border border-white/10 text-center text-white/80 text-sm">
-                                        No hay día de entrenamiento disponible. Abre Rutinas o recarga.
+
+                                    {!isTodayLogged && (
+                                        <button
+                                            type="button"
+                                            onClick={handleLogRest}
+                                            disabled={loggingRest}
+                                            className="w-full bg-white text-[var(--primary)] py-2.5 rounded-lg font-semibold text-sm hover:bg-white/95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70 shadow-lg"
+                                        >
+                                            {loggingRest ? (
+                                                <>
+                                                    <Loader2 size={16} className="animate-spin" />
+                                                    <span>Registrando...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <CheckCircle2 size={16} />
+                                                    <div className="flex flex-col items-start">
+                                                        <span>Confirmar descanso</span>
+                                                        <span className="text-xs opacity-70">Mantiene tu racha</span>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
+
+                                    {isTodayLogged && (
+                                        <p className="text-white/70 text-xs text-center mt-2">
+                                            ¡Disfruta tu recuperación! Mañana será otro día.
+                                        </p>
+                                    )}
+                                </div>
+                            ) : (
+                                <Link
+                                    to={`/workout/${nextDay.id}`}
+                                    onPointerEnter={prefetchWorkoutChunk}
+                                    onFocus={prefetchWorkoutChunk}
+                                    className="flex items-center justify-between bg-white/20 backdrop-blur-md rounded-xl p-4 hover:bg-white/30 active:scale-[0.98] transition-all border border-white/10"
+                                >
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-white/70 text-xs font-medium">
+                                            {isTodayLogged ? 'HOY · YA REGISTRASTE' : 'HOY'}
+                                        </p>
+                                        <p className="text-white font-bold text-lg mt-1 break-words">{nextDay.dayName}</p>
+                                        <p className="text-white/80 text-sm">
+                                            {nextDay.exercises?.length || 0} ejercicio{(nextDay.exercises?.length || 0) === 1 ? '' : 's'}
+                                            {nextDay.splitLabel ? ` · ${nextDay.splitLabel}` : ''}
+                                        </p>
                                     </div>
-                                )}
-                            </>
-                        ) : (activeRoutine.source === 'ai' && aiTodayLoading) ? (
+                                    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-xl shrink-0 ml-3" aria-hidden>
+                                        <Play size={22} className="text-[var(--primary)] ml-1" fill="currentColor" />
+                                    </div>
+                                </Link>
+                            )
+                        ) : activeRoutine.source === 'ai' && aiTodayLoading ? (
                             <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 h-[76px] animate-pulse" />
+                        ) : activeRoutine.source !== 'ai' && activeRoutine.days?.length > 0 ? (
+                            <div className="bg-white/10 rounded-xl p-4 border border-white/10 text-center text-white/80 text-sm space-y-2">
+                                <p>Hoy no hay ningún día de esta rutina asignado.</p>
+                                <Link
+                                    to={`/routines/${activeRoutine.id}/edit`}
+                                    className="inline-block text-white font-semibold underline underline-offset-2"
+                                >
+                                    Asignar día de la semana
+                                </Link>
+                            </div>
                         ) : null}
                     </div>
                 </div>

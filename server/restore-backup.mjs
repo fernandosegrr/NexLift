@@ -93,8 +93,8 @@ for (const routine of data.routines || []) {
         if (APPLY) {
             await prisma.routineDay.upsert({
                 where: { id: day.id },
-                create: { id: day.id, dayName: day.dayName, isRestDay: day.isRestDay, order: day.order, routineId: routine.id },
-                update: { dayName: day.dayName, isRestDay: day.isRestDay, order: day.order }
+                create: { id: day.id, dayName: day.dayName, isRestDay: day.isRestDay, weekday: day.weekday ?? null, order: day.order, routineId: routine.id },
+                update: { dayName: day.dayName, isRestDay: day.isRestDay, weekday: day.weekday ?? null, order: day.order }
             });
         }
         for (const exercise of day.exercises || []) {

@@ -82,8 +82,14 @@ export function mexicoCityHour(date = new Date()) {
 // ============================================
 const DAY_NAMES_ES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
+// Día de la semana (0=Domingo..6=Sábado) del calendario CDMX — mismo índice
+// que espera RoutineDay.weekday. Espejo de mexicoCityDayOfWeek en client/src/utils/dates.js.
+export function mexicoCityDayOfWeek(dateObj = new Date()) {
+    return dayOfWeekFromDateStr(mexicoCityDateStr(dateObj));
+}
+
 export function getTodayName(dateObj = new Date()) {
-    return DAY_NAMES_ES[dayOfWeekFromDateStr(mexicoCityDateStr(dateObj))];
+    return DAY_NAMES_ES[mexicoCityDayOfWeek(dateObj)];
 }
 
 // Parsea dateFrom/dateTo de query (?dateFrom=YYYY-MM-DD) como día calendario CDMX.
@@ -245,6 +251,114 @@ export function normalizeDay(day) {
         .normalize('NFD')
         .replace(/[̀-ͯ]/g, '')
         .slice(0, 3);
+}
+
+// ============================================
+// RUTINA MANUAL — día de la semana explícito (RoutineDay.weekday)
+// INVARIANTE: `dayName` es decorativo. Toda resolución de "qué día de rutina
+// toca hoy" y "qué días son descanso programado" usa EXCLUSIVAMENTE
+// RoutineDay.weekday (0=Domingo..6=Sábado) — nunca se vuelve a parsear
+// dayName en lectura. 0 (Domingo) es un valor válido: comparar siempre con
+// `!= null`, nunca con truthiness (`d.weekday &&` descarta Domingo en silencio).
+// inferWeekdayFromName SOLO corre en escritura (import/PUT), para que un JSON
+// con "dayName": "Lunes - Torso" siga funcionando sin que el usuario asigne
+// nada a mano.
+// ============================================
+
+const WEEKDAY_FULL_ES = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+const WEEKDAY_ABBR_ES = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
+
+// Infiere el día de la semana de un `dayName` libre, TOKENIZANDO — nunca
+// `.slice(0,3)` sobre el nombre completo (ese es el bug que esto reemplaza:
+// "Día 1 — Pierna A" → "dia" no matchea jamás, y "Dominadas y remo" → "dom"
+// matchea Domingo por accidente). Un token debe calzar COMPLETO contra el
+// nombre o la abreviatura del día, nunca por prefijo.
+export function inferWeekdayFromName(dayName) {
+    if (typeof dayName !== 'string') return null;
+    const tokens = dayName
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .split(/[^a-zñ]+/)
+        .filter(Boolean);
+    for (const token of tokens) {
+        const fullIdx = WEEKDAY_FULL_ES.indexOf(token);
+        if (fullIdx !== -1) return fullIdx;
+        const abbrIdx = WEEKDAY_ABBR_ES.indexOf(token);
+        if (abbrIdx !== -1) return abbrIdx;
+    }
+    return null;
+}
+
+// Día de rutina programado para `weekday`, o null si ninguno lo tiene
+// asignado. Si dos días quedan con el mismo weekday (estado inválido que la
+// validación de escritura impide, pero la lectura no debe reventar por datos
+// existentes) gana el de menor `order`.
+export function findRoutineDayForWeekday(days, weekday) {
+    if (!Array.isArray(days)) return null;
+    let best = null;
+    for (const d of days) {
+        if (d.weekday == null || d.weekday !== weekday) continue;
+        if (!best || d.order < best.order) best = d;
+    }
+    return best;
+}
+
+// Días de la semana que son descanso PROGRAMADO — para que la racha/heatmap
+// los cuenten como continuidad aunque no haya un RestLog explícito ese día.
+// Solo cuenta un día con isRestDay=true Y weekday asignado: un weekday sin
+// ningún RoutineDay asignado no es "descanso", simplemente no dice nada —
+// tratarlo como descanso inflaría la racha de cualquier rutina con menos de
+// 7 días definidos.
+export function scheduledRestWeekdays(days) {
+    const set = new Set();
+    if (!Array.isArray(days)) return set;
+    for (const d of days) {
+        if (d.isRestDay && d.weekday != null) set.add(d.weekday);
+    }
+    return set;
+}
+
+// Normaliza un valor de weekday recibido tal cual del body: entero 0-6
+// válido, `null` (el usuario lo dejó sin asignar a propósito), o `undefined`
+// si el valor es inválido (fuera de rango, no numérico, decimal).
+export function normalizeIncomingWeekday(value) {
+    if (value === null) return null;
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 6) return undefined;
+    return value;
+}
+
+// Decide el `weekday` a persistir para un día entrante de POST /api/routines/import
+// o PUT /api/routines/:id: si el cliente mandó la clave explícitamente (aunque
+// sea `null`, que significa "lo limpié a propósito"), se respeta tal cual; si
+// no vino la clave, se infiere del nombre. Sin esta distinción, limpiar el
+// weekday de un día ya inferido ("Lunes - Torso") se revertiría solo en el
+// siguiente guardado.
+export function resolveIncomingWeekday(day) {
+    if (day && Object.prototype.hasOwnProperty.call(day, 'weekday')) {
+        return normalizeIncomingWeekday(day.weekday);
+    }
+    return inferWeekdayFromName(day?.dayName);
+}
+
+// Valida el array final de días (weekday ya resuelto vía resolveIncomingWeekday)
+// antes de persistir: rechaza valores inválidos/fuera de rango y dos días con
+// el mismo weekday. Los `null` (sin asignar) nunca cuentan como duplicado.
+export function validateRoutineDayWeekdays(days) {
+    if (!Array.isArray(days)) return {};
+    const seen = new Set();
+    for (const d of days) {
+        const w = d.weekday;
+        if (w === undefined || (w !== null && (!Number.isInteger(w) || w < 0 || w > 6))) {
+            return { error: 'weekday inválido: debe ser un entero 0-6 (0=Domingo) o null' };
+        }
+        if (w == null) continue;
+        if (seen.has(w)) {
+            return { error: `Dos días de la rutina tienen asignado el mismo día de la semana (${DAY_NAMES_ES[w]})` };
+        }
+        seen.add(w);
+    }
+    return {};
 }
 
 // ============================================

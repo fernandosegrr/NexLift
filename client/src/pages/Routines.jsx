@@ -8,7 +8,8 @@ import {
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
-import { mexicoCityTodayName } from '../utils/dates';
+import { resolveTodayRoutineDay, weekdayLabel } from '../utils/routineDays';
+import { mexicoCityDayOfWeek } from '../utils/dates';
 
 const BLOCK_PHASE_LABELS = {
     accumulation: 'Acumulación',
@@ -17,19 +18,9 @@ const BLOCK_PHASE_LABELS = {
     custom: 'Personalizado'
 };
 
-function normalizeDay(day) {
-    return String(day || '')
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .slice(0, 3);
-}
-
-/** Día de la rutina manual que corresponde a hoy (CDMX), o null. */
 function findTodayDay(routine) {
     if (!routine?.days?.length || routine.source === 'ai') return null;
-    const today = normalizeDay(mexicoCityTodayName());
-    return routine.days.find(d => normalizeDay(d.dayName) === today) || null;
+    return resolveTodayRoutineDay(routine.days);
 }
 
 export default function Routines() {
@@ -284,7 +275,7 @@ function RoutineCard({
                 navigate(`/workout/${todayDay.id}`);
                 return;
             }
-            toast.error('No hay un día de la rutina que coincida con hoy');
+            toast.error(`Ningún día está asignado a hoy (${weekdayLabel(mexicoCityDayOfWeek())}). Edítala para asignarlo.`);
         } catch {
             toast.error('No se pudo abrir el entrenamiento de hoy');
         } finally {
@@ -367,12 +358,13 @@ function RoutineCard({
                             {phaseLabel}
                         </p>
                     )}
-                    {/* Chip de hoy (manual) siempre visible en la activa */}
-                    {isActive && !isAi && todayDay && (
+                    {/* Chip de hoy (manual) siempre visible en la activa — incluido el
+                        hueco real (sin día asignado), que antes se ocultaba en silencio */}
+                    {isActive && !isAi && (
                         <p className="text-[10px] text-[var(--text-secondary)] mt-1">
                             Hoy:{' '}
                             <span className="text-[var(--text-primary)] font-semibold">
-                                {todayDay.isRestDay ? 'Descanso' : todayDay.dayName}
+                                {todayDay ? (todayDay.isRestDay ? 'Descanso' : todayDay.dayName) : 'Sin entrenamiento programado'}
                             </span>
                         </p>
                     )}
@@ -396,7 +388,9 @@ function RoutineCard({
                         {startingToday
                             ? <Loader2 size={16} className="animate-spin" />
                             : <Play size={14} fill="currentColor" />}
-                        {todayDay?.isRestDay && !isAi ? 'Hoy es descanso' : 'Entrenar hoy'}
+                        {!isAi && !todayDay
+                            ? 'Sin día asignado hoy'
+                            : todayDay?.isRestDay && !isAi ? 'Hoy es descanso' : 'Entrenar hoy'}
                     </button>
                 </div>
             )}
@@ -553,6 +547,7 @@ function DayRow({ day, isToday, isExpanded, onToggle }) {
                             )}
                         </p>
                         <p className="text-[10px] text-[var(--text-secondary)]">
+                            {weekdayLabel(day.weekday) ? `${weekdayLabel(day.weekday)} · ` : ''}
                             {day.isRestDay
                                 ? 'Descanso'
                                 : `${day.exercises?.length || 0} ejercicio${(day.exercises?.length || 0) === 1 ? '' : 's'}`}

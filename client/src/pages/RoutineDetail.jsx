@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Play, Calendar, Dumbbell, Clock, Pencil, Layers, ChevronRight } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
-import { mexicoCityTodayName } from '../utils/dates';
+import { resolveTodayRoutineDay, weekdayLabel } from '../utils/routineDays';
 
 const BLOCK_PHASE_LABELS = {
     accumulation: 'Acumulación',
@@ -11,14 +11,6 @@ const BLOCK_PHASE_LABELS = {
     deload: 'Descarga',
     custom: 'Personalizado'
 };
-
-function normalizeDay(day) {
-    return String(day || '')
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .slice(0, 3);
-}
 
 export default function RoutineDetail() {
     const { id } = useParams();
@@ -43,11 +35,10 @@ export default function RoutineDetail() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
-    const todayKey = normalizeDay(mexicoCityTodayName());
     const todayDayId = useMemo(() => {
         if (!routine?.days || routine.source === 'ai') return null;
-        return routine.days.find(d => normalizeDay(d.dayName) === todayKey)?.id || null;
-    }, [routine, todayKey]);
+        return resolveTodayRoutineDay(routine.days)?.id || null;
+    }, [routine]);
 
     const sortedBlocks = [...(routine?.blocks || [])].sort((a, b) => a.order - b.order);
     const activeIndex = sortedBlocks.findIndex(b => b.id === routine?.activeBlock?.id);
@@ -183,6 +174,7 @@ export default function RoutineDetail() {
                                         )}
                                     </h3>
                                     <p className="text-sm text-[var(--text-secondary)]">
+                                        {weekdayLabel(day.weekday) ? `${weekdayLabel(day.weekday)} · ` : ''}
                                         {day.isRestDay ? 'Descanso' : `${day.exercises.length} ejercicios`}
                                     </p>
                                 </div>

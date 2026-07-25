@@ -19,11 +19,12 @@ import { EXERCISE_CATALOG } from './data/exerciseCatalog.js';
 import { pickDeterministicExercises, pickReplacementExercises } from './data/splitTemplates.js';
 import {
     mexicoCityDateStr, mexicoCityDayBounds, dayOfWeekFromDateStr, mexicoCityHour,
-    resolveTargetDate, getTodayName, normalizeDay,
+    resolveTargetDate, getTodayName, normalizeDay, mexicoCityDayOfWeek,
     getActiveBlock, currentWeekInBlock, getRoutinePhaseStatus, adjustRepRangeForPhase,
     computeWorkoutSuggestion, suggestNextSetFromToday, roundWorkoutWeight, detectPlateauForExercise,
     resolveWeightIncrement, parseRepRange, effectiveWorkoutSet,
-    parseCdmxDateRangeQuery, sanitizeSets, sanitizeShortcutLogSet, sanitizeWorkoutLogBody
+    parseCdmxDateRangeQuery, sanitizeSets, sanitizeShortcutLogSet, sanitizeWorkoutLogBody,
+    findRoutineDayForWeekday, scheduledRestWeekdays, resolveIncomingWeekday, validateRoutineDayWeekdays
 } from './logic.js';
 
 // Cache HTTP privado (auth) — datos de un solo usuario, se invalidan al mutar
@@ -1175,6 +1176,15 @@ app.post('/api/routines/import', authMiddleware, async (req, res) => {
             });
         }
 
+        // Día de la semana explícito por día (weekday, 0=Domingo..6=Sábado):
+        // si el JSON/UI lo manda se respeta tal cual, si no se infiere del
+        // nombre ("Lunes - Torso" → 1). dayName queda como texto decorativo.
+        const daysWithWeekday = days.map(day => ({ ...day, weekday: resolveIncomingWeekday(day) }));
+        const weekdayValidation = validateRoutineDayWeekdays(daysWithWeekday);
+        if (weekdayValidation.error) {
+            return res.status(400).json({ error: weekdayValidation.error });
+        }
+
         // Deduplicación de ejercicios (Tarea 4): una sola llamada al LLM (u a su
         // fallback determinista) para TODO el import, no una por ejercicio. Un
         // "create" anidado de una Routine/RoutineDay totalmente nueva no puede
@@ -1214,9 +1224,10 @@ app.post('/api/routines/import', authMiddleware, async (req, res) => {
                 name,
                 description: description || null,
                 days: {
-                    create: days.map((day, dayIndex) => ({
+                    create: daysWithWeekday.map((day, dayIndex) => ({
                         dayName: day.dayName,
                         isRestDay: day.isRestDay || false,
+                        weekday: day.weekday,
                         order: dayIndex,
                         exercises: {
                             create: (day.exercises || []).map((exercise, exIndex) => ({
@@ -1448,7 +1459,7 @@ app.delete('/api/routines/:id', authMiddleware, async (req, res) => {
 app.put('/api/routines/:id', authMiddleware, async (req, res) => {
     try {
         const routineId = req.params.id;
-        const { name, description, days } = req.body;
+        const { name, description, days: rawDays } = req.body;
 
         // Verify ownership
         const existingRoutine = await prisma.routine.findFirst({
@@ -1457,6 +1468,15 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
 
         if (!existingRoutine) {
             return res.status(404).json({ error: 'Routine not found' });
+        }
+
+        // Día de la semana explícito por día — misma resolución que el import
+        // (ver POST /api/routines/import): clave explícita (incluido null) se
+        // respeta tal cual, si no vino se infiere de dayName.
+        const days = rawDays.map(day => ({ ...day, weekday: resolveIncomingWeekday(day) }));
+        const weekdayValidation = validateRoutineDayWeekdays(days);
+        if (weekdayValidation.error) {
+            return res.status(400).json({ error: weekdayValidation.error });
         }
 
         // Deduplicación de ejercicios nuevos (Tarea 4): UNA sola llamada para todo
@@ -1539,6 +1559,7 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
                         data: {
                             dayName: day.dayName,
                             isRestDay: day.isRestDay || false,
+                            weekday: day.weekday,
                             order: i
                         }
                     });
@@ -1548,6 +1569,7 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
                             routineId,
                             dayName: day.dayName,
                             isRestDay: day.isRestDay || false,
+                            weekday: day.weekday,
                             order: i
                         }
                     });
@@ -2788,18 +2810,18 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
 
         const phaseStatus = getRoutinePhaseStatus(routine);
 
-        // Rutinas IA no se organizan por nombre de día de la semana (sus RoutineDay
-        // llevan la fecha ISO como dayName) — resolverlas requiere el mismo camino
-        // idempotente que usa la PWA (GET /api/ai-routine/today), no el match por
-        // nombre de abajo. El backfill vía ?date= no aplica aquí: generar un día IA
-        // "del pasado" después de que ya exista uno más reciente rompería el orden
-        // que asume la rotación (recentDays DESC) — se ignora a propósito.
+        // Rutinas IA no se organizan por día de la semana (sus RoutineDay llevan
+        // la fecha ISO como dayName) — resolverlas requiere el mismo camino
+        // idempotente que usa la PWA (GET /api/ai-routine/today), no el resolver
+        // por weekday de abajo. El backfill vía ?date= no aplica aquí: generar un
+        // día IA "del pasado" después de que ya exista uno más reciente rompería
+        // el orden que asume la rotación (recentDays DESC) — se ignora a propósito.
         let todayRoutineDay;
         if (routine.source === 'ai') {
             const profile = await prisma.trainingProfile.findUnique({ where: { userId: req.userId } });
             todayRoutineDay = profile ? await resolveOrGenerateAiRoutineDay(routine, profile) : null;
         } else {
-            todayRoutineDay = routine.days.find(d => normalizeDay(d.dayName) === normalizeDay(todayName));
+            todayRoutineDay = findRoutineDayForWeekday(routine.days, mexicoCityDayOfWeek(targetDate));
         }
 
         if (!todayRoutineDay || todayRoutineDay.isRestDay) {
@@ -3276,14 +3298,14 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
                 where: { date: { gte: yearAgo }, userId: req.userId },
                 select: { date: true }
             }),
-            // Active routine: solo dayName/isRestDay para la racha (no ejercicios)
+            // Active routine: solo isRestDay/weekday para la racha (no ejercicios)
             prisma.routine.findFirst({
                 where: { userId: req.userId, isActive: true },
                 select: {
                     id: true,
                     days: {
                         orderBy: { order: 'asc' },
-                        select: { dayName: true, isRestDay: true }
+                        select: { isRestDay: true, weekday: true }
                     }
                 }
             }),
@@ -3311,21 +3333,9 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
             if (d >= thirtyDaysAgoStr) trainingDaysLast30++;
         }
 
-        // Build a map of which day-of-week is a rest day in the routine
-        const DAY_NAMES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-        const restDaySet = new Set();
-        if (activeRoutine?.days) {
-            activeRoutine.days.forEach(d => {
-                if (d.isRestDay) {
-                    const normalized = d.dayName.toLowerCase()
-                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3);
-                    DAY_NAMES.forEach((name, idx) => {
-                        const norm = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3);
-                        if (norm === normalized) restDaySet.add(idx);
-                    });
-                }
-            });
-        }
+        // Días de la semana que son descanso programado (weekday explícito,
+        // ver scheduledRestWeekdays en logic.js — dayName ya no se parsea).
+        const restDaySet = scheduledRestWeekdays(activeRoutine?.days);
 
         // Calculate current streak (up to 365 days)
         // Scheduled rest days count as streak continuity automatically
@@ -3398,19 +3408,7 @@ app.get('/api/stats/consistency', authMiddleware, async (req, res) => {
             })
         ]);
 
-        const DAY_NAMES_NORM = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
-        const restDaySet = new Set();
-        if (activeRoutine?.days) {
-            activeRoutine.days.forEach(d => {
-                if (d.isRestDay) {
-                    const normalized = d.dayName.toLowerCase()
-                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3);
-                    DAY_NAMES_NORM.forEach((name, idx) => {
-                        if (name === normalized) restDaySet.add(idx);
-                    });
-                }
-            });
-        }
+        const restDaySet = scheduledRestWeekdays(activeRoutine?.days);
 
         // Build events list including auto-rest days
         const allEvents = [
@@ -3646,6 +3644,7 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
                     id: true,
                     dayName: true,
                     isRestDay: true,
+                    weekday: true,
                     order: true,
                     splitLabel: true,
                     exercises: exerciseSelect
@@ -3695,20 +3694,7 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
         }
 
         // Racha + consistency (días como strings CDMX, no Date ISO completos)
-        const DAY_NAMES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-        const restDaySet = new Set();
-        if (activeRoutine?.days) {
-            activeRoutine.days.forEach(d => {
-                if (d.isRestDay) {
-                    const normalized = d.dayName.toLowerCase()
-                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3);
-                    DAY_NAMES.forEach((name, idx) => {
-                        const norm = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3);
-                        if (norm === normalized) restDaySet.add(idx);
-                    });
-                }
-            });
-        }
+        const restDaySet = scheduledRestWeekdays(activeRoutine?.days);
 
         const uniqueDays = new Set([
             ...recentWorkouts.map(w => mexicoCityDateStr(w.date)),
@@ -3915,7 +3901,7 @@ app.get('/api/stats/progress-page', authMiddleware, async (req, res) => {
                 select: {
                     days: {
                         orderBy: { order: 'asc' },
-                        select: { dayName: true, isRestDay: true }
+                        select: { isRestDay: true, weekday: true }
                     }
                 }
             }),
@@ -3968,20 +3954,7 @@ app.get('/api/stats/progress-page', authMiddleware, async (req, res) => {
             if (d >= thirtyDaysAgoStr) trainingDaysLast30++;
         }
 
-        const DAY_NAMES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-        const restDaySet = new Set();
-        if (activeRoutine?.days) {
-            activeRoutine.days.forEach(d => {
-                if (d.isRestDay) {
-                    const normalized = d.dayName.toLowerCase()
-                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3);
-                    DAY_NAMES.forEach((name, idx) => {
-                        const norm = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 3);
-                        if (norm === normalized) restDaySet.add(idx);
-                    });
-                }
-            });
-        }
+        const restDaySet = scheduledRestWeekdays(activeRoutine?.days);
 
         let streak = 0;
         for (let i = 0; i < 365; i++) {

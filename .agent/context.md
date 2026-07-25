@@ -298,7 +298,7 @@ Resumen de los 12 modelos:
 | `User` | Cuenta | `tokenVersion` revoca JWTs viejos; `lastReengagementNotifiedAt` limita el push de re-enganche a 1/día; `lastBackupAt`/`lastBackupError` (v2.5.0) reflejan el backup automático diario |
 | `Routine` | Rutina | `adaptiveDeloadUntil`/`lastAdaptiveCheckAt` = descarga adaptativa (v2.4.0); `source` (v2.7.0) `'manual'|'ai'` |
 | `RoutineBlock` | Mesociclo (opcional) | `phase` es string libre, no enum; activo = `startedAt` no-nulo más reciente |
-| `RoutineDay` | Día de rutina | `isRestDay`, `order`; `splitLabel` (v2.7.0, solo días IA, ej. `"Push"`) — para rutinas IA, `dayName` es una fecha ISO, no un día de la semana |
+| `RoutineDay` | Día de rutina | `isRestDay`, `order`; `weekday` (v2.9.1, `Int?` 0=Dom..6=Sáb, `null`=sin programar) es la ÚNICA fuente de "qué toca hoy" en manuales — `dayName` es decorativo, ver Gotcha #14; `splitLabel` (v2.7.0, solo días IA, ej. `"Push"`) — para rutinas IA, `dayName` es una fecha ISO, no un día de la semana |
 | `TrainingProfile` | Perfil de Rutina diaria con IA (v2.7.0), 1:1 por usuario | `goal`/`daysPerWeek`/`equipment[]`/`experienceLevel` — alimenta el fallback determinista y (opcional) la capa de IA. Ver Gotcha #13 |
 | `Exercise` | Ejercicio de un día | `targetReps` es string `"8-12"`; `isUnilateral`; `restSeconds` |
 | `WorkoutLog` | Sesión de UN ejercicio en una fecha | `onDelete: Restrict` hacia `Exercise` — nunca borrar ejercicios con historial (archivar) |
@@ -523,6 +523,15 @@ Para quien no tiene rutina fija ni conoce de gym: cuestionario corto (`AiRoutine
 - **Bug real encontrado y corregido verificando el reshuffle** (`POST /api/ai-routine/reshuffle/:routineDayId`, solo hoy, preserva ejercicios con serie ya registrada): la primera versión regeneraba TODOS los slots del split (incluyendo los ya cubiertos por ejercicios conservados), duplicando esos grupos musculares — confirmado en vivo (2 "Press de Banca con Barra" en el mismo día). Fix: `pickReplacementExercises(profile, exercisesToReplace, excludeNames)` reemplaza puntualmente solo por el grupo muscular de lo removido, excluyendo TODOS los nombres del día (conservados + removidos). Determinista a propósito, no pasa por la IA.
 - **Verificado en vivo end-to-end** con usuarios sintéticos (borrados después): cuestionario completo → generación filtrada por equipo → idempotencia (`GET /today` repetido devuelve el mismo día) → Dashboard/Routines con la rama IA renderizando correctamente → Atajo de iOS funcionando contra una rutina IA activa (antes del fix, `isRestDay` para siempre) → reshuffle preservando el ejercicio con serie registrada y sin duplicar grupos musculares (confirmado tras el fix).
 
+### 14. Día de la semana explícito en rutinas manuales (v2.9.1)
+Mismo bug de fondo que el Gotcha #13 (`/api/shortcuts/next-set` resolviendo "hoy" por nombre de día de la semana) pero del lado MANUAL, y mucho más extendido: `normalizeDay(dayName)` (`.slice(0,3)` sin acentos) nunca hacía match salvo que el día se llamara literalmente "Lunes".."Domingo". Las 4 plantillas incorporadas, "Agregar día" (genera "Día N") y el ejemplo de JSON que la propia app mostraba producían rutinas que mostraban "descanso" TODOS los días — encontrado reproduciendo un reporte real contra la cuenta de producción (rutina activa "Día 1..Día 7", cero coincidencias posibles).
+
+- **Fix:** `RoutineDay.weekday` (`Int?`, 0=Domingo..6=Sábado, `null`=sin programar) explícito, asignado por el usuario con `WeekdayPicker.jsx` (fila de 7 chips en `EditRoutine.jsx`/`Import.jsx`). `dayName` queda 100% decorativo. Resolver único duplicado con paridad: `findRoutineDayForWeekday`/`scheduledRestWeekdays` en `server/src/logic.js` y `client/src/utils/routineDays.js` (`routineDays.parity.test.js`). **`0` es un valor válido** — todo el código compara `!= null`, nunca truthiness (`d.weekday &&` descartaría Domingo en silencio).
+- **Inferencia SOLO en escritura:** `inferWeekdayFromName()` (tokeniza — nunca `.slice(0,3)` sobre el nombre completo, que es justo el origen de los falsos positivos como `"Dominadas y remo"` → "dom" = Domingo) corre en `POST /api/routines/import`/`PUT /api/routines/:id` vía `resolveIncomingWeekday()`, solo si el cliente no mandó `weekday` explícito. La lectura nunca vuelve a mirar `dayName`.
+- **Gotcha de `select` silencioso:** un `select` de Prisma que traiga `days` sin listar `weekday` explícitamente hace que el resolver vea "nada es hoy" sin ningún error — pasó en los 3 `select` de `stats/home|overview|progress-page` (el de `consistency` usa `include`, no le afectaba).
+- **Migración:** `server/backfill-routine-weekday.mjs` (dry-run/`--apply`, idempotente) — infiere por nombre si puede, si no asigna posicional contiguo desde el lunes por `order`. Rutinas `source:'ai'` y la papelera del sistema se saltan enteras (asignarles weekday inflaría la racha en falso). Corrido en vivo contra producción: 27 días en 4 rutinas (incluida la que motivó el reporte).
+- **Verificado en vivo end-to-end** con un usuario sintético (borrado después): rutina manual de 2 días con nombres genéricos ("Día 1"/"Día 2") → picker auto-asigna Lunes/Martes → mover un chip tomado transfiere el weekday con toast → Dashboard muestra la tarjeta de entrenar (no descanso) con link `/workout/:id` válido → Workout carga el ejercicio correcto → `GET /api/shortcuts/next-set` devuelve el día real en vez de `isRestDay` fijo → `?date=` de un día de descanso programado sí devuelve `isRestDay:true`.
+
 ---
 
 ## 📝 Guía para Modificar Documentación
@@ -541,7 +550,7 @@ Para mantener esta documentación al día:
 
 El historial completo de versiones vive en [`changelog.md`](changelog.md).
 
-**Versión actual: 2.7.1** (13 Julio 2026) — auditoría de producto end-to-end (Smart Loading + fechas CDMX en cliente + músculos ES canónicos + PDF de sesión + pulido Dashboard→Perfil/Settings). Sobre v2.7.0 (calentamiento, chip de objetivo, Rutina diaria con IA — Gotchas #12/#13), v2.6.x (calibración, perf, offline) y v2.5.x (backup, tests, recordatorios persistentes).
+**Versión actual: 2.9.1** (25 Julio 2026) — día de la semana explícito en rutinas manuales (Gotcha #14). Versiones intermedias (2.8.x autorregulación/UI/cero-bugs, 2.9.0 Cardio) narradas en [`changelog.md`](changelog.md), no repetidas aquí. Base: v2.7.1 (auditoría end-to-end), v2.7.0 (calentamiento, chip de objetivo, Rutina diaria con IA — Gotchas #12/#13), v2.6.x (calibración, perf, offline), v2.5.x (backup, tests, recordatorios persistentes).
 
 ---
 

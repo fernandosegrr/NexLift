@@ -166,6 +166,13 @@ model RoutineDay {
   // es la fecha ISO del día, no un nombre de día de la semana). Null en
   // cualquier RoutineDay manual.
   splitLabel  String?
+  // Día de la semana explícito (0=Domingo..6=Sábado, igual que
+  // dayOfWeekFromDateStr/DAY_NAMES_ES) para rutinas manuales — `dayName` es
+  // decorativo y NUNCA se usa para resolver "qué toca hoy" (ver logic.js:
+  // findRoutineDayForWeekday/scheduledRestWeekdays). null = sin programar;
+  // siempre null en días de rutinas IA (dayName ahí es una fecha ISO) y en el
+  // día "Bin" de la papelera del sistema.
+  weekday     Int?
   routineId   String
   routine     Routine    @relation(fields: [routineId], references: [id], onDelete: Cascade)
   exercises   Exercise[]

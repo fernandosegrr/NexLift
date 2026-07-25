@@ -16,6 +16,8 @@ import { ROUTINE_TEMPLATES, getTemplate } from '../data/routineTemplates';
 import { EXERCISES, searchExercises, getExercisesByMuscle } from '../data/exercises';
 import MuscleIcon, { MUSCLE_LIST } from '../components/ui/MuscleIcon';
 import { toSpanishMuscleGroup } from '../utils/muscleGroup';
+import { duplicateWeekdays, firstFreeWeekday, weekdayLabel } from '../utils/routineDays';
+import WeekdayPicker from '../components/ui/WeekdayPicker';
 
 // Tabs con diseño más compacto
 const TABS = [
@@ -69,6 +71,7 @@ export default function CreateRoutine() {
       days: template.days.map(day => ({
         dayName: day.dayName,
         isRestDay: day.isRestDay,
+        weekday: day.weekday,
         exercises: (day.exercises || []).map(ex => {
           const exerciseData = EXERCISES.find(e => e.id === ex.exerciseId);
           return {
@@ -89,7 +92,7 @@ export default function CreateRoutine() {
       navigate('/routines');
     } catch (error) {
       console.error(error);
-      toast.error('Error al crear rutina');
+      toast.error(error.message || 'Error al crear rutina');
     } finally {
       setSaving(false);
     }
@@ -98,7 +101,12 @@ export default function CreateRoutine() {
   const addDay = () => {
     setManualRoutine(prev => ({
       ...prev,
-      days: [...prev.days, { dayName: `Día ${prev.days.length + 1}`, isRestDay: false, exercises: [] }]
+      days: [...prev.days, {
+        dayName: `Día ${prev.days.length + 1}`,
+        isRestDay: false,
+        weekday: firstFreeWeekday(prev.days),
+        exercises: []
+      }]
     }));
   };
 
@@ -106,6 +114,25 @@ export default function CreateRoutine() {
     setManualRoutine(prev => ({
       ...prev,
       days: prev.days.map((d, i) => i === index ? { ...d, [field]: value } : d)
+    }));
+  };
+
+  // Asignar un weekday ya tomado por OTRO día se lo quita a ese otro día (con
+  // aviso) en vez de permitir el duplicado — mismo patrón que EditRoutine.jsx.
+  const updateDayWeekday = (index, weekday) => {
+    const stolenFrom = weekday != null
+      ? manualRoutine.days.find((d, i) => i !== index && d.weekday === weekday)
+      : null;
+    if (stolenFrom) {
+      toast.info(`"${weekdayLabel(weekday)}" se movió de "${stolenFrom.dayName}" a "${manualRoutine.days[index].dayName}"`);
+    }
+    setManualRoutine(prev => ({
+      ...prev,
+      days: prev.days.map((d, i) => {
+        if (i === index) return { ...d, weekday };
+        if (weekday != null && d.weekday === weekday) return { ...d, weekday: null };
+        return d;
+      })
     }));
   };
 
@@ -181,6 +208,12 @@ export default function CreateRoutine() {
     if (!manualRoutine.name.trim()) { toast.error('Falta el nombre de la rutina'); return; }
     if (manualRoutine.days.length === 0) { toast.error('Agrega al menos un día'); return; }
 
+    const dupes = duplicateWeekdays(manualRoutine.days);
+    if (dupes.length > 0) {
+      toast.error(`Dos días tienen asignado el mismo día de la semana: ${weekdayLabel(dupes[0])}`);
+      return;
+    }
+
     const emptyDay = manualRoutine.days.find(d => !d.isRestDay && d.exercises.length === 0);
     if (emptyDay) {
       toast.error(`"${emptyDay.dayName}" no tiene ejercicios. Agrégalos o márcalo como descanso.`);
@@ -213,7 +246,7 @@ export default function CreateRoutine() {
       toast.success('¡Rutina creada!');
       navigate('/routines');
     } catch (error) {
-      toast.error('Error al guardar');
+      toast.error(error.message || 'Error al guardar');
     } finally {
       setSaving(false);
     }
@@ -251,6 +284,10 @@ export default function CreateRoutine() {
       days: parsed.days.map(day => ({
         dayName: day.dayName || day.name || 'Día',
         isRestDay: !!day.isRestDay,
+        // Si el JSON no trae "weekday" se omite la clave por completo (no
+        // undefined ni null) para que el servidor lo infiera de dayName
+        // ("Lunes - Torso" -> 1) — ver resolveIncomingWeekday en logic.js.
+        ...(Object.prototype.hasOwnProperty.call(day, 'weekday') ? { weekday: day.weekday } : {}),
         exercises: day.isRestDay ? [] : (day.exercises || []).map(ex => ({
           name: ex.name || 'Ejercicio',
           muscleGroup: toSpanishMuscleGroup(ex.muscleGroup || ex.muscle) || null,
@@ -439,6 +476,18 @@ export default function CreateRoutine() {
                     </div>
                   </div>
 
+                  {/* Día de la semana */}
+                  <div className={`px-3 pb-3 pt-2 ${day.isRestDay ? 'bg-green-500/5' : 'bg-[var(--bg-dark)]'}`}>
+                    <WeekdayPicker
+                      value={day.weekday ?? null}
+                      takenBy={manualRoutine.days.reduce((acc, d, i) => {
+                        if (i !== dayIndex && d.weekday != null) acc[d.weekday] = d.dayName;
+                        return acc;
+                      }, {})}
+                      onChange={(weekday) => updateDayWeekday(dayIndex, weekday)}
+                    />
+                  </div>
+
                   {/* Exercises List */}
                   {!day.isRestDay && (
                     <div className="p-2 space-y-2 bg-[var(--bg-card)]/50">
@@ -540,6 +589,7 @@ export default function CreateRoutine() {
   "days": [
     {
       "dayName": "Push",
+      "weekday": 1,
       "exercises": [
         { "name": "Press Banca", "sets": 4, "reps": "8-10" },
         { "name": "Press Inclinado", "sets": 3, "reps": "10-12" }
@@ -547,11 +597,15 @@ export default function CreateRoutine() {
     },
     {
       "dayName": "Pull",
+      "weekday": 4,
       "exercises": [...]
     }
   ]
 }`}
               </pre>
+              <p className="text-[10px] text-[var(--text-secondary)] mt-2">
+                "weekday": 0=Domingo … 6=Sábado. Si lo omites y "dayName" trae un día ("Lunes - Torso"), se asigna solo.
+              </p>
             </div>
 
             {/* Textarea */}

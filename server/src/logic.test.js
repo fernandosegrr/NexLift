@@ -6,7 +6,9 @@ import {
     getActiveBlock, currentWeekInBlock, getRoutinePhaseStatus, adjustRepRangeForPhase,
     parseRepRange, roundWorkoutWeight, computeWorkoutSuggestion, detectPlateauForExercise,
     convertShortcutRir, pickNextSplitDay, resolveWeightIncrement,
-    sanitizeSets, sanitizeShortcutLogSet, sanitizeWorkoutLogBody, suggestNextSetFromToday
+    sanitizeSets, sanitizeShortcutLogSet, sanitizeWorkoutLogBody, suggestNextSetFromToday,
+    mexicoCityDayOfWeek, inferWeekdayFromName, findRoutineDayForWeekday, scheduledRestWeekdays,
+    normalizeIncomingWeekday, resolveIncomingWeekday, validateRoutineDayWeekdays
 } from './logic.js';
 
 describe('helpers CDMX (zona horaria)', () => {
@@ -92,6 +94,152 @@ describe('helpers CDMX (zona horaria)', () => {
         const nextMorning = new Date('2026-01-16T06:30:00Z'); // 00:30 CDMX 16 ene
         assert.ok(nextMorning >= range.lt || nextMorning < range.gte || nextMorning >= range.lt);
         assert.ok(nextMorning >= range.lt);
+    });
+});
+
+describe('mexicoCityDayOfWeek', () => {
+    it('espeja getTodayName/dayOfWeekFromDateStr — 23:30 CDMX no cruza a UTC del día siguiente', () => {
+        // 15 ene 2026 23:30 CDMX = 16 ene 2026 05:30 UTC (jueves CDMX, viernes UTC)
+        const instant = new Date('2026-01-16T05:30:00Z');
+        assert.equal(mexicoCityDayOfWeek(instant), 4); // jueves
+        assert.equal(instant.getUTCDay(), 5); // viernes en UTC — el bug que evitamos
+    });
+});
+
+describe('inferWeekdayFromName (solo se usa en ESCRITURA — import/PUT, nunca en lectura)', () => {
+    it('reconoce el nombre completo del día, con o sin acento, en cualquier posición', () => {
+        assert.equal(inferWeekdayFromName('Lunes - Torso'), 1);
+        assert.equal(inferWeekdayFromName('miercoles'), 3);
+        assert.equal(inferWeekdayFromName('sábado'), 6);
+        assert.equal(inferWeekdayFromName('Domingo'), 0);
+        assert.equal(inferWeekdayFromName('Miércoles: Piernas 2'), 3);
+    });
+
+    it('NO matchea por prefijo de 3 letras — el falso positivo real que reemplaza', () => {
+        assert.equal(inferWeekdayFromName('Dominadas y remo'), null);
+        assert.equal(inferWeekdayFromName('Martillo (bíceps)'), null);
+        assert.equal(inferWeekdayFromName('Juego de piernas'), null);
+    });
+
+    it('nombres genéricos o de split nunca matchean (el bug original)', () => {
+        assert.equal(inferWeekdayFromName('Día 1 — Pierna A (Cuádriceps y Glúteo)'), null);
+        assert.equal(inferWeekdayFromName('Día 6'), null);
+        assert.equal(inferWeekdayFromName('Push (Pecho/Hombros/Tríceps)'), null);
+        assert.equal(inferWeekdayFromName('Full Body A'), null);
+        assert.equal(inferWeekdayFromName('Bin'), null);
+    });
+
+    it('fecha ISO (rutinas IA) nunca matchea', () => {
+        assert.equal(inferWeekdayFromName('2026-07-25'), null);
+    });
+
+    it('entradas vacías o no-string devuelven null sin reventar', () => {
+        assert.equal(inferWeekdayFromName(''), null);
+        assert.equal(inferWeekdayFromName(null), null);
+        assert.equal(inferWeekdayFromName(undefined), null);
+    });
+});
+
+describe('findRoutineDayForWeekday', () => {
+    const days = [
+        { id: 'a', order: 0, weekday: 1 },
+        { id: 'b', order: 1, weekday: 3 },
+        { id: 'c', order: 2, weekday: null }
+    ];
+
+    it('devuelve el día programado para ese weekday', () => {
+        assert.equal(findRoutineDayForWeekday(days, 1).id, 'a');
+        assert.equal(findRoutineDayForWeekday(days, 3).id, 'b');
+    });
+
+    it('sin match devuelve null', () => {
+        assert.equal(findRoutineDayForWeekday(days, 5), null);
+    });
+
+    it('weekday 0 (Domingo) calza — no se trata como falsy', () => {
+        const withSunday = [{ id: 's', order: 0, weekday: 0 }];
+        assert.equal(findRoutineDayForWeekday(withSunday, 0).id, 's');
+    });
+
+    it('días con weekday null nunca calzan', () => {
+        assert.equal(findRoutineDayForWeekday(days, null), null);
+    });
+
+    it('duplicado: gana el de menor order, aunque el array llegue desordenado', () => {
+        const dup = [
+            { id: 'segundo', order: 5, weekday: 2 },
+            { id: 'primero', order: 1, weekday: 2 }
+        ];
+        assert.equal(findRoutineDayForWeekday(dup, 2).id, 'primero');
+    });
+
+    it('days undefined/vacío devuelve null', () => {
+        assert.equal(findRoutineDayForWeekday(undefined, 1), null);
+        assert.equal(findRoutineDayForWeekday([], 1), null);
+    });
+});
+
+describe('scheduledRestWeekdays', () => {
+    it('solo cuenta isRestDay=true CON weekday asignado', () => {
+        const days = [
+            { isRestDay: true, weekday: 6 },
+            { isRestDay: true, weekday: 0 }, // Domingo — no debe perderse por falsy
+            { isRestDay: false, weekday: 1 }, // día de entreno: no cuenta aunque tenga weekday
+            { isRestDay: true, weekday: null } // descanso sin programar: no cuenta
+        ];
+        const set = scheduledRestWeekdays(days);
+        assert.deepEqual([...set].sort(), [0, 6]);
+    });
+
+    it('sin días o todos sin weekday devuelve un Set vacío', () => {
+        assert.equal(scheduledRestWeekdays([]).size, 0);
+        assert.equal(scheduledRestWeekdays(undefined).size, 0);
+        assert.equal(scheduledRestWeekdays([{ isRestDay: true, weekday: null }]).size, 0);
+    });
+});
+
+describe('normalizeIncomingWeekday / resolveIncomingWeekday / validateRoutineDayWeekdays', () => {
+    it('normalizeIncomingWeekday acepta 0-6 y null, rechaza el resto', () => {
+        assert.equal(normalizeIncomingWeekday(0), 0);
+        assert.equal(normalizeIncomingWeekday(6), 6);
+        assert.equal(normalizeIncomingWeekday(null), null);
+        assert.equal(normalizeIncomingWeekday(7), undefined);
+        assert.equal(normalizeIncomingWeekday(-1), undefined);
+        assert.equal(normalizeIncomingWeekday('1'), undefined);
+        assert.equal(normalizeIncomingWeekday(1.5), undefined);
+    });
+
+    it('resolveIncomingWeekday respeta la clave explícita, aunque sea null', () => {
+        assert.equal(resolveIncomingWeekday({ weekday: 2, dayName: 'Lunes' }), 2);
+        assert.equal(resolveIncomingWeekday({ weekday: null, dayName: 'Lunes - Torso' }), null);
+    });
+
+    it('resolveIncomingWeekday infiere del nombre solo si la clave no vino', () => {
+        assert.equal(resolveIncomingWeekday({ dayName: 'Lunes - Torso' }), 1);
+        assert.equal(resolveIncomingWeekday({ dayName: 'Día 1 — Pierna A' }), null);
+    });
+
+    it('validateRoutineDayWeekdays: duplicado detectado', () => {
+        assert.ok(validateRoutineDayWeekdays([{ weekday: 1 }, { weekday: 1 }]).error);
+    });
+
+    it('validateRoutineDayWeekdays: los null nunca son duplicado', () => {
+        assert.equal(validateRoutineDayWeekdays([{ weekday: null }, { weekday: null }]).error, undefined);
+    });
+
+    it('validateRoutineDayWeekdays: Domingo (0) repetido sí es duplicado', () => {
+        assert.ok(validateRoutineDayWeekdays([{ weekday: 0 }, { weekday: 0 }]).error);
+    });
+
+    it('validateRoutineDayWeekdays: rechaza fuera de rango o no-entero', () => {
+        assert.ok(validateRoutineDayWeekdays([{ weekday: 7 }]).error);
+        assert.ok(validateRoutineDayWeekdays([{ weekday: -1 }]).error);
+        assert.ok(validateRoutineDayWeekdays([{ weekday: '1' }]).error);
+    });
+
+    it('validateRoutineDayWeekdays: array vacío u homogéneo sin weekday no falla', () => {
+        assert.equal(validateRoutineDayWeekdays([]).error, undefined);
+        assert.equal(validateRoutineDayWeekdays([{ weekday: 1 }, { weekday: 2 }]).error, undefined);
     });
 });
 

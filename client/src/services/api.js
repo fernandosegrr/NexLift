@@ -259,7 +259,10 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(routine),
         });
-        if (!res.ok) throw new Error('Failed to import routine');
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Failed to import routine');
+        }
         return res.json();
     },
 
@@ -269,7 +272,10 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(routine),
         });
-        if (!res.ok) throw new Error('Failed to update routine');
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Failed to update routine');
+        }
         return res.json();
     },
 
