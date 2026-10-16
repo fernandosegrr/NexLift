@@ -6,9 +6,17 @@ import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
 import { mexicoCityDateStr } from '../utils/dates';
+import { clearHomeCache } from '../utils/homeCache';
 import { cloudinaryThumb, cloudinaryDisplay } from '../utils/cloudinary';
 
 const MAX_PHOTO_BYTES = 12 * 1024 * 1024; // 12 MB pre-compresión
+
+// Convierte cualquier fecha/ISO a llave YYYY-MM-DD en zona horaria America/Mexico_City
+export function toLocalDateKey(dateInput = new Date()) {
+    const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
+    if (Number.isNaN(d.getTime())) return mexicoCityDateStr(new Date());
+    return mexicoCityDateStr(d);
+}
 
 // Compress image to max 1200px and 85% quality
 async function compressImage(file, maxSize = 1200, quality = 0.85) {
@@ -61,7 +69,7 @@ function calculateChange(logs, field, days = 30) {
 
     const latestLog = filtered[0];
     const latest = latestLog[field];
-    const cutoffKey = mexicoCityDateStr(new Date(Date.now() - days * 24 * 60 * 60 * 1000));
+    const cutoffKey = toLocalDateKey(new Date(Date.now() - days * 24 * 60 * 60 * 1000));
     const cutoffTime = new Date(`${cutoffKey}T12:00:00Z`).getTime();
 
     let reference = null;
@@ -76,8 +84,8 @@ function calculateChange(logs, field, days = 30) {
     }
 
     if (!reference) return null;
-    const latestKey = mexicoCityDateStr(new Date(latestLog.date));
-    const refKey = mexicoCityDateStr(new Date(reference.date));
+    const latestKey = toLocalDateKey(latestLog.date);
+    const refKey = toLocalDateKey(reference.date);
     const a = new Date(`${latestKey}T12:00:00Z`).getTime();
     const b = new Date(`${refKey}T12:00:00Z`).getTime();
     const elapsedDays = Math.round((a - b) / (1000 * 60 * 60 * 24));
@@ -87,7 +95,7 @@ function calculateChange(logs, field, days = 30) {
 // Fecha de un log en día CDMX (no el date part UTC del ISO, que falla de noche)
 function formatLocalDate(dateStr, options = { day: 'numeric', month: 'short' }) {
     if (!dateStr) return '';
-    const dayKey = mexicoCityDateStr(new Date(dateStr));
+    const dayKey = toLocalDateKey(dateStr);
     const [year, month, day] = dayKey.split('-').map(Number);
     const date = new Date(year, month - 1, day, 12, 0, 0);
     return date.toLocaleDateString('es-ES', options);
@@ -159,7 +167,22 @@ export default function BodyTracking() {
                 api.getBodyLogs(90),
                 api.getBodyPhotos()
             ]);
-            setLogs(Array.isArray(logsData) ? logsData : []);
+            const metricLogs = Array.isArray(logsData)
+                ? logsData.filter(l =>
+                    l.weight != null ||
+                    l.bmi != null ||
+                    l.bodyFat != null ||
+                    l.muscleMass != null ||
+                    l.bmr != null ||
+                    l.bodyWater != null ||
+                    l.visceralFat != null ||
+                    l.boneMass != null ||
+                    l.protein != null ||
+                    l.photo != null ||
+                    l.photoUrl != null
+                )
+                : [];
+            setLogs(metricLogs);
             setPhotos(Array.isArray(photosData) ? photosData : []);
         } catch (error) {
             console.error('Error:', error);
@@ -259,6 +282,7 @@ export default function BodyTracking() {
             } else {
                 toast.success('¡Datos guardados!');
             }
+            clearHomeCache();
             clearForm();
             fetchData();
         } catch (error) {
@@ -730,7 +754,7 @@ export default function BodyTracking() {
             )}
 
             {/* History Table */}
-            {logs.length > 0 && (
+            {logs.some(b => b.weight != null || b.bodyFat != null || b.muscleMass != null || b.bmi != null) && (
                 <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)]">
                     <h3 className="font-medium text-sm mb-3 flex items-center gap-2">
                         <TrendingUp size={16} className="text-[var(--primary)]" />
@@ -749,7 +773,10 @@ export default function BodyTracking() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {logs.slice(0, 10).map((log, idx) => (
+                                {logs
+                                    .filter(b => b.weight != null || b.bodyFat != null || b.muscleMass != null || b.bmi != null)
+                                    .slice(0, 10)
+                                    .map((log, idx) => (
                                     <tr
                                         key={log.id}
                                         className={`border-b border-[var(--border)]/50 ${idx % 2 === 0 ? 'bg-[var(--bg-dark)]/30' : ''}`}
@@ -758,16 +785,16 @@ export default function BodyTracking() {
                                             {formatLocalDate(log.date, { day: 'numeric', month: 'short' })}
                                         </td>
                                         <td className="py-2 text-right font-medium">
-                                            {log.weight ? `${log.weight.toFixed(1)}` : '--'}
+                                            {log.weight != null ? `${log.weight.toFixed(1)}` : '--'}
                                         </td>
                                         <td className="py-2 text-right">
-                                            {log.bmi ? log.bmi.toFixed(1) : '--'}
+                                            {log.bmi != null ? log.bmi.toFixed(1) : '--'}
                                         </td>
                                         <td className="py-2 text-right text-orange-400">
-                                            {log.bodyFat ? `${log.bodyFat.toFixed(1)}%` : '--'}
+                                            {log.bodyFat != null ? `${log.bodyFat.toFixed(1)}%` : '--'}
                                         </td>
                                         <td className="py-2 text-right text-green-400">
-                                            {log.muscleMass ? `${log.muscleMass.toFixed(1)}` : '--'}
+                                            {log.muscleMass != null ? `${log.muscleMass.toFixed(1)}` : '--'}
                                         </td>
                                     </tr>
                                 ))}

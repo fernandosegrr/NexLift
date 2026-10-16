@@ -47,6 +47,12 @@ model User {
   lastBackupAt    DateTime?
   lastBackupError String?
 
+  // Recordatorios escalonados de creatina (Web Push en zona America/Mexico_City)
+  creatineReminderEnabled   Boolean   @default(false)
+  creatineReminderTime      String    @default("16:00")
+  lastCreatineReminderDate  String?
+  lastCreatineReminderStage Int       @default(0)
+
   // Timestamps
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -283,6 +289,11 @@ model BodyLog {
   visceralFat Float?
   boneMass    Float?
   protein     Float?
+
+  // Hábitos diarios (Daily Check-in / Adherencia en déficit)
+  creatineTaken      Boolean? @default(false)
+  dietCompliant      Boolean? @default(false)
+  zeroLiquidCalories Boolean? @default(false)
   
   createdAt DateTime @default(now())
   

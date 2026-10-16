@@ -416,47 +416,6 @@ export const api = {
         }
     },
 
-    // ========== CARDIO (sesiones por tramos) ==========
-    async getCardioSessions(limit = 30) {
-        const res = await authFetch(`${API_URL}/cardio?limit=${limit}`);
-        if (!res.ok) throw new Error('Failed to fetch cardio');
-        return res.json();
-    },
-
-    async createCardioSession({ activity = 'caminadora', segments, note = null, date = null, calories = null }) {
-        const res = await authFetch(`${API_URL}/cardio`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ activity, segments, note, date, calories })
-        });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || 'Failed to create cardio');
-        }
-        return res.json();
-    },
-
-    async updateCardioSession(id, { activity, segments, note, calories }) {
-        const body = { activity, segments, note };
-        if (calories !== undefined) body.calories = calories;
-        const res = await authFetch(`${API_URL}/cardio/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || 'Failed to update cardio');
-        }
-        return res.json();
-    },
-
-    async deleteCardioSession(id) {
-        const res = await authFetch(`${API_URL}/cardio/${id}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Failed to delete cardio');
-        return res.json();
-    },
-
     async getWorkoutHistory(limit = 30, filters = {}) {
         const params = new URLSearchParams({ limit: String(limit) });
         if (filters.search) params.set('search', filters.search);
@@ -570,6 +529,35 @@ export const api = {
         });
         const result = await res.json();
         if (!res.ok) throw new Error(result.error || 'Failed to save body data');
+        return result;
+    },
+
+    async getDailyCheckin(date = null) {
+        const qs = date ? `?date=${encodeURIComponent(date)}` : '';
+        const res = await authFetch(`${API_URL}/body/checkin${qs}`);
+        if (!res.ok) throw new Error('Failed to fetch daily check-in');
+        return res.json();
+    },
+
+    async updateDailyCheckin(habits) {
+        const res = await authFetch(`${API_URL}/body/checkin`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(habits),
+        });
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(result.error || 'Failed to update daily check-in');
+        return result;
+    },
+
+    async importBackup(backupData) {
+        const res = await authFetch(`${API_URL}/backup/import`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(backupData),
+        });
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(result.error || 'Failed to import backup');
         return result;
     },
 
@@ -768,6 +756,26 @@ export const api = {
         });
         if (!res.ok) throw new Error('Failed to unsubscribe from push');
         return res.json();
+    },
+
+    async updateCreatineReminder({ enabled, time }) {
+        const res = await authFetch(`${API_URL}/push/creatine-reminder`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled, time }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo guardar el recordatorio de creatina');
+        return data;
+    },
+
+    async testCreatinePush() {
+        const res = await authFetch(`${API_URL}/push/test-creatine`, {
+            method: 'POST',
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo enviar la notificación de prueba');
+        return data;
     }
 };
 

@@ -336,9 +336,7 @@ export default function ExportReport() {
                     api.getBodyLogs(180),
                     api.getConsistency(),
                     // 500 con select slim en server (antes ~250KB con exercise:true)
-                    api.getWorkoutHistory(500),
-                    // Cardio del periodo (anual ≈ 365 sesiones max teórico)
-                    api.getCardioSessions(500)
+                    api.getWorkoutHistory(500)
                 ]);
 
                 if (!isMounted) return;
@@ -360,8 +358,7 @@ export default function ExportReport() {
                     prs: getVal(results[2]) || [],
                     bodyLogs: getVal(results[3]) || [],
                     consistency: consistencyMap,
-                    history: getVal(results[5]) || [],
-                    cardio: getVal(results[6]) || []
+                    history: getVal(results[5]) || []
                 });
 
             } catch (error) {
@@ -383,7 +380,7 @@ export default function ExportReport() {
     const computed = useMemo(() => {
         const selectedP = PERIODS.find(p => p.id === period) || PERIODS[2];
 
-        // Ventana del período en días calendario CDMX
+        // Ventana del período en días calendario CDMX estrictos (anclados a mediodía UTC)
         const todayCdmx = mexicoCityDateStr();
         const dailyKey = selectedP.id === 'daily'
             ? (dayDate || todayCdmx)
@@ -391,12 +388,16 @@ export default function ExportReport() {
         let cutoffStr = todayCdmx;
         let isAfterCutoff;
         if (selectedP.id === 'daily') {
-            // Un solo día exacto
+            // Un solo día exacto en CDMX
             isAfterCutoff = (d) => mexicoCityDateStr(new Date(d)) === dailyKey;
         } else {
             const daysBack = selectedP.days - 1; // inclusivo: 30d = hoy + 29 atrás
-            cutoffStr = mexicoCityDateStr(new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000));
-            isAfterCutoff = (d) => mexicoCityDateStr(new Date(d)) >= cutoffStr;
+            const todayAnchor = new Date(`${todayCdmx}T12:00:00Z`);
+            cutoffStr = mexicoCityDateStr(new Date(todayAnchor.getTime() - daysBack * 24 * 60 * 60 * 1000));
+            isAfterCutoff = (d) => {
+                const key = mexicoCityDateStr(new Date(d));
+                return key >= cutoffStr && key <= todayCdmx;
+            };
         }
 
         const allPeriodPRs = data.prs
@@ -405,21 +406,52 @@ export default function ExportReport() {
             .sort((a, b) => (b.estimated1RM || b.weight || 0) - (a.estimated1RM || a.weight || 0));
         const prsCount = allPeriodPRs.length;
         const filteredPRs = allPeriodPRs.slice(0, 15);
-        const filteredLogs = data.bodyLogs.filter(l => l.weight && isAfterCutoff(l.date));
+        // Filtro estricto: excluir registros que son únicamente check-in de hábitos diarios
+        const measurementLogs = data.bodyLogs.filter(
+            b => (b.weight != null || b.bodyFat != null || b.muscleMass != null) && isAfterCutoff(b.date)
+        );
+        const filteredLogs = measurementLogs.filter(l => l.weight != null);
+        const periodBodyLogs = data.bodyLogs.filter(l => isAfterCutoff(l.date));
         const filteredHistory = data.history.filter(h => isAfterCutoff(h.date));
-        const filteredCardio = (data.cardio || [])
-            .filter(c => isAfterCutoff(c.date))
-            .slice()
-            .sort((a, b) => new Date(b.date) - new Date(a.date));
-        const cardioTotalMin = filteredCardio.reduce((a, c) => a + (c.totalMin || 0), 0);
-        const cardioTotalKcal = filteredCardio.reduce((a, c) => a + (c.calories || 0), 0);
-        const cardioSessionsWithKcal = filteredCardio.filter(c => c.calories != null).length;
 
-        const CARDIO_LABELS = {
-            caminadora: 'Caminadora',
-            bici: 'Bici',
-            eliptica: 'Elíptica',
-            otro: 'Otro'
+        // Adherencia nutricional y suplementación (agrupado por día CDMX)
+        const habitsByDay = new Map();
+        periodBodyLogs.forEach(l => {
+            const dKey = mexicoCityDateStr(new Date(l.date));
+            const cur = habitsByDay.get(dKey) || {
+                creatineTaken: false,
+                dietCompliant: false,
+                zeroLiquidCalories: false
+            };
+            habitsByDay.set(dKey, {
+                creatineTaken: cur.creatineTaken || Boolean(l.creatineTaken),
+                dietCompliant: cur.dietCompliant || Boolean(l.dietCompliant),
+                zeroLiquidCalories: cur.zeroLiquidCalories || Boolean(l.zeroLiquidCalories)
+            });
+        });
+
+        const denomDays = Math.max(1, selectedP.id === 'daily' ? 1 : (selectedP.days || 7));
+        let creatineDays = 0;
+        let dietDays = 0;
+        let zeroLiquidDays = 0;
+        let trackedHabitDays = 0;
+        habitsByDay.forEach(v => {
+            if (v.creatineTaken) creatineDays++;
+            if (v.dietCompliant) dietDays++;
+            if (v.zeroLiquidCalories) zeroLiquidDays++;
+            if (v.creatineTaken || v.dietCompliant || v.zeroLiquidCalories) trackedHabitDays++;
+        });
+
+        const adherence = {
+            denomDays,
+            trackedHabitDays,
+            creatineDays,
+            dietDays,
+            zeroLiquidDays,
+            creatinePct: Math.min(100, Math.round((creatineDays / denomDays) * 100)),
+            dietPct: Math.min(100, Math.round((dietDays / denomDays) * 100)),
+            zeroLiquidPct: Math.min(100, Math.round((zeroLiquidDays / denomDays) * 100)),
+            overallPct: Math.min(100, Math.round(((creatineDays + dietDays + zeroLiquidDays) / (denomDays * 3)) * 100))
         };
 
         // ============ COMPARACIÓN DIARIA POR DÍA DE SEMANA ============
@@ -623,20 +655,17 @@ export default function ExportReport() {
             filteredPRs,
             prsCount,
             filteredLogs,
+            measurementLogs,
             photos,
             weightChart,
             trainingDays,
             totalSessions,
             weightChange,
             progressData,
-            dailyComparison, // <--- Comparación diaria por día de semana
-            filteredCardio,
-            cardioTotalMin: Math.round(cardioTotalMin * 10) / 10,
-            cardioTotalKcal,
-            cardioSessionsWithKcal,
-            cardioLabels: CARDIO_LABELS,
-            hasData: trainingDays > 0 || totalSessions > 0 || prsCount > 0 || filteredLogs.length > 0
-                || filteredCardio.length > 0
+            dailyComparison,
+            adherence,
+            hasData: trainingDays > 0 || totalSessions > 0 || prsCount > 0 || measurementLogs.length > 0
+                || adherence.trackedHabitDays > 0
                 || (dailyComparison?.exercises?.length > 0),
             dayDate: dailyKey
         };
@@ -694,7 +723,34 @@ export default function ExportReport() {
                 doc.setTextColor(...COLORS.textLight);
                 doc.text(s.lbl, x + cardW / 2, builder.y + 18, { align: 'center' });
             });
-            builder.y += 35;
+            builder.y += 32;
+
+            // 2.2 ADHERENCIA NUTRICIONAL / SUPLEMENTACIÓN (Daily Check-in)
+            if (computed.adherence) {
+                const adh = computed.adherence;
+                builder.ensureSpace(26);
+                doc.setFillColor(...COLORS.bgAlt);
+                doc.roundedRect(margin, builder.y, w - margin * 2, 20, 3, 3, 'F');
+
+                doc.setFontSize(8.5);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(...COLORS.purple);
+                doc.text(
+                    `% DE ADHERENCIA NUTRICIONAL / SUPLEMENTACION (${adh.overallPct}% global)`,
+                    margin + 5,
+                    builder.y + 7
+                );
+
+                doc.setFontSize(8.5);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(...COLORS.textDark);
+                const adhSummaryText =
+                    `Creatina: ${adh.creatineDays}/${adh.denomDays} dias (${adh.creatinePct}%)   |   ` +
+                    `Dieta: ${adh.dietPct}% (${adh.dietDays}/${adh.denomDays} dias)   |   ` +
+                    `0 Cal. Liquidas: ${adh.zeroLiquidPct}% (${adh.zeroLiquidDays}/${adh.denomDays} dias)`;
+                doc.text(adhSummaryText, margin + 5, builder.y + 15);
+                builder.y += 26;
+            }
 
             // 2.5 COMPARACIÓN DIARIA (solo para período "Diario")
             if (computed.dailyComparison) {
@@ -893,82 +949,6 @@ export default function ExportReport() {
                 builder.y = doc.lastAutoTable.finalY + 10;
             }
 
-            // 4.5 CARDIO del periodo (minutos, tramos, kcal si se registraron)
-            if (computed.filteredCardio.length > 0) {
-                builder.printSectionTitle('CARDIO', 50);
-
-                const cCards = [
-                    { val: String(computed.filteredCardio.length), lbl: 'Sesiones', col: COLORS.purple },
-                    { val: String(computed.cardioTotalMin), lbl: 'Minutos', col: [59, 130, 246] },
-                    {
-                        val: computed.cardioTotalKcal > 0 ? String(computed.cardioTotalKcal) : '—',
-                        lbl: 'kcal',
-                        col: [249, 115, 22]
-                    }
-                ];
-                const cCardW = (w - margin * 2 - 10) / 3;
-                cCards.forEach((s, i) => {
-                    const x = margin + i * (cCardW + 5);
-                    doc.setFillColor(...COLORS.bgLight);
-                    doc.roundedRect(x, builder.y, cCardW, 22, 3, 3, 'F');
-                    doc.setFontSize(14);
-                    doc.setFont('helvetica', 'bold');
-                    doc.setTextColor(...s.col);
-                    doc.text(s.val, x + cCardW / 2, builder.y + 9, { align: 'center' });
-                    doc.setFontSize(7);
-                    doc.setFont('helvetica', 'normal');
-                    doc.setTextColor(...COLORS.textLight);
-                    doc.text(s.lbl, x + cCardW / 2, builder.y + 17, { align: 'center' });
-                });
-                builder.y += 28;
-
-                if (computed.cardioTotalKcal > 0 && computed.cardioSessionsWithKcal < computed.filteredCardio.length) {
-                    doc.setFontSize(8);
-                    doc.setTextColor(...COLORS.textLight);
-                    doc.text(
-                        `kcal sumadas de ${computed.cardioSessionsWithKcal}/${computed.filteredCardio.length} sesiones con calorías registradas`,
-                        margin,
-                        builder.y
-                    );
-                    builder.y += 6;
-                }
-
-                const cardioRows = computed.filteredCardio.map(c => {
-                    const label = computed.cardioLabels[c.activity] || c.activity || '—';
-                    const inclinePath = (c.segments || [])
-                        .map(seg => (seg.incline != null ? String(seg.incline) : '—'))
-                        .join('→');
-                    const inclineShort = inclinePath && inclinePath !== '—'
-                        ? truncateText(inclinePath, 18)
-                        : '—';
-                    return [
-                        formatLocalDate(c.date, { day: '2-digit', month: '2-digit' }),
-                        truncateText(label, 14),
-                        `${c.totalMin ?? '—'}`,
-                        inclineShort,
-                        c.calories != null ? String(c.calories) : '—'
-                    ];
-                });
-
-                autoTable(doc, {
-                    startY: builder.y,
-                    head: [['Fecha', 'Actividad', 'Min', 'Incl.', 'kcal']],
-                    body: cardioRows,
-                    theme: 'grid',
-                    headStyles: { fillColor: COLORS.purpleDark, fontSize: 9 },
-                    bodyStyles: { fontSize: 8 },
-                    columnStyles: {
-                        0: { cellWidth: 22 },
-                        1: { fontStyle: 'bold' },
-                        2: { halign: 'center', textColor: COLORS.purple },
-                        3: { halign: 'center', textColor: COLORS.textMedium },
-                        4: { halign: 'right', fontStyle: 'bold', textColor: [249, 115, 22] }
-                    },
-                    margin: { left: margin, right: margin }
-                });
-                builder.y = doc.lastAutoTable.finalY + 10;
-            }
-
             // 5. PROGRESO POR EJERCICIO - Muestra peso, reps y fuerza estimada
             if (computed.progressData.length > 0) {
                 builder.printSectionTitle('PROGRESO POR EJERCICIO', 60);
@@ -1026,13 +1006,17 @@ export default function ExportReport() {
             // 6. Body Tracking
             const showWeight = computed.weightChart.length > 1;
             const showPhotos = computed.photos.length > 0;
+            const measurementHistory = data.bodyLogs
+                .filter(b => b.weight != null || b.bodyFat != null || b.muscleMass != null)
+                .filter(b => computed.measurementLogs.includes(b));
             // Comprobamos si hay algún dato de composición (bodyFat, bmi, etc)
-            const logsWithComp = computed.filteredLogs.filter(l =>
+            const logsWithComp = measurementHistory.filter(l =>
                 l.bodyFat || l.muscleMass || l.bmi || l.bodyWater || l.boneMass
             );
             const showComp = logsWithComp.length > 0;
+            const showMeasurementTable = measurementHistory.length > 0;
 
-            if (showWeight || showPhotos || showComp) {
+            if (showWeight || showPhotos || showComp || showMeasurementTable) {
                 doc.addPage();
                 builder.y = margin;
 
@@ -1226,6 +1210,36 @@ export default function ExportReport() {
                         builder.y += 10;
                     }
                 }
+
+                // D. Historial de Mediciones (filtrado estrictamente sin check-ins vacíos)
+                if (showMeasurementTable) {
+                    builder.ensureSpace(45);
+                    builder.printSectionTitle('HISTORIAL DE MEDICIONES', 30);
+                    const historyRows = measurementHistory.slice(0, 20).map(b => [
+                        formatLocalDate(b.date, { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                        b.weight != null ? `${Number(b.weight).toFixed(1)} kg` : '-',
+                        b.bmi != null ? Number(b.bmi).toFixed(1) : '-',
+                        b.bodyFat != null ? `${Number(b.bodyFat).toFixed(1)}%` : '-',
+                        b.muscleMass != null ? `${Number(b.muscleMass).toFixed(1)} kg` : '-'
+                    ]);
+                    autoTable(doc, {
+                        startY: builder.y,
+                        head: [['Fecha', 'Peso', 'IMC', 'Grasa', 'Músculo']],
+                        body: historyRows,
+                        theme: 'grid',
+                        headStyles: { fillColor: COLORS.purpleDark, fontSize: 9 },
+                        bodyStyles: { fontSize: 8.5 },
+                        columnStyles: {
+                            0: { fontStyle: 'bold' },
+                            1: { halign: 'center', textColor: COLORS.purple },
+                            2: { halign: 'center' },
+                            3: { halign: 'center' },
+                            4: { halign: 'center' }
+                        },
+                        margin: { left: margin, right: margin }
+                    });
+                    builder.y = doc.lastAutoTable.finalY + 10;
+                }
             }
 
             setProgress(100);
@@ -1338,27 +1352,27 @@ export default function ExportReport() {
                             <StatBox val={computed.weightChange} label="Peso" isDelta />
                         </div>
 
-                        {/* Cardio del periodo */}
-                        {computed.filteredCardio.length > 0 && (
-                            <div className="rounded-lg p-3 border border-orange-500/20 bg-orange-500/10">
-                                <p className="text-[10px] font-bold text-orange-300/90 uppercase tracking-wider mb-1.5">
-                                    Cardio en el periodo
-                                </p>
+                        {/* Adherencia Nutricional / Suplementación */}
+                        {computed.adherence && (
+                            <div className="rounded-lg p-3 border border-emerald-500/20 bg-emerald-500/10">
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <p className="text-[10px] font-bold text-emerald-300/90 uppercase tracking-wider">
+                                        % Adherencia Nutricional / Suplementación
+                                    </p>
+                                    <span className="text-[11px] font-bold text-emerald-300 tabular-nums">
+                                        {computed.adherence.overallPct}% global
+                                    </span>
+                                </div>
                                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
                                     <span>
-                                        <span className="font-bold text-[var(--text-primary)]">{computed.filteredCardio.length}</span>
-                                        {' '}sesion{computed.filteredCardio.length === 1 ? '' : 'es'}
+                                        Creatina: <span className="font-bold text-[var(--text-primary)]">{computed.adherence.creatineDays}/{computed.adherence.denomDays} días</span> ({computed.adherence.creatinePct}%)
                                     </span>
                                     <span>
-                                        <span className="font-bold text-[var(--text-primary)]">{computed.cardioTotalMin}</span>
-                                        {' '}min
+                                        Dieta: <span className="font-bold text-emerald-300">{computed.adherence.dietPct}%</span> ({computed.adherence.dietDays}/{computed.adherence.denomDays}d)
                                     </span>
-                                    {computed.cardioTotalKcal > 0 && (
-                                        <span>
-                                            <span className="font-bold text-orange-300">{computed.cardioTotalKcal}</span>
-                                            {' '}kcal
-                                        </span>
-                                    )}
+                                    <span>
+                                        0 Cal. Líquidas: <span className="font-bold text-emerald-300">{computed.adherence.zeroLiquidPct}%</span> ({computed.adherence.zeroLiquidDays}/{computed.adherence.denomDays}d)
+                                    </span>
                                 </div>
                             </div>
                         )}
@@ -1478,11 +1492,6 @@ export default function ExportReport() {
                             {computed.photos.length > 0 && (
                                 <span className="text-[10px] bg-purple-500/10 text-purple-400 px-2 py-1 rounded-full border border-purple-500/20">
                                     {computed.photos.length} fotos
-                                </span>
-                            )}
-                            {computed.filteredCardio.length > 0 && (
-                                <span className="text-[10px] bg-orange-500/10 text-orange-300 px-2 py-1 rounded-full border border-orange-500/20">
-                                    {computed.filteredCardio.length} cardio
                                 </span>
                             )}
                         </div>

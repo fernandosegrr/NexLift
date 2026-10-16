@@ -61,22 +61,39 @@ export function roundWorkoutWeight(w, increment, base) {
 
 /**
  * Serie de TRABAJO de la última sesión (no single de tope ni drop set).
+ * Incluye protección contra Singles/Doubles (reps < 3) cuando lo > 3.
  * Ver comentarios en server/src/logic.js — misma lógica, byte-a-byte en espíritu.
  */
 export function pickWorkReference(working, lo) {
     if (!working || working.length === 0) return null;
-    const maxW = Math.max(...working.map(s => s.weight));
-    const main = working.filter(s => s.weight >= maxW * 0.75);
-    const pool = main.length > 0 ? main : working;
+    // Protección contra Singles/Doubles (Ego Lifting): ignora series de 1 o 2 reps
+    // a menos que el rango objetivo de la rutina sea explícitamente de fuerza máxima (lo <= 3).
+    const nonEgo = lo > 3 ? working.filter(s => s.reps >= 3) : working;
+    const baseWorking = nonEgo.length > 0 ? nonEgo : working;
 
-    let candidates = pool.filter(s => s.reps >= lo);
-    if (candidates.length === 0) {
-        const maxReps = Math.max(...pool.map(s => s.reps));
-        candidates = pool.filter(s => s.reps === maxReps);
+    const maxW = Math.max(...baseWorking.map(s => s.weight));
+    const main = baseWorking.filter(s => s.weight >= maxW * 0.75);
+    const pool = main.length > 0 ? main : baseWorking;
+
+    // Si existe un Top Set pesado de alta intensidad (RIR <= 1 / RPE >= 9) al peso máximo
+    // del pool válido, anclar en ese peso para que un Back-off set no lo eclipse.
+    const topWeight = Math.max(...pool.map(s => s.weight));
+    const atTopWeight = pool.filter(s => Math.abs(s.weight - topWeight) < 0.01);
+    const hasHeavyTopSet = atTopWeight.some(s => s.rir != null && s.rir <= 1);
+
+    let refWeight;
+    if (hasHeavyTopSet) {
+        refWeight = topWeight;
+    } else {
+        let candidates = pool.filter(s => s.reps >= lo);
+        if (candidates.length === 0) {
+            const maxReps = Math.max(...pool.map(s => s.reps));
+            candidates = pool.filter(s => s.reps === maxReps);
+        }
+        if (candidates.length === 0) candidates = pool;
+        refWeight = Math.max(...candidates.map(s => s.weight));
     }
-    if (candidates.length === 0) candidates = pool;
 
-    const refWeight = Math.max(...candidates.map(s => s.weight));
     const sameWeight = pool.filter(s => Math.abs(s.weight - refWeight) < 0.01);
     const refReps = Math.max(...sameWeight.map(s => s.reps));
     const knownRir = sameWeight.map(s => s.rir).filter(v => v != null);
@@ -87,13 +104,15 @@ export function pickWorkReference(working, lo) {
 }
 
 /**
- * Sugerencia por doble progresión. `sessions` ordenado DESC por fecha.
- * Sube de peso solo cuando TODAS las series al peso de trabajo tocan el techo.
+ * Sugerencia por Top Set + Back-off / Doble Progresión. `sessions` ordenado DESC por fecha.
+ * - Desbloquea incremento de peso si el Top Set alcanzó >= hi reps con RIR <= 1 (RPE 9-10),
+ *   o si todas las series al peso de trabajo alcanzaron >= hi.
  */
 export function computeWorkoutSuggestion(sessions, targetReps, increment, phase = null) {
     if (!sessions || sessions.length === 0) return null;
+    const resolvedPhase = (phase && typeof phase === 'object') ? (phase.phase ?? null) : (phase ?? null);
     const parsedRange = parseRepRange(targetReps);
-    const { lo, hi } = adjustRepRangeForPhase(parsedRange.lo, parsedRange.hi, phase);
+    const { lo, hi } = adjustRepRangeForPhase(parsedRange.lo, parsedRange.hi, resolvedPhase);
 
     const working = (sessions[0].sets || [])
         .map(effectiveWorkoutSet)
@@ -105,15 +124,20 @@ export function computeWorkoutSuggestion(sessions, targetReps, increment, phase 
 
     const { weight: refWeight, reps: refReps, minReps, rir, setsAtWeight } = ref;
     const allHitTop = setsAtWeight.every(s => s.reps >= hi);
+    const topSetPassed = setsAtWeight.find(s => s.reps >= hi && s.rir != null && s.rir <= 1);
 
     let weight, reps, rationale;
 
-    if (allHitTop) {
+    if (topSetPassed || allHitTop) {
         weight = roundWorkoutWeight(refWeight + increment, increment, refWeight);
         reps = lo;
-        rationale = setsAtWeight.length > 1
-            ? `Todas las series a ${refWeight}kg llegaron a ≥${hi} reps: sube a ${weight}kg y reinicia en ${lo}.`
-            : `Alcanzaste ${refReps} reps con ${refWeight}kg (tope del rango): sube a ${weight}kg y reinicia en ${lo}.`;
+        if (topSetPassed && !allHitTop) {
+            rationale = `Top Set superado (${refWeight}kg × ${topSetPassed.reps} a RIR ${topSetPassed.rir}): sube a ${weight}kg y reinicia en ${lo}.`;
+        } else {
+            rationale = setsAtWeight.length > 1
+                ? `Todas las series a ${refWeight}kg llegaron a ≥${hi} reps: sube a ${weight}kg y reinicia en ${lo}.`
+                : `Alcanzaste ${refReps} reps con ${refWeight}kg (tope del rango): sube a ${weight}kg y reinicia en ${lo}.`;
+        }
     } else if (refReps >= hi) {
         weight = refWeight;
         reps = Math.min(hi, minReps + 1);
@@ -134,7 +158,7 @@ export function computeWorkoutSuggestion(sessions, targetReps, increment, phase 
     }
 
     if (weight <= 0 || reps <= 0) return null;
-    return { weight, reps, rationale, basedOn: sessions.length, phase };
+    return { weight, reps, rationale, basedOn: sessions.length, phase: resolvedPhase };
 }
 
 /**
@@ -142,14 +166,26 @@ export function computeWorkoutSuggestion(sessions, targetReps, increment, phase 
  * series completadas HOY del mismo ejercicio. Requiere RIR en cada una.
  * A diferencia de computeWorkoutSuggestion (entre sesiones), SÍ puede bajar peso.
  *
- * @param {Array<{weight:number,reps:number,rir:number|null}>} completedToday
- *   Series efectivas ya hechas hoy, en orden (1ª → última).
- * @param {{ lo:number, hi:number, increment:number, phase?:string|null }} opts
- *   lo/hi del rango guardado del ejercicio (se ajustan por fase aquí).
- * @returns {{ weight:number, reps:number, rationale:string, phase:string|null, source:'intra' }|null}
+ * Si la Serie 1 (Top Set) se registra al fallo absoluto (RIR === 0 / RPE === 10),
+ * calcula automáticamente un Back-off Set (-12.5% de peso) apuntando al techo
+ * del rango (+1 o +2 reps respecto al Top Set).
  */
-export function suggestNextSetFromToday(completedToday, { lo = 8, hi = 12, increment = 2.5, phase = null } = {}) {
+export function suggestNextSetFromToday(completedToday, optsOrTargetReps = {}, legacyIncrement = 2.5, legacyPhase = null) {
     if (!completedToday || completedToday.length === 0) return null;
+
+    let lo = 8, hi = 12, increment = 2.5, phase = null;
+    if (typeof optsOrTargetReps === 'string') {
+        const parsed = parseRepRange(optsOrTargetReps);
+        lo = parsed.lo;
+        hi = parsed.hi;
+        increment = typeof legacyIncrement === 'number' ? legacyIncrement : 2.5;
+        phase = (legacyPhase && typeof legacyPhase === 'object') ? (legacyPhase.phase ?? null) : (legacyPhase ?? null);
+    } else if (optsOrTargetReps && typeof optsOrTargetReps === 'object') {
+        lo = optsOrTargetReps.lo ?? 8;
+        hi = optsOrTargetReps.hi ?? 12;
+        increment = optsOrTargetReps.increment ?? 2.5;
+        phase = optsOrTargetReps.phase ?? null;
+    }
 
     const sets = completedToday
         .map(s => ({
@@ -170,7 +206,6 @@ export function suggestNextSetFromToday(completedToday, { lo = 8, hi = 12, incre
     const last = sets[sets.length - 1];
     const first = sets[0];
     const minRir = Math.min(...sets.map(s => s.rir));
-    const minReps = Math.min(...sets.map(s => s.reps));
     const avgRir = sets.reduce((a, s) => a + s.rir, 0) / sets.length;
     const rirDrop = first.rir - last.rir;
     const repDrop = first.reps - last.reps;
@@ -179,11 +214,19 @@ export function suggestNextSetFromToday(completedToday, { lo = 8, hi = 12, incre
     let reps = last.reps;
     let rationale;
 
-    const groundOut = minRir <= 0 || last.rir <= 0;
-    const failedFloor = last.reps < adjLo || minReps < adjLo;
-
-    if (groundOut || failedFloor) {
-        // Puede bajar: un incremento (o 0.5 kg si el incremento no mueve la rejilla)
+    if (sets.length === 1 && first.rir <= 0) {
+        // Serie 1 (Top Set) al fallo absoluto (RIR 0 / RPE 10) → Back-off Set (-12.5%, entre 10-15%)
+        const rawBackoff = first.weight * 0.875;
+        const roundedBackoff = roundWorkoutWeight(rawBackoff, increment, first.weight);
+        weight = roundedBackoff < first.weight
+            ? Math.max(increment > 0 ? increment : 0.5, roundedBackoff)
+            : roundWorkoutWeight(Math.max(0.5, first.weight - Math.max(increment, 0.5)), increment, first.weight);
+        reps = first.reps < adjHi
+            ? Math.min(adjHi, Math.max(adjLo, first.reps + 2))
+            : first.reps + 1;
+        rationale = `Top Set al fallo (RIR 0) → Back-off Set (-12.5%): ${weight} kg × ${reps} reps.`;
+    } else if (last.rir <= 0 || last.reps < adjLo) {
+        // Serie subsecuente al fallo o por debajo del suelo del rango: baja un incremento
         const stepped = roundWorkoutWeight(
             Math.max(0, last.weight - increment),
             increment,
@@ -193,8 +236,8 @@ export function suggestNextSetFromToday(completedToday, { lo = 8, hi = 12, incre
             ? Math.max(increment > 0 ? increment : 0.5, stepped)
             : roundWorkoutWeight(Math.max(0.5, last.weight - Math.max(increment, 0.5)), increment, last.weight);
         reps = Math.min(adjHi, Math.max(adjLo, last.reps));
-        rationale = groundOut
-            ? `Hoy RIR ${minRir} en alguna serie → baja a ${weight} kg × ${reps}.`
+        rationale = last.rir <= 0
+            ? `Hoy RIR ${last.rir} en alguna serie → baja a ${weight} kg × ${reps}.`
             : `Reps bajo el rango ${adjLo}–${adjHi} → baja a ${weight} kg × ${reps}.`;
     } else if (last.rir === 1 || rirDrop >= 2 || (repDrop >= 2 && last.rir <= 2)) {
         // Fatiga: mismo peso, no empujar reps

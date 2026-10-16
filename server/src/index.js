@@ -12,7 +12,7 @@ import webpush from 'web-push';
 import { v2 as cloudinary } from 'cloudinary';
 import { isSameExercise, groupHistoryByExercise, bestOneRepMaxForTarget, epley1RM } from './utils/exerciseName.js';
 import { deduplicateExercises } from './services/exerciseAgent.js';
-import { uploadBackup, pruneOldBackups } from './services/backupService.js';
+import { uploadBackup, pruneOldBackups, normalizeBackupBodyLog } from './services/backupService.js';
 import { planToday } from './services/aiRoutineService.js';
 import { chooseExercisesForDay } from './services/aiRoutineAgent.js';
 import { EXERCISE_CATALOG } from './data/exerciseCatalog.js';
@@ -24,7 +24,8 @@ import {
     computeWorkoutSuggestion, suggestNextSetFromToday, roundWorkoutWeight, detectPlateauForExercise,
     resolveWeightIncrement, parseRepRange, effectiveWorkoutSet,
     parseCdmxDateRangeQuery, sanitizeSets, sanitizeShortcutLogSet, sanitizeWorkoutLogBody,
-    findRoutineDayForWeekday, scheduledRestWeekdays, resolveIncomingWeekday, validateRoutineDayWeekdays
+    findRoutineDayForWeekday, scheduledRestWeekdays, resolveIncomingWeekday, validateRoutineDayWeekdays,
+    inferWeekdayFromName, evaluateCreatineReminderStage
 } from './logic.js';
 
 // Cache HTTP privado (auth) — datos de un solo usuario, se invalidan al mutar
@@ -541,6 +542,73 @@ async function checkReengagementReminders() {
 setInterval(checkReengagementReminders, 30 * 60 * 1000).unref?.();
 
 // ============================================
+// RECORDATORIOS ESCALONADOS DE CREATINA (Web Push en America/Mexico_City)
+// Evalúa cada 15 minutos la hora local CDMX para usuarios con creatineReminderEnabled:
+//  1. Aviso Base (hora configurada, ej. 16:00 CDMX)
+//  2. Aviso +3 hrs (ej. 19:00 CDMX)
+//  3. Última Llamada (23:00 CDMX)
+// ============================================
+async function checkCreatineReminders() {
+    if (!VAPID_CONFIGURED) return;
+    try {
+        const now = new Date();
+        const todayBounds = mexicoCityDayBounds(now);
+
+        const users = await prisma.user.findMany({
+            where: { isActive: true, creatineReminderEnabled: true },
+            select: {
+                id: true,
+                creatineReminderTime: true,
+                lastCreatineReminderDate: true,
+                lastCreatineReminderStage: true
+            }
+        });
+
+        for (const user of users) {
+            const todayLogs = await prisma.bodyLog.findMany({
+                where: {
+                    userId: user.id,
+                    date: { gte: todayBounds.start, lt: todayBounds.end }
+                },
+                select: { creatineTaken: true }
+            });
+
+            if (todayLogs.some(b => !!b.creatineTaken)) {
+                continue; // Ya registró su creatina hoy en CDMX
+            }
+
+            const nextReminder = evaluateCreatineReminderStage(
+                now,
+                user.creatineReminderTime || '16:00',
+                user.lastCreatineReminderDate,
+                user.lastCreatineReminderStage
+            );
+            if (!nextReminder) continue;
+
+            const sent = await sendPushToUser(user.id, JSON.stringify({
+                title: nextReminder.title,
+                body: nextReminder.body,
+                tag: nextReminder.tag,
+                type: 'creatine',
+                url: nextReminder.url || '/'
+            }));
+            if (sent === 0) continue;
+
+            await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    lastCreatineReminderDate: nextReminder.dateStr,
+                    lastCreatineReminderStage: nextReminder.stage
+                }
+            });
+        }
+    } catch (err) {
+        console.error('Error checking creatine reminders:', err.message);
+    }
+}
+setInterval(checkCreatineReminders, 15 * 60 * 1000).unref?.();
+
+// ============================================
 // DESCARGA ADAPTATIVA — combina volumen semanal a la baja + varios ejercicios en
 // plateau a la vez para activar (Routine.adaptiveDeloadUntil) una reducción
 // automática de la sugerencia de peso. Solo aplica a rutinas SIN un bloque de fase
@@ -626,19 +694,10 @@ async function checkAdaptiveDeloadForAllUsers() {
 setInterval(checkAdaptiveDeloadForAllUsers, 24 * 60 * 60 * 1000).unref?.();
 
 // ============================================
-// BACKUP AUTOMÁTICO DIARIO (P0 del plan de mejoras) — corre ~04:00 CDMX. Exporta
-// TODO el historial de entrenamiento del usuario (rutinas+días+ejercicios+bloques,
-// logs+series, PRs, body logs, goals, descansos registrados) a JSON y lo sube a
-// Cloudinary como recurso `raw`+`authenticated` (NO público — a diferencia de las
-// fotos, este JSON no necesita servirse directo y contiene datos personales como
-// peso/composición corporal). No-op si Cloudinary no está configurado, mismo
-// criterio que uploadPhoto()/VAPID. Deliberadamente NO incluye
-// passwordHash/securityAnswerHash: ese JSON queda en un CDN de terceros y esos
-// campos no hacen falta para recuperar el historial de entrenamiento, que es el
-// activo irreemplazable que este backup protege.
+// BACKUP AUTOMÁTICO DIARIO (P0 del plan de mejoras) — corre ~04:00 CDMX.
 // ============================================
 async function buildBackupData(userId) {
-    const [user, routines, workoutLogs, bodyLogs, personalRecords, goals, restLogs, cardioSessions] = await Promise.all([
+    const [user, routines, workoutLogs, bodyLogs, personalRecords, goals, restLogs] = await Promise.all([
         prisma.user.findUnique({
             where: { id: userId },
             select: { id: true, username: true, email: true, firstName: true, lastName: true, phone: true, birthDate: true, createdAt: true }
@@ -659,12 +718,7 @@ async function buildBackupData(userId) {
         prisma.bodyLog.findMany({ where: { userId }, orderBy: { date: 'asc' } }),
         prisma.personalRecord.findMany({ where: { userId }, orderBy: { date: 'asc' } }),
         prisma.goal.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
-        prisma.restLog.findMany({ where: { userId }, orderBy: { date: 'asc' } }),
-        prisma.cardioSession.findMany({
-            where: { userId },
-            include: { segments: { orderBy: { order: 'asc' } } },
-            orderBy: { date: 'asc' }
-        })
+        prisma.restLog.findMany({ where: { userId }, orderBy: { date: 'asc' } })
     ]);
 
     return {
@@ -676,8 +730,7 @@ async function buildBackupData(userId) {
         bodyLogs,
         personalRecords,
         goals,
-        restLogs,
-        cardioSessions
+        restLogs
     };
 }
 
@@ -710,10 +763,6 @@ async function runDailyBackup() {
     return { skipped: false, results };
 }
 
-// Igual que checkReengagementReminders: se revisa cada 30 min y se dispara una
-// sola vez por día (CDMX), la primera vez que la hora local cruza las 4am. Un
-// reinicio del server dentro de esa misma hora puede repetir la corrida (el guard
-// es en memoria, no en DB) — inofensivo, la retención de 14 se autocorrige.
 let lastBackupRunDateStr = null;
 async function maybeRunDailyBackup() {
     const now = new Date();
@@ -725,8 +774,6 @@ async function maybeRunDailyBackup() {
 }
 setInterval(maybeRunDailyBackup, 30 * 60 * 1000).unref?.();
 
-// Disparo manual (botón futuro en Settings, y forma de verificar esta feature sin
-// esperar a las 4am) — corre solo para el usuario autenticado, nunca para todos.
 app.post('/api/backup/run', authMiddleware, async (req, res) => {
     if (!CLOUDINARY_CONFIGURED) {
         return res.status(503).json({ error: 'Backup no configurado: faltan credenciales de Cloudinary' });
@@ -739,6 +786,253 @@ app.post('/api/backup/run', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Error en backup manual:', error.message);
         res.status(500).json({ error: 'Failed to run backup' });
+    }
+});
+
+// Importa datos completos desde un JSON de backup (v2.7.0+ de Settings.jsx o backup de Cloudinary),
+// restaurando bodyLogs (con creatineTaken, dietCompliant, zeroLiquidCalories), routines, workouts/workoutLogs y personalRecords.
+app.post('/api/backup/import', authMiddleware, async (req, res) => {
+    try {
+        const payload = req.body || {};
+        const userId = req.userId;
+
+        const rawBodyLogs = Array.isArray(payload.bodyLogs) ? payload.bodyLogs : [];
+        const rawRoutines = Array.isArray(payload.routines) ? payload.routines : [];
+        const rawWorkouts = Array.isArray(payload.workouts)
+            ? payload.workouts
+            : (Array.isArray(payload.workoutLogs) ? payload.workoutLogs : []);
+        const rawPRs = Array.isArray(payload.personalRecords) ? payload.personalRecords : [];
+
+        let bodyLogsImported = 0;
+        let routinesImported = 0;
+        let workoutsImported = 0;
+        let prsImported = 0;
+
+        // 1. Restaurar BodyLogs (validando propiedad userId en caso de ID explícito)
+        for (const raw of rawBodyLogs) {
+            const norm = normalizeBackupBodyLog(raw);
+            const { id: rawId, ...normData } = norm;
+
+            let ownedExisting = null;
+            if (rawId) {
+                ownedExisting = await prisma.bodyLog.findFirst({
+                    where: { id: rawId, userId }
+                });
+            }
+
+            if (ownedExisting) {
+                await prisma.bodyLog.update({
+                    where: { id: ownedExisting.id },
+                    data: {
+                        weight: normData.weight ?? ownedExisting.weight,
+                        bmi: normData.bmi ?? ownedExisting.bmi,
+                        bodyFat: normData.bodyFat ?? ownedExisting.bodyFat,
+                        muscleMass: normData.muscleMass ?? ownedExisting.muscleMass,
+                        note: normData.note ?? ownedExisting.note,
+                        creatineTaken: normData.creatineTaken || Boolean(ownedExisting.creatineTaken),
+                        dietCompliant: normData.dietCompliant || Boolean(ownedExisting.dietCompliant),
+                        zeroLiquidCalories: normData.zeroLiquidCalories || Boolean(ownedExisting.zeroLiquidCalories)
+                    }
+                });
+            } else {
+                const dayBounds = mexicoCityDayBounds(normData.date);
+                const existingSameDay = await prisma.bodyLog.findFirst({
+                    where: {
+                        userId,
+                        date: { gte: dayBounds.start, lt: dayBounds.end }
+                    },
+                    orderBy: { date: 'desc' }
+                });
+                if (existingSameDay) {
+                    await prisma.bodyLog.update({
+                        where: { id: existingSameDay.id },
+                        data: {
+                            weight: normData.weight ?? existingSameDay.weight,
+                            bmi: normData.bmi ?? existingSameDay.bmi,
+                            bodyFat: normData.bodyFat ?? existingSameDay.bodyFat,
+                            muscleMass: normData.muscleMass ?? existingSameDay.muscleMass,
+                            note: normData.note ?? existingSameDay.note,
+                            creatineTaken: normData.creatineTaken || Boolean(existingSameDay.creatineTaken),
+                            dietCompliant: normData.dietCompliant || Boolean(existingSameDay.dietCompliant),
+                            zeroLiquidCalories: normData.zeroLiquidCalories || Boolean(existingSameDay.zeroLiquidCalories)
+                        }
+                    });
+                } else {
+                    await prisma.bodyLog.create({
+                        data: { ...normData, userId }
+                    });
+                }
+            }
+            bodyLogsImported++;
+        }
+
+        // 2. Restaurar Rutinas (si no existen ya con el mismo nombre para este usuario)
+        for (const r of rawRoutines) {
+            if (!r?.name || r.name === 'ARCHIVED_HISTORY_DO_NOT_DELETE') continue;
+            const existingRoutine = await prisma.routine.findFirst({
+                where: { userId, name: { equals: String(r.name).trim(), mode: 'insensitive' } }
+            });
+            if (existingRoutine) continue;
+
+            const days = Array.isArray(r.days) ? r.days : [];
+            const usedWeekdays = new Set();
+            const createdDays = days.map((d, idx) => {
+                let wk = resolveIncomingWeekday(d);
+                if (wk == null || usedWeekdays.has(wk)) wk = null;
+                else usedWeekdays.add(wk);
+                return {
+                    dayName: d.dayName || `Día ${idx + 1}`,
+                    isRestDay: Boolean(d.isRestDay),
+                    weekday: wk,
+                    order: typeof d.order === 'number' ? d.order : idx,
+                    exercises: {
+                        create: (Array.isArray(d.exercises) ? d.exercises : []).map((ex, exIdx) => ({
+                            name: String(ex.name || 'Ejercicio').trim(),
+                            muscleGroup: ex.muscleGroup || null,
+                            targetSets: Math.max(1, parseInt(ex.targetSets, 10) || 3),
+                            targetReps: String(ex.targetReps || '8-12'),
+                            restSeconds: ex.restSeconds ? parseInt(ex.restSeconds, 10) : null,
+                            isUnilateral: Boolean(ex.isUnilateral),
+                            note: ex.note || null,
+                            order: typeof ex.order === 'number' ? ex.order : exIdx
+                        }))
+                    }
+                };
+            });
+
+            await prisma.routine.create({
+                data: {
+                    userId,
+                    name: String(r.name).trim(),
+                    description: r.description || null,
+                    isActive: false,
+                    days: { create: createdDays }
+                }
+            });
+            routinesImported++;
+        }
+
+        // 3. Restaurar Workouts / WorkoutLogs
+        if (rawWorkouts.length > 0) {
+            const binDayId = await getRecycleBinDay(userId);
+            const userExercises = await prisma.exercise.findMany({
+                where: { routineDay: { routine: { userId } } },
+                select: { id: true, name: true }
+            });
+            const exerciseById = new Map(userExercises.map(e => [e.id, e]));
+            const exerciseByName = new Map(userExercises.map(e => [e.name.toLowerCase(), e]));
+
+            for (const w of rawWorkouts) {
+                const rawSets = Array.isArray(w?.sets) ? w.sets : [];
+                if (rawSets.length === 0) continue;
+
+                let targetExercise = (w.exerciseId && exerciseById.get(w.exerciseId)) || null;
+                const exName = String(w.exerciseName || w.exercise?.name || '').trim();
+                if (!targetExercise && exName) {
+                    targetExercise = exerciseByName.get(exName.toLowerCase()) || null;
+                }
+                if (!targetExercise && exName) {
+                    targetExercise = await prisma.exercise.create({
+                        data: {
+                            routineDayId: binDayId,
+                            name: exName,
+                            targetSets: 3,
+                            targetReps: '8-12',
+                            order: 0
+                        }
+                    });
+                    exerciseById.set(targetExercise.id, targetExercise);
+                    exerciseByName.set(exName.toLowerCase(), targetExercise);
+                }
+                if (!targetExercise) continue;
+
+                const logDate = w.date ? new Date(w.date) : new Date();
+                if (Number.isNaN(logDate.getTime())) continue;
+
+                const duplicateLog = await prisma.workoutLog.findFirst({
+                    where: {
+                        exerciseId: targetExercise.id,
+                        date: logDate
+                    }
+                });
+                if (duplicateLog) continue;
+
+                const validSets = rawSets
+                    .map((s, idx) => ({
+                        setNumber: s.setNumber || idx + 1,
+                        weight: Math.max(0, parseFloat(s.weight) || 0),
+                        reps: Math.max(0, parseInt(s.reps, 10) || 0),
+                        rpe: s.rpe != null && s.rpe !== '' ? parseFloat(s.rpe) : 10,
+                        weightRight: s.weightRight != null && s.weightRight !== '' ? parseFloat(s.weightRight) : null,
+                        repsRight: s.repsRight != null && s.repsRight !== '' ? parseInt(s.repsRight, 10) : null,
+                        completed: s.completed !== false
+                    }))
+                    .filter(s => s.weight > 0 && s.reps > 0);
+
+                if (validSets.length === 0) continue;
+
+                await prisma.workoutLog.create({
+                    data: {
+                        exerciseId: targetExercise.id,
+                        date: logDate,
+                        notes: w.notes || null,
+                        sets: { create: validSets }
+                    }
+                });
+                workoutsImported++;
+            }
+        }
+
+        // 4. Restaurar PersonalRecords
+        for (const pr of rawPRs) {
+            const exName = String(pr?.exerciseName || '').trim().toLowerCase();
+            const weight = parseFloat(pr?.weight);
+            const reps = parseInt(pr?.reps, 10);
+            if (!exName || !Number.isFinite(weight) || weight <= 0 || !Number.isInteger(reps) || reps <= 0) continue;
+            const est = pr.estimated1RM != null && Number.isFinite(parseFloat(pr.estimated1RM))
+                ? parseFloat(pr.estimated1RM)
+                : ((reps > 1 && reps < 37) ? weight * (1 + reps / 30) : weight);
+
+            const existingPR = await prisma.personalRecord.findFirst({
+                where: { userId, exerciseName: exName }
+            });
+            if (!existingPR) {
+                await prisma.personalRecord.create({
+                    data: {
+                        userId,
+                        exerciseName: exName,
+                        weight,
+                        reps,
+                        estimated1RM: est,
+                        date: pr.date ? new Date(pr.date) : new Date()
+                    }
+                });
+                prsImported++;
+            } else if (est > (existingPR.estimated1RM || 0)) {
+                await prisma.personalRecord.update({
+                    where: { id: existingPR.id },
+                    data: {
+                        weight,
+                        reps,
+                        estimated1RM: est,
+                        date: pr.date ? new Date(pr.date) : existingPR.date
+                    }
+                });
+                prsImported++;
+            }
+        }
+
+        res.json({
+            ok: true,
+            bodyLogsImported,
+            importedBodyLogs: bodyLogsImported,
+            workoutsImported,
+            routinesImported,
+            prsImported
+        });
+    } catch (error) {
+        console.error('Error importing backup JSON:', error);
+        res.status(500).json({ error: 'Error al importar el archivo de backup' });
     }
 });
 
@@ -938,7 +1232,19 @@ app.post('/api/auth/login', rateLimit(), async (req, res) => {
 
         const token = jwt.sign({ userId: user.id, tokenVersion: user.tokenVersion }, JWT_SECRET, { expiresIn: '365d' });
         res.json({
-            user: { id: user.id, username: user.username, email: user.email, firstName: user.firstName, lastName: user.lastName, phone: user.phone, birthDate: user.birthDate, avatarUrl: user.avatarUrl, createdAt: user.createdAt },
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                phone: user.phone,
+                birthDate: user.birthDate,
+                avatarUrl: user.avatarUrl,
+                creatineReminderEnabled: user.creatineReminderEnabled,
+                creatineReminderTime: user.creatineReminderTime,
+                createdAt: user.createdAt
+            },
             token
         });
     } catch (error) {
@@ -955,6 +1261,7 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
             select: {
                 id: true, username: true, email: true, firstName: true, lastName: true,
                 phone: true, birthDate: true, avatarUrl: true, securityQuestion: true,
+                creatineReminderEnabled: true, creatineReminderTime: true,
                 createdAt: true, lastLogin: true,
                 _count: { select: { routines: true, bodyLogs: true, personalRecords: true } }
             }
@@ -2391,183 +2698,6 @@ app.post('/api/workouts/log-rest', authMiddleware, async (req, res) => {
     }
 });
 
-// ============================================
-// CARDIO — sesiones por tramos (min + inclinación), no series de fuerza
-// ============================================
-const CARDIO_ACTIVITIES = new Set(['caminadora', 'bici', 'eliptica', 'otro']);
-
-function sanitizeCardioSegments(raw) {
-    if (!Array.isArray(raw) || raw.length === 0) {
-        return { error: 'Agrega al menos un tramo (minutos)' };
-    }
-    if (raw.length > 40) return { error: 'Demasiados tramos (máx. 40)' };
-    const segments = [];
-    for (let i = 0; i < raw.length; i++) {
-        const s = raw[i] || {};
-        const durationMin = parseFloat(s.durationMin);
-        if (!Number.isFinite(durationMin) || durationMin <= 0 || durationMin > 600) {
-            return { error: `Tramo ${i + 1}: minutos inválidos (0–600)` };
-        }
-        let incline = null;
-        if (s.incline != null && s.incline !== '') {
-            const inc = parseFloat(s.incline);
-            if (!Number.isFinite(inc) || inc < 0 || inc > 40) {
-                return { error: `Tramo ${i + 1}: inclinación inválida (0–40)` };
-            }
-            incline = inc;
-        }
-        // Velocidad obligatoria (km/h) — lo que muestra la máquina
-        const sp = parseFloat(s.speed);
-        if (!Number.isFinite(sp) || sp <= 0 || sp > 50) {
-            return { error: `Tramo ${i + 1}: velocidad obligatoria (km/h, mayor a 0)` };
-        }
-        const speed = sp;
-        segments.push({
-            order: i,
-            durationMin,
-            incline,
-            speed,
-            note: s.note != null ? String(s.note).slice(0, 200) : null
-        });
-    }
-    return { segments };
-}
-
-/** calories opcionales: null / omitido, o entero 1–10000 (kcal de la sesión). */
-function sanitizeCardioCalories(raw) {
-    if (raw === undefined || raw === null || raw === '') return { calories: null };
-    const n = typeof raw === 'number' ? raw : parseInt(String(raw).trim(), 10);
-    if (!Number.isFinite(n) || n < 0 || n > 10000) {
-        return { error: 'Calorías inválidas (0–10000 kcal)' };
-    }
-    return { calories: Math.round(n) };
-}
-
-function mapCardioSession(session) {
-    if (!session) return null;
-    const segments = session.segments || [];
-    const totalMin = segments.reduce((a, s) => a + (s.durationMin || 0), 0);
-    return {
-        ...session,
-        totalMin: Math.round(totalMin * 10) / 10,
-        segmentCount: segments.length
-    };
-}
-
-// GET /api/cardio — historial (más recientes primero)
-app.get('/api/cardio', authMiddleware, async (req, res) => {
-    try {
-        // 500 alinea con history export; default 30
-        const take = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 1), 500);
-        const sessions = await prisma.cardioSession.findMany({
-            where: { userId: req.userId },
-            include: { segments: { orderBy: { order: 'asc' } } },
-            orderBy: { date: 'desc' },
-            take
-        });
-        setPrivateCache(res, 15);
-        res.json(sessions.map(mapCardioSession));
-    } catch (error) {
-        console.error('Error listing cardio:', error);
-        res.status(500).json({ error: 'Failed to list cardio' });
-    }
-});
-
-// POST /api/cardio — nueva sesión con tramos
-app.post('/api/cardio', authMiddleware, async (req, res) => {
-    try {
-        const activityRaw = String(req.body.activity || 'caminadora').toLowerCase();
-        const activity = CARDIO_ACTIVITIES.has(activityRaw) ? activityRaw : 'caminadora';
-        const note = req.body.note != null ? String(req.body.note).slice(0, 500) : null;
-        const { segments, error } = sanitizeCardioSegments(req.body.segments);
-        if (error) return res.status(400).json({ error });
-        const cal = sanitizeCardioCalories(req.body.calories);
-        if (cal.error) return res.status(400).json({ error: cal.error });
-
-        // Fecha: opcional YYYY-MM-DD (día CDMX); default = ahora
-        let date = new Date();
-        if (req.body.date && /^\d{4}-\d{2}-\d{2}$/.test(req.body.date)) {
-            date = mexicoCityDayBounds(new Date(`${req.body.date}T12:00:00Z`)).start;
-            // Guardar a mediodía CDMX approx para que el día calendario sea claro
-            date = new Date(date.getTime() + 12 * 60 * 60 * 1000);
-        }
-
-        const session = await prisma.cardioSession.create({
-            data: {
-                userId: req.userId,
-                activity,
-                note,
-                calories: cal.calories,
-                date,
-                segments: { create: segments }
-            },
-            include: { segments: { orderBy: { order: 'asc' } } }
-        });
-        res.status(201).json(mapCardioSession(session));
-    } catch (error) {
-        console.error('Error creating cardio:', error);
-        res.status(500).json({ error: 'Failed to create cardio session' });
-    }
-});
-
-// PUT /api/cardio/:id — reemplaza tramos / nota / activity / calories
-app.put('/api/cardio/:id', authMiddleware, async (req, res) => {
-    try {
-        const existing = await prisma.cardioSession.findFirst({
-            where: { id: req.params.id, userId: req.userId }
-        });
-        if (!existing) return res.status(404).json({ error: 'Sesión no encontrada' });
-
-        const activityRaw = String(req.body.activity || existing.activity).toLowerCase();
-        const activity = CARDIO_ACTIVITIES.has(activityRaw) ? activityRaw : existing.activity;
-        const note = req.body.note !== undefined
-            ? (req.body.note != null ? String(req.body.note).slice(0, 500) : null)
-            : existing.note;
-        const { segments, error } = sanitizeCardioSegments(req.body.segments);
-        if (error) return res.status(400).json({ error });
-
-        let calories = existing.calories;
-        if (req.body.calories !== undefined) {
-            const cal = sanitizeCardioCalories(req.body.calories);
-            if (cal.error) return res.status(400).json({ error: cal.error });
-            calories = cal.calories;
-        }
-
-        const session = await prisma.$transaction(async (tx) => {
-            await tx.cardioSegment.deleteMany({ where: { sessionId: existing.id } });
-            return tx.cardioSession.update({
-                where: { id: existing.id },
-                data: {
-                    activity,
-                    note,
-                    calories,
-                    segments: { create: segments }
-                },
-                include: { segments: { orderBy: { order: 'asc' } } }
-            });
-        });
-        res.json(mapCardioSession(session));
-    } catch (error) {
-        console.error('Error updating cardio:', error);
-        res.status(500).json({ error: 'Failed to update cardio session' });
-    }
-});
-
-// DELETE /api/cardio/:id
-app.delete('/api/cardio/:id', authMiddleware, async (req, res) => {
-    try {
-        const existing = await prisma.cardioSession.findFirst({
-            where: { id: req.params.id, userId: req.userId }
-        });
-        if (!existing) return res.status(404).json({ error: 'Sesión no encontrada' });
-        await prisma.cardioSession.delete({ where: { id: existing.id } });
-        res.json({ ok: true });
-    } catch (error) {
-        console.error('Error deleting cardio:', error);
-        res.status(500).json({ error: 'Failed to delete cardio session' });
-    }
-});
-
 // GET /api/workouts/history - Get workout history with filters
 // Payload optimizado: select explícito (antes exercise:true + SetLog completo
 // hinchaba history(500) ~250KB). Solo campos que usan plateau/goals/PDF/Settings.
@@ -2781,7 +2911,10 @@ function baseShortcutResponse() {
         isUnilateral: null,
         suggestedWeight: null,
         suggestedReps: null,
-        rationale: null
+        rationale: null,
+        isDeload: false,
+        phase: null,
+        source: null
     };
 }
 
@@ -2821,11 +2954,15 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
             const profile = await prisma.trainingProfile.findUnique({ where: { userId: req.userId } });
             todayRoutineDay = profile ? await resolveOrGenerateAiRoutineDay(routine, profile) : null;
         } else {
-            todayRoutineDay = findRoutineDayForWeekday(routine.days, mexicoCityDayOfWeek(targetDate));
+            const targetWeekday = mexicoCityDayOfWeek(targetDate);
+            todayRoutineDay = findRoutineDayForWeekday(routine.days, targetWeekday);
+            if (!todayRoutineDay && Array.isArray(routine.days)) {
+                todayRoutineDay = routine.days.find(d => inferWeekdayFromName(d.dayName) === targetWeekday) || null;
+            }
         }
 
         if (!todayRoutineDay || todayRoutineDay.isRestDay) {
-            return res.json({ ...baseShortcutResponse(), isRestDay: true, dayName: todayName });
+            return res.json({ ...baseShortcutResponse(), isRestDay: true, dayName: todayName, isDeload: phaseStatus.isDeload, phase: phaseStatus.phase });
         }
 
         const exerciseIds = todayRoutineDay.exercises.map(e => e.id);
@@ -2845,7 +2982,7 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
         );
 
         if (!nextExercise) {
-            return res.json({ ...baseShortcutResponse(), dayName: todayRoutineDay.dayName, dayComplete: true });
+            return res.json({ ...baseShortcutResponse(), dayName: todayRoutineDay.dayName, dayComplete: true, isDeload: phaseStatus.isDeload, phase: phaseStatus.phase });
         }
 
         const setsLoggedToday = loggedCountByExercise[nextExercise.id] || 0;
@@ -2875,7 +3012,8 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
             restSeconds: nextExercise.restSeconds,
             isUnilateral: nextExercise.isUnilateral,
             isDeload: phaseStatus.isDeload,
-            phase: phaseStatus.phase
+            phase: phaseStatus.phase,
+            source: 'none'
         };
 
         const increment = resolveWeightIncrement(nextExercise.muscleGroup, nextExercise.name);
@@ -2909,7 +3047,7 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
             : history;
 
         if (historyForInter.length === 0 && history.length === 0) {
-            return res.json({ ...base, rationale: 'sin historial' });
+            return res.json({ ...base, rationale: 'sin historial', source: 'none' });
         }
 
         const suggestion = computeWorkoutSuggestion(
@@ -2920,7 +3058,7 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
         );
 
         if (!suggestion) {
-            return res.json({ ...base, rationale: 'sin historial' });
+            return res.json({ ...base, rationale: 'sin historial', source: 'none' });
         }
 
         // Descarga: reduce el peso sugerido ~10% (misma rejilla de redondeo que la
@@ -2948,7 +3086,8 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
             ...base,
             suggestedWeight,
             suggestedReps: suggestion.reps,
-            rationale: suggestion.rationale
+            rationale: suggestion.rationale,
+            source: 'inter'
         });
     } catch (error) {
         console.error('Error resolving next-set:', error);
@@ -2962,13 +3101,20 @@ app.get('/api/shortcuts/next-set', authMiddleware, async (req, res) => {
 // WorkoutLog cuando el Atajo llama varias veces seguidas).
 app.post('/api/shortcuts/log-set', authMiddleware, async (req, res) => {
     try {
-        // RIR crudo obligatorio (0-4) bajo `rpe` → convertShortcutRir → 10-RIR en DB
+        // Acepta rpe o rir indistintamente (si vienen vacíos, fallback a rir: 0 / rpe: 10)
         const parsed = sanitizeShortcutLogSet(req.body);
         if (parsed.error) return res.status(400).json({ error: parsed.error });
         const { exerciseId, set: cleanSet } = parsed.clean;
 
         const exercise = await prisma.exercise.findFirst({
-            where: { id: exerciseId, routineDay: { routine: { userId: req.userId } } }
+            where: { id: exerciseId, routineDay: { routine: { userId: req.userId } } },
+            include: {
+                routineDay: {
+                    include: {
+                        exercises: { orderBy: { order: 'asc' } }
+                    }
+                }
+            }
         });
         if (!exercise) {
             return res.status(404).json({ error: 'Exercise not found or unauthorized' });
@@ -3034,13 +3180,23 @@ app.post('/api/shortcuts/log-set', authMiddleware, async (req, res) => {
         });
 
         await recalcPRForExercise(exercise.name, req.userId);
-        scheduleRestReminder(req.userId, exercise);
+
+        let nextExerciseName = null;
+        const dayExercises = exercise.routineDay?.exercises || [];
+        if (workoutLog.sets.length >= exercise.targetSets && dayExercises.length > 0) {
+            const currentIdx = dayExercises.findIndex(e => e.id === exercise.id);
+            if (currentIdx >= 0 && currentIdx + 1 < dayExercises.length) {
+                nextExerciseName = dayExercises[currentIdx + 1].name;
+            }
+        }
+        scheduleRestReminder(req.userId, exercise, nextExerciseName);
 
         res.status(201).json({
             message: 'Set logged successfully!',
             workoutLog,
             setsLoggedToday: workoutLog.sets.length,
-            targetSets: exercise.targetSets
+            targetSets: exercise.targetSets,
+            nextExerciseName
         });
     } catch (error) {
         console.error('Error logging set via shortcut:', error);
@@ -3123,6 +3279,59 @@ app.delete('/api/push/subscribe', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Error deleting push subscription:', error);
         res.status(500).json({ error: 'Failed to delete subscription' });
+    }
+});
+
+// PUT /api/push/creatine-reminder - Actualiza preferencias de recordatorios de creatina
+app.put('/api/push/creatine-reminder', authMiddleware, async (req, res) => {
+    try {
+        const { enabled, time } = req.body || {};
+        const data = {};
+        if (typeof enabled === 'boolean') data.creatineReminderEnabled = enabled;
+        if (typeof time === 'string' && /^\d{1,2}:\d{2}$/.test(time.trim())) {
+            const [hh, mm] = time.trim().split(':').map(Number);
+            if (hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59) {
+                data.creatineReminderTime = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+                // Reiniciar el estado del día para permitir reevaluar con la nueva hora
+                data.lastCreatineReminderStage = 0;
+            }
+        }
+        const updated = await prisma.user.update({
+            where: { id: req.userId },
+            data,
+            select: {
+                id: true,
+                creatineReminderEnabled: true,
+                creatineReminderTime: true
+            }
+        });
+        res.json(updated);
+    } catch (error) {
+        console.error('Error updating creatine reminder:', error);
+        res.status(500).json({ error: 'Failed to update creatine reminder preferences' });
+    }
+});
+
+// POST /api/push/test-creatine - Envía una notificación Web Push de prueba de creatina
+app.post('/api/push/test-creatine', authMiddleware, async (req, res) => {
+    try {
+        if (!vapidConfigured) {
+            return res.status(400).json({ error: 'VAPID keys no configuradas en el servidor' });
+        }
+        const subs = await prisma.pushSubscription.findMany({ where: { userId: req.userId } });
+        if (subs.length === 0) {
+            return res.status(400).json({ error: 'No hay dispositivos suscritos a notificaciones Push' });
+        }
+        await sendPushToUser(req.userId, {
+            title: 'NexLift — Creatina',
+            body: '⚡ Hora de tu creatina (5g). Márcala en NexLift.',
+            tag: 'creatine-reminder',
+            url: '/?checkin=creatine'
+        });
+        res.json({ ok: true, sentTo: subs.length });
+    } catch (error) {
+        console.error('Error testing creatine push:', error);
+        res.status(500).json({ error: 'Failed to send test push' });
     }
 });
 
@@ -3257,20 +3466,11 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
     try {
         const todayBounds = mexicoCityDayBounds();
         const thirtyDaysAgo = new Date(todayBounds.start.getTime() - 30 * 24 * 60 * 60 * 1000);
-        // La racha se calcula hasta 365 días atrás: hay que cargar esa ventana
-        // completa. Antes solo se pedían 30 días y el bucle de 365 se quedaba
-        // "ciego" al pasar del día 30 (racha artificialmente cortada).
         const yearAgo = new Date(todayBounds.start.getTime() - 365 * 24 * 60 * 60 * 1000);
         const weekAgo = new Date(todayBounds.start.getTime() - 7 * 24 * 60 * 60 * 1000);
         const thirtyDaysAgoStr = mexicoCityDateStr(thirtyDaysAgo);
 
-        // Las 7 consultas son independientes entre sí (ninguna depende del
-        // resultado de otra) — antes corrían en 7 round-trips secuenciales a la
-        // DB; medido contra datos reales (P4 del plan de mejoras), cada
-        // round-trip pesaba ~500-600ms de latencia de red, así que 7 en serie
-        // eran ~3.5-4s. En paralelo, el tiempo total pasa a ser el de la más
-        // lenta de las 7, no la suma.
-        const [totalWorkouts, totalRoutines, totalPRs, recentWorkouts, recentRestLogs, recentCardio, activeRoutine, weekSets] = await Promise.all([
+        const [totalWorkouts, totalRoutines, totalPRs, recentWorkouts, recentRestLogs, activeRoutine, weekSets] = await Promise.all([
             prisma.workoutLog.count({
                 where: { exercise: { routineDay: { routine: { userId: req.userId } } } }
             }),
@@ -3294,10 +3494,6 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
                 },
                 select: { date: true }
             }),
-            prisma.cardioSession.findMany({
-                where: { date: { gte: yearAgo }, userId: req.userId },
-                select: { date: true }
-            }),
             // Active routine: solo isRestDay/weekday para la racha (no ejercicios)
             prisma.routine.findFirst({
                 where: { userId: req.userId, isActive: true },
@@ -3316,25 +3512,21 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
                         exercise: { routineDay: { routine: { userId: req.userId } } }
                     }
                 },
-                select: { weight: true, reps: true }
+                select: { weight: true, reps: true, weightRight: true, repsRight: true }
             })
         ]);
 
-        // Días con actividad (fuerza, descanso logueado o cardio) — día calendario CDMX
+        // Días con actividad real registrada (fuerza o descanso logueado) — día calendario CDMX
         const uniqueDays = new Set([
             ...recentWorkouts.map(w => mexicoCityDateStr(w.date)),
-            ...recentRestLogs.map(r => mexicoCityDateStr(r.date)),
-            ...recentCardio.map(c => mexicoCityDateStr(c.date))
+            ...recentRestLogs.map(r => mexicoCityDateStr(r.date))
         ]);
-        // trainingDaysLast30 sigue siendo "últimos 30 días", aunque la query
-        // traiga un año para la racha.
+
         let trainingDaysLast30 = 0;
         for (const d of uniqueDays) {
             if (d >= thirtyDaysAgoStr) trainingDaysLast30++;
         }
 
-        // Días de la semana que son descanso programado (weekday explícito,
-        // ver scheduledRestWeekdays en logic.js — dayName ya no se parsea).
         const restDaySet = scheduledRestWeekdays(activeRoutine?.days);
 
         // Calculate current streak (up to 365 days)
@@ -3348,16 +3540,16 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
             if (uniqueDays.has(dateStr)) {
                 streak++;
             } else if (restDaySet.has(dayOfWeek)) {
-                // Scheduled rest day - counts as streak continuation
                 streak++;
             } else if (i > 0) {
                 break;
             }
         }
 
-        // Volumen de esta semana — weekSets ya viene del Promise.all de arriba.
         const weeklyVolume = weekSets.reduce((acc, set) => {
-            return acc + (set.weight * set.reps);
+            const leftVol = (set.weight || 0) * (set.reps || 0);
+            const rightVol = (set.weightRight || 0) * (set.repsRight || 0);
+            return acc + leftVol + rightVol;
         }, 0);
 
         setPrivateCache(res, 30);
@@ -3380,9 +3572,7 @@ app.get('/api/stats/consistency', authMiddleware, async (req, res) => {
     try {
         const threeSixtyFiveDaysAgo = new Date(mexicoCityDayBounds().start.getTime() - 365 * 24 * 60 * 60 * 1000);
 
-        // Las 3 consultas son independientes — antes corrían secuenciales (ver
-        // misma nota de latencia en GET /api/stats/overview, P4 del plan de mejoras).
-        const [workouts, restLogs, cardioLogs, activeRoutine] = await Promise.all([
+        const [workouts, restLogs] = await Promise.all([
             prisma.workoutLog.findMany({
                 where: {
                     date: { gte: threeSixtyFiveDaysAgo },
@@ -3396,47 +3586,27 @@ app.get('/api/stats/consistency', authMiddleware, async (req, res) => {
                     userId: req.userId
                 },
                 select: { date: true }
-            }),
-            prisma.cardioSession.findMany({
-                where: { date: { gte: threeSixtyFiveDaysAgo }, userId: req.userId },
-                select: { date: true }
-            }),
-            // Active routine, to identify scheduled rest days
-            prisma.routine.findFirst({
-                where: { userId: req.userId, isActive: true },
-                include: { days: { orderBy: { order: 'asc' } } }
             })
         ]);
 
-        const restDaySet = scheduledRestWeekdays(activeRoutine?.days);
-
-        // Build events list including auto-rest days
         const allEvents = [
             ...workouts.map(w => w.date),
-            ...restLogs.map(r => r.date),
-            ...cardioLogs.map(c => c.date)
+            ...restLogs.map(r => r.date)
         ];
 
-        // Add auto-rest events for scheduled rest days (last 365 days) — día
-        // calendario de CDMX, no UTC (ver HELPERS: Zona horaria)
-        const loggedDates = new Set([
-            ...workouts.map(w => mexicoCityDateStr(w.date)),
-            ...restLogs.map(r => mexicoCityDateStr(r.date)),
-            ...cardioLogs.map(c => mexicoCityDateStr(c.date))
-        ]);
-
-        if (restDaySet.size > 0) {
-            const todayStart = mexicoCityDayBounds().start;
-            for (let i = 0; i < 365; i++) {
-                const checkDate = new Date(todayStart.getTime() - i * 24 * 60 * 60 * 1000);
-                const dateStr = mexicoCityDateStr(checkDate);
-                if (!loggedDates.has(dateStr) && restDaySet.has(dayOfWeekFromDateStr(dateStr))) {
-                    allEvents.push(checkDate);
-                }
-            }
+        const consistencyCounts = {};
+        for (const w of workouts) {
+            const key = mexicoCityDateStr(w.date);
+            consistencyCounts[key] = (consistencyCounts[key] || 0) + 1;
+        }
+        for (const r of restLogs) {
+            const key = mexicoCityDateStr(r.date);
+            if (!consistencyCounts[key]) consistencyCounts[key] = 1;
         }
 
-        res.json({ events: allEvents });
+        const consistencyDays = Object.keys(consistencyCounts).sort();
+
+        res.json({ events: allEvents, consistencyDays, consistencyCounts });
     } catch (error) {
         console.error('Error fetching consistency:', error);
         res.status(500).json({ error: 'Failed to fetch consistency data' });
@@ -3535,11 +3705,11 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
             totalPRs,
             recentWorkouts,
             recentRestLogs,
-            recentCardio,
             weekSets,
             allPRs,
             plateauLogs,
-            activeMeta
+            activeMeta,
+            todayBodyLogs
         ] = await Promise.all([
             prisma.workoutLog.count({ where: exerciseScope }),
             prisma.routine.count({ where: { userId } }),
@@ -3552,15 +3722,11 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
                 where: { date: { gte: yearAgo }, userId },
                 select: { date: true }
             }),
-            prisma.cardioSession.findMany({
-                where: { date: { gte: yearAgo }, userId },
-                select: { date: true }
-            }),
             prisma.setLog.findMany({
                 where: {
                     workoutLog: { date: { gte: weekAgo }, ...exerciseScope }
                 },
-                select: { weight: true, reps: true }
+                select: { weight: true, reps: true, weightRight: true, repsRight: true }
             }),
             prisma.personalRecord.findMany({
                 where: { userId },
@@ -3591,6 +3757,10 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
             prisma.routine.findFirst({
                 where: { userId, isActive: true },
                 select: { id: true, source: true, name: true, adaptiveDeloadUntil: true, lastAdaptiveCheckAt: true }
+            }),
+            prisma.bodyLog.findMany({
+                where: { userId, date: { gte: todayBounds.start, lt: todayBounds.end } },
+                select: { creatineTaken: true, dietCompliant: true, zeroLiquidCalories: true }
             })
         ]);
 
@@ -3638,7 +3808,6 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
                     note: true
                 }
             };
-            // Parent usa `select` → nested también select (no include)
             const daySelect = {
                 select: {
                     id: true,
@@ -3693,26 +3862,22 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
             }
         }
 
-        // Racha + consistency (días como strings CDMX, no Date ISO completos)
+        // Racha + consistency (días con actividad REAL en calendario CDMX, sin inyectar
+        // 365 descansos pasados artificiales)
         const restDaySet = scheduledRestWeekdays(activeRoutine?.days);
 
-        const uniqueDays = new Set([
-            ...recentWorkouts.map(w => mexicoCityDateStr(w.date)),
-            ...recentRestLogs.map(r => mexicoCityDateStr(r.date)),
-            ...recentCardio.map(c => mexicoCityDateStr(c.date))
-        ]);
-
-        // Auto-rest programados en el mapa de constancia
-        const consistencyDays = new Set(uniqueDays);
-        if (restDaySet.size > 0) {
-            for (let i = 0; i < 365; i++) {
-                const checkDate = new Date(todayBounds.start.getTime() - i * 24 * 60 * 60 * 1000);
-                const dateStr = mexicoCityDateStr(checkDate);
-                if (!uniqueDays.has(dateStr) && restDaySet.has(dayOfWeekFromDateStr(dateStr))) {
-                    consistencyDays.add(dateStr);
-                }
-            }
+        const consistencyCounts = {};
+        for (const w of recentWorkouts) {
+            const key = mexicoCityDateStr(w.date);
+            consistencyCounts[key] = (consistencyCounts[key] || 0) + 1;
         }
+        for (const r of recentRestLogs) {
+            const key = mexicoCityDateStr(r.date);
+            if (!consistencyCounts[key]) consistencyCounts[key] = 1;
+        }
+
+        const uniqueDays = new Set(Object.keys(consistencyCounts));
+        const consistencyDays = [...uniqueDays].sort();
 
         let trainingDaysLast30 = 0;
         for (const d of uniqueDays) {
@@ -3729,7 +3894,17 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
             else if (i > 0) break;
         }
 
-        const weeklyVolume = Math.round(weekSets.reduce((acc, s) => acc + (s.weight * s.reps), 0));
+        const weeklyVolume = Math.round(weekSets.reduce((acc, s) => {
+            const leftVol = (s.weight || 0) * (s.reps || 0);
+            const rightVol = (s.weightRight || 0) * (s.repsRight || 0);
+            return acc + leftVol + rightVol;
+        }, 0));
+
+        const todayCheckin = {
+            creatineTaken: todayBodyLogs.some(b => !!b.creatineTaken),
+            dietCompliant: todayBodyLogs.some(b => !!b.dietCompliant),
+            zeroLiquidCalories: todayBodyLogs.some(b => !!b.zeroLiquidCalories)
+        };
 
         setPrivateCache(res, 20);
         res.json({
@@ -3742,14 +3917,15 @@ app.get('/api/stats/home', authMiddleware, async (req, res) => {
                 weeklyVolume,
                 maxPRWeight: prs.reduce((m, p) => Math.max(m, p.weight || 0), 0)
             },
-            // Mapa día→count (más compacto que events[] de ISO timestamps)
-            consistencyDays: [...consistencyDays],
+            consistencyDays,
+            consistencyCounts,
             prs,
             plateauCount,
             activeRoutine,
             aiTodayDay,
             todayStr,
-            todayLogged: uniqueDays.has(todayStr)
+            todayLogged: uniqueDays.has(todayStr),
+            todayCheckin
         });
     } catch (error) {
         console.error('Error fetching home stats:', error);
@@ -3822,10 +3998,6 @@ app.get('/api/stats/plateaus', authMiddleware, async (req, res) => {
 });
 
 // GET /api/stats/progress-page — UN round-trip para la página Progreso.
-// (nombre distinto de /stats/progress/:exerciseName para no chocar en el router)
-// Antes: 5 requests (overview + consistency + prs + routines completo + plateaus)
-// + history 120. Routines era el gordo. Gráficas por ejercicio: getExerciseProgress;
-// PDF del día: history on-demand con dateFrom/dateTo.
 app.get('/api/stats/progress-page', authMiddleware, async (req, res) => {
     try {
         const userId = req.userId;
@@ -3842,7 +4014,6 @@ app.get('/api/stats/progress-page', authMiddleware, async (req, res) => {
             totalPRs,
             recentWorkouts,
             recentRestLogs,
-            recentCardio,
             weekSets,
             allPRs,
             plateauLogs,
@@ -3862,15 +4033,11 @@ app.get('/api/stats/progress-page', authMiddleware, async (req, res) => {
                 where: { date: { gte: yearAgo }, userId },
                 select: { date: true }
             }),
-            prisma.cardioSession.findMany({
-                where: { date: { gte: yearAgo }, userId },
-                select: { date: true }
-            }),
             prisma.setLog.findMany({
                 where: {
                     workoutLog: { date: { gte: weekAgo }, ...exerciseScope }
                 },
-                select: { weight: true, reps: true }
+                select: { weight: true, reps: true, weightRight: true, repsRight: true }
             }),
             prisma.personalRecord.findMany({
                 where: { userId },
@@ -3944,11 +4111,17 @@ app.get('/api/stats/progress-page', authMiddleware, async (req, res) => {
             if (logs && detectPlateauForExercise(logs)) plateaued.push(key);
         }
 
-        const uniqueDays = new Set([
-            ...recentWorkouts.map(w => mexicoCityDateStr(w.date)),
-            ...recentRestLogs.map(r => mexicoCityDateStr(r.date)),
-            ...recentCardio.map(c => mexicoCityDateStr(c.date))
-        ]);
+        const consistencyCounts = {};
+        for (const w of recentWorkouts) {
+            const key = mexicoCityDateStr(w.date);
+            consistencyCounts[key] = (consistencyCounts[key] || 0) + 1;
+        }
+        for (const r of recentRestLogs) {
+            const key = mexicoCityDateStr(r.date);
+            if (!consistencyCounts[key]) consistencyCounts[key] = 1;
+        }
+
+        const uniqueDays = new Set(Object.keys(consistencyCounts));
         let trainingDaysLast30 = 0;
         for (const d of uniqueDays) {
             if (d >= thirtyDaysAgoStr) trainingDaysLast30++;
@@ -3967,7 +4140,11 @@ app.get('/api/stats/progress-page', authMiddleware, async (req, res) => {
         }
 
         const weeklyVolume = Math.round(
-            weekSets.reduce((acc, s) => acc + (s.weight * s.reps), 0)
+            weekSets.reduce((acc, s) => {
+                const leftVol = (s.weight || 0) * (s.reps || 0);
+                const rightVol = (s.weightRight || 0) * (s.repsRight || 0);
+                return acc + leftVol + rightVol;
+            }, 0)
         );
 
         // Dedupe ejercicios por nombre (case-insensitive)
@@ -4003,6 +4180,7 @@ app.get('/api/stats/progress-page', authMiddleware, async (req, res) => {
                 weeklyVolume
             },
             consistencyDays,
+            consistencyCounts,
             prs,
             plateaued,
             plateauCount: plateaued.length,
@@ -4044,17 +4222,110 @@ app.get('/api/body/logs', authMiddleware, async (req, res) => {
     }
 });
 
+// GET /api/body/checkin - Estado de hábitos diarios (hoy en America/Mexico_City o ?date=YYYY-MM-DD)
+app.get('/api/body/checkin', authMiddleware, async (req, res) => {
+    try {
+        const targetStart = resolveTargetDate(req.query.date);
+        const dayBounds = mexicoCityDayBounds(targetStart);
+        const logs = await prisma.bodyLog.findMany({
+            where: {
+                userId: req.userId,
+                date: { gte: dayBounds.start, lt: dayBounds.end }
+            },
+            select: { creatineTaken: true, dietCompliant: true, zeroLiquidCalories: true }
+        });
+        res.json({
+            date: dayBounds.dateStr,
+            creatineTaken: logs.some(b => !!b.creatineTaken),
+            dietCompliant: logs.some(b => !!b.dietCompliant),
+            zeroLiquidCalories: logs.some(b => !!b.zeroLiquidCalories)
+        });
+    } catch (error) {
+        console.error('Error fetching daily checkin:', error);
+        res.status(500).json({ error: 'Failed to fetch daily check-in' });
+    }
+});
+
+// PUT /api/body/checkin - Actualiza hábitos diarios (vinculados a fecha local America/Mexico_City)
+app.put('/api/body/checkin', authMiddleware, async (req, res) => {
+    try {
+        const { creatineTaken, dietCompliant, zeroLiquidCalories, date } = req.body || {};
+        const targetStart = resolveTargetDate(date);
+        const dayBounds = mexicoCityDayBounds(targetStart);
+        const todayBounds = mexicoCityDayBounds();
+
+        const existingLogs = await prisma.bodyLog.findMany({
+            where: {
+                userId: req.userId,
+                date: { gte: dayBounds.start, lt: dayBounds.end }
+            },
+            orderBy: { date: 'desc' }
+        });
+
+        const nextCreatine = typeof creatineTaken === 'boolean'
+            ? creatineTaken
+            : existingLogs.some(b => !!b.creatineTaken);
+        const nextDiet = typeof dietCompliant === 'boolean'
+            ? dietCompliant
+            : existingLogs.some(b => !!b.dietCompliant);
+        const nextZeroLiquid = typeof zeroLiquidCalories === 'boolean'
+            ? zeroLiquidCalories
+            : existingLogs.some(b => !!b.zeroLiquidCalories);
+
+        if (existingLogs.length > 0) {
+            await prisma.bodyLog.updateMany({
+                where: {
+                    userId: req.userId,
+                    date: { gte: dayBounds.start, lt: dayBounds.end }
+                },
+                data: {
+                    creatineTaken: nextCreatine,
+                    dietCompliant: nextDiet,
+                    zeroLiquidCalories: nextZeroLiquid
+                }
+            });
+        } else {
+            const logDate = dayBounds.start.getTime() === todayBounds.start.getTime()
+                ? new Date()
+                : new Date(dayBounds.start.getTime() + 12 * 60 * 60 * 1000);
+            await prisma.bodyLog.create({
+                data: {
+                    userId: req.userId,
+                    date: logDate,
+                    creatineTaken: nextCreatine,
+                    dietCompliant: nextDiet,
+                    zeroLiquidCalories: nextZeroLiquid
+                }
+            });
+        }
+
+        res.json({
+            date: dayBounds.dateStr,
+            creatineTaken: nextCreatine,
+            dietCompliant: nextDiet,
+            zeroLiquidCalories: nextZeroLiquid
+        });
+    } catch (error) {
+        console.error('Error updating daily checkin:', error);
+        res.status(500).json({ error: 'Failed to update daily check-in' });
+    }
+});
+
 // POST /api/body/log - Client-compatible route
 app.post('/api/body/log', authMiddleware, async (req, res) => {
     try {
-        const { weight, photo, note, bmi, bodyFat, muscleMass, bmr, bodyWater, visceralFat, boneMass, protein } = req.body;
+        const {
+            weight, photo, note, bmi, bodyFat, muscleMass, bmr, bodyWater, visceralFat, boneMass, protein,
+            creatineTaken, dietCompliant, zeroLiquidCalories
+        } = req.body;
         const hasPhoto = !!photo;
 
         const { clean: cleanMetrics, error: metricsError } = sanitizeBodyMetrics({ weight, bmi, bodyFat, muscleMass, bmr, bodyWater, visceralFat, boneMass, protein });
         if (metricsError) return res.status(400).json({ error: metricsError });
         const hasNonPhotoData = Object.values(cleanMetrics).some(v => v != null);
+        const hasHabitData = typeof creatineTaken === 'boolean' || typeof dietCompliant === 'boolean' || typeof zeroLiquidCalories === 'boolean';
 
-        if (!hasNonPhotoData && !hasPhoto) {
+        if (!hasNonPhotoData && !hasPhoto && !hasHabitData) {
             return res.status(400).json({ error: 'Se requiere peso, foto o datos de composición corporal' });
         }
 
@@ -4072,18 +4343,53 @@ app.post('/api/body/log', authMiddleware, async (req, res) => {
 
         // La foto era el único dato y falló: no crear un registro vacío, avisar
         // para que se reintente.
-        if (photoFailed && !hasNonPhotoData) {
+        if (photoFailed && !hasNonPhotoData && !hasHabitData) {
             return res.status(502).json({ error: 'No se pudo subir la foto. Intenta de nuevo.' });
         }
 
-        const bodyLog = await prisma.bodyLog.create({
-            data: {
+        // Preservar los hábitos ya marcados hoy en CDMX (y si hoy solo existía un
+        // registro de hábitos sin peso/foto, actualizarlo en vez de duplicar fila).
+        const todayBounds = mexicoCityDayBounds();
+        const todayLogs = await prisma.bodyLog.findMany({
+            where: {
                 userId: req.userId,
-                photoUrl,
-                note: note || null,
-                ...cleanMetrics
-            }
+                date: { gte: todayBounds.start, lt: todayBounds.end }
+            },
+            orderBy: { date: 'desc' }
         });
+
+        const mergedHabits = {
+            creatineTaken: typeof creatineTaken === 'boolean' ? creatineTaken : todayLogs.some(b => !!b.creatineTaken),
+            dietCompliant: typeof dietCompliant === 'boolean' ? dietCompliant : todayLogs.some(b => !!b.dietCompliant),
+            zeroLiquidCalories: typeof zeroLiquidCalories === 'boolean' ? zeroLiquidCalories : todayLogs.some(b => !!b.zeroLiquidCalories)
+        };
+
+        const habitOnlyLog = todayLogs.find(b =>
+            b.weight == null && !b.photoUrl && b.bmi == null && b.bodyFat == null && b.muscleMass == null
+        );
+
+        let bodyLog;
+        if (habitOnlyLog) {
+            bodyLog = await prisma.bodyLog.update({
+                where: { id: habitOnlyLog.id },
+                data: {
+                    photoUrl: photoUrl ?? habitOnlyLog.photoUrl,
+                    note: note || habitOnlyLog.note || null,
+                    ...cleanMetrics,
+                    ...mergedHabits
+                }
+            });
+        } else {
+            bodyLog = await prisma.bodyLog.create({
+                data: {
+                    userId: req.userId,
+                    photoUrl,
+                    note: note || null,
+                    ...cleanMetrics,
+                    ...mergedHabits
+                }
+            });
+        }
 
         res.status(201).json({
             message: 'Body log saved!',

@@ -54,3 +54,6 @@ export function getBackupDownloadUrl(publicId) {
         type: 'authenticated'
     });
 }
+
+export { normalizeBackupBodyLog, normalizeBackupBodyLogs } from '../logic.js';
+

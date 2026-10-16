@@ -95,6 +95,37 @@ describe('computeWorkoutSuggestion: paridad cliente/servidor', () => {
             name: 'unilateral lado débil',
             sessions: [{ sets: [{ weight: 20, reps: 12, weightRight: 18, repsRight: 10, rpe: 8 }] }],
             targetReps: '8-12', increment: 2.5, phase: null
+        },
+        {
+            name: 'Top Set al techo con RIR<=1 desbloquea peso aunque Serie 2 caiga en reps',
+            sessions: [{
+                sets: [
+                    { weight: 100, reps: 8, rpe: 10 }, // RIR 0, techo de 6-8
+                    { weight: 100, reps: 6, rpe: 10 }  // caída natural por fatiga
+                ]
+            }],
+            targetReps: '6-8', increment: 2.5, phase: null
+        },
+        {
+            name: 'Top Set + Back-off Set: desbloquea peso en Top Set al alcanzar techo con RIR<=1',
+            sessions: [{
+                sets: [
+                    { weight: 100, reps: 8, rpe: 9 },   // RIR 1, techo de 6-8
+                    { weight: 87.5, reps: 9, rpe: 10 }  // Back-off set
+                ]
+            }],
+            targetReps: '6-8', increment: 2.5, phase: null
+        },
+        {
+            name: 'Ego lifting single (110x1) ignorado en hipertrofia (lo>3) frente a Top Set real (100x8)',
+            sessions: [{
+                sets: [
+                    { weight: 110, reps: 1, rpe: 10 },  // Ego single (reps < 3)
+                    { weight: 100, reps: 8, rpe: 10 },  // Top Set real al techo
+                    { weight: 87.5, reps: 8, rpe: 9 }   // Back-off set
+                ]
+            }],
+            targetReps: '6-8', increment: 2.5, phase: null
         }
     ];
 
@@ -106,6 +137,46 @@ describe('computeWorkoutSuggestion: paridad cliente/servidor', () => {
         expect(c?.reps).toEqual(s?.reps);
         expect(c?.rationale).toEqual(s?.rationale);
         expect(c?.basedOn).toEqual(s?.basedOn);
+    });
+
+    it('desbloquea +2.5kg cuando el Top Set alcanza el techo con RIR 0 o 1 aunque haya caída en Serie 2', () => {
+        const sessions = [{
+            sets: [
+                { weight: 100, reps: 8, rpe: 10 }, // RIR 0
+                { weight: 100, reps: 5, rpe: 10 }
+            ]
+        }];
+        const c = clientSuggest(sessions, '6-8', 2.5, null);
+        const s = serverSuggest(sessions, '6-8', 2.5, null);
+        expect(c.weight).toBe(102.5);
+        expect(c.reps).toBe(6);
+        expect(s.weight).toBe(102.5);
+        expect(s.reps).toBe(6);
+    });
+
+    it('ignora single/double (reps < 3) en hipertrofia (lo > 3), pero lo respeta en fuerza máxima (lo <= 3)', () => {
+        const egoSession = [{
+            sets: [
+                { weight: 120, reps: 1, rpe: 10 }, // Single aislado
+                { weight: 100, reps: 6, rpe: 10 }, // Top Set real en 6-8
+                { weight: 87.5, reps: 8, rpe: 9 }  // Back-off
+            ]
+        }];
+        // En 6-8 (lo=6 > 3): ancla en 100kg (no en 120kg ni en 87.5kg)
+        const hyp = clientSuggest(egoSession, '6-8', 2.5, null);
+        expect(hyp.weight).toBe(100);
+        expect(hyp.reps).toBe(7);
+
+        // En 1-3 (lo=1 <= 3): sí permite series de 1-2 reps como referencia
+        const maxStrSession = [{
+            sets: [
+                { weight: 120, reps: 3, rpe: 10 },
+                { weight: 105, reps: 5, rpe: 9 }
+            ]
+        }];
+        const str = clientSuggest(maxStrSession, '1-3', 2.5, null);
+        expect(str.weight).toBe(122.5);
+        expect(str.reps).toBe(1);
     });
 
     it('pickWorkReference coincide en el caso top+backoff', () => {
@@ -132,16 +203,27 @@ describe('suggestNextSetFromToday: paridad + reglas', () => {
         expect(serverIntra(sets, opts)).toBeNull();
     });
 
-    it('RIR 0 → baja un incremento (puede bajar peso)', () => {
+    it('Serie 1 (Top Set) a RIR 0 → sugiere Back-off Set (-12.5% peso y +2 reps hacia el techo)', () => {
         const sets = [{ weight: 100, reps: 8, rir: 0 }];
         const c = clientIntra(sets, opts);
         const s = serverIntra(sets, opts);
         expect(c).not.toBeNull();
         expect(s).not.toBeNull();
-        expect(c.weight).toBe(s.weight);
-        expect(c.reps).toBe(s.reps);
-        expect(c.weight).toBe(97.5);
+        expect(c).toEqual(s);
+        expect(c.weight).toBe(87.5); // 100 * 0.875 = 87.5 (-12.5%)
+        expect(c.reps).toBe(10);     // 8 + 2 hacia el techo (12)
         expect(c.source).toBe('intra');
+    });
+
+    it('Serie 2+ a RIR 0 → baja un incremento normal', () => {
+        const sets = [
+            { weight: 100, reps: 8, rir: 0 },
+            { weight: 87.5, reps: 10, rir: 0 }
+        ];
+        const c = clientIntra(sets, opts);
+        const s = serverIntra(sets, opts);
+        expect(c).toEqual(s);
+        expect(c.weight).toBe(85);
     });
 
     it('todas las de hoy con RIR cómodo → mantiene peso y sube reps', () => {

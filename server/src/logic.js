@@ -189,7 +189,11 @@ export function sanitizeSets(rawSets) {
 }
 
 /**
- * Body del Atajo log-set: exerciseId + peso/reps + RIR crudo (0-4) bajo `rpe`.
+ * Body del Atajo log-set: exerciseId + peso/reps + RIR/RPE opcional.
+ * Acepta tanto `body.rir` como `body.rpe` de forma indistinta:
+ *  - Si viene `rir` (0-4) o `rpe` en rango 0-4 → se interpreta como RIR y se convierte a `rpe = 10 - rir`.
+ *  - Si viene `rpe` en rango 6-10 (sin `rir`) → se acepta directo como RPE (`rawRir = 10 - rpe`).
+ *  - Si ambos vienen vacíos/nulos/omitidos → aplica fallback seguro `rir: 0` (`rpe: 10`).
  * @returns {{ clean?: object, error?: string }}
  */
 export function sanitizeShortcutLogSet(body) {
@@ -200,14 +204,36 @@ export function sanitizeShortcutLogSet(body) {
     if (!exerciseId || typeof exerciseId !== 'string') {
         return { error: 'Required: exerciseId' };
     }
-    if (body.rpe == null || body.rpe === '') {
-        return { error: 'RIR obligatorio (0-4)' };
+
+    const hasRir = body.rir != null && String(body.rir).trim() !== '';
+    const hasRpe = body.rpe != null && String(body.rpe).trim() !== '';
+
+    let rawRir = 0;
+    let convertedRpe = 10;
+
+    if (hasRir) {
+        const parsedRir = parseFloat(body.rir);
+        if (!Number.isFinite(parsedRir) || parsedRir < 0 || parsedRir > 4) {
+            return { error: 'RIR inválido (usa 0-4, reps en recámara)' };
+        }
+        rawRir = parsedRir;
+        convertedRpe = convertShortcutRir(rawRir);
+    } else if (hasRpe) {
+        const parsedVal = parseFloat(body.rpe);
+        if (!Number.isFinite(parsedVal)) {
+            return { error: 'RIR inválido (usa 0-4, reps en recámara)' };
+        }
+        if (parsedVal >= 0 && parsedVal <= 4) {
+            rawRir = parsedVal;
+            convertedRpe = convertShortcutRir(rawRir);
+        } else if (parsedVal >= 6 && parsedVal <= 10) {
+            convertedRpe = parsedVal;
+            rawRir = 10 - parsedVal;
+        } else {
+            return { error: 'RIR inválido (usa 0-4, reps en recámara)' };
+        }
     }
-    const rawRir = parseFloat(body.rpe);
-    if (!Number.isFinite(rawRir) || rawRir < 0 || rawRir > 4) {
-        return { error: 'RIR inválido (usa 0-4, reps en recámara)' };
-    }
-    const convertedRpe = convertShortcutRir(rawRir);
+
     const { sets, error } = sanitizeSets([{
         weight: body.weight,
         reps: body.reps,
@@ -528,18 +554,34 @@ export function adjustRepRangeForPhase(lo, hi, phase) {
  */
 export function pickWorkReference(working, lo) {
     if (!working || working.length === 0) return null;
-    const maxW = Math.max(...working.map(s => s.weight));
-    const main = working.filter(s => s.weight >= maxW * 0.75);
-    const pool = main.length > 0 ? main : working;
+    // Protección contra Singles/Doubles (Ego Lifting): ignora series de 1 o 2 reps
+    // a menos que el rango objetivo de la rutina sea explícitamente de fuerza máxima (lo <= 3).
+    const nonEgo = lo > 3 ? working.filter(s => s.reps >= 3) : working;
+    const baseWorking = nonEgo.length > 0 ? nonEgo : working;
 
-    let candidates = pool.filter(s => s.reps >= lo);
-    if (candidates.length === 0) {
-        const maxReps = Math.max(...pool.map(s => s.reps));
-        candidates = pool.filter(s => s.reps === maxReps);
+    const maxW = Math.max(...baseWorking.map(s => s.weight));
+    const main = baseWorking.filter(s => s.weight >= maxW * 0.75);
+    const pool = main.length > 0 ? main : baseWorking;
+
+    // Si existe un Top Set pesado de alta intensidad (RIR <= 1 / RPE >= 9) al peso máximo
+    // del pool válido, anclar en ese peso para que un Back-off set no lo eclipse.
+    const topWeight = Math.max(...pool.map(s => s.weight));
+    const atTopWeight = pool.filter(s => Math.abs(s.weight - topWeight) < 0.01);
+    const hasHeavyTopSet = atTopWeight.some(s => s.rir != null && s.rir <= 1);
+
+    let refWeight;
+    if (hasHeavyTopSet) {
+        refWeight = topWeight;
+    } else {
+        let candidates = pool.filter(s => s.reps >= lo);
+        if (candidates.length === 0) {
+            const maxReps = Math.max(...pool.map(s => s.reps));
+            candidates = pool.filter(s => s.reps === maxReps);
+        }
+        if (candidates.length === 0) candidates = pool;
+        refWeight = Math.max(...candidates.map(s => s.weight));
     }
-    if (candidates.length === 0) candidates = pool;
 
-    const refWeight = Math.max(...candidates.map(s => s.weight));
     const sameWeight = pool.filter(s => Math.abs(s.weight - refWeight) < 0.01);
     const refReps = Math.max(...sameWeight.map(s => s.reps));
     const knownRir = sameWeight.map(s => s.rir).filter(v => v != null);
@@ -550,20 +592,21 @@ export function pickWorkReference(working, lo) {
 }
 
 /**
- * Sugerencia de peso y reps por DOBLE PROGRESIÓN — idéntico a client smartLoading.
+ * Sugerencia de peso y reps por Top Set + Back-off / Doble Progresión — idéntico a client smartLoading.
  * `sessions` debe venir ordenado por fecha DESC (igual que el historial del ejercicio).
  *
  * Reglas:
- *  - Referencia = serie de trabajo real (ver pickWorkReference), no el peak e1RM.
- *  - Sube de peso solo cuando TODAS las series a ese peso alcanzaron el techo del
- *    rango (doble progresión clásica). Si solo la mejor llegó al tope, mantiene
- *    peso y empareja reps hacia el mínimo rezagado.
+ *  - Referencia = serie de trabajo real (ver pickWorkReference), con protección contra singles/doubles.
+ *  - Desbloquea incremento de peso cuando el Top Set alcanzó el techo del rango (reps >= hi)
+ *    con RIR 0 o 1 (RPE 9-10), o cuando todas las series a ese peso alcanzaron >= hi.
+ *  - Si solo la mejor llegó al tope con RIR >= 2, mantiene peso y empareja reps hacia el mínimo rezagado.
  *  - Si aún no: +1 rep (o +2 si RIR≥3). Nunca sugiere bajar el peso.
  */
 export function computeWorkoutSuggestion(sessions, targetReps, increment, phase = null) {
     if (!sessions || sessions.length === 0) return null;
+    const resolvedPhase = (phase && typeof phase === 'object') ? (phase.phase ?? null) : (phase ?? null);
     const parsedRange = parseRepRange(targetReps);
-    const { lo, hi } = adjustRepRangeForPhase(parsedRange.lo, parsedRange.hi, phase);
+    const { lo, hi } = adjustRepRangeForPhase(parsedRange.lo, parsedRange.hi, resolvedPhase);
 
     const working = (sessions[0].sets || [])
         .map(effectiveWorkoutSet)
@@ -575,16 +618,21 @@ export function computeWorkoutSuggestion(sessions, targetReps, increment, phase 
 
     const { weight: refWeight, reps: refReps, minReps, rir, setsAtWeight } = ref;
     const allHitTop = setsAtWeight.every(s => s.reps >= hi);
+    const topSetPassed = setsAtWeight.find(s => s.reps >= hi && s.rir != null && s.rir <= 1);
 
     let weight, reps, rationale;
 
-    if (allHitTop) {
-        // Todas las series al peso de trabajo tocaron el techo → progresión de carga
+    if (topSetPassed || allHitTop) {
+        // Top Set superado a alta intensidad (RIR <= 1) o todas las series tocaron el techo → progresión de carga
         weight = roundWorkoutWeight(refWeight + increment, increment, refWeight);
         reps = lo;
-        rationale = setsAtWeight.length > 1
-            ? `Todas las series a ${refWeight}kg llegaron a ≥${hi} reps: sube a ${weight}kg y reinicia en ${lo}.`
-            : `Alcanzaste ${refReps} reps con ${refWeight}kg (tope del rango): sube a ${weight}kg y reinicia en ${lo}.`;
+        if (topSetPassed && !allHitTop) {
+            rationale = `Top Set superado (${refWeight}kg × ${topSetPassed.reps} a RIR ${topSetPassed.rir}): sube a ${weight}kg y reinicia en ${lo}.`;
+        } else {
+            rationale = setsAtWeight.length > 1
+                ? `Todas las series a ${refWeight}kg llegaron a ≥${hi} reps: sube a ${weight}kg y reinicia en ${lo}.`
+                : `Alcanzaste ${refReps} reps con ${refWeight}kg (tope del rango): sube a ${weight}kg y reinicia en ${lo}.`;
+        }
     } else if (refReps >= hi) {
         // La mejor tocó el techo pero otras se quedaron atrás → emparejar, no subir
         weight = refWeight;
@@ -606,16 +654,33 @@ export function computeWorkoutSuggestion(sessions, targetReps, increment, phase 
     }
 
     if (weight <= 0 || reps <= 0) return null;
-    return { weight, reps, rationale, basedOn: sessions.length };
+    return { weight, reps, rationale, basedOn: sessions.length, phase: resolvedPhase };
 }
 
 /**
  * Autorregulación INTRA-sesión — espejo de client/src/utils/smartLoading.js.
  * Mira TODAS las series completadas HOY (con RIR obligatorio). Puede bajar peso.
+ * Si la Serie 1 (Top Set) se registra al fallo absoluto (RIR === 0 / RPE === 10),
+ * calcula automáticamente un Back-off Set (-12.5% de peso) apuntando al techo
+ * del rango (+1 o +2 reps respecto al Top Set).
  * Usada por el Atajo si hay series de hoy; la PWA calcula en el cliente.
  */
-export function suggestNextSetFromToday(completedToday, { lo = 8, hi = 12, increment = 2.5, phase = null } = {}) {
+export function suggestNextSetFromToday(completedToday, optsOrTargetReps = {}, legacyIncrement = 2.5, legacyPhase = null) {
     if (!completedToday || completedToday.length === 0) return null;
+
+    let lo = 8, hi = 12, increment = 2.5, phase = null;
+    if (typeof optsOrTargetReps === 'string') {
+        const parsed = parseRepRange(optsOrTargetReps);
+        lo = parsed.lo;
+        hi = parsed.hi;
+        increment = typeof legacyIncrement === 'number' ? legacyIncrement : 2.5;
+        phase = (legacyPhase && typeof legacyPhase === 'object') ? (legacyPhase.phase ?? null) : (legacyPhase ?? null);
+    } else if (optsOrTargetReps && typeof optsOrTargetReps === 'object') {
+        lo = optsOrTargetReps.lo ?? 8;
+        hi = optsOrTargetReps.hi ?? 12;
+        increment = optsOrTargetReps.increment ?? 2.5;
+        phase = optsOrTargetReps.phase ?? null;
+    }
 
     const sets = completedToday
         .map(s => ({
@@ -635,7 +700,6 @@ export function suggestNextSetFromToday(completedToday, { lo = 8, hi = 12, incre
     const last = sets[sets.length - 1];
     const first = sets[0];
     const minRir = Math.min(...sets.map(s => s.rir));
-    const minReps = Math.min(...sets.map(s => s.reps));
     const avgRir = sets.reduce((a, s) => a + s.rir, 0) / sets.length;
     const rirDrop = first.rir - last.rir;
     const repDrop = first.reps - last.reps;
@@ -644,10 +708,18 @@ export function suggestNextSetFromToday(completedToday, { lo = 8, hi = 12, incre
     let reps = last.reps;
     let rationale;
 
-    const groundOut = minRir <= 0 || last.rir <= 0;
-    const failedFloor = last.reps < adjLo || minReps < adjLo;
-
-    if (groundOut || failedFloor) {
+    if (sets.length === 1 && first.rir <= 0) {
+        // Serie 1 (Top Set) al fallo absoluto (RIR 0 / RPE 10) → Back-off Set (-12.5%, entre 10-15%)
+        const rawBackoff = first.weight * 0.875;
+        const roundedBackoff = roundWorkoutWeight(rawBackoff, increment, first.weight);
+        weight = roundedBackoff < first.weight
+            ? Math.max(increment > 0 ? increment : 0.5, roundedBackoff)
+            : roundWorkoutWeight(Math.max(0.5, first.weight - Math.max(increment, 0.5)), increment, first.weight);
+        reps = first.reps < adjHi
+            ? Math.min(adjHi, Math.max(adjLo, first.reps + 2))
+            : first.reps + 1;
+        rationale = `Top Set al fallo (RIR 0) → Back-off Set (-12.5%): ${weight} kg × ${reps} reps.`;
+    } else if (last.rir <= 0 || last.reps < adjLo) {
         const stepped = roundWorkoutWeight(
             Math.max(0, last.weight - increment),
             increment,
@@ -657,8 +729,8 @@ export function suggestNextSetFromToday(completedToday, { lo = 8, hi = 12, incre
             ? Math.max(increment > 0 ? increment : 0.5, stepped)
             : roundWorkoutWeight(Math.max(0.5, last.weight - Math.max(increment, 0.5)), increment, last.weight);
         reps = Math.min(adjHi, Math.max(adjLo, last.reps));
-        rationale = groundOut
-            ? `Hoy RIR ${minRir} en alguna serie → baja a ${weight} kg × ${reps}.`
+        rationale = last.rir <= 0
+            ? `Hoy RIR ${last.rir} en alguna serie → baja a ${weight} kg × ${reps}.`
             : `Reps bajo el rango ${adjLo}–${adjHi} → baja a ${weight} kg × ${reps}.`;
     } else if (last.rir === 1 || rirDrop >= 2 || (repDrop >= 2 && last.rir <= 2)) {
         // Fatiga: mismo peso, no empujar reps
@@ -698,3 +770,121 @@ export function suggestNextSetFromToday(completedToday, { lo = 8, hi = 12, incre
 export function convertShortcutRir(rawRir) {
     return rawRir != null && Number.isFinite(parseFloat(rawRir)) ? 10 - parseFloat(rawRir) : null;
 }
+
+/**
+ * Minutos transcurridos desde medianoche CDMX (0..1439) para `date`.
+ */
+export function mexicoCityMinutesOfDay(date = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: APP_TIMEZONE,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    }).formatToParts(date);
+    const rawHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+    const hour = rawHour === 24 ? 0 : rawHour;
+    const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+    return hour * 60 + minute;
+}
+
+/**
+ * Evalúa qué etapa (1, 2 o 3) de recordatorio de creatina corresponde enviar hoy
+ * en horario de Ciudad de México (`America/Mexico_City`), evitando duplicados.
+ *
+ * Etapas:
+ *  - Etapa 1 (hora configurada, ej. 16:00 CDMX): "⚡ Hora de tu creatina (5g). Márcala en NexLift."
+ *  - Etapa 2 (+3 horas después): "⏳ Pasaron 3 horas y aún no registras tu creatina de hoy."
+ *  - Etapa 3 (23:00 CDMX): "🚨 Última llamada (11 PM): No te vayas a dormir sin tomar tus 5g de creatina."
+ */
+export function evaluateCreatineReminderStage(nowDate = new Date(), reminderTimeStr = '16:00', lastDateStr = null, lastStage = 0) {
+    const todayStr = mexicoCityDateStr(nowDate);
+    const sentStage = lastDateStr === todayStr ? (Number(lastStage) || 0) : 0;
+
+    const match = String(reminderTimeStr || '16:00').match(/^(\d{1,2}):(\d{2})$/);
+    const baseH = match ? Math.min(23, Math.max(0, parseInt(match[1], 10))) : 16;
+    const baseM = match ? Math.min(59, Math.max(0, parseInt(match[2], 10))) : 0;
+
+    const baseMinutes = baseH * 60 + baseM;
+    const plus3Minutes = Math.min(22 * 60 + 59, baseMinutes + 180);
+    const finalCallMinutes = 23 * 60; // 23:00 CDMX
+    const nowMinutes = mexicoCityMinutesOfDay(nowDate);
+
+    if (nowMinutes >= finalCallMinutes && sentStage < 3) {
+        return {
+            stage: 3,
+            dateStr: todayStr,
+            title: 'NexLift • Creatina',
+            body: '🚨 Última llamada (11 PM): No te vayas a dormir sin tomar tus 5g de creatina.',
+            tag: `creatine-${todayStr}-3`,
+            url: '/'
+        };
+    }
+
+    if (nowMinutes >= plus3Minutes && nowMinutes < finalCallMinutes && sentStage < 2 && baseMinutes + 180 < finalCallMinutes) {
+        return {
+            stage: 2,
+            dateStr: todayStr,
+            title: 'NexLift • Creatina',
+            body: '⏳ Pasaron 3 horas y aún no registras tu creatina de hoy.',
+            tag: `creatine-${todayStr}-2`,
+            url: '/'
+        };
+    }
+
+    if (nowMinutes >= baseMinutes && nowMinutes < plus3Minutes && sentStage < 1) {
+        return {
+            stage: 1,
+            dateStr: todayStr,
+            title: 'NexLift • Creatina',
+            body: '⚡ Hora de tu creatina (5g). Márcala en NexLift.',
+            tag: `creatine-${todayStr}-1`,
+            url: '/'
+        };
+    }
+
+    // Si la hora base configurada es >= 20:00 (donde +3h alcanza/supera 23:00), asegurar etapa 1 antes de 23:00
+    if (nowMinutes >= baseMinutes && nowMinutes < finalCallMinutes && sentStage < 1) {
+        return {
+            stage: 1,
+            dateStr: todayStr,
+            title: 'NexLift • Creatina',
+            body: '⚡ Hora de tu creatina (5g). Márcala en NexLift.',
+            tag: `creatine-${todayStr}-1`,
+            url: '/'
+        };
+    }
+
+    return null;
+}
+
+/**
+ * Normaliza un registro de bodyLogs proveniente de un archivo JSON de backup
+ * (v1 de Cloudinary o v2.7.0+ descargado desde Settings.jsx), preservando
+ * los hábitos diarios con fallback explícito a `false` para retrocompatibilidad.
+ */
+export function normalizeBackupBodyLog(b = {}) {
+    return {
+        ...(b.id ? { id: b.id } : {}),
+        date: b.date ? new Date(b.date) : new Date(),
+        weight: b.weight != null && b.weight !== '' ? Number(b.weight) : null,
+        photoUrl: b.photoUrl ?? b.photo ?? null,
+        note: b.note ?? null,
+        bmi: b.bmi != null && b.bmi !== '' ? Number(b.bmi) : null,
+        bodyFat: b.bodyFat != null && b.bodyFat !== '' ? Number(b.bodyFat) : null,
+        muscleMass: b.muscleMass != null && b.muscleMass !== '' ? Number(b.muscleMass) : null,
+        bmr: b.bmr != null && b.bmr !== '' ? Number(b.bmr) : null,
+        bodyWater: b.bodyWater != null && b.bodyWater !== '' ? Number(b.bodyWater) : null,
+        visceralFat: b.visceralFat != null && b.visceralFat !== '' ? Number(b.visceralFat) : null,
+        boneMass: b.boneMass != null && b.boneMass !== '' ? Number(b.boneMass) : null,
+        protein: b.protein != null && b.protein !== '' ? Number(b.protein) : null,
+        creatineTaken: Boolean(b.creatineTaken ?? false),
+        dietCompliant: Boolean(b.dietCompliant ?? false),
+        zeroLiquidCalories: Boolean(b.zeroLiquidCalories ?? false)
+    };
+}
+
+export function normalizeBackupBodyLogs(bodyLogs = []) {
+    if (!Array.isArray(bodyLogs)) return [];
+    return bodyLogs.map(normalizeBackupBodyLog);
+}
+

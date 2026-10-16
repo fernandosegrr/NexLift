@@ -177,14 +177,25 @@ for (const pr of data.personalRecords || []) {
 for (const b of data.bodyLogs || []) {
     counts.bodyLogs++;
     if (APPLY) {
+        const creatineTaken = Boolean(b.creatineTaken ?? false);
+        const dietCompliant = Boolean(b.dietCompliant ?? false);
+        const zeroLiquidCalories = Boolean(b.zeroLiquidCalories ?? false);
         await prisma.bodyLog.upsert({
             where: { id: b.id },
             create: {
-                id: b.id, date: new Date(b.date), weight: b.weight, photoUrl: b.photoUrl, note: b.note,
-                bmi: b.bmi, bodyFat: b.bodyFat, muscleMass: b.muscleMass, bmr: b.bmr, bodyWater: b.bodyWater,
-                visceralFat: b.visceralFat, boneMass: b.boneMass, protein: b.protein, userId: targetUser.id
+                id: b.id, date: new Date(b.date), weight: b.weight ?? null, photoUrl: b.photoUrl ?? b.photo ?? null, note: b.note ?? null,
+                bmi: b.bmi ?? null, bodyFat: b.bodyFat ?? null, muscleMass: b.muscleMass ?? null, bmr: b.bmr ?? null, bodyWater: b.bodyWater ?? null,
+                visceralFat: b.visceralFat ?? null, boneMass: b.boneMass ?? null, protein: b.protein ?? null,
+                creatineTaken, dietCompliant, zeroLiquidCalories,
+                userId: targetUser.id
             },
-            update: { weight: b.weight, note: b.note }
+            update: {
+                weight: b.weight ?? null,
+                note: b.note ?? null,
+                creatineTaken,
+                dietCompliant,
+                zeroLiquidCalories
+            }
         });
     }
 }

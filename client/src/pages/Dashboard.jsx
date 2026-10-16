@@ -1,9 +1,8 @@
-import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Flame, Target, Trophy, Calendar, Play,
-    ChevronRight, Dumbbell, TrendingUp, Coffee, CheckCircle2, Loader2, ArrowRight, AlertTriangle,
-    HeartPulse
+    ChevronRight, Dumbbell, TrendingUp, Coffee, CheckCircle2, Loader2, ArrowRight, AlertTriangle
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -14,8 +13,6 @@ import {
 } from '../utils/dates';
 import { resolveTodayRoutineDay } from '../utils/routineDays';
 import { readHomeCache, writeHomeCache } from '../utils/homeCache';
-
-const AchievementsStrip = lazy(() => import('../components/AchievementsStrip'));
 
 // Prefetch del chunk de Workout en idle (el botón "Entrenar" no espera a bajar JS)
 function prefetchWorkoutChunk() {
@@ -30,24 +27,45 @@ const PHASE_CHIP = {
     accumulation: { label: 'Acumulación', className: 'bg-white/20 text-white border-white/30' }
 };
 
-function applyHomePayload(payload, setters) {
-    const {
-        setStats, setActiveRoutine, setConsistency, setPrs,
-        setPlateauCount, setAiTodayDay, setAiTodayLoading
-    } = setters;
-
+function buildConsistencyMap(payload) {
+    if (!payload) return {};
+    if (payload.consistencyCounts && typeof payload.consistencyCounts === 'object') {
+        return { ...payload.consistencyCounts };
+    }
     const map = {};
     (payload.consistencyDays || []).forEach(dayKey => {
         map[dayKey] = (map[dayKey] || 0) + 1;
     });
+    return map;
+}
+
+function getHeatmapIntensity(count) {
+    if (!count || count <= 0) return 0;
+    if (count >= 4) return 3;
+    if (count >= 2) return 2;
+    return 1;
+}
+
+function applyHomePayload(payload, setters) {
+    const {
+        setStats, setActiveRoutine, setConsistency, setPrs,
+        setPlateauCount, setAiTodayDay, setAiTodayLoading, setTodayCheckin
+    } = setters;
 
     setStats(payload.stats || null);
     setActiveRoutine(payload.activeRoutine || null);
-    setConsistency(map);
+    setConsistency(buildConsistencyMap(payload));
     setPrs(Array.isArray(payload.prs) ? payload.prs : []);
     setPlateauCount(payload.plateauCount || 0);
     setAiTodayDay(payload.aiTodayDay || null);
     setAiTodayLoading(false);
+    if (setTodayCheckin && payload.todayCheckin) {
+        setTodayCheckin({
+            creatineTaken: !!payload.todayCheckin.creatineTaken,
+            dietCompliant: !!payload.todayCheckin.dietCompliant,
+            zeroLiquidCalories: !!payload.todayCheckin.zeroLiquidCalories
+        });
+    }
 }
 
 export default function Dashboard() {
@@ -56,16 +74,16 @@ export default function Dashboard() {
     const cached = useMemo(() => readHomeCache(), []);
     const [stats, setStats] = useState(() => cached?.stats || null);
     const [activeRoutine, setActiveRoutine] = useState(() => cached?.activeRoutine || null);
-    const [consistency, setConsistency] = useState(() => {
-        if (!cached?.consistencyDays) return {};
-        const map = {};
-        cached.consistencyDays.forEach(d => { map[d] = (map[d] || 0) + 1; });
-        return map;
-    });
+    const [consistency, setConsistency] = useState(() => buildConsistencyMap(cached));
     const [prs, setPrs] = useState(() => Array.isArray(cached?.prs) ? cached.prs : []);
     const [plateauCount, setPlateauCount] = useState(() => cached?.plateauCount || 0);
     const [aiTodayDay, setAiTodayDay] = useState(() => cached?.aiTodayDay || null);
     const [aiTodayLoading, setAiTodayLoading] = useState(false);
+    const [todayCheckin, setTodayCheckin] = useState(() => ({
+        creatineTaken: !!cached?.todayCheckin?.creatineTaken,
+        dietCompliant: !!cached?.todayCheckin?.dietCompliant,
+        zeroLiquidCalories: !!cached?.todayCheckin?.zeroLiquidCalories
+    }));
     // Si hay cache fresco, no bloquear UI con spinner
     const [loading, setLoading] = useState(() => !cached);
     const [loadError, setLoadError] = useState(false);
@@ -73,14 +91,29 @@ export default function Dashboard() {
     const [loggingRest, setLoggingRest] = useState(false);
     const heatmapRef = useRef(null);
 
-    // Hoy en CDMX (no reloj local del device) — misma convención que el server
-    const todayStr = useMemo(() => mexicoCityDateStr(), []);
+    // Hoy en CDMX (no reloj local del device) — se actualiza automáticamente al cruzar medianoche o volver al foco
+    const [todayStr, setTodayStr] = useState(() => mexicoCityDateStr());
+
+    useEffect(() => {
+        const refreshToday = () => {
+            const current = mexicoCityDateStr();
+            setTodayStr(prev => (prev !== current ? current : prev));
+        };
+        const interval = setInterval(refreshToday, 30000);
+        window.addEventListener('focus', refreshToday);
+        document.addEventListener('visibilitychange', refreshToday);
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('focus', refreshToday);
+            document.removeEventListener('visibilitychange', refreshToday);
+        };
+    }, []);
 
     useEffect(() => {
         let isMounted = true;
         const setters = {
             setStats, setActiveRoutine, setConsistency, setPrs,
-            setPlateauCount, setAiTodayDay, setAiTodayLoading
+            setPlateauCount, setAiTodayDay, setAiTodayLoading, setTodayCheckin
         };
 
         async function fetchData() {
@@ -152,7 +185,7 @@ export default function Dashboard() {
         if (!showHeatmap) return null;
 
         // Año calendario CDMX (no el del browser): ancla en la fecha CDMX de hoy
-        const todayCdmx = mexicoCityDateStr();
+        const todayCdmx = todayStr;
         const year = parseInt(todayCdmx.slice(0, 4), 10);
         // Mediodía UTC de cada día del año en CDMX ≈ estable; usamos Date UTC
         // construido desde YYYY-MM-DD para no cruzar bordes raros.
@@ -185,7 +218,7 @@ export default function Dashboard() {
         }
 
         return weeks;
-    }, [showHeatmap]);
+    }, [showHeatmap, todayStr]);
 
     // Al abrir el heatmap de 365d, scrollear al final (hoy) — si no, se queda
     // mirando enero y parece vacío.
@@ -223,7 +256,7 @@ export default function Dashboard() {
                 const home = await api.getHome();
                 applyHomePayload(home, {
                     setStats, setActiveRoutine, setConsistency, setPrs,
-                    setPlateauCount, setAiTodayDay, setAiTodayLoading
+                    setPlateauCount, setAiTodayDay, setAiTodayLoading, setTodayCheckin
                 });
                 writeHomeCache(home);
             }
@@ -234,6 +267,29 @@ export default function Dashboard() {
             toast.error('Error de conexión, no se pudo registrar el descanso');
         } finally {
             setLoggingRest(false);
+        }
+    };
+
+    const handleToggleHabit = async (field) => {
+        const nextVal = !todayCheckin[field];
+        const prevCheckin = todayCheckin;
+        const updatedCheckin = { ...todayCheckin, [field]: nextVal };
+
+        setTodayCheckin(updatedCheckin);
+        const cachedPayload = readHomeCache();
+        if (cachedPayload) {
+            writeHomeCache({ ...cachedPayload, todayCheckin: updatedCheckin });
+        }
+
+        try {
+            await api.updateDailyCheckin({ [field]: nextVal });
+        } catch (error) {
+            console.error('Failed to update daily checkin:', error);
+            setTodayCheckin(prevCheckin);
+            if (cachedPayload) {
+                writeHomeCache({ ...cachedPayload, todayCheckin: prevCheckin });
+            }
+            toast.error('No se pudo actualizar el hábito');
         }
     };
 
@@ -443,6 +499,54 @@ export default function Dashboard() {
                 ))}
             </div>
 
+            {/* Daily Check-in — Hábitos rápidos (1 toque) */}
+            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                        Check-in de Hoy
+                    </p>
+                    <span className="text-[11px] font-medium text-[var(--text-secondary)] tabular-nums">
+                        {[todayCheckin.creatineTaken, todayCheckin.dietCompliant, todayCheckin.zeroLiquidCalories].filter(Boolean).length}/3
+                    </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                    {[
+                        { key: 'creatineTaken', label: 'Creatina 5g', shortDesc: 'Suplemento' },
+                        { key: 'dietCompliant', label: 'Plato 50% Prot.', shortDesc: 'Máx 2 tortillas' },
+                        { key: 'zeroLiquidCalories', label: '0 Cal. Líquidas', shortDesc: 'Sin azúcar' }
+                    ].map(({ key, label, shortDesc }) => {
+                        const active = !!todayCheckin[key];
+                        return (
+                            <button
+                                key={key}
+                                type="button"
+                                role="switch"
+                                aria-checked={active}
+                                onClick={() => handleToggleHabit(key)}
+                                className={`flex flex-col items-start justify-between rounded-xl p-2.5 text-left transition-all active:scale-95 border ${
+                                    active
+                                        ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-sm'
+                                        : 'bg-[var(--bg-dark)] border-[var(--border)] text-[var(--text-secondary)] hover:border-white/20'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between w-full mb-1">
+                                    <span className={`text-xs font-bold leading-tight ${active ? 'text-emerald-200' : 'text-[var(--text-primary)]'}`}>
+                                        {label}
+                                    </span>
+                                    <CheckCircle2
+                                        size={14}
+                                        className={`shrink-0 transition-transform ${active ? 'text-emerald-400 scale-110' : 'opacity-30'}`}
+                                    />
+                                </div>
+                                <span className="text-[10px] opacity-75 leading-tight truncate w-full">
+                                    {shortDesc}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
             {/* Volumen semanal — kg×reps (tonelaje), no peso corporal */}
             <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-3">
                 <div className="w-11 h-11 rounded-xl bg-[var(--primary)]/20 flex items-center justify-center shrink-0">
@@ -456,21 +560,6 @@ export default function Dashboard() {
                     </p>
                 </div>
             </div>
-
-            {/* Cardio — sección aparte de fuerza */}
-            <Link
-                to="/cardio"
-                className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-3 hover:border-[var(--primary)]/40 active:scale-[0.99] transition-all"
-            >
-                <div className="w-11 h-11 rounded-xl bg-rose-500/15 flex items-center justify-center shrink-0">
-                    <HeartPulse size={20} className="text-rose-400" aria-hidden />
-                </div>
-                <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm">Cardio</p>
-                    <p className="text-xs text-[var(--text-secondary)]">Caminadora · tramos con inclinación</p>
-                </div>
-                <ChevronRight size={16} className="text-[var(--text-secondary)] shrink-0" />
-            </Link>
 
             {/* Plateau */}
             {plateauCount > 0 && (
@@ -488,11 +577,6 @@ export default function Dashboard() {
                     <ChevronRight size={16} className="text-[var(--text-secondary)] shrink-0" />
                 </Link>
             )}
-
-            {/* Logros (chunk aparte — no bloquea el paint del dashboard) */}
-            <Suspense fallback={null}>
-                <AchievementsStrip stats={stats} prs={prs} />
-            </Suspense>
 
             {/* Consistency Calendar */}
             <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)]">
@@ -522,15 +606,15 @@ export default function Dashboard() {
                 <div className="grid grid-cols-10 gap-1.5" role="grid" aria-label="Actividad de los últimos 30 días">
                     {last30Days.map((date) => {
                         const count = consistency[date] || 0;
-                        const intensity = count === 0 ? 0 : Math.min(count, 3);
+                        const intensity = getHeatmapIntensity(count);
                         const isToday = date === todayStr;
                         return (
                             <div
                                 key={date}
                                 role="gridcell"
-                                aria-label={`${date}: ${count ? count + ' registros' : 'Sin actividad'}`}
+                                aria-label={`${date}: ${count ? count + ' sesiones' : 'Sin actividad'}`}
                                 className={`aspect-square rounded-sm ${intensityColors[intensity]} ${isToday ? 'ring-2 ring-[var(--primary)]' : ''} transition-all`}
-                                title={`${date}: ${count ? count + ' registros' : 'Sin actividad'}`}
+                                title={`${date}: ${count ? count + ' sesiones' : 'Sin actividad'}`}
                             />
                         );
                     })}
@@ -568,14 +652,14 @@ export default function Dashboard() {
                                             if (!cell) return <div key={di} className="w-[11px] h-[11px]" />;
                                             const { date, isFuture } = cell;
                                             const count = consistency[date] || 0;
-                                            const intensity = count === 0 ? 0 : Math.min(count, 3);
+                                            const intensity = getHeatmapIntensity(count);
                                             return (
                                                 <div
                                                     key={di}
                                                     role="gridcell"
-                                                    aria-label={`${date}: ${isFuture ? 'Futuro' : count ? count + ' registros' : 'Sin actividad'}`}
+                                                    aria-label={`${date}: ${isFuture ? 'Futuro' : count ? count + ' sesiones' : 'Sin actividad'}`}
                                                     className={`w-[11px] h-[11px] rounded-[2px] ${isFuture ? 'bg-[var(--bg-dark)] opacity-30' : intensityColors[intensity]} ${date === todayStr ? 'ring-1 ring-[var(--primary)]' : ''} transition-all`}
-                                                    title={`${date}: ${isFuture ? 'Futuro' : count ? count + ' registros' : 'Sin actividad'}`}
+                                                    title={`${date}: ${isFuture ? 'Futuro' : count ? count + ' sesiones' : 'Sin actividad'}`}
                                                 />
                                             );
                                         })}

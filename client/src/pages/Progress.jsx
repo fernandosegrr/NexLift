@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
     TrendingUp, Calendar, Trophy, Dumbbell, ChevronDown, ChevronRight, Activity,
-    CheckCircle, Search, FileText, Loader2, Flame, X, Clock, Target, Zap, FileDown, Scale, HeartPulse
+    CheckCircle, Search, FileText, Loader2, Flame, X, Clock, Target, Zap, FileDown, Scale
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, CartesianGrid, Area, AreaChart } from 'recharts';
 import { api } from '../services/api';
@@ -94,10 +94,14 @@ function useProgressData() {
                 const bundle = await api.getProgressBundle();
                 if (!isMounted) return;
 
-                const consistencyMap = {};
-                (bundle.consistencyDays || []).forEach(dayKey => {
-                    consistencyMap[dayKey] = (consistencyMap[dayKey] || 0) + 1;
-                });
+                let consistencyMap = {};
+                if (bundle.consistencyCounts && typeof bundle.consistencyCounts === 'object') {
+                    consistencyMap = { ...bundle.consistencyCounts };
+                } else {
+                    (bundle.consistencyDays || []).forEach(dayKey => {
+                        consistencyMap[dayKey] = (consistencyMap[dayKey] || 0) + 1;
+                    });
+                }
 
                 const exercises = (bundle.exercises || []).map(e => ({
                     name: e.name,
@@ -155,8 +159,8 @@ function useExerciseProgress(exerciseName) {
 
                 setProgress(data.map(d => ({
                     ...d,
-                    displayDate: new Date(d.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
-                    fullDate: new Date(d.date).toLocaleDateString('es-ES')
+                    displayDate: new Date(d.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', timeZone: 'America/Mexico_City' }),
+                    fullDate: new Date(d.date).toLocaleDateString('es-ES', { timeZone: 'America/Mexico_City' })
                 })));
             } catch (error) {
                 if (error.name !== 'AbortError') {
@@ -789,14 +793,7 @@ export default function Progress() {
                     <h1 className="text-2xl font-bold leading-tight">Progreso</h1>
                     <p className="text-[var(--text-secondary)] text-sm mt-0.5">Tu evolución fitness</p>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                    <Link
-                        to="/cardio"
-                        className="min-h-[44px] flex items-center justify-center gap-1.5 bg-[var(--bg-card)] border border-[var(--border)] px-2 py-2.5 rounded-xl text-xs font-semibold text-[var(--text-primary)] active:scale-[0.98]"
-                    >
-                        <HeartPulse size={16} className="text-rose-400 shrink-0" aria-hidden />
-                        Cardio
-                    </Link>
+                <div className="grid grid-cols-2 gap-2">
                     <Link
                         to="/body"
                         className="min-h-[44px] flex items-center justify-center gap-1.5 bg-[var(--bg-card)] border border-[var(--border)] px-2 py-2.5 rounded-xl text-xs font-semibold text-[var(--text-primary)] active:scale-[0.98]"

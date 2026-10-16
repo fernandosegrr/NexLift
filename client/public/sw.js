@@ -5,7 +5,7 @@
 //  - API GET: network-first con fallback a la última respuesta cacheada
 //  - Estáticos varios (iconos, manifest, logo): cache-first
 // Bump en cada release de UI crítica para no servir shell viejo (header logo, etc.)
-const VERSION = 'v2.9.0-cardio';
+const VERSION = 'v3.0.0-creatine-push';
 const STATIC_CACHE = `nexlift-static-${VERSION}`;
 const API_CACHE = `nexlift-api-${VERSION}`;
 const SHELL_URL = '/index.html';
@@ -46,8 +46,10 @@ self.addEventListener('fetch', (event) => {
         event.respondWith(
             fetch(request)
                 .then((res) => {
-                    const copy = res.clone();
-                    caches.open(STATIC_CACHE).then((c) => c.put(SHELL_URL, copy));
+                    if (res.ok) {
+                        const copy = res.clone();
+                        caches.open(STATIC_CACHE).then((c) => c.put(SHELL_URL, copy));
+                    }
                     return res;
                 })
                 .catch(() => caches.match(SHELL_URL).then((r) => r || caches.match('/')))
@@ -55,13 +57,15 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // API: network-first con respaldo cacheado (datos visibles aunque estés offline)
+    // API: network-first con respaldo cacheado (solo cachear respuestas HTTP 2xx)
     if (sameOrigin && url.pathname.startsWith('/api/')) {
         event.respondWith(
             fetch(request)
                 .then((res) => {
-                    const copy = res.clone();
-                    caches.open(API_CACHE).then((c) => c.put(request, copy));
+                    if (res.ok) {
+                        const copy = res.clone();
+                        caches.open(API_CACHE).then((c) => c.put(request, copy));
+                    }
                     return res;
                 })
                 .catch(() => caches.match(request))
@@ -75,8 +79,10 @@ self.addEventListener('fetch', (event) => {
             caches.match(request).then((cached) =>
                 cached ||
                 fetch(request).then((res) => {
-                    const copy = res.clone();
-                    caches.open(STATIC_CACHE).then((c) => c.put(request, copy));
+                    if (res.ok) {
+                        const copy = res.clone();
+                        caches.open(STATIC_CACHE).then((c) => c.put(request, copy));
+                    }
                     return res;
                 })
             )
@@ -90,8 +96,10 @@ self.addEventListener('fetch', (event) => {
             caches.match(request).then((cached) =>
                 cached ||
                 fetch(request).then((res) => {
-                    const copy = res.clone();
-                    caches.open(STATIC_CACHE).then((c) => c.put(request, copy));
+                    if (res.ok) {
+                        const copy = res.clone();
+                        caches.open(STATIC_CACHE).then((c) => c.put(request, copy));
+                    }
                     return res;
                 }).catch(() => cached)
             )
@@ -99,8 +107,8 @@ self.addEventListener('fetch', (event) => {
     }
 });
 
-// Web Push (recordatorio de descanso, Tarea 2). En iOS 16.4+ solo funciona con la
-// PWA añadida a la pantalla de inicio (no en una pestaña de Safari).
+// Web Push (recordatorio de descanso y recordatorios escalonados de creatina).
+// En iOS 16.4+ solo funciona con la PWA añadida a la pantalla de inicio.
 self.addEventListener('push', (event) => {
     let data = {};
     try {
@@ -109,31 +117,42 @@ self.addEventListener('push', (event) => {
         data = {};
     }
     const title = data.title || 'NexLift';
-    // tag: una notificación nueva del mismo ejercicio reemplaza a la anterior en
-    // vez de apilarse (antes, series seguidas del mismo ejercicio dejaban avisos
-    // viejos acumulados). renotify: sin esto, reemplazar una notificación con el
-    // mismo tag es silencioso (no vibra/suena) — y sí queremos que vuelva a
-    // avisar, es un aviso de "se acabó tu descanso".
+    // Si viene data.tag explícito (ej. 'creatine-reminder-2026-10-15'), se usa para no
+    // colisionar con los avisos de descanso ('rest-<exerciseId>' o 'rest-generic').
+    const tag = data.tag || (data.exerciseId ? `rest-${data.exerciseId}` : 'rest-generic');
+    const targetUrl = data.url || '/';
+
     event.waitUntil(
         self.registration.showNotification(title, {
             body: data.body || '',
             icon: '/icon-192.png',
             badge: '/icon-192.png',
-            tag: data.exerciseId ? `rest-${data.exerciseId}` : 'rest-generic',
+            tag,
             renotify: true,
-            data: { exerciseId: data.exerciseId || null }
+            data: {
+                exerciseId: data.exerciseId || null,
+                type: data.type || 'rest',
+                url: targetUrl
+            }
         })
     );
 });
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
+    const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
             for (const client of clientList) {
-                if ('focus' in client) return client.focus();
+                if ('focus' in client) {
+                    if ('navigate' in client && targetUrl) {
+                        return client.navigate(targetUrl).then((c) => (c ? c.focus() : client.focus())).catch(() => client.focus());
+                    }
+                    return client.focus();
+                }
             }
-            if (clients.openWindow) return clients.openWindow('/');
+            if (clients.openWindow) return clients.openWindow(targetUrl);
         })
     );
 });

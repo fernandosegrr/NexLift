@@ -4,7 +4,7 @@ import {
     Settings as SettingsIcon, Dumbbell, Check, ChevronDown, Info, History,
     Trash2, Edit3, AlertTriangle, X, User, Lock, Shield, Download, Eye, EyeOff,
     Loader2, ChevronLeft, Save, CheckCircle, AlertCircle, Search, Filter,
-    Bell, BellOff, FileDown
+    Bell, BellOff, FileDown, Zap, Send, Clock
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
@@ -14,6 +14,7 @@ import { isPushSupported, getCurrentPushSubscription, subscribeToPush, unsubscri
 import { downloadSessionPdf } from '../utils/sessionPdf';
 import { MUSCLE_OPTIONS as MUSCLE_OPTION_DEFS, toSpanishMuscleGroup } from '../utils/muscleGroup';
 import { mexicoCityDateStr } from '../utils/dates';
+import { clearHomeCache } from '../utils/homeCache';
 import { SECURITY_QUESTIONS } from '../utils/securityQuestions';
 
 // Valores canónicos en español (+ Otros para residuales)
@@ -143,9 +144,13 @@ export default function Settings() {
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
 
-    // Push notifications state (recordatorio de descanso)
+    // Push notifications state (recordatorio de descanso + creatina)
     const [pushSubscribed, setPushSubscribed] = useState(false);
     const [pushLoading, setPushLoading] = useState(false);
+    const [creatineEnabled, setCreatineEnabled] = useState(false);
+    const [creatineTime, setCreatineTime] = useState('16:00');
+    const [creatineSaving, setCreatineSaving] = useState(false);
+    const [creatineTesting, setCreatineTesting] = useState(false);
 
     useEffect(() => {
         if (!isPushSupported()) return;
@@ -171,6 +176,44 @@ export default function Settings() {
         }
     }
 
+    async function handleUpdateCreatineSettings(nextEnabled, nextTime = creatineTime) {
+        setCreatineSaving(true);
+        try {
+            if (nextEnabled && isPushSupported() && !pushSubscribed) {
+                await subscribeToPush();
+                setPushSubscribed(true);
+            }
+            const res = await api.updateCreatineReminder({
+                enabled: Boolean(nextEnabled),
+                time: nextTime || '16:00'
+            });
+            setCreatineEnabled(Boolean(res?.creatineReminderEnabled ?? nextEnabled));
+            if (res?.creatineReminderTime) setCreatineTime(res.creatineReminderTime);
+            await refreshProfile();
+            toast.success(nextEnabled ? `Recordatorio de creatina activo (${nextTime || '16:00'} CDMX)` : 'Recordatorio de creatina desactivado');
+        } catch (err) {
+            toast.error(err.message || 'No se pudo guardar el recordatorio de creatina');
+        } finally {
+            setCreatineSaving(false);
+        }
+    }
+
+    async function handleTestCreatinePush() {
+        setCreatineTesting(true);
+        try {
+            if (isPushSupported() && !pushSubscribed) {
+                await subscribeToPush();
+                setPushSubscribed(true);
+            }
+            await api.testCreatinePush();
+            toast.success('Notificación de prueba enviada');
+        } catch (err) {
+            toast.error(err.message || 'No se pudo enviar la notificación de prueba');
+        } finally {
+            setCreatineTesting(false);
+        }
+    }
+
     // Password state
     const [passwordData, setPasswordData] = useState({
         currentPassword: '', newPassword: '', confirmPassword: ''
@@ -184,8 +227,10 @@ export default function Settings() {
     const [deletingSession, setDeletingSession] = useState(null);
     const [deleting, setDeleting] = useState(false);
 
-    // Export state
+    // Export / Import state
     const [exporting, setExporting] = useState(false);
+    const [importing, setImporting] = useState(false);
+    const backupFileInputRef = useRef(null);
 
     // History filters
     const [historyFilters, setHistoryFilters] = useState({
@@ -210,6 +255,10 @@ export default function Settings() {
                 phone: user.phone || '',
                 birthDate: user.birthDate ? String(user.birthDate).split('T')[0] : ''
             });
+            setCreatineEnabled(Boolean(user.creatineReminderEnabled));
+            if (user.creatineReminderTime) {
+                setCreatineTime(user.creatineReminderTime);
+            }
             // Solo sincronizar la pregunta mostrada; no tocar respuesta/contraseña
             // del form (evitar borrar lo que el usuario está escribiendo al refresh).
             setSecurityData(prev => ({
@@ -431,7 +480,10 @@ export default function Settings() {
                 bmi: b.bmi,
                 bodyFat: b.bodyFat,
                 muscleMass: b.muscleMass,
-                note: b.note
+                note: b.note,
+                creatineTaken: Boolean(b.creatineTaken ?? false),
+                dietCompliant: Boolean(b.dietCompliant ?? false),
+                zeroLiquidCalories: Boolean(b.zeroLiquidCalories ?? false)
             }));
 
             const sanitizePRs = prs.map(p => ({
@@ -467,6 +519,48 @@ export default function Settings() {
             toast.error(err.message || 'Error exportando datos');
         } finally {
             setExporting(false);
+        }
+    }
+
+    async function handleImportBackup(e) {
+        const file = e.target.files?.[0];
+        if (!file || importing) return;
+        setImporting(true);
+        try {
+            const rawText = await file.text();
+            const parsed = JSON.parse(rawText);
+            if (!parsed || typeof parsed !== 'object') {
+                throw new Error('Archivo de backup inválido');
+            }
+            const normalizedBodyLogs = Array.isArray(parsed.bodyLogs)
+                ? parsed.bodyLogs.map(b => ({
+                    ...b,
+                    creatineTaken: Boolean(b?.creatineTaken ?? false),
+                    dietCompliant: Boolean(b?.dietCompliant ?? false),
+                    zeroLiquidCalories: Boolean(b?.zeroLiquidCalories ?? false)
+                }))
+                : [];
+            const res = await api.importBackup({
+                ...parsed,
+                bodyLogs: normalizedBodyLogs
+            });
+            clearHomeCache();
+            fetchData();
+            const bodyCount = res?.bodyLogsImported ?? res?.importedBodyLogs ?? 0;
+            const workoutsCount = res?.workoutsImported ?? 0;
+            const routinesCount = res?.routinesImported ?? 0;
+            const prsCount = res?.prsImported ?? 0;
+            const summaryParts = [`${bodyCount} mediciones/hábitos`];
+            if (workoutsCount > 0) summaryParts.push(`${workoutsCount} sesiones`);
+            if (routinesCount > 0) summaryParts.push(`${routinesCount} rutinas`);
+            if (prsCount > 0) summaryParts.push(`${prsCount} PRs`);
+            toast.success(`Backup importado (${summaryParts.join(', ')})`);
+        } catch (err) {
+            console.error(err);
+            toast.error(err.message || 'Error importando backup JSON');
+        } finally {
+            setImporting(false);
+            if (backupFileInputRef.current) backupFileInputRef.current.value = '';
         }
     }
 
@@ -745,23 +839,97 @@ export default function Settings() {
                         </div>
                     )}
 
-                    {/* Export Data Card */}
+                    {/* Creatine Escalating Reminder Card */}
+                    <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border)] space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h3 className="font-semibold text-white flex items-center gap-2">
+                                <Zap size={18} className={creatineEnabled ? 'text-amber-400' : 'text-[var(--text-secondary)]'} />
+                                Recordatorios de Creatina (5g)
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={() => handleUpdateCreatineSettings(!creatineEnabled, creatineTime)}
+                                disabled={creatineSaving}
+                                role="switch"
+                                aria-checked={creatineEnabled}
+                                aria-label={creatineEnabled ? 'Desactivar recordatorio de creatina' : 'Activar recordatorio de creatina'}
+                                className={`relative w-12 h-7 rounded-full transition-colors disabled:opacity-50 ${creatineEnabled ? 'bg-amber-500' : 'bg-[var(--bg-dark)] border border-[var(--border)]'}`}
+                            >
+                                <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${creatineEnabled ? 'translate-x-5' : ''}`} />
+                            </button>
+                        </div>
+                        <p className="text-sm text-[var(--text-secondary)]">
+                            Avisos Web Push escalonados (hora CDMX) si aún no marcas tu creatina diaria en el check-in:
+                            <span className="block text-xs text-[var(--text-secondary)]/80 mt-1">
+                                1️⃣ A tu hora base ({creatineTime}) • 2️⃣ +3 horas después • 3️⃣ Última llamada (23:00 CDMX)
+                            </span>
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                            <div className="flex items-center gap-2 flex-1 bg-[var(--bg-dark)] border border-[var(--border)] rounded-xl px-3 py-2">
+                                <Clock size={16} className="text-amber-400 shrink-0" />
+                                <label className="text-xs text-[var(--text-secondary)] shrink-0">Hora base (CDMX):</label>
+                                <input
+                                    type="time"
+                                    value={creatineTime}
+                                    onChange={(e) => {
+                                        const nextVal = e.target.value || '16:00';
+                                        setCreatineTime(nextVal);
+                                        if (creatineEnabled) {
+                                            handleUpdateCreatineSettings(true, nextVal);
+                                        }
+                                    }}
+                                    disabled={creatineSaving}
+                                    className="bg-transparent text-white text-sm font-medium focus:outline-none ml-auto"
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleTestCreatinePush}
+                                disabled={creatineTesting}
+                                className="py-2.5 px-4 bg-amber-500/20 text-amber-300 font-medium text-xs rounded-xl border border-amber-500/30 hover:bg-amber-500/30 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                            >
+                                {creatineTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                                {creatineTesting ? 'Enviando...' : 'Probar Aviso Push'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Export / Import Data Card */}
                     <div className="bg-[var(--bg-card)] rounded-2xl p-4 border border-[var(--border)]">
                         <h3 className="font-semibold text-white flex items-center gap-2 mb-3">
                             <Download size={18} className="text-blue-400" />
-                            Exportar Datos
+                            Respaldo de Datos (JSON)
                         </h3>
                         <p className="text-sm text-[var(--text-secondary)] mb-4">
-                            Descarga todos tus datos en formato JSON: rutinas, entrenamientos, mediciones y récords.
+                            Descarga o restaura tus datos en formato JSON: rutinas, entrenamientos, mediciones, hábitos diarios y récords.
                         </p>
-                        <button
-                            onClick={exportAllData}
-                            disabled={exporting}
-                            className="w-full py-3 bg-blue-500/20 text-blue-400 font-medium rounded-xl border border-blue-500/30 hover:bg-blue-500/30 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                        >
-                            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                            {exporting ? 'Exportando...' : 'Descargar Backup'}
-                        </button>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <button
+                                type="button"
+                                onClick={exportAllData}
+                                disabled={exporting || importing}
+                                className="w-full py-3 bg-blue-500/20 text-blue-400 font-medium rounded-xl border border-blue-500/30 hover:bg-blue-500/30 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                                {exporting ? 'Exportando...' : 'Descargar Backup'}
+                            </button>
+                            <input
+                                ref={backupFileInputRef}
+                                type="file"
+                                accept="application/json,.json"
+                                onChange={handleImportBackup}
+                                className="hidden"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => backupFileInputRef.current?.click()}
+                                disabled={importing || exporting}
+                                className="w-full py-3 bg-emerald-500/20 text-emerald-400 font-medium rounded-xl border border-emerald-500/30 hover:bg-emerald-500/30 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                                {importing ? 'Importando...' : 'Importar Backup'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

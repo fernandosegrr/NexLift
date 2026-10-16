@@ -8,7 +8,8 @@ import {
     convertShortcutRir, pickNextSplitDay, resolveWeightIncrement,
     sanitizeSets, sanitizeShortcutLogSet, sanitizeWorkoutLogBody, suggestNextSetFromToday,
     mexicoCityDayOfWeek, inferWeekdayFromName, findRoutineDayForWeekday, scheduledRestWeekdays,
-    normalizeIncomingWeekday, resolveIncomingWeekday, validateRoutineDayWeekdays
+    normalizeIncomingWeekday, resolveIncomingWeekday, validateRoutineDayWeekdays,
+    normalizeBackupBodyLog, normalizeBackupBodyLogs, evaluateCreatineReminderStage
 } from './logic.js';
 
 describe('helpers CDMX (zona horaria)', () => {
@@ -272,13 +273,28 @@ describe('sanitizeSets / log body (invariantes camino caliente)', () => {
         assert.equal(ok.clean.exerciseId, 'ex1');
     });
 
-    it('sanitizeShortcutLogSet: RIR crudo obligatorio y conversión a 10-RIR', () => {
-        assert.match(sanitizeShortcutLogSet({ exerciseId: 'e', weight: 100, reps: 5 }).error || '', /RIR/i);
-        assert.match(sanitizeShortcutLogSet({ exerciseId: 'e', weight: 100, reps: 5, rpe: 9 }).error || '', /RIR|0-4/i);
+    it('sanitizeShortcutLogSet: acepta rpe o rir indistintamente y aplica fallback seguro rir=0 (rpe=10) cuando vienen vacíos', () => {
+        const emptyFallback = sanitizeShortcutLogSet({ exerciseId: 'e', weight: 100, reps: 5 });
+        assert.equal(emptyFallback.error, undefined);
+        assert.equal(emptyFallback.clean.set.rpe, 10);
+        assert.equal(emptyFallback.clean.rawRir, 0);
+
+        const rirAlias = sanitizeShortcutLogSet({ exerciseId: 'e', weight: 100, reps: 5, rir: 2 });
+        assert.equal(rirAlias.error, undefined);
+        assert.equal(rirAlias.clean.set.rpe, 8); // 10-2
+        assert.equal(rirAlias.clean.rawRir, 2);
+
         const ok = sanitizeShortcutLogSet({ exerciseId: 'e', weight: 100, reps: 5, rpe: 2 });
         assert.equal(ok.error, undefined);
         assert.equal(ok.clean.set.rpe, 8); // 10-2
         assert.equal(ok.clean.rawRir, 2);
+
+        const directRpe = sanitizeShortcutLogSet({ exerciseId: 'e', weight: 100, reps: 5, rpe: 9 });
+        assert.equal(directRpe.error, undefined);
+        assert.equal(directRpe.clean.set.rpe, 9);
+        assert.equal(directRpe.clean.rawRir, 1);
+
+        assert.match(sanitizeShortcutLogSet({ exerciseId: 'e', weight: 100, reps: 5, rir: 7 }).error || '', /RIR|0-4/i);
     });
 });
 
@@ -289,9 +305,19 @@ describe('suggestNextSetFromToday (intra-sesión)', () => {
         assert.equal(suggestNextSetFromToday([{ weight: 100, reps: 10, rir: null }], opts), null);
     });
 
-    it('RIR 0 → baja un incremento', () => {
+    it('Serie 1 (Top Set) a RIR 0 → calcula Back-off Set (-12.5% peso y +2 reps hacia el techo)', () => {
         const s = suggestNextSetFromToday([{ weight: 100, reps: 8, rir: 0 }], opts);
-        assert.equal(s.weight, 97.5);
+        assert.equal(s.weight, 87.5);
+        assert.equal(s.reps, 10);
+        assert.equal(s.source, 'intra');
+    });
+
+    it('Serie 2+ a RIR 0 → baja un incremento normal', () => {
+        const s = suggestNextSetFromToday([
+            { weight: 100, reps: 8, rir: 0 },
+            { weight: 87.5, reps: 10, rir: 0 }
+        ], opts);
+        assert.equal(s.weight, 85);
         assert.equal(s.source, 'intra');
     });
 
@@ -489,6 +515,41 @@ describe('computeWorkoutSuggestion', () => {
         assert.equal(result.weight, 102.5);
         assert.equal(result.reps, 8);
     });
+
+    it('Top Set al techo con RIR <= 1 (RPE 9-10) desbloquea incremento de peso aunque Serie 2 tenga menos reps', () => {
+        const sessions = [{
+            sets: [
+                { weight: 100, reps: 8, rpe: 10 }, // RIR 0, techo de 6-8
+                { weight: 100, reps: 6, rpe: 10 }  // caída por fatiga
+            ]
+        }];
+        const result = computeWorkoutSuggestion(sessions, '6-8', 2.5, null);
+        assert.equal(result.weight, 102.5);
+        assert.equal(result.reps, 6);
+    });
+
+    it('protección contra Ego Lifting: ignora singles/doubles (reps < 3) si lo > 3, pero los respeta si lo <= 3', () => {
+        const egoSessions = [{
+            sets: [
+                { weight: 115, reps: 1, rpe: 10 }, // Single ego lifting
+                { weight: 100, reps: 8, rpe: 9 },  // Top Set real al techo de 6-8 con RIR 1
+                { weight: 87.5, reps: 9, rpe: 10 } // Back-off
+            ]
+        }];
+        const hyp = computeWorkoutSuggestion(egoSessions, '6-8', 2.5, null);
+        assert.equal(hyp.weight, 102.5); // Sube desde 100kg, no desde 115kg
+        assert.equal(hyp.reps, 6);
+
+        const maxStrSessions = [{
+            sets: [
+                { weight: 115, reps: 3, rpe: 10 },
+                { weight: 100, reps: 5, rpe: 9 }
+            ]
+        }];
+        const str = computeWorkoutSuggestion(maxStrSessions, '1-3', 2.5, null);
+        assert.equal(str.weight, 117.5);
+        assert.equal(str.reps, 1);
+    });
 });
 
 describe('detectPlateauForExercise', () => {
@@ -606,3 +667,144 @@ describe('pickNextSplitDay (rotación de la Rutina diaria con IA)', () => {
         assert.equal(pickNextSplitDay([], ['Push']), null);
     });
 });
+
+describe('normalizeBackupBodyLog (retrocompatibilidad v2.7.0 + Daily Check-in)', () => {
+    it('aplica fallback false a creatineTaken, dietCompliant y zeroLiquidCalories en backups v2.7.0 antiguos', () => {
+        const legacy = {
+            date: '2026-03-01T15:00:00.000Z',
+            weight: 82.4,
+            bodyFat: 18.2
+        };
+        const out = normalizeBackupBodyLog(legacy);
+        assert.equal(out.weight, 82.4);
+        assert.equal(out.bodyFat, 18.2);
+        assert.equal(out.creatineTaken, false);
+        assert.equal(out.dietCompliant, false);
+        assert.equal(out.zeroLiquidCalories, false);
+    });
+
+    it('preserva los booleanos de hábitos diarios cuando vienen en el backup JSON', () => {
+        const modern = {
+            date: '2026-04-10T15:00:00.000Z',
+            weight: 80.1,
+            creatineTaken: true,
+            dietCompliant: true,
+            zeroLiquidCalories: false
+        };
+        const out = normalizeBackupBodyLog(modern);
+        assert.equal(out.creatineTaken, true);
+        assert.equal(out.dietCompliant, true);
+        assert.equal(out.zeroLiquidCalories, false);
+    });
+
+    it('normalizeBackupBodyLogs procesa arreglos mixtos (v2.7.0 y actuales)', () => {
+        const list = normalizeBackupBodyLogs([
+            { date: '2026-04-01T12:00:00Z', weight: 81 },
+            { date: '2026-04-02T12:00:00Z', creatineTaken: true, zeroLiquidCalories: true }
+        ]);
+        assert.equal(list.length, 2);
+        assert.equal(list[0].creatineTaken, false);
+        assert.equal(list[1].creatineTaken, true);
+        assert.equal(list[1].dietCompliant, false);
+        assert.equal(list[1].zeroLiquidCalories, true);
+    });
+});
+
+describe('paridad cliente/servidor (client/src/utils/smartLoading.js vs server/src/logic.js)', async () => {
+    const clientSmart = await import('../../client/src/utils/smartLoading.js');
+
+    it('computeWorkoutSuggestion coincide 100% entre cliente y servidor (Top Set unlock + Ego-lifting protection)', () => {
+        const fixtures = [
+            {
+                sessions: [{ sets: [{ weight: 100, reps: 8, rpe: 10 }, { weight: 90, reps: 7, rpe: 9 }] }],
+                targetReps: '6-8', increment: 2.5, phase: null
+            },
+            {
+                sessions: [{ sets: [{ weight: 110, reps: 1, rpe: 10 }, { weight: 100, reps: 8, rpe: 9.5 }, { weight: 90, reps: 7, rpe: 9 }] }],
+                targetReps: '6-8', increment: 2.5, phase: null
+            },
+            {
+                sessions: [{ sets: [{ weight: 140, reps: 3, rpe: 9.5 }, { weight: 125, reps: 3, rpe: 9 }] }],
+                targetReps: '1-3', increment: 5, phase: null
+            },
+            {
+                sessions: [{ sets: [{ weight: 100, reps: 12, rpe: 8 }, { weight: 100, reps: 10, rpe: 8 }] }],
+                targetReps: '8-12', increment: 2.5, phase: null
+            }
+        ];
+
+        for (const f of fixtures) {
+            const c = clientSmart.computeWorkoutSuggestion(f.sessions, f.targetReps, f.increment, f.phase);
+            const s = computeWorkoutSuggestion(f.sessions, f.targetReps, f.increment, { phase: f.phase });
+            assert.equal(c.weight, s.weight);
+            assert.equal(c.reps, s.reps);
+            assert.equal(c.rationale, s.rationale);
+            assert.equal(c.basedOn, s.basedOn);
+        }
+    });
+
+    it('suggestNextSetFromToday coincide 100% entre cliente y servidor (Back-off Set al RIR 0 en Serie 1)', () => {
+        const fixtures = [
+            {
+                sets: [{ weight: '100', reps: '7', rir: 0 }],
+                targetReps: '6-8', increment: 2.5, phase: null
+            },
+            {
+                sets: [{ weight: '120', reps: '6', rir: 0 }],
+                targetReps: '6-8', increment: 5, phase: null
+            },
+            {
+                sets: [{ weight: '80', reps: '8', rir: 1 }],
+                targetReps: '6-8', increment: 2.5, phase: null
+            },
+            {
+                sets: [
+                    { weight: '100', reps: '7', rir: 0 },
+                    { weight: '87.5', reps: '8', rir: 0 }
+                ],
+                targetReps: '6-8', increment: 2.5, phase: null
+            }
+        ];
+
+        for (const f of fixtures) {
+            const c = clientSmart.suggestNextSetFromToday(f.sets, f.targetReps, f.increment, f.phase);
+            const s = suggestNextSetFromToday(f.sets, f.targetReps, f.increment, { phase: f.phase });
+            assert.deepEqual(c, s);
+        }
+    });
+});
+
+describe('evaluateCreatineReminderStage (notificaciones Web Push escalonadas CDMX)', () => {
+    it('Etapa 1 a la hora configurada (16:00 CDMX = 22:00 UTC)', () => {
+        const at1605Cdmx = new Date('2026-01-15T22:05:00Z');
+        const res = evaluateCreatineReminderStage(at1605Cdmx, '16:00', null, 0);
+        assert.ok(res);
+        assert.equal(res.stage, 1);
+        assert.equal(res.dateStr, '2026-01-15');
+        assert.match(res.body, /Hora de tu creatina/i);
+        // No duplica si ya se envió etapa 1 hoy
+        assert.equal(evaluateCreatineReminderStage(at1605Cdmx, '16:00', '2026-01-15', 1), null);
+    });
+
+    it('Etapa 2 a las +3 horas (19:00 CDMX = 01:00 UTC del día siguiente)', () => {
+        const at1910Cdmx = new Date('2026-01-16T01:10:00Z'); // sigue siendo 2026-01-15 en CDMX
+        const res = evaluateCreatineReminderStage(at1910Cdmx, '16:00', '2026-01-15', 1);
+        assert.ok(res);
+        assert.equal(res.stage, 2);
+        assert.equal(res.dateStr, '2026-01-15');
+        assert.match(res.body, /Pasaron 3 horas/i);
+    });
+
+    it('Etapa 3 de Última Llamada a las 23:00 CDMX (05:00 UTC del día siguiente)', () => {
+        const at2305Cdmx = new Date('2026-01-16T05:05:00Z'); // 23:05 CDMX del 2026-01-15
+        const res = evaluateCreatineReminderStage(at2305Cdmx, '16:00', '2026-01-15', 2);
+        assert.ok(res);
+        assert.equal(res.stage, 3);
+        assert.equal(res.dateStr, '2026-01-15');
+        assert.match(res.body, /Última llamada/i);
+        assert.equal(evaluateCreatineReminderStage(at2305Cdmx, '16:00', '2026-01-15', 3), null);
+    });
+});
+
+
+
