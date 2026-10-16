@@ -35,4 +35,4 @@ EXPOSE 80
 
 WORKDIR /app/server
 
-CMD ["npm", "start"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate || echo 'prisma db push failed'; npm start"]
