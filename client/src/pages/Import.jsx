@@ -289,12 +289,12 @@ export default function CreateRoutine() {
         // ("Lunes - Torso" -> 1) — ver resolveIncomingWeekday en logic.js.
         ...(Object.prototype.hasOwnProperty.call(day, 'weekday') ? { weekday: day.weekday } : {}),
         exercises: day.isRestDay ? [] : (day.exercises || []).map(ex => ({
-          name: ex.name || 'Ejercicio',
+          name: String(ex.name ?? '').trim() || 'Ejercicio',
           muscleGroup: toSpanishMuscleGroup(ex.muscleGroup || ex.muscle) || null,
           isUnilateral: !!ex.isUnilateral,
-          targetSets: parseInt(ex.targetSets ?? ex.sets, 10) || 3,
-          targetReps: ex.targetReps || ex.reps || '8-12',
-          restSeconds: parseInt(ex.restSeconds ?? ex.rest, 10) || 90,
+          targetSets: Number(ex.targetSets ?? ex.sets) || 3,
+          targetReps: String(ex.targetReps ?? ex.reps ?? '8-12').trim(),
+          restSeconds: (ex.restSeconds ?? ex.rest) !== undefined && (ex.restSeconds ?? ex.rest) !== null ? Number(ex.restSeconds ?? ex.rest) : null,
           note: ex.note || ''
         }))
       }))

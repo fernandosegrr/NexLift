@@ -24,7 +24,7 @@ import {
     computeWorkoutSuggestion, suggestNextSetFromToday, roundWorkoutWeight, detectPlateauForExercise,
     resolveWeightIncrement, parseRepRange, effectiveWorkoutSet,
     parseCdmxDateRangeQuery, sanitizeSets, sanitizeShortcutLogSet, sanitizeWorkoutLogBody,
-    findRoutineDayForWeekday, scheduledRestWeekdays, resolveIncomingWeekday, validateRoutineDayWeekdays,
+    findRoutineDayForWeekday, scheduledRestWeekdays, resolveIncomingWeekday, parseImportedDays, validateRoutineDayWeekdays,
     inferWeekdayFromName, evaluateCreatineReminderStage
 } from './logic.js';
 
@@ -1492,73 +1492,77 @@ app.post('/api/routines/import', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: weekdayValidation.error });
         }
 
-        // Deduplicación de ejercicios (Tarea 4): una sola llamada al LLM (u a su
-        // fallback determinista) para TODO el import, no una por ejercicio. Un
-        // "create" anidado de una Routine/RoutineDay totalmente nueva no puede
-        // hacer "connect" a un Exercise ya existente (cada entrada crea una fila
-        // nueva) — el valor del matching aquí es reusar el NOMBRE canónico, igual
-        // que ya hace recalcPRForExercise/history (matching por nombre, no por id).
-        const flatExercises = [];
-        days.forEach((day, dayIndex) => {
-            (day.exercises || []).forEach((exercise, exIndex) => {
-                flatExercises.push({ dayIndex, exIndex, name: exercise.name });
+        // Lo que viene en el JSON se guarda TAL CUAL (nombres con .trim(), series,
+        // reps, descanso y orden exactos): sin dedup/matching difuso ni defaults del
+        // schema. Ver parseImportedExercise en logic.js.
+        const parsedDays = parseImportedDays(daysWithWeekday);
+        const routineName = String(name).trim();
+
+        const routine = await prisma.$transaction(async (tx) => {
+            // Reemplazo limpio: si ya existe una rutina con el mismo nombre, se borran
+            // sus días/ejercicios viejos (los ejercicios con historial se mueven a la
+            // papelera para no perder logs/PRs) y se reinsertan los del JSON.
+            const existing = await tx.routine.findMany({
+                where: { userId: req.userId, name: routineName, source: 'manual' },
+                select: { id: true }
             });
-        });
-
-        const canonicalExercises = await prisma.exercise.findMany({
-            where: { routineDay: { routine: { userId: req.userId } } },
-            select: { id: true, name: true, muscleGroup: true },
-            distinct: ['name']
-        });
-
-        const verdicts = await deduplicateExercises(flatExercises, canonicalExercises);
-        const canonicalById = new Map(canonicalExercises.map(ex => [ex.id, ex]));
-        const verdictByFlatIndex = new Map(verdicts.map(v => [v.index, v]));
-
-        let flatIndex = 0;
-        const resolveExerciseName = (exercise) => {
-            const verdict = verdictByFlatIndex.get(flatIndex++);
-            if (verdict?.matchedId) {
-                return canonicalById.get(verdict.matchedId)?.name || normalizeExerciseName(exercise.name);
-            }
-            return verdict?.cleanedName || normalizeExerciseName(exercise.name);
-        };
-
-        // Create routine with nested days and exercises
-        const routine = await prisma.routine.create({
-            data: {
-                userId: req.userId,
-                name,
-                description: description || null,
-                days: {
-                    create: daysWithWeekday.map((day, dayIndex) => ({
-                        dayName: day.dayName,
-                        isRestDay: day.isRestDay || false,
-                        weekday: day.weekday,
-                        order: dayIndex,
-                        exercises: {
-                            create: (day.exercises || []).map((exercise, exIndex) => ({
-                                name: resolveExerciseName(exercise),
-                                targetSets: exercise.sets || 3,
-                                targetReps: exercise.reps || '8-12',
-                                restSeconds: exercise.rest || null,
-                                note: exercise.note || null,
-                                isUnilateral: exercise.isUnilateral || false,
-                                order: exercise.order !== undefined ? exercise.order : exIndex
-                            }))
-                        }
-                    }))
+            for (const old of existing) {
+                const oldExercises = await tx.exercise.findMany({
+                    where: { routineDay: { routineId: old.id } },
+                    select: { id: true }
+                });
+                for (const ex of oldExercises) {
+                    const logCount = await tx.workoutLog.count({ where: { exerciseId: ex.id } });
+                    if (logCount > 0) {
+                        const binId = await getRecycleBinDay(req.userId, tx);
+                        await tx.exercise.update({ where: { id: ex.id }, data: { routineDayId: binId } });
+                    }
                 }
-            },
-            include: {
+                await tx.routineDay.deleteMany({ where: { routineId: old.id } });
+            }
+            // Se conserva la fila Routine (id, bloques de mesociclo); duplicados extra se borran.
+            const [keep, ...extras] = existing;
+            if (extras.length) await tx.routine.deleteMany({ where: { id: { in: extras.map(e => e.id) } } });
+
+            await tx.routine.updateMany({
+                where: { userId: req.userId, isActive: true },
+                data: { isActive: false }
+            });
+
+            const routineData = {
+                name: routineName,
+                description: description || null,
+                isActive: true,
                 days: {
-                    include: {
-                        exercises: { orderBy: { order: 'asc' } }
-                    },
+                        create: parsedDays.map(day => ({
+                            dayName: day.dayName,
+                            isRestDay: day.isRestDay,
+                            weekday: day.weekday,
+                            order: day.order,
+                            exercises: {
+                                create: day.exercises.map(ex => ({
+                                    name: ex.name,
+                                    targetSets: ex.targetSets,
+                                    targetReps: ex.targetReps,
+                                    restSeconds: ex.restSeconds,
+                                    note: ex.note,
+                                    isUnilateral: ex.isUnilateral,
+                                    order: ex.order
+                                }))
+                            }
+                        }))
+                }
+            };
+            const include = {
+                days: {
+                    include: { exercises: { orderBy: { order: 'asc' } } },
                     orderBy: { order: 'asc' }
                 }
-            }
-        });
+            };
+            return keep
+                ? tx.routine.update({ where: { id: keep.id }, data: routineData, include })
+                : tx.routine.create({ data: { ...routineData, userId: req.userId }, include });
+        }, { timeout: 20000 });
 
         res.status(201).json({
             message: 'Routine imported successfully!',
@@ -1912,6 +1916,7 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
                     for (let j = 0; j < day.exercises.length; j++) {
                         const ex = day.exercises[j];
                         const normalizedName = normalizeExerciseName(ex.name);
+                        const exactName = String(ex.name ?? '').trim();
                         // Fallback consistente: sin esto, un targetSets vacío/no numérico
                         // se guardaba como NaN y rompía en silencio la detección de "día
                         // completo" (next-set/Atajos) hasta corregirlo a mano.
@@ -1966,7 +1971,7 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
                                         await tx.exercise.create({
                                             data: {
                                                 routineDayId: dayId,
-                                                name: normalizedName,
+                                                name: exactName,
                                                 targetSets: cleanTargetSets,
                                                 targetReps: ex.targetReps,
                                                 restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
@@ -1984,7 +1989,7 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
                             await tx.exercise.update({
                                 where: { id: ex.id },
                                 data: {
-                                    name: normalizedName,
+                                    name: exactName,
                                     targetSets: cleanTargetSets,
                                     targetReps: ex.targetReps,
                                     restSeconds: ex.restSeconds ? parseInt(ex.restSeconds) : null,
@@ -1997,9 +2002,10 @@ app.put('/api/routines/:id', authMiddleware, async (req, res) => {
                         } else {
                             const binId = await getRecycleBinDay(req.userId, tx);
                             const verdict = dedupVerdictByEntry.get(`${i}:${j}`);
-                            const resolvedName = verdict?.matchedId
-                                ? (canonicalByIdForDedup.get(verdict.matchedId)?.name || normalizedName)
-                                : (verdict?.cleanedName || normalizedName);
+                            // Nombre EXACTO del usuario (solo trim): nunca se sustituye por el de
+                            // un ejercicio parecido. El veredicto de dedup solo se usa para
+                            // restaurar de la papelera uno con el mismo nombre exacto.
+                            const resolvedName = exactName;
 
                             // Si el veredicto (LLM o fallback) apunta a un ejercicio que HOY
                             // vive en la papelera, restaurarlo (preserva su historial) — igual
