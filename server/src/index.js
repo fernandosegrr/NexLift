@@ -1613,7 +1613,7 @@ app.get('/api/routines', authMiddleware, async (req, res) => {
             })
         ]);
         const routines = [...manualRoutines, ...aiRoutines].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        setPrivateCache(res, 30);
+        setPrivateCache(res, 0);
         res.json(routines.map(r => {
             const activeBlock = getActiveBlock(r.blocks);
             const phaseStatus = getRoutinePhaseStatus(r);
@@ -1673,7 +1673,7 @@ app.get('/api/routines/active', authMiddleware, async (req, res) => {
         if (!routine) return res.json(routine);
         const activeBlock = getActiveBlock(routine.blocks);
         const phaseStatus = getRoutinePhaseStatus(routine);
-        setPrivateCache(res, 20);
+        setPrivateCache(res, 0);
         res.json({ ...routine, activeBlock, currentWeek: currentWeekInBlock(activeBlock), isDeload: phaseStatus.isDeload, phase: phaseStatus.phase });
     } catch (error) {
         console.error('Error fetching active routine:', error);
