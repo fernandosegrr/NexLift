@@ -1,0 +1,214 @@
+[
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "key": {
+      "route": "/api/auth/register",
+      "method": "app.post"
+    },
+    "receivedSha256": "af433973fb234a7a7a81f660d185abf775837854ad72c1b834baa7b74ef49ac6",
+    "sha256": "e7a89fdd277c641bfce661ebd9371c2498d72cf5261023e97efc0bebbc0e3158",
+    "reason": "credential validation, generic recovery and dependency status",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "key": {
+      "route": "/api/auth/login",
+      "method": "app.post"
+    },
+    "receivedSha256": "812c6e6ae3523b65463ea6751ca256802c217a40340d8c6271ab34bd82175245",
+    "sha256": "a7813efca70e594312ec658bb6ed0691caf01916eac8ecf6bc5773a76daf9387",
+    "reason": "credential validation, generic recovery and dependency status",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "key": {
+      "route": "/api/auth/me",
+      "method": "app.get"
+    },
+    "receivedSha256": "123575cbb257fa90cba51db40c0ec7b6ea1fce083ddb19a540d35003a0425532",
+    "sha256": "947c63124169b7a2356e57c648994c4c739476049d1e109861415aa9cd9c7d66",
+    "reason": "credential validation, generic recovery and dependency status",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "key": {
+      "route": "/api/auth/profile",
+      "method": "app.put"
+    },
+    "receivedSha256": "a298f9b5118806edd40563d64388ae057d2f5d1c8600d99ea5d6aa5fcce37892",
+    "sha256": "5393994d12477d14da2b74f5941fe7cf7e6c4a04c315ee1bdf1fe7936fb50bd1",
+    "reason": "credential validation, generic recovery and dependency status",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "key": {
+      "route": "/api/auth/password",
+      "method": "app.put"
+    },
+    "receivedSha256": "deae943b38cdd05e409feaf8a0eed2514bbc9067caf75de40f6a6d9e6472acbe",
+    "sha256": "ebde2ef69e3e279a02d42530474d23a1c1954c7b216367ab95c5f4686541d073",
+    "reason": "credential validation, generic recovery and dependency status",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "key": {
+      "route": "/api/auth/recover/question",
+      "method": "app.post"
+    },
+    "receivedSha256": "4a69be15b6dcd04d95ae09234e8153b3b438988b3a20ec9c6ed545cdf7424a01",
+    "sha256": "6ba56d7699c40256d7901cea19b56a6087bf6ca0e3140f11801d7c05a0279984",
+    "reason": "credential validation, generic recovery and dependency status",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "key": {
+      "route": "/api/auth/recover/verify",
+      "method": "app.post"
+    },
+    "receivedSha256": "3b7f4ffaf3ede2f504aebb10ad03b2e5c52abd5d954d3f54c61cc975aa171def",
+    "sha256": "e525897e2f2ec10ef3386cbeb70e7c91fb9286b4e33cb2da8e0fac4ada1253bb",
+    "reason": "credential validation, generic recovery and dependency status",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "key": {
+      "route": "/api/auth/security-question",
+      "method": "app.put"
+    },
+    "receivedSha256": "ee2d349fd8fbf90625fdd4e07576ccc16e9aa0b336e31fc1654814bd19d5166e",
+    "sha256": "dfbb424d3a658b498cf4737b4664a29a820c8ff34d68ad2994dd40d286e48bbd",
+    "reason": "credential validation, generic recovery and dependency status",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/workouts/routes.js",
+    "key": {
+      "route": "/api/workouts/rest-reminder",
+      "method": "app.post"
+    },
+    "receivedSha256": "fe4a9c1553ffd7611b048a0a2a87c53b3716a595baddb7d3101594592016e46c",
+    "sha256": "44ca18d94fc02efc86f7ef1d44c2dbf8b44c85706aa29b6288838614223b7b90",
+    "reason": "durable scheduling receipt for generation-scoped cancellation",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/notifications/routes.js",
+    "key": {
+      "route": "/api/push/subscribe",
+      "method": "app.post"
+    },
+    "receivedSha256": "3ae79226052135fc04c60a72b9a53809bb13a0927a7fcc1a2bf0003900970049",
+    "sha256": "a733ead1b9de7b9a27d67a9f00cfbc6b3f261f227e57ca019f53db222f798b65",
+    "reason": "push isolation, private payload, generation identity, provider limits and transactional durable claims",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/notifications/routes.js",
+    "key": {
+      "route": "/api/push/subscribe",
+      "method": "app.delete"
+    },
+    "receivedSha256": "84969c6f56d085432648b284d214932283aa1e12a7423025fbfededc359c12dc",
+    "sha256": "b92948995278a8784abe4bcf17248d3b69d574abfcd813478bb38f22fb767eaf",
+    "reason": "push isolation, private payload, generation identity, provider limits and transactional durable claims",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/notifications/routes.js",
+    "key": {
+      "route": "/api/push/test-creatine",
+      "method": "app.post"
+    },
+    "receivedSha256": "ec4ab6e1a662fb8586bb4664a136b3e094723de620935bf435be49f589806edc",
+    "sha256": "0a74ad79517ca8e5f7dd94d193a7ad1bc17773d72e3f534f7dfe8261f8f71108",
+    "reason": "push isolation, private payload, generation identity, provider limits and transactional durable claims",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/app/cache.js",
+    "key": {
+      "function": "setPrivateCache"
+    },
+    "receivedSha256": "bbbfd3fdd415c280eb57f4bbd074e79a8e8464ca8d1818ff43c336252e5aebb4",
+    "sha256": "1d9edbd36a1a7b2fa58def156e23823d0a733d2b81b1669fe75e77693f3e7827",
+    "reason": "no-store for private responses",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/notifications/service.js",
+    "key": {
+      "function": "sendPushToUser"
+    },
+    "receivedSha256": "1e1739b9a6fc747a6ca94d814835107f6d5f5386d6b6293680328668d78e8758",
+    "sha256": "9e2ba45b3ff24a7646a000477e17dcbc40239e49e787e1ac01db89cc52a1e989",
+    "reason": "push isolation, private payload, generation identity, provider limits and transactional durable claims",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/notifications/service.js",
+    "key": {
+      "function": "firePendingReminder"
+    },
+    "receivedSha256": "64dd041e7924a94ca3bab622e64fe43b32229d164638129918eb07a8075e1c2a",
+    "sha256": "8c6e0f4805fe1ddfa18babae9ad800cb92a045ff174802928607d2d8234f66dc",
+    "reason": "push isolation, private payload, generation identity, provider limits and transactional durable claims",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/notifications/service.js",
+    "key": {
+      "function": "scheduleRestReminder"
+    },
+    "receivedSha256": "5e06e058fcb495c4de4114e63b7070ff42b20cb97aac6a18dae72bd2b4e859eb",
+    "sha256": "7dbcadf551c6ce3330d93279dab6fbaab878108110af00f8bbcb8e9a17d5e9fb",
+    "reason": "push isolation, private payload, generation identity, provider limits and transactional durable claims",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/notifications/service.js",
+    "key": {
+      "function": "restorePendingReminders"
+    },
+    "receivedSha256": "0340089edc373e79a9a322625854e158052fe92c6a6a442ac3a7fe54a2bbabe2",
+    "sha256": "c62937efc2ad72ef09e84e339753e4d7550c06d327ac0e9e398294809bbbf08d",
+    "reason": "push isolation, private payload, generation identity, provider limits and transactional durable claims",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/notifications/service.js",
+    "key": {
+      "function": "checkReengagementReminders"
+    },
+    "receivedSha256": "8d5179e8db47ed11088679189fbd3ea0664cecfab8709d81f272a14a967cc94b",
+    "sha256": "d4986ec74a1a21bd42e8b7dacfc21da234f1405979245375065eb26a78d83692",
+    "reason": "push isolation, private payload, generation identity, provider limits and transactional durable claims",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/notifications/service.js",
+    "key": {
+      "function": "checkCreatineReminders"
+    },
+    "receivedSha256": "1d61ff061f8677fdbde437f9c894e4b0692e386edca43328bde32fe43b349fb8",
+    "sha256": "03a4e3876eb87db8cc3b67d35d58c53733cb10f1dc69f86788cc52df3439eb52",
+    "reason": "push isolation, private payload, generation identity, provider limits and transactional durable claims",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  },
+  {
+    "file": "server/src/modules/backups/service.js",
+    "key": {
+      "function": "runDailyBackup"
+    },
+    "receivedSha256": "c25a3aa70a815a50c25c753cc987238fcf33e722d55b957e58f9ddc3dbf3a961",
+    "sha256": "a4bb1b133ab2c049de27923b615c27f4dbde6d3779fd534e9e7f0ec31e375ac5",
+    "reason": "fixed error category excludes provider secrets",
+    "regressions": "phase9-security, phase9.integration, phase7-notifications, client security rest cancellation"
+  }
+]

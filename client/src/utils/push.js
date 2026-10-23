@@ -27,6 +27,9 @@ export async function getCurrentPushSubscription() {
 }
 
 export async function subscribeToPush() {
+    const token = localStorage.getItem('nexlift_token');
+    const current = () => token && localStorage.getItem('nexlift_token') === token;
+    if (!current()) throw new Error('Inicia sesión para activar notificaciones');
     if (!isPushSupported()) {
         throw new Error('Este navegador no soporta notificaciones push');
     }
@@ -36,25 +39,37 @@ export async function subscribeToPush() {
         throw new Error('Permiso de notificaciones denegado');
     }
 
-    const { publicKey } = await api.getVapidPublicKey();
+    if (!current()) throw new Error('La sesión cambió');
+    const { publicKey } = await api.getVapidPublicKey(token);
     if (!publicKey) {
         throw new Error('Push no configurado en el servidor');
     }
 
     const registration = await navigator.serviceWorker.ready;
+    if (!current()) throw new Error('La sesión cambió');
     const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey)
     });
 
-    await api.subscribeToPush(subscription.toJSON());
+    if (!current()) { await subscription.unsubscribe(); throw new Error('La sesión cambió'); }
+    try { await api.subscribeToPush(subscription.toJSON(), token); }
+    catch (error) {
+        await Promise.allSettled([subscription.unsubscribe(), api.unsubscribeFromPush(subscription.endpoint, token)]);
+        throw error;
+    }
+    if (!current()) {
+        await Promise.allSettled([subscription.unsubscribe(), api.unsubscribeFromPush(subscription.endpoint, token)]);
+        throw new Error('La sesión cambió');
+    }
     return subscription;
 }
 
-export async function unsubscribeFromPush() {
+export async function unsubscribeFromPush(token = localStorage.getItem('nexlift_token')) {
     const subscription = await getCurrentPushSubscription();
     if (!subscription) return;
     const endpoint = subscription.endpoint;
-    await subscription.unsubscribe();
-    await api.unsubscribeFromPush(endpoint);
+    // A later account owns the browser subscription now; do not remove it.
+    if (localStorage.getItem('nexlift_token') && localStorage.getItem('nexlift_token') !== token) return;
+    await Promise.allSettled([subscription.unsubscribe(), token ? api.unsubscribeFromPush(endpoint, token) : Promise.resolve()]);
 }

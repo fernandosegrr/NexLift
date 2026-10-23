@@ -1,0 +1,9 @@
+{
+  "errors": 19,
+  "warnings": 2,
+  "newFindings": 0,
+  "baseline": {
+    "errors": 23,
+    "warnings": 2
+  }
+}

@@ -1,0 +1,756 @@
+{
+  "productionTouched": false,
+  "persistentDatabaseAccessed": false,
+  "cases": [
+    "9 SQL/HTTP: every current route has reviewed guards and private routes reject missing credentials",
+    "9 SQL/HTTP: every route with resource parameters preserves the second account under owner spoofing",
+    "9 SQL/HTTP: backups exclude credentials and cannot export the other account through query or body",
+    "9 SQL/HTTP: endpoint ownership cannot be stolen concurrently by a second account",
+    "9 SQL/HTTP: subscription response excludes capability and keys, deletion is account scoped",
+    "9 SQL/HTTP: provider 404 and 410 retire only the expired subscription",
+    "9 SQL/HTTP: explicit transient provider refusal has one bounded retry and accurate acceptance count",
+    "9 SQL/HTTP: test push distinguishes attempted devices from provider acceptance",
+    "9 SQL: cancelled and replaced rest reminders cannot consume the latest durable event",
+    "9 SQL: concurrent schedules keep one durable rest event and one private provider message",
+    "9 SQL/lifecycle: closing pauses sends while an accepted HTTP request can persist its reminder for restart",
+    "9 SQL/HTTP: an acknowledged rest cancellation is idempotent, account scoped and survives restart",
+    "9 SQL/HTTP: delayed cancellation of an old generation cannot cancel its replacement",
+    "9 SQL/processes: simultaneous restoration by two backends consumes a rest reminder once",
+    "9 SQL/processes: creatine stages are claimed once across two independent application processes",
+    "9 SQL/processes: reengagement daily claim survives competing processes and restart",
+    "9 SQL/processes: abrupt crash before provider acceptance rolls back the rest claim for restart",
+    "9 SQL: disabled category and recorded dose prevent creatine messages",
+    "9 SQL: stale reminders are discarded on restart and forged reminder owner never receives exercise data",
+    "9 SQL: logout removal during a multi-device send prevents the removed device attempt",
+    "9 SQL/HTTP: login repetition is bounded under concurrency with generic credentials failures",
+    "9 SQL/auth: concurrent credential updates cannot revoke the winning replacement token a second time",
+    "9 time: CDMX midnight, Sunday, week, month and year boundaries preserve stage/date semantics"
+  ],
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/api/auth/web-session",
+      "domain": "auth",
+      "guards": [
+        "auth",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/web-session",
+      "domain": "auth",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/auth/web-session",
+      "domain": "auth",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/register",
+      "domain": "auth",
+      "guards": [
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "domain": "auth",
+      "guards": [
+        "rate",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "domain": "auth",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/auth/profile",
+      "domain": "auth",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/auth/password",
+      "domain": "auth",
+      "guards": [
+        "auth",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/recover/question",
+      "domain": "auth",
+      "guards": [
+        "rate",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/recover/verify",
+      "domain": "auth",
+      "guards": [
+        "rate",
+        "rate",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/auth/security-question",
+      "domain": "auth",
+      "guards": [
+        "auth",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/avatar",
+      "domain": "auth",
+      "guards": [
+        "auth",
+        "rate",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/routines/import",
+      "domain": "routines",
+      "guards": [
+        "auth",
+        "rate",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/routines",
+      "domain": "routines",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/routines/trash",
+      "domain": "routines",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/routines/active",
+      "domain": "routines",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/routines/:id",
+      "domain": "routines",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/routines/:id",
+      "domain": "routines",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/routines/:id",
+      "domain": "routines",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/routines/:id/activate",
+      "domain": "routines",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/routines/:id/blocks",
+      "domain": "mesocycles",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/routines/:id/blocks",
+      "domain": "mesocycles",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/routines/:id/blocks/:blockId",
+      "domain": "mesocycles",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/routines/:id/blocks/:blockId",
+      "domain": "mesocycles",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/routines/:id/blocks/:blockId/start",
+      "domain": "mesocycles",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/exercises",
+      "domain": "exercises",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/exercises/:id/muscle",
+      "domain": "exercises",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/ai-routine/setup",
+      "domain": "ai",
+      "guards": [
+        "auth",
+        "rate",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ai-routine/today",
+      "domain": "ai",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/ai-routine/reshuffle/:routineDayId",
+      "domain": "ai",
+      "guards": [
+        "auth",
+        "rate",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workouts/today-log",
+      "domain": "workouts",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workouts/log",
+      "domain": "workouts",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workouts/rest-reminder",
+      "domain": "workouts",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/workouts/rest-reminder",
+      "domain": "workouts",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workouts/log-rest",
+      "domain": "workouts",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workouts/history",
+      "domain": "workouts",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/workouts/fix-weights",
+      "domain": "workouts",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workouts/exercise/:exerciseId/history",
+      "domain": "workouts",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workouts/:logId",
+      "domain": "workouts",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/workouts/:logId",
+      "domain": "workouts",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/workouts/:logId",
+      "domain": "workouts",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workout-capabilities",
+      "domain": "operations",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/workout-operations",
+      "domain": "operations",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workout-operations/:operationId",
+      "domain": "operations",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workout-sessions/:logId",
+      "domain": "operations",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/shortcuts/next-set",
+      "domain": "shortcuts",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/shortcuts/log-set",
+      "domain": "shortcuts",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/suggestions/log",
+      "domain": "shortcuts",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/push/vapid-public-key",
+      "domain": "notifications",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/push/subscribe",
+      "domain": "notifications",
+      "guards": [
+        "auth",
+        "rate",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/push/subscribe",
+      "domain": "notifications",
+      "guards": [
+        "auth",
+        "rate",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/push/creatine-reminder",
+      "domain": "notifications",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/push/test-creatine",
+      "domain": "notifications",
+      "guards": [
+        "auth",
+        "rate",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/stats/routine/:id",
+      "domain": "training",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/stats/overview",
+      "domain": "training",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/stats/consistency",
+      "domain": "training",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/stats/progress/:exerciseName",
+      "domain": "training",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/stats/prs",
+      "domain": "training",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/stats/home",
+      "domain": "training",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/stats/plateaus",
+      "domain": "training",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/stats/progress-page",
+      "domain": "training",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/body/logs",
+      "domain": "bodyTracking",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/body/checkin",
+      "domain": "bodyTracking",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/body/checkin",
+      "domain": "bodyTracking",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/body/log",
+      "domain": "bodyTracking",
+      "guards": [
+        "auth",
+        "rate",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/body",
+      "domain": "bodyTracking",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/body/photos",
+      "domain": "bodyTracking",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/body",
+      "domain": "bodyTracking",
+      "guards": [
+        "auth",
+        "rate",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/body/latest",
+      "domain": "bodyTracking",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/goals",
+      "domain": "goals",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/goals",
+      "domain": "goals",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/goals/:id/weeks",
+      "domain": "goals",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/goals/:id",
+      "domain": "goals",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/backup/run",
+      "domain": "backups",
+      "guards": [
+        "auth",
+        "rate",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/backup/export",
+      "domain": "backups",
+      "guards": [
+        "auth",
+        "rate",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/backup/import",
+      "domain": "backups",
+      "guards": [
+        "auth",
+        "rate",
+        "rate"
+      ],
+      "owner": "verified identity only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/backup/status",
+      "domain": "backups",
+      "guards": [
+        "auth"
+      ],
+      "owner": "verified identity only"
+    }
+  ],
+  "provider": "simulated acceptance only"
+}

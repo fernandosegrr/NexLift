@@ -1,0 +1,72 @@
+{
+  "syntheticOnly": true,
+  "productionTouched": false,
+  "backup": "C:/Users/guerr/.codex/artifacts/nexlift-phase9-received-bc23e547-332a-4b78-82a9-85c707dea3dd/source/",
+  "findings": [
+    {
+      "id": "missing-recovery-identity",
+      "before": {
+        "status": 200,
+        "arbitraryQuestionReturned": true
+      },
+      "after": "phase9-security test rejects before SQL with 400"
+    },
+    {
+      "id": "push-owner-overwrite",
+      "before": {
+        "status": 201,
+        "foreignOwnerOverwritten": true,
+        "capabilityReturned": true
+      },
+      "after": "phase9 SQL rejects concurrent takeover with 409 and unchanged row"
+    },
+    {
+      "id": "cross-runtime-reminder-duplicate",
+      "before": {
+        "providerAttempts": 2
+      },
+      "after": "phase9 SQL two real processes accept once, second restoration accepts zero"
+    },
+    {
+      "id": "sw-private-cache-and-open-redirect",
+      "version": "received",
+      "privateCacheWrites": 1,
+      "openedForeignOrigin": true
+    },
+    {
+      "id": "sw-private-cache-and-open-redirect",
+      "version": "current",
+      "privateCacheWrites": 0,
+      "openedForeignOrigin": false
+    },
+    {
+      "id": "untrusted-forwarding-origin-rotation",
+      "before": {
+        "forgedOrigins": 14,
+        "statuses": [
+          400,
+          400,
+          400,
+          400,
+          400,
+          400,
+          400,
+          400,
+          400,
+          400,
+          400,
+          400,
+          400,
+          400
+        ],
+        "rateLimited": 0
+      },
+      "after": "phase9 HTTP regression: 13th request returns 429 despite a different forwarded IP"
+    },
+    {
+      "id": "stale-provider-expiry-after-key-renewal",
+      "before": "PostgreSQL assertion failed: old 404/410 deleted renewed keys",
+      "after": "20/20 PostgreSQL cases pass, including paused provider response during real key update; stale expiry cannot delete renewed row"
+    }
+  ]
+}

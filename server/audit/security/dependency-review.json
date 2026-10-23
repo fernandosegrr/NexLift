@@ -1,0 +1,402 @@
+{
+  "createdAt": "2026-10-22T22:47:01.961Z",
+  "auditExit": 1,
+  "runtimeAuditExit": 1,
+  "all": {
+    "info": 0,
+    "low": 0,
+    "moderate": 8,
+    "high": 12,
+    "critical": 0,
+    "total": 20
+  },
+  "omitDev": {
+    "info": 0,
+    "low": 0,
+    "moderate": 4,
+    "high": 9,
+    "critical": 0,
+    "total": 13
+  },
+  "patched": [
+    {
+      "name": "compression",
+      "from": "1.8.1",
+      "to": "1.8.2",
+      "reason": "premature response close memory leak"
+    },
+    {
+      "name": "proxy-addr",
+      "from": "2.0.7",
+      "to": "2.0.8",
+      "reason": "mapped IPv6 subnet spoofing"
+    },
+    {
+      "name": "qs",
+      "from": "6.14.2",
+      "to": "6.16.1",
+      "reason": "direct Fastify legacy query parser patched; nested Express copies reviewed separately"
+    },
+    {
+      "name": "dompurify",
+      "from": "3.4.11",
+      "to": "3.4.17",
+      "reason": "jsPDF transitive sanitizer patches"
+    }
+  ],
+  "remaining": [
+    {
+      "name": "@humanfs/node",
+      "severity": "moderate",
+      "nodes": [
+        "client/node_modules/@humanfs/node"
+      ],
+      "classification": "build/test tooling or transitive tooling; not served by production Express static bundle, dev servers must remain local",
+      "advisories": [
+        {
+          "title": "humanfs: Recursive copy follows symlinked files and copies data from outside the source tree",
+          "url": "https://github.com/advisories/GHSA-p498-v437-472g",
+          "range": "<0.16.8"
+        }
+      ]
+    },
+    {
+      "name": "@prisma/config",
+      "severity": "high",
+      "nodes": [
+        "server/node_modules/@prisma/config"
+      ],
+      "classification": "Prisma tooling: trusted migration/config input; pinned 6.19.3 compatibility, major upgrade deferred",
+      "advisories": []
+    },
+    {
+      "name": "@vitest/mocker",
+      "severity": "moderate",
+      "nodes": [
+        "client/node_modules/@vitest/mocker"
+      ],
+      "classification": "build/test tooling or transitive tooling; not served by production Express static bundle, dev servers must remain local",
+      "advisories": [
+        {
+          "title": "Vitest: Path Traversal / Arbitrary File Read via @vitest/mocker Redirect Mock",
+          "url": "https://github.com/advisories/GHSA-82fw-gwwq-j7x9",
+          "range": ">=2.1.0 <4.1.11"
+        },
+        {
+          "title": "Vitest: Code injection via unauthenticated manual mock registration",
+          "url": "https://github.com/advisories/GHSA-qxg6-89mg-rqv8",
+          "range": ">=2.1.0-beta.7 <4.1.12"
+        }
+      ]
+    },
+    {
+      "name": "baseline-browser-mapping",
+      "severity": "moderate",
+      "nodes": [
+        "client/node_modules/baseline-browser-mapping"
+      ],
+      "classification": "build/test tooling or transitive tooling; not served by production Express static bundle, dev servers must remain local",
+      "advisories": [
+        {
+          "title": "baseline-browser-mapping process termination on invalid input causes denial of service",
+          "url": "https://github.com/advisories/GHSA-w5vr-8v7q-w6rv",
+          "range": ">=2.0.0 <2.11.0"
+        }
+      ]
+    },
+    {
+      "name": "body-parser",
+      "severity": "moderate",
+      "nodes": [
+        "server/node_modules/body-parser"
+      ],
+      "classification": "runtime transitive, vulnerable comma/stringify flags or invalid size limit not enabled; fixed direct Fastify parser 6.16.1",
+      "advisories": [
+        {
+          "title": "body-parser vulnerable to denial of service when invalid limit value silently disables size enforcement",
+          "url": "https://github.com/advisories/GHSA-v422-hmwv-36x6",
+          "range": "<1.20.6"
+        }
+      ]
+    },
+    {
+      "name": "brace-expansion",
+      "severity": "high",
+      "nodes": [
+        "client/node_modules/brace-expansion"
+      ],
+      "classification": "build/test tooling or transitive tooling; not served by production Express static bundle, dev servers must remain local",
+      "advisories": [
+        {
+          "title": "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
+          "url": "https://github.com/advisories/GHSA-3jxr-9vmj-r5cp",
+          "range": "<1.1.16"
+        },
+        {
+          "title": "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
+          "url": "https://github.com/advisories/GHSA-mh99-v99m-4gvg",
+          "range": "<1.1.17"
+        },
+        {
+          "title": "brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation",
+          "url": "https://github.com/advisories/GHSA-rgw5-rvv9-x895",
+          "range": "<1.1.18"
+        },
+        {
+          "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+          "url": "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr",
+          "range": "<1.1.21"
+        },
+        {
+          "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+          "url": "https://github.com/advisories/GHSA-qhr7-859c-m2p7",
+          "range": "<1.1.20"
+        },
+        {
+          "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+          "url": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p",
+          "range": "<1.1.19"
+        }
+      ]
+    },
+    {
+      "name": "browserslist",
+      "severity": "high",
+      "nodes": [
+        "client/node_modules/browserslist"
+      ],
+      "classification": "build/test tooling or transitive tooling; not served by production Express static bundle, dev servers must remain local",
+      "advisories": [
+        {
+          "title": "Browserslist: Unbounded memory growth (no cache eviction) via distinct query results, leading to eventual OOM",
+          "url": "https://github.com/advisories/GHSA-c83g-rgw3-j3cx",
+          "range": "<=4.28.6"
+        },
+        {
+          "title": "Browserslist: Uncaught crash / prototype write via untrusted browserslist-stats.json custom stats (normalizeStats)",
+          "url": "https://github.com/advisories/GHSA-73wf-gq98-2v4g",
+          "range": "<=4.28.6"
+        }
+      ]
+    },
+    {
+      "name": "deepmerge-ts",
+      "severity": "high",
+      "nodes": [
+        "server/node_modules/deepmerge-ts"
+      ],
+      "classification": "Prisma tooling: trusted migration/config input; pinned 6.19.3 compatibility, major upgrade deferred",
+      "advisories": [
+        {
+          "title": "DeepmergeTS has stack exhaustion when merging recursive object graphs",
+          "url": "https://github.com/advisories/GHSA-ggr8-5vv4-36mx",
+          "range": "<8.0.0"
+        }
+      ]
+    },
+    {
+      "name": "express",
+      "severity": "moderate",
+      "nodes": [
+        "server/node_modules/express"
+      ],
+      "classification": "runtime transitive, vulnerable comma/stringify flags or invalid size limit not enabled; fixed direct Fastify parser 6.16.1",
+      "advisories": []
+    },
+    {
+      "name": "fflate",
+      "severity": "moderate",
+      "nodes": [
+        "client/node_modules/fflate"
+      ],
+      "classification": "PDF transitive, vulnerable decompression not exposed by the JSON import/PDF generation flow",
+      "advisories": [
+        {
+          "title": "fflate unzipSync can enter an infinite loop when parsing malformed ZIP64 archives",
+          "url": "https://github.com/advisories/GHSA-px8p-9vwx-vf98",
+          "range": ">=0.8.0 <0.8.3"
+        }
+      ]
+    },
+    {
+      "name": "js-yaml",
+      "severity": "high",
+      "nodes": [
+        "client/node_modules/js-yaml"
+      ],
+      "classification": "build/test tooling or transitive tooling; not served by production Express static bundle, dev servers must remain local",
+      "advisories": [
+        {
+          "title": "JS-YAML: Quadratic CPU consumption in !!omap resolution (3.x and 4.x) — CVE-2026-59870 fix not backported",
+          "url": "https://github.com/advisories/GHSA-5p4m-2wfm-xmqj",
+          "range": ">=4.0.0 <4.3.1"
+        },
+        {
+          "title": "js-yaml: maxTotalMergeKeys does not limit CPU use for empty merge sources",
+          "url": "https://github.com/advisories/GHSA-2883-xcg3-v3hh",
+          "range": ">=4.0.0 <4.3.2"
+        }
+      ]
+    },
+    {
+      "name": "nanoid",
+      "severity": "high",
+      "nodes": [
+        "client/node_modules/nanoid"
+      ],
+      "classification": "build/test tooling or transitive tooling; not served by production Express static bundle, dev servers must remain local",
+      "advisories": [
+        {
+          "title": "nanoid: non-secure generators can loop indefinitely with negative size",
+          "url": "https://github.com/advisories/GHSA-28wg-ghj8-5hjv",
+          "range": "<3.3.16"
+        },
+        {
+          "title": "nanoid: custom generators can loop indefinitely when size is zero",
+          "url": "https://github.com/advisories/GHSA-2v37-7h3g-55p8",
+          "range": "<3.3.18"
+        }
+      ]
+    },
+    {
+      "name": "postcss",
+      "severity": "high",
+      "nodes": [
+        "client/node_modules/postcss"
+      ],
+      "classification": "build/test tooling or transitive tooling; not served by production Express static bundle, dev servers must remain local",
+      "advisories": [
+        {
+          "title": "PostCSS: incomplete fix of GHSA-6g55-p6wh-862q — attacker-controlled sourceMappingURL reads arbitrary .map files when `from` is unset",
+          "url": "https://github.com/advisories/GHSA-fxqj-rqcc-2cmp",
+          "range": "<=8.5.22"
+        },
+        {
+          "title": "PostCSS: Path Traversal in Previous Source Map Auto-Loading (sourceMappingURL) leads to Arbitrary .map File Disclosure",
+          "url": "https://github.com/advisories/GHSA-r28c-9q8g-f849",
+          "range": "<=8.5.17"
+        }
+      ]
+    },
+    {
+      "name": "prisma",
+      "severity": "high",
+      "nodes": [
+        "server/node_modules/prisma"
+      ],
+      "classification": "Prisma tooling: trusted migration/config input; pinned 6.19.3 compatibility, major upgrade deferred",
+      "advisories": []
+    },
+    {
+      "name": "qs",
+      "severity": "moderate",
+      "nodes": [
+        "server/node_modules/body-parser/node_modules/qs",
+        "server/node_modules/express/node_modules/qs"
+      ],
+      "classification": "runtime transitive, vulnerable comma/stringify flags or invalid size limit not enabled; fixed direct Fastify parser 6.16.1",
+      "advisories": [
+        {
+          "title": "qs array-limit bypass via bracket-key comma parsing",
+          "url": "https://github.com/advisories/GHSA-x5fp-wj9c-mxmx",
+          "range": ">=6.14.2 <=6.15.3"
+        },
+        {
+          "title": "qs: Denial of Service via Attacker Controlled isBuffer",
+          "url": "https://github.com/advisories/GHSA-4mjr-xmp4-gh2g",
+          "range": ">=2.2.5 <6.16.0"
+        }
+      ]
+    },
+    {
+      "name": "react-router",
+      "severity": "high",
+      "nodes": [
+        "client/node_modules/react-router"
+      ],
+      "classification": "client runtime package, advisory requires RSC server mode; application is client React/Vite without RSC",
+      "advisories": [
+        {
+          "title": "React Router: RSC Mode CSRF Bypass Allows Action Execution Before 400 Response",
+          "url": "https://github.com/advisories/GHSA-qwww-vcr4-c8h2",
+          "range": ">=7.12.0 <7.18.2"
+        }
+      ]
+    },
+    {
+      "name": "react-router-dom",
+      "severity": "high",
+      "nodes": [
+        "client/node_modules/react-router-dom"
+      ],
+      "classification": "client runtime package, advisory requires RSC server mode; application is client React/Vite without RSC",
+      "advisories": []
+    },
+    {
+      "name": "source-map-js",
+      "severity": "high",
+      "nodes": [
+        "client/node_modules/source-map-js"
+      ],
+      "classification": "build/test tooling or transitive tooling; not served by production Express static bundle, dev servers must remain local",
+      "advisories": [
+        {
+          "title": "source-map-js allows event-loop denial of service through indexed source-map section offsets",
+          "url": "https://github.com/advisories/GHSA-68fv-2mgg-jv7q",
+          "range": ">=1.0.0 <1.2.2"
+        }
+      ]
+    },
+    {
+      "name": "vite",
+      "severity": "high",
+      "nodes": [
+        "client/node_modules/vite"
+      ],
+      "classification": "build/test tooling or transitive tooling; not served by production Express static bundle, dev servers must remain local",
+      "advisories": [
+        {
+          "title": "launch-editor: escapeCmdArgs() omits % escaping on Windows",
+          "url": "https://github.com/advisories/GHSA-698v-4r3x-3vcv",
+          "range": ">=7.0.0 <=7.3.6"
+        },
+        {
+          "title": "launch-editor: Editor CLI flag misinterpretation causing arbitrary command execution for some editors",
+          "url": "https://github.com/advisories/GHSA-r825-w8mm-5pxw",
+          "range": ">=7.0.0 <=7.3.6"
+        },
+        {
+          "title": "launch-editor: `fs.existsSync()` existence check can be bypassed on Windows",
+          "url": "https://github.com/advisories/GHSA-587h-7wmj-h5pm",
+          "range": ">=7.0.0 <=7.3.6"
+        },
+        {
+          "title": "Vite: Cross origin script execution through Vite custom middleware",
+          "url": "https://github.com/advisories/GHSA-9jrq-w75r-8gcw",
+          "range": ">=7.0.0 <=7.3.6"
+        },
+        {
+          "title": "Vite: Files outside `server.fs.allow` could be served when project paths match system paths on non-Windows machine",
+          "url": "https://github.com/advisories/GHSA-rq7h-c2jc-7f22",
+          "range": ">=7.0.0 <=7.3.6"
+        }
+      ]
+    },
+    {
+      "name": "vitest",
+      "severity": "moderate",
+      "nodes": [
+        "client/node_modules/vitest"
+      ],
+      "classification": "build/test tooling or transitive tooling; not served by production Express static bundle, dev servers must remain local",
+      "advisories": [
+        {
+          "title": "Vitest: Path Traversal / Arbitrary File Read via @vitest/mocker Redirect Mock",
+          "url": "https://github.com/advisories/GHSA-82fw-gwwq-j7x9",
+          "range": ">=2.1.0 <4.1.11"
+        }
+      ]
+    }
+  ],
+  "zeroKnownExploitableRuntimeClaim": false
+}

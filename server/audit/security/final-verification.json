@@ -1,0 +1,29 @@
+{
+  "completedAt": "2026-10-23T03:19:11.978Z",
+  "npmScriptExit": 0,
+  "uniqueTests": 1441,
+  "historicalTests": 1381,
+  "newTests": 60,
+  "commands": 82,
+  "allCommandExitsZero": true,
+  "extraordinaryCleanupRetries": 0,
+  "repeatedTestsExcluded": 613,
+  "sourceHashesVerified": 608,
+  "preservation": {
+    "received": 791,
+    "identical": 751,
+    "reviewedChanges": 40,
+    "missing": 0,
+    "protectedIdentical": 108,
+    "approvedUI": 2
+  },
+  "lint": {
+    "errors": 19,
+    "warnings": 2,
+    "newFindings": 0
+  },
+  "staged": [],
+  "productionTouched": false,
+  "commitsCreated": false,
+  "deployed": false
+}
