@@ -12,7 +12,8 @@ const resources = [], results = [];
 function docker(args, input) {
     const result = spawnSync('docker', args, { input, encoding: 'utf8', windowsHide: true, timeout: 1200000, maxBuffer: 8 * 1024 * 1024 });
     if (result.error || result.status !== 0) throw new Error(`Docker rehearsal failed at ${args[0]}; no production target used`);
-    return result.stdout.trim();
+    // Application lifecycle telemetry uses stderr; Docker preserves that stream.
+    return (args[0] === 'logs' ? result.stdout + result.stderr : result.stdout).trim();
 }
 async function probe(app) {
     const script = `const r=await fetch('http://127.0.0.1:3001/api/ready');if(r.status!==200)process.exit(1);if(!(await(await fetch('http://127.0.0.1:3001/')).text()).includes('<html'))process.exit(1);if((await fetch('http://127.0.0.1:3001/sw.js')).status!==200)process.exit(1);`;
