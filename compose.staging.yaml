@@ -1,0 +1,64 @@
+name: nexlift-staging-v4
+services:
+  db:
+    image: postgres:18.4-bookworm
+    environment:
+      POSTGRES_USER: nexlift_stage_admin
+      POSTGRES_DB: nexlift_stage_runtime
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
+    secrets:
+      - pg_password
+      - source: init_sql
+        target: /docker-entrypoint-initdb.d/10-staging.sql
+    volumes:
+      - staging_pg:/var/lib/postgresql
+    networks: [isolated]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U nexlift_stage_admin -d nexlift_stage_runtime']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  migration:
+    build:
+      context: .
+      dockerfile: Dockerfile.staging
+      target: staging-job
+    command: [node, staging/container.mjs, job]
+    secrets: [job_config]
+    volumes: [staging_identity:/stage-identity]
+    networks: [isolated]
+    depends_on:
+      db: {condition: service_healthy}
+    restart: 'no'
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.staging
+      target: staging-http
+    command: [node, staging/container.mjs, http]
+    secrets: [app_config]
+    volumes: [staging_identity:/stage-identity:ro]
+    networks: [isolated]
+    ports: ['127.0.0.1:43001:3001']
+    depends_on:
+      migration: {condition: service_completed_successfully}
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 15s
+    restart: unless-stopped
+networks:
+  isolated: {internal: true}
+volumes:
+  staging_pg:
+  staging_identity:
+secrets:
+  pg_password: {file: '${NEXLIFT_STAGE_COMPOSE_SECRETS:?private secrets directory required}/pg-password.private'}
+  init_sql: {file: '${NEXLIFT_STAGE_COMPOSE_SECRETS:?private secrets directory required}/init.private.sql'}
+  job_config: {file: '${NEXLIFT_STAGE_COMPOSE_SECRETS:?private secrets directory required}/job.private.json'}
+  app_config: {file: '${NEXLIFT_STAGE_COMPOSE_SECRETS:?private secrets directory required}/app.private.json'}

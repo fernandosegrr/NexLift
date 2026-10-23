@@ -1,0 +1,2 @@
+# Prisma checksums must be identical on Windows and Linux.
+server/prisma/migrations/** text eol=lf

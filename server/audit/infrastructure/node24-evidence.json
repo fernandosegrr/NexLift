@@ -1,0 +1,145 @@
+{
+  "node": "24.22.0",
+  "openssl": "3.5.8",
+  "platform": "win32",
+  "arch": "x64",
+  "npm": "11.19.1",
+  "prismaCli": "6.19.3",
+  "prismaClient": "6.19.3",
+  "results": [
+    {
+      "name": "server-ci",
+      "exit": 0,
+      "milliseconds": 13144,
+      "tests": 0
+    },
+    {
+      "name": "client-ci",
+      "exit": 0,
+      "milliseconds": 15673,
+      "tests": 0
+    },
+    {
+      "name": "prisma-generate",
+      "exit": 0,
+      "milliseconds": 5110,
+      "tests": 0
+    },
+    {
+      "name": "server-test",
+      "exit": 0,
+      "milliseconds": 569,
+      "tests": 104
+    },
+    {
+      "name": "server-test-integration",
+      "exit": 0,
+      "milliseconds": 8807,
+      "tests": 48
+    },
+    {
+      "name": "server-test-backup",
+      "exit": 0,
+      "milliseconds": 1152,
+      "tests": 17
+    },
+    {
+      "name": "server-test-backup-integration",
+      "exit": 0,
+      "milliseconds": 26087,
+      "tests": 41
+    },
+    {
+      "name": "server-test-import",
+      "exit": 0,
+      "milliseconds": 528,
+      "tests": 22
+    },
+    {
+      "name": "server-test-import-integration",
+      "exit": 0,
+      "milliseconds": 7626,
+      "tests": 39
+    },
+    {
+      "name": "server-test-workout-integration",
+      "exit": 0,
+      "milliseconds": 14245,
+      "tests": 84
+    },
+    {
+      "name": "server-test-workout-baseline",
+      "exit": 0,
+      "milliseconds": 5678,
+      "tests": 13
+    },
+    {
+      "name": "server-test-schema-audit",
+      "exit": 0,
+      "milliseconds": 26048,
+      "tests": 54
+    },
+    {
+      "name": "server-test-baseline",
+      "exit": 0,
+      "milliseconds": 44344,
+      "tests": 46
+    },
+    {
+      "name": "server-test-infra",
+      "exit": 0,
+      "milliseconds": 3741,
+      "tests": 37
+    },
+    {
+      "name": "server-test-infra-integration",
+      "exit": 0,
+      "milliseconds": 19914,
+      "tests": 14
+    },
+    {
+      "name": "client-tests",
+      "exit": 0,
+      "milliseconds": 2497,
+      "tests": 176
+    },
+    {
+      "name": "client-build",
+      "exit": 0,
+      "milliseconds": 11020,
+      "tests": 0
+    },
+    {
+      "name": "infra-static",
+      "exit": 0,
+      "milliseconds": 2754,
+      "tests": 0
+    },
+    {
+      "name": "production-prune",
+      "exit": 0,
+      "milliseconds": 960,
+      "tests": 0
+    },
+    {
+      "name": "production-deps-smoke",
+      "exit": 0,
+      "milliseconds": 8756,
+      "tests": 48
+    }
+  ],
+  "uniqueTests": 695,
+  "repeatedSmokeTests": 48,
+  "artifacts": {
+    "Dockerfile.rehearsal": "c8ffb97c6383471fb75b0be1b4bf8a912fe2e91c347e50a239eb1ba302ab669b",
+    ".dockerignore": "e2ded9456b73332f033b3c7cd711bd84172ca1610a82ce6f09441c2ec6a75588",
+    "server/package-lock.json": "e811077ed547b5969c3c08088567d088c4c5e68604c989abd1bcb13a8f57684d",
+    "client/package-lock.json": "8a7283acdb82358079e627907ab196c448309e21fa91b985eea0cff62541354b",
+    "server/prisma/schema.prisma": "b5e18768602b0dc7abaa714276a970d6a1164fb41be62b862ef116fc7f777d6f",
+    "server/prisma/migrations/0_init/migration.sql": "47c9542787e5cb64c36b2b8c079e05995ac5f98fe9c7b86b9b8c87747688ea2b",
+    "server/src/index.js": "31cb30e496c06244f4e6220fe5776074dcddc06b561673e32a3d344c5af598db",
+    "server/src/middleware/auth.js": "09c919901a08cae64c4e0cab05dba1dd11613c2b04d4423ef96638493fde8ccf",
+    "server/test/infra-operations.test.js": "60ffe50262de1dece44ac31aa38dc0d1f557a0f88b3f5798eaa01e474b2bc46c"
+  },
+  "dockerImageExecuted": false
+}

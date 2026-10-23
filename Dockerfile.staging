@@ -1,0 +1,16 @@
+# Build both base targets from Dockerfile.rehearsal first; never use Dockerfile.
+FROM nexlift:rehearsal-migration AS staging-job
+USER root
+RUN mkdir /stage-identity && chown node:node /stage-identity
+COPY --chown=node:node server/staging/container.mjs server/staging/egress.mjs ./staging/
+COPY --chown=node:node server/deploy/releaseGate.js ./deploy/
+COPY --chown=node:node server/src/services/migrationHistory.js server/src/services/backupFormat.js ./src/services/
+COPY --chown=node:node server/audit/postgresql/ ./audit/postgresql/
+USER node
+ENTRYPOINT []
+CMD ["node", "staging/container.mjs", "job"]
+
+FROM nexlift:rehearsal-http AS staging-http
+COPY --chown=node:node server/staging/container.mjs server/staging/egress.mjs ./staging/
+USER node
+CMD ["node", "staging/container.mjs", "http"]

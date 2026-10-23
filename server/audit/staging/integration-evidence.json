@@ -1,0 +1,578 @@
+{
+  "source": "SYNTHETIC_ONLY_NOT_PRODUCTION",
+  "productionAccessed": false,
+  "referencePreserved": true,
+  "differences": [],
+  "businessTables": 17,
+  "columns": 155,
+  "foreignKeys": 18,
+  "indexes": 48,
+  "counts": [
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "BodyLog"
+    },
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "CardioSegment"
+    },
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "CardioSession"
+    },
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "Exercise"
+    },
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "Goal"
+    },
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "PendingReminder"
+    },
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "PersonalRecord"
+    },
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "PushSubscription"
+    },
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "RestLog"
+    },
+    {
+      "check": "entity_count",
+      "count": 6,
+      "table": "Routine"
+    },
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "RoutineBlock"
+    },
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "RoutineDay"
+    },
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "SetLog"
+    },
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "SuggestionLog"
+    },
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "TrainingProfile"
+    },
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "User"
+    },
+    {
+      "check": "entity_count",
+      "count": 2,
+      "table": "WorkoutLog"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "BodyLog",
+      "constraint": "BodyLog_userId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "CardioSegment",
+      "constraint": "CardioSegment_sessionId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "CardioSession",
+      "constraint": "CardioSession_userId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "Exercise",
+      "constraint": "Exercise_routineDayId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "Goal",
+      "constraint": "Goal_userId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "PendingReminder",
+      "constraint": "PendingReminder_exerciseId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "PendingReminder",
+      "constraint": "PendingReminder_userId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "PersonalRecord",
+      "constraint": "PersonalRecord_userId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "PushSubscription",
+      "constraint": "PushSubscription_userId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "RestLog",
+      "constraint": "RestLog_userId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "Routine",
+      "constraint": "Routine_userId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "RoutineBlock",
+      "constraint": "RoutineBlock_routineId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "RoutineDay",
+      "constraint": "RoutineDay_routineId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "SetLog",
+      "constraint": "SetLog_workoutLogId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "SuggestionLog",
+      "constraint": "SuggestionLog_exerciseId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "SuggestionLog",
+      "constraint": "SuggestionLog_userId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "TrainingProfile",
+      "constraint": "TrainingProfile_userId_fkey"
+    },
+    {
+      "check": "orphan_fk",
+      "count": 0,
+      "table": "WorkoutLog",
+      "constraint": "WorkoutLog_exerciseId_fkey"
+    },
+    {
+      "check": "owner_null",
+      "count": 0,
+      "table": "BodyLog"
+    },
+    {
+      "check": "owner_null",
+      "count": 0,
+      "table": "CardioSession"
+    },
+    {
+      "check": "owner_null",
+      "count": 0,
+      "table": "Goal"
+    },
+    {
+      "check": "owner_null",
+      "count": 0,
+      "table": "PendingReminder"
+    },
+    {
+      "check": "owner_null",
+      "count": 0,
+      "table": "PersonalRecord"
+    },
+    {
+      "check": "owner_null",
+      "count": 0,
+      "table": "PushSubscription"
+    },
+    {
+      "check": "owner_null",
+      "count": 0,
+      "table": "RestLog"
+    },
+    {
+      "check": "owner_null",
+      "count": 0,
+      "table": "Routine"
+    },
+    {
+      "check": "owner_null",
+      "count": 0,
+      "table": "SuggestionLog"
+    },
+    {
+      "check": "owner_null",
+      "count": 0,
+      "table": "TrainingProfile"
+    },
+    {
+      "rows": 1,
+      "check": "migration_history_summary",
+      "finished": 1,
+      "rolledBack": 0,
+      "unfinished": 0
+    }
+  ],
+  "declaredOrphans": [
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "BodyLog",
+      "constraint": "BodyLog_userId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "CardioSegment",
+      "constraint": "CardioSegment_sessionId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "CardioSession",
+      "constraint": "CardioSession_userId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "Exercise",
+      "constraint": "Exercise_routineDayId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "Goal",
+      "constraint": "Goal_userId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "PendingReminder",
+      "constraint": "PendingReminder_exerciseId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "PendingReminder",
+      "constraint": "PendingReminder_userId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "PersonalRecord",
+      "constraint": "PersonalRecord_userId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "PushSubscription",
+      "constraint": "PushSubscription_userId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "RestLog",
+      "constraint": "RestLog_userId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "Routine",
+      "constraint": "Routine_userId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "RoutineBlock",
+      "constraint": "RoutineBlock_routineId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "RoutineDay",
+      "constraint": "RoutineDay_routineId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "SetLog",
+      "constraint": "SetLog_workoutLogId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "SuggestionLog",
+      "constraint": "SuggestionLog_exerciseId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "SuggestionLog",
+      "constraint": "SuggestionLog_userId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "TrainingProfile",
+      "constraint": "TrainingProfile_userId_fkey"
+    },
+    {
+      "check": "declared_orphan_fk",
+      "count": 0,
+      "table": "WorkoutLog",
+      "constraint": "WorkoutLog_exerciseId_fkey"
+    }
+  ],
+  "diagnostics": [
+    {
+      "check": "active_routine_duplicate_owners",
+      "count": 0
+    },
+    {
+      "check": "ai_day_duplicate_groups",
+      "count": 0
+    },
+    {
+      "check": "ai_day_non_iso_names",
+      "count": 0
+    },
+    {
+      "check": "ai_routine_duplicate_owners",
+      "count": 0
+    },
+    {
+      "check": "archive_duplicate_owners",
+      "count": 0
+    },
+    {
+      "check": "day_order_duplicate_groups_informational",
+      "count": 0
+    },
+    {
+      "check": "empty_workout_sessions_informational",
+      "count": 0
+    },
+    {
+      "check": "exercise_order_duplicate_groups_informational",
+      "count": 0
+    },
+    {
+      "check": "manual_weekday_duplicate_groups_informational",
+      "count": 0
+    },
+    {
+      "check": "multiple_sessions_per_exercise_cdmx_day_groups_informational",
+      "count": 0
+    },
+    {
+      "check": "negative_set_values",
+      "count": 0
+    },
+    {
+      "check": "nonfinite_pr_values",
+      "count": 0
+    },
+    {
+      "check": "nonfinite_set_weights",
+      "count": 0
+    },
+    {
+      "check": "nonpositive_set_number",
+      "count": 0
+    },
+    {
+      "check": "pr_case_duplicate_groups",
+      "count": 0
+    },
+    {
+      "check": "pr_without_name_matched_history_informational",
+      "count": 2
+    },
+    {
+      "check": "reminder_owner_mismatch_or_unowned",
+      "count": 0
+    },
+    {
+      "check": "rest_days_with_exercises",
+      "count": 0
+    },
+    {
+      "check": "set_number_duplicate_groups",
+      "count": 0
+    },
+    {
+      "check": "sets_under_unowned_routines",
+      "count": 0
+    },
+    {
+      "check": "suggestion_owner_mismatch_or_unowned",
+      "count": 0
+    },
+    {
+      "check": "weekday_out_of_range",
+      "count": 0
+    },
+    {
+      "check": "workouts_under_unowned_routines",
+      "count": 0
+    },
+    {
+      "rows": 2,
+      "check": "date_distribution",
+      "table": "BodyLog",
+      "maxYear": 2026,
+      "minYear": 2026,
+      "futureRows": 0
+    },
+    {
+      "rows": 2,
+      "check": "date_distribution",
+      "table": "CardioSession",
+      "maxYear": 2026,
+      "minYear": 2026,
+      "futureRows": 0
+    },
+    {
+      "rows": 2,
+      "check": "date_distribution",
+      "table": "PersonalRecord",
+      "maxYear": 2026,
+      "minYear": 2026,
+      "futureRows": 0
+    },
+    {
+      "rows": 2,
+      "check": "date_distribution",
+      "table": "RestLog",
+      "maxYear": 2026,
+      "minYear": 2026,
+      "futureRows": 0
+    },
+    {
+      "rows": 2,
+      "check": "date_distribution",
+      "table": "SuggestionLog",
+      "maxYear": 2026,
+      "minYear": 2026,
+      "futureRows": 0
+    },
+    {
+      "rows": 2,
+      "check": "date_distribution",
+      "table": "WorkoutLog",
+      "maxYear": 2026,
+      "minYear": 2026,
+      "futureRows": 0
+    },
+    {
+      "year": 2026,
+      "check": "workout_year_bucket",
+      "count": 2
+    }
+  ],
+  "supplemental": [
+    {
+      "check": "body_negative_measurements",
+      "count": 0
+    },
+    {
+      "check": "body_nonfinite_measurements",
+      "count": 0
+    },
+    {
+      "check": "body_percentage_outside_zero_one_hundred",
+      "count": 0
+    },
+    {
+      "check": "multiple_body_entries_per_cdmx_day_informational",
+      "count": 0
+    },
+    {
+      "check": "nonpositive_or_duplicate_goal_weeks",
+      "count": 0
+    },
+    {
+      "check": "null_goal_week_arrays",
+      "count": 0
+    },
+    {
+      "check": "null_training_equipment_arrays",
+      "count": 0
+    },
+    {
+      "check": "nullable_habits_informational",
+      "count": 2
+    },
+    {
+      "check": "pr_differs_from_available_history_best_informational",
+      "count": 0
+    },
+    {
+      "check": "pr_estimate_differs_from_preserved_epley_rule_informational",
+      "count": 0
+    },
+    {
+      "check": "pr_negative_or_zero_work_values",
+      "count": 0
+    },
+    {
+      "check": "user_case_duplicate_emails",
+      "count": 0
+    },
+    {
+      "check": "user_case_duplicate_usernames",
+      "count": 0
+    }
+  ],
+  "fullRecovery": true,
+  "interruptedRecovery": true,
+  "failedMigrationRecovery": true,
+  "applicationRestart": true,
+  "dockerExecuted": false
+}

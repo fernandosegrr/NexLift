@@ -1,0 +1,67 @@
+# PROVISIONAL / disposable rehearsal only. The production Dockerfile is unchanged.
+# Pin the multi-platform manifest; refresh only after repeating compatibility tests.
+FROM node:24.22.0-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5 AS base
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+
+FROM base AS workspace-deps
+COPY package.json package-lock.json .npmrc ./
+COPY client/package.json client/package-lock.json ./client/
+COPY server/package.json server/package-lock.json ./server/
+COPY packages/shared/ ./packages/shared/
+ENV PRISMA_SKIP_POSTINSTALL_GENERATE=true
+RUN npm ci --no-audit --no-fund
+COPY configs/ ./configs/
+COPY packages/shared/tsconfig*.json ./packages/shared/
+RUN npm run build:shared
+
+FROM workspace-deps AS client-build
+COPY client/ ./client/
+COPY server/src/operations/errors.ts ./server/src/operations/errors.ts
+COPY server/tsconfig*.json ./server/
+COPY scripts/build-typescript.mjs ./scripts/build-typescript.mjs
+RUN npm run build:client
+
+FROM workspace-deps AS server-build
+COPY server/prisma/ ./server/prisma/
+COPY scripts/prisma-generate.mjs ./scripts/prisma-generate.mjs
+COPY scripts/build-typescript.mjs scripts/check-server.mjs ./scripts/
+COPY server/tsconfig*.json ./server/
+COPY server/src/ ./server/src/
+# Generation is offline. No build ARG or secret database connection is required.
+RUN npm run db:generate
+RUN npm run build:server
+
+# The release job retains the locally installed CLI. It is a separate image target.
+FROM base AS migration-job
+WORKDIR /app/server
+COPY --from=server-build --chown=node:node /app/server/node_modules ./node_modules
+COPY server/prisma/ ./prisma/
+COPY server/package.json ./package.json
+COPY server/deploy/rehearsal-config.js server/deploy/rehearsal-migrate.mjs ./deploy/
+COPY server/src/operations/telemetry.js ./src/operations/telemetry.js
+ENV NODE_ENV=production
+USER node
+ENTRYPOINT ["node", "deploy/rehearsal-migrate.mjs"]
+
+FROM server-build AS production-deps
+WORKDIR /app/server
+RUN npm prune --omit=dev --ignore-scripts --workspaces=false --no-audit --no-fund
+
+FROM base AS runtime
+WORKDIR /app/server
+ENV NODE_ENV=production PORT=3001
+COPY --from=production-deps --chown=node:node /app/server/node_modules ./node_modules
+COPY --from=client-build --chown=node:node /app/client/dist /app/client/dist
+COPY --chown=node:node server/package.json ./package.json
+COPY --chown=node:node server/src/ ./src/
+COPY --from=server-build --chown=node:node /app/server/src/generated/ ./src/generated/
+COPY --chown=node:node server/prisma/ ./prisma/
+COPY --chown=node:node server/deploy/rehearsal-http.mjs server/deploy/rehearsal-config.js server/deploy/releaseGate.js server/deploy/http-healthcheck.mjs ./deploy/
+COPY --chown=node:node server/audit/postgresql/ ./audit/postgresql/
+USER node
+EXPOSE 3001
+STOPSIGNAL SIGTERM
+HEALTHCHECK --interval=30s --timeout=8s --start-period=30s --retries=3 CMD ["node", "deploy/http-healthcheck.mjs"]
+CMD ["node", "deploy/rehearsal-http.mjs"]

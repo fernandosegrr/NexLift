@@ -1,0 +1,173 @@
+{
+  "createdAt": "2026-10-18T21:47:22.127Z",
+  "node": "24.22.0",
+  "openssl": "3.5.8",
+  "platform": "win32",
+  "prismaCli": "6.19.3",
+  "prismaClient": "6.19.3",
+  "results": [
+    {
+      "name": "server-ci",
+      "exit": 0,
+      "milliseconds": 13982,
+      "tests": 0
+    },
+    {
+      "name": "client-ci",
+      "exit": 0,
+      "milliseconds": 34055,
+      "tests": 0
+    },
+    {
+      "name": "prisma-generate",
+      "exit": 0,
+      "milliseconds": 4880,
+      "tests": 0
+    },
+    {
+      "name": "server-test",
+      "exit": 0,
+      "milliseconds": 635,
+      "tests": 104
+    },
+    {
+      "name": "server-test-integration",
+      "exit": 0,
+      "milliseconds": 9210,
+      "tests": 48
+    },
+    {
+      "name": "server-test-backup",
+      "exit": 0,
+      "milliseconds": 972,
+      "tests": 17
+    },
+    {
+      "name": "server-test-backup-integration",
+      "exit": 0,
+      "milliseconds": 26503,
+      "tests": 41
+    },
+    {
+      "name": "server-test-import",
+      "exit": 0,
+      "milliseconds": 525,
+      "tests": 22
+    },
+    {
+      "name": "server-test-import-integration",
+      "exit": 0,
+      "milliseconds": 7546,
+      "tests": 39
+    },
+    {
+      "name": "server-test-workout-integration",
+      "exit": 0,
+      "milliseconds": 14780,
+      "tests": 84
+    },
+    {
+      "name": "server-test-workout-baseline",
+      "exit": 0,
+      "milliseconds": 6503,
+      "tests": 13
+    },
+    {
+      "name": "server-test-schema-audit",
+      "exit": 0,
+      "milliseconds": 20909,
+      "tests": 54
+    },
+    {
+      "name": "server-test-baseline",
+      "exit": 0,
+      "milliseconds": 44521,
+      "tests": 46
+    },
+    {
+      "name": "server-test-infra",
+      "exit": 0,
+      "milliseconds": 3709,
+      "tests": 37
+    },
+    {
+      "name": "server-test-infra-integration",
+      "exit": 0,
+      "milliseconds": 19388,
+      "tests": 14
+    },
+    {
+      "name": "client-tests",
+      "exit": 0,
+      "milliseconds": 2301,
+      "tests": 176
+    },
+    {
+      "name": "client-build",
+      "exit": 0,
+      "milliseconds": 9138,
+      "tests": 0
+    },
+    {
+      "name": "staging-unit",
+      "exit": 0,
+      "milliseconds": 496,
+      "tests": 12
+    },
+    {
+      "name": "staging-integration",
+      "exit": 0,
+      "milliseconds": 48088,
+      "tests": 23
+    },
+    {
+      "name": "infra-static",
+      "exit": 0,
+      "milliseconds": 2025,
+      "tests": 0
+    },
+    {
+      "name": "staging-static",
+      "exit": 0,
+      "milliseconds": 1781,
+      "tests": 0
+    },
+    {
+      "name": "production-prune",
+      "exit": 0,
+      "milliseconds": 989,
+      "tests": 0
+    },
+    {
+      "name": "production-deps-smoke",
+      "exit": 0,
+      "milliseconds": 8766,
+      "tests": 48
+    }
+  ],
+  "uniqueTests": 730,
+  "repeatedSmokeTests": 48,
+  "globalClientLint": {
+    "errors": 27,
+    "warnings": 3
+  },
+  "artifacts": {
+    "Dockerfile": "814193623c2a013d93299c6efa547ac0a634b124c7f335385afdb53c75d9398d",
+    "Dockerfile.rehearsal": "c8ffb97c6383471fb75b0be1b4bf8a912fe2e91c347e50a239eb1ba302ab669b",
+    "Dockerfile.staging": "1c6f09e81aad62a1f853e72aa5678eaec5ac50d1cc0e2661afe0d02a254c13e2",
+    "compose.staging.yaml": "40d15fa26d72050f9d097242d3d820e342fae53e733f2684323ac1d04f26951a",
+    ".dockerignore": "87f351de9194057fec321b1fec039775d4c16c00cd4490b8d5da0b38fe54dcda",
+    "server/prisma/schema.prisma": "b5e18768602b0dc7abaa714276a970d6a1164fb41be62b862ef116fc7f777d6f",
+    "server/prisma/migrations/0_init/migration.sql": "47c9542787e5cb64c36b2b8c079e05995ac5f98fe9c7b86b9b8c87747688ea2b",
+    "server/staging/identity.mjs": "b2f139da9897d8a00b304a2966ff9a5ac8fdde6e7370f7234801c0a96c2d2946",
+    "server/staging/local.mjs": "354425b313857d2a8dfc1ab85207417c346edfba1ac6d4245ea07c868c342292",
+    "server/staging/egress.mjs": "9b9d316850012ad1ea73de3e0c740a919c8008091426882563757fbb0afa8e79",
+    "server/staging/runtime.mjs": "9eb3e38214a6bf9537f73849a73046bfc825974ac4389796c47ff26225104ba1",
+    "server/staging/container.mjs": "02b97d2fad854c7ffb4b6ecba81f3c125c51718f328b2ba5b87306ad25692d42",
+    "server/staging/capture-source.mjs": "1472035176f1b3fa422127eaf7111030d1d375ccb46672f53bbb41099c7c4b55",
+    "server/staging/restore-captured.mjs": "26c50302f077c2a589519d102f7269f8b52fbc3dcf27ac9403a734a46956dfba",
+    "server/test/staging.integration.test.js": "f4d3acc61cc37c35aca07af7c9c164690a7a01d9e5ec8757c5aebf8f86c3369a"
+  },
+  "source": "SYNTHETIC_ONLY_NOT_PRODUCTION",
+  "dockerImageExecuted": false
+}

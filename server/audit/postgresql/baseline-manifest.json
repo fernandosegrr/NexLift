@@ -1,0 +1,15 @@
+{
+  "classification": "PROVISIONAL",
+  "verifiedAgainst": "Declared schema and synthetic PostgreSQL only; no authorized production copy",
+  "migration": "0_init",
+  "baselineSha256": "47c9542787e5cb64c36b2b8c079e05995ac5f98fe9c7b86b9b8c87747688ea2b",
+  "schemaSha256": "7a4efb7abf97833dff9c9daf3534bc0440acc3b08050df47494f2fd7a1fddb53",
+  "prismaCli": "6.19.3",
+  "prismaClient": "6.19.3",
+  "tables": 17,
+  "columns": 155,
+  "foreignKeys": 18,
+  "indexes": 48,
+  "onDeleteChanged": false,
+  "productionActivationAuthorized": false
+}

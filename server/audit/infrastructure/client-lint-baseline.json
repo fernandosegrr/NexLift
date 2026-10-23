@@ -1,0 +1,93 @@
+{
+  "exit": 1,
+  "files": 68,
+  "errors": 27,
+  "warnings": 3,
+  "affected": [
+    {
+      "file": "public/sw.js",
+      "errors": 4,
+      "warnings": 0
+    },
+    {
+      "file": "src/components/goals/GoalSection.jsx",
+      "errors": 1,
+      "warnings": 0
+    },
+    {
+      "file": "src/components/ui/Celebration.jsx",
+      "errors": 1,
+      "warnings": 0
+    },
+    {
+      "file": "src/components/ui/MuscleIcon.jsx",
+      "errors": 3,
+      "warnings": 0
+    },
+    {
+      "file": "src/components/ui/Toast.jsx",
+      "errors": 1,
+      "warnings": 0
+    },
+    {
+      "file": "src/context/AuthContext.jsx",
+      "errors": 3,
+      "warnings": 0
+    },
+    {
+      "file": "src/pages/BodyTracking.jsx",
+      "errors": 1,
+      "warnings": 1
+    },
+    {
+      "file": "src/pages/Dashboard.jsx",
+      "errors": 2,
+      "warnings": 0
+    },
+    {
+      "file": "src/pages/EditSession.jsx",
+      "errors": 0,
+      "warnings": 1
+    },
+    {
+      "file": "src/pages/ExportReport.jsx",
+      "errors": 1,
+      "warnings": 0
+    },
+    {
+      "file": "src/pages/NewGoal.jsx",
+      "errors": 1,
+      "warnings": 0
+    },
+    {
+      "file": "src/pages/Routines.jsx",
+      "errors": 2,
+      "warnings": 0
+    },
+    {
+      "file": "src/pages/Settings.jsx",
+      "errors": 2,
+      "warnings": 1
+    },
+    {
+      "file": "src/pages/Workout.jsx",
+      "errors": 1,
+      "warnings": 0
+    },
+    {
+      "file": "src/services/api.js",
+      "errors": 2,
+      "warnings": 0
+    },
+    {
+      "file": "src/utils/dayPdf.js",
+      "errors": 1,
+      "warnings": 0
+    },
+    {
+      "file": "src/utils/goalPlanner.js",
+      "errors": 1,
+      "warnings": 0
+    }
+  ]
+}

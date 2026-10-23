@@ -1,0 +1,15 @@
+# Disposable development only. Build the two base tags from Dockerfile.rehearsal:
+# docker build -f Dockerfile.rehearsal --target server-build -t nexlift:typed-rehearsal .
+# docker build -f Dockerfile.rehearsal --target runtime -t nexlift:rehearsal-http .
+# The existing separate migration-job target remains the only migration image.
+FROM nexlift:typed-rehearsal AS typed-artifacts
+FROM nexlift:rehearsal-http AS fastify-rehearsal
+WORKDIR /app/server
+COPY --from=typed-artifacts --chown=node:node /app/server/build ./build
+COPY --chown=node:node server/audit/database/declared-catalog.json ./audit/database/declared-catalog.json
+ENV NODE_ENV=test NEXLIFT_INFRA_REHEARSAL=true NEXLIFT_FASTIFY_REHEARSAL=true HOST=0.0.0.0 PORT=3001
+USER node
+EXPOSE 3001
+STOPSIGNAL SIGTERM
+HEALTHCHECK --interval=30s --timeout=8s --start-period=30s --retries=3 CMD ["node", "deploy/http-healthcheck.mjs"]
+CMD ["node", "src/entrypoints/fastify.mjs"]

@@ -1,0 +1,63 @@
+{
+  "createdAt": "2026-10-18T21:49:47.071Z",
+  "node": "24.22.0",
+  "fullRegression": "phase24-evidence.json",
+  "uniqueTests": 730,
+  "repeatedFinalTests": 72,
+  "results": [
+    {
+      "name": "staging-unit",
+      "exit": 0,
+      "milliseconds": 498,
+      "tests": 12
+    },
+    {
+      "name": "infra-unit",
+      "exit": 0,
+      "milliseconds": 3382,
+      "tests": 37
+    },
+    {
+      "name": "staging-integration",
+      "exit": 0,
+      "milliseconds": 108633,
+      "tests": 23
+    },
+    {
+      "name": "staging-static",
+      "exit": 0,
+      "milliseconds": 2063,
+      "tests": 0
+    }
+  ],
+  "artifacts": {
+    "../Dockerfile": "814193623c2a013d93299c6efa547ac0a634b124c7f335385afdb53c75d9398d",
+    "../Dockerfile.rehearsal": "c8ffb97c6383471fb75b0be1b4bf8a912fe2e91c347e50a239eb1ba302ab669b",
+    "../Dockerfile.staging": "1c6f09e81aad62a1f853e72aa5678eaec5ac50d1cc0e2661afe0d02a254c13e2",
+    "../compose.staging.yaml": "40d15fa26d72050f9d097242d3d820e342fae53e733f2684323ac1d04f26951a",
+    "../.dockerignore": "ea9ff82b0cf4e2abd2e3cab0436cd79c141e66a5b92f9a36431eeacfe61db3ff",
+    "../.gitignore": "e8180f46bb3a7a27809bfb7a1b51bdcb5dd15346009b6f79b28f66accf6124c5",
+    "package.json": "c5d8c9a76273d1be60d84965b97cf957473f521119bc0fd8f47e98045ef95999",
+    "prisma/schema.prisma": "b5e18768602b0dc7abaa714276a970d6a1164fb41be62b862ef116fc7f777d6f",
+    "prisma/migrations/0_init/migration.sql": "47c9542787e5cb64c36b2b8c079e05995ac5f98fe9c7b86b9b8c87747688ea2b",
+    "staging/capture-source.mjs": "172f7a9699b73dfd99eb65abfe09b4b299eeeb3064e126f51d770acbf6393ea6",
+    "staging/container.mjs": "02b97d2fad854c7ffb4b6ecba81f3c125c51718f328b2ba5b87306ad25692d42",
+    "staging/egress.mjs": "9b9d316850012ad1ea73de3e0c740a919c8008091426882563757fbb0afa8e79",
+    "staging/environment.mjs": "856c918769a19986231814f79b95f89eddc5e7eb359676807a0d2459bd27a57a",
+    "staging/history.sql": "2140b74ffe06cbfee498b0f298f704a037666359db3ed23825937b55dfebc391",
+    "staging/identity.mjs": "b2f139da9897d8a00b304a2966ff9a5ac8fdde6e7370f7234801c0a96c2d2946",
+    "staging/local.mjs": "986efefea0f7f5e88b7372b622deb40c9f4f4e3c02eaf10c207dedc6096ffeb2",
+    "staging/prepare-compose.mjs": "e4267a3856babfad8c30b69d86f7b840a1ec804e0c73ed6b28540d29aacf30d0",
+    "staging/restore-captured.mjs": "26c50302f077c2a589519d102f7269f8b52fbc3dcf27ac9403a734a46956dfba",
+    "staging/runtime.mjs": "9eb3e38214a6bf9537f73849a73046bfc825974ac4389796c47ff26225104ba1",
+    "staging/validate-local.mjs": "a43d5fb627d62de99154accf4e9d29fa6722507f349a79f5e5823e9f32783ae0",
+    "test/staging.test.js": "29dc03586a8e7e9a6093198df08aded6f2f6649b3d42ca2157df1066c6e008c2",
+    "test/staging.integration.test.js": "5904f1938da72d9a65d7274dd2c4716128d26430dd81b9d14f80c944a3220c16",
+    "test/run-staging-integration.mjs": "8e165d7b8c34401e5175befe7d9a6cdba4f5514f80fb69c9eb8b4fd8dc52924d",
+    "test/check-staging.mjs": "9f122a14cfe0e8ca1d76d82c49f9c043a501a8dfdf7aecd1d01b472bf17bf495",
+    "test/verify-staging.mjs": "b9f4b73caf89f3a19087019dd6b20e715cf2909db8f40ea5b41082b9ce0b0131"
+  },
+  "source": "SYNTHETIC_ONLY_NOT_PRODUCTION",
+  "productionConnected": false,
+  "dockerExecuted": false
+}

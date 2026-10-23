@@ -1,0 +1,2 @@
+# PROVISIONAL baseline. Do not activate on an existing database without verification.
+provider = "postgresql"
