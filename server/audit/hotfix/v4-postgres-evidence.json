@@ -1,0 +1,118 @@
+{
+  "productionTouched": false,
+  "baseline": "PROVISIONAL",
+  "tests": [],
+  "performance": {
+    "operations": {
+      "commit": {
+        "n": 20,
+        "p50": 10.126200000002427,
+        "p95": 13.875399999997171,
+        "errors": 0
+      },
+      "replay": {
+        "n": 20,
+        "p50": 2.921700000002602,
+        "p95": 3.9200999999993655,
+        "errors": 0
+      },
+      "note": "Direct service+Prisma; browser offline scheduling not included"
+    },
+    "express": {
+      "startupMs": 132.10729999999603,
+      "n": 40,
+      "concurrency": 8,
+      "p50": 28.726000000002387,
+      "p95": 43.6652000000031,
+      "errors": 0,
+      "rssBytes": 133316608
+    },
+    "fastify": {
+      "startupMs": 149.7091999999975,
+      "n": 40,
+      "concurrency": 8,
+      "p50": 20.88430000000517,
+      "p95": 34.45610000000306,
+      "errors": 0,
+      "rssBytes": 146444288
+    }
+  },
+  "simulations": {
+    "corrupt": "rejected; destination empty",
+    "incomplete": "rejected; destination empty",
+    "schema": "rejected; destination empty",
+    "filesystem": "ENOTDIR real; ENOSPC not physically induced"
+  },
+  "preflight": {
+    "ready": true,
+    "phase": "current",
+    "baseline": "PROVISIONAL",
+    "counts": {
+      "BodyLog": 1,
+      "CardioSegment": 1,
+      "CardioSession": 1,
+      "Exercise": 4,
+      "Goal": 1,
+      "PendingReminder": 1,
+      "PersonalRecord": 1,
+      "PushSubscription": 1,
+      "RestLog": 1,
+      "Routine": 3,
+      "RoutineBlock": 1,
+      "RoutineDay": 3,
+      "SetLog": 5,
+      "SuggestionLog": 1,
+      "TrainingProfile": 1,
+      "User": 2,
+      "WorkoutLog": 4
+    },
+    "diagnostics": {
+      "unownedHistory": 0,
+      "crossAccountSuggestions": 0,
+      "crossAccountReminders": 0,
+      "orphanSets": 0,
+      "setNumberCollisions": 0,
+      "invalidWeekdays": 0
+    },
+    "appliedMigrations": 3,
+    "pending": [],
+    "catalog": {
+      "tables": 17,
+      "columns": 166,
+      "indexes": 50,
+      "foreignKeys": 21,
+      "constraints": 39
+    }
+  },
+  "backupMs": 276.08480000000054,
+  "restoreMs": 517.5410999999986,
+  "recovery": {
+    "exactAllModelRows": true,
+    "manifestSha256": "90868d5a380efc9277770a387d5038ac7a8b4352cc3862269faba24a470374f5",
+    "counts": {
+      "BodyLog": 2,
+      "CardioSegment": 1,
+      "CardioSession": 1,
+      "Exercise": 4,
+      "Goal": 1,
+      "PendingReminder": 1,
+      "PersonalRecord": 1,
+      "PushSubscription": 1,
+      "RestLog": 1,
+      "Routine": 3,
+      "RoutineBlock": 1,
+      "RoutineDay": 3,
+      "SetLog": 7,
+      "SuggestionLog": 1,
+      "TrainingProfile": 1,
+      "User": 2,
+      "WorkoutLog": 5
+    },
+    "replay": true
+  },
+  "jobs": {
+    "restart": true,
+    "switchedToFastify": true,
+    "simulatedAcceptances": 1
+  }
+}

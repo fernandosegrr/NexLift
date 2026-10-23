@@ -1,0 +1,412 @@
+{
+  "executedAt": "2026-10-23T18:23:11.741Z",
+  "browser": "Edge desktop",
+  "realProductionReact": true,
+  "realServiceWorker": true,
+  "physicalIOS": false,
+  "networkChange": "CDP cellular4g → offline → wifi; no physical radios",
+  "suspension": "CDP frozen → active; no iOS OS termination",
+  "events": [
+    {
+      "at": "2026-10-23T18:23:03.685Z",
+      "name": "workout_draft_saved"
+    },
+    {
+      "at": "2026-10-23T18:23:05.131Z",
+      "name": "worker_update_waiting_without_reload"
+    },
+    {
+      "at": "2026-10-23T18:23:05.136Z",
+      "name": "browser_frozen"
+    },
+    {
+      "at": "2026-10-23T18:23:05.137Z",
+      "name": "browser_resumed_backend_503"
+    },
+    {
+      "at": "2026-10-23T18:23:05.213Z",
+      "name": "proxy_navigation_shell",
+      "status": 502
+    },
+    {
+      "at": "2026-10-23T18:23:05.284Z",
+      "name": "proxy_navigation_shell",
+      "status": 503
+    },
+    {
+      "at": "2026-10-23T18:23:05.352Z",
+      "name": "socket_unavailable_shell"
+    },
+    {
+      "at": "2026-10-23T18:23:11.720Z",
+      "name": "recovered_workout_draft"
+    }
+  ],
+  "requests": [
+    {
+      "at": "2026-10-23T18:23:03.063Z",
+      "pathname": "/login",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.088Z",
+      "pathname": "/assets/index-BkHI_BWr.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.091Z",
+      "pathname": "/assets/react-vendor-BA0AXjrg.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.091Z",
+      "pathname": "/assets/index-CdzwxoyA.css",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.091Z",
+      "pathname": "/assets/pdf-CMZUiWi9.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.092Z",
+      "pathname": "/assets/icons-DgoCbdYe.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.107Z",
+      "pathname": "/manifest.json",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.141Z",
+      "pathname": "/workout/day",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.199Z",
+      "pathname": "/sw.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.235Z",
+      "pathname": "/api/auth/me",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.239Z",
+      "pathname": "/index.html",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.240Z",
+      "pathname": "/manifest.json",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.241Z",
+      "pathname": "/icon-192.png",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.252Z",
+      "pathname": "/assets/Workout-Dy3zIM9Z.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.252Z",
+      "pathname": "/assets/Portal-PzwN2pKY.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.252Z",
+      "pathname": "/assets/useDialogFocus-BPaC53og.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.252Z",
+      "pathname": "/assets/goalPlanner-s6__OoBf.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.255Z",
+      "pathname": "/assets/sessionPdf-DfEgiVX0.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.255Z",
+      "pathname": "/assets/DraftBoundary-CELa4_mL.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.260Z",
+      "pathname": "/logo.png",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.266Z",
+      "pathname": "/icon-192.png",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.271Z",
+      "pathname": "/logo.png",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.274Z",
+      "pathname": "/icon-192.png",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.274Z",
+      "pathname": "/icon-512.png",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.278Z",
+      "pathname": "/assets/pdf-CMZUiWi9.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.280Z",
+      "pathname": "/assets/index-BkHI_BWr.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.281Z",
+      "pathname": "/assets/react-vendor-BA0AXjrg.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.281Z",
+      "pathname": "/assets/icons-DgoCbdYe.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.281Z",
+      "pathname": "/assets/index-CdzwxoyA.css",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.285Z",
+      "pathname": "/assets/Workout-Dy3zIM9Z.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.286Z",
+      "pathname": "/assets/Portal-PzwN2pKY.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.287Z",
+      "pathname": "/assets/useDialogFocus-BPaC53og.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.288Z",
+      "pathname": "/assets/goalPlanner-s6__OoBf.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.288Z",
+      "pathname": "/assets/sessionPdf-DfEgiVX0.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.289Z",
+      "pathname": "/assets/DraftBoundary-CELa4_mL.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.290Z",
+      "pathname": "/logo.png",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.292Z",
+      "pathname": "/icon-192.png",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.557Z",
+      "pathname": "/api/goals",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.558Z",
+      "pathname": "/api/routines",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:03.575Z",
+      "pathname": "/api/workouts/exercise/ex/history",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:04.988Z",
+      "pathname": "/sw.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.018Z",
+      "pathname": "/index.html",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.168Z",
+      "pathname": "/workout/day",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.204Z",
+      "pathname": "/manifest.json",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.232Z",
+      "pathname": "/workout/day",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.286Z",
+      "pathname": "/sw.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.287Z",
+      "pathname": "/api/auth/me",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.287Z",
+      "pathname": "/sw.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.288Z",
+      "pathname": "/manifest.json",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.288Z",
+      "pathname": "/api/auth/me",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.288Z",
+      "pathname": "/sw.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.289Z",
+      "pathname": "/manifest.json",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.290Z",
+      "pathname": "/api/auth/me",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.290Z",
+      "pathname": "/manifest.json",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.290Z",
+      "pathname": "/sw.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.291Z",
+      "pathname": "/manifest.json",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.291Z",
+      "pathname": "/api/auth/me",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.291Z",
+      "pathname": "/manifest.json",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.292Z",
+      "pathname": "/manifest.json",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.293Z",
+      "pathname": "/manifest.json",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.303Z",
+      "pathname": "/workout/day",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.357Z",
+      "pathname": "/manifest.json",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.360Z",
+      "pathname": "/api/auth/me",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.362Z",
+      "pathname": "/sw.js",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.723Z",
+      "pathname": "/api/goals",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.724Z",
+      "pathname": "/api/routines",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:05.726Z",
+      "pathname": "/api/workouts/exercise/ex/history",
+      "method": "GET"
+    },
+    {
+      "at": "2026-10-23T18:23:06.953Z",
+      "pathname": "/sw.js",
+      "method": "GET"
+    }
+  ],
+  "noMutations": true,
+  "indexedDBRowsPreserved": 2,
+  "caches": [
+    {
+      "key": "nexlift-static-v4.0-availability-1",
+      "urls": [
+        "/icon-512.png",
+        "/assets/index-BkHI_BWr.js",
+        "/assets/icons-DgoCbdYe.js",
+        "/assets/react-vendor-BA0AXjrg.js",
+        "/assets/index-CdzwxoyA.css",
+        "/assets/Portal-PzwN2pKY.js",
+        "/assets/pdf-CMZUiWi9.js",
+        "/assets/Workout-Dy3zIM9Z.js",
+        "/assets/useDialogFocus-BPaC53og.js",
+        "/assets/goalPlanner-s6__OoBf.js",
+        "/assets/sessionPdf-DfEgiVX0.js",
+        "/assets/DraftBoundary-CELa4_mL.js",
+        "/icon-192.png",
+        "/logo.png",
+        "/index.html",
+        "/manifest.json"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "commit": "adc636772a64f6e3d3a0b45f6cf42ecc7969ccf0",
+  "source": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-coach-availability-rehearsal",
+  "fullHistoricalMatrixRerun": false,
+  "productionAccessed": false,
+  "complete": true,
+  "approvedTestExecutions": 108,
+  "results": [
+    {
+      "name": "generate",
+      "startedAt": "2026-10-23T18:21:54.905Z",
+      "exit": 0
+    },
+    {
+      "name": "build",
+      "startedAt": "2026-10-23T18:22:00.707Z",
+      "exit": 0
+    },
+    {
+      "name": "typescript",
+      "startedAt": "2026-10-23T18:22:36.975Z",
+      "exit": 0
+    },
+    {
+      "name": "availability",
+      "startedAt": "2026-10-23T18:22:58.668Z",
+      "exit": 0
+    },
+    {
+      "name": "coach-domain",
+      "startedAt": "2026-10-23T18:23:12.077Z",
+      "exit": 0
+    },
+    {
+      "name": "coach-postgres",
+      "startedAt": "2026-10-23T18:23:14.646Z",
+      "exit": 0
+    },
+    {
+      "name": "coach-browser",
+      "startedAt": "2026-10-23T18:23:33.903Z",
+      "exit": 0
+    },
+    {
+      "name": "v4-compatibility",
+      "startedAt": "2026-10-23T18:23:41.947Z",
+      "exit": 0
+    }
+  ],
+  "hotfixCommit": "2025096d4161eb23e76382bfdbd8e29c7142f621",
+  "resolvedConflict": [
+    "scripts/verify-monorepo.mjs"
+  ],
+  "expectedFullMatrixTests": 1574,
+  "originalCoachBranchUnchanged": true,
+  "originalMainUnchanged": true
+}

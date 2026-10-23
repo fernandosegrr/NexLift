@@ -1,0 +1,90 @@
+{
+  "source": "main + availability hotfix",
+  "node": "24.22.1",
+  "logs": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-hotfix-validation-SWGIqI",
+  "productionAccessed": false,
+  "dockerExecuted": false,
+  "physicalIOS": false,
+  "complete": true,
+  "testExecutions": 325,
+  "fullHistoricalMatrixRerun": false,
+  "results": [
+    {
+      "name": "generate",
+      "startedAt": "2026-10-23T18:10:02.350Z",
+      "milliseconds": 2249,
+      "exit": 0,
+      "tests": 0
+    },
+    {
+      "name": "build",
+      "startedAt": "2026-10-23T18:10:04.605Z",
+      "milliseconds": 30648,
+      "exit": 0,
+      "tests": 0
+    },
+    {
+      "name": "typescript",
+      "startedAt": "2026-10-23T18:10:35.256Z",
+      "milliseconds": 23043,
+      "exit": 0,
+      "tests": 0
+    },
+    {
+      "name": "client",
+      "startedAt": "2026-10-23T18:10:58.302Z",
+      "milliseconds": 3984,
+      "exit": 0,
+      "tests": 230
+    },
+    {
+      "name": "frontend",
+      "startedAt": "2026-10-23T18:11:02.289Z",
+      "milliseconds": 23472,
+      "exit": 0,
+      "tests": 26
+    },
+    {
+      "name": "http-sw-jobs",
+      "startedAt": "2026-10-23T18:11:25.767Z",
+      "milliseconds": 7280,
+      "exit": 0,
+      "tests": 55
+    },
+    {
+      "name": "postgres-release",
+      "startedAt": "2026-10-23T18:11:33.050Z",
+      "milliseconds": 49784,
+      "exit": 0,
+      "tests": 13
+    },
+    {
+      "name": "availability-browser",
+      "startedAt": "2026-10-23T18:12:22.837Z",
+      "milliseconds": 11270,
+      "exit": 0,
+      "tests": 1
+    },
+    {
+      "name": "bundle",
+      "startedAt": "2026-10-23T18:12:34.110Z",
+      "milliseconds": 9311,
+      "exit": 0,
+      "tests": 0
+    },
+    {
+      "name": "tooling-lint",
+      "startedAt": "2026-10-23T18:12:43.425Z",
+      "milliseconds": 1717,
+      "exit": 0,
+      "tests": 0
+    },
+    {
+      "name": "release-lint",
+      "startedAt": "2026-10-23T18:12:45.145Z",
+      "milliseconds": 910,
+      "exit": 0,
+      "tests": 0
+    }
+  ]
+}
