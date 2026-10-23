@@ -69,6 +69,8 @@ model User {
   suggestionLogs    SuggestionLog[]
   trainingProfile   TrainingProfile?
   cardioSessions    CardioSession[]
+  exercises         Exercise[]
+  workoutLogs       WorkoutLog[]
 
   @@index([email])
   @@index([username])
@@ -196,9 +198,15 @@ model Exercise {
   note         String?
   order        Int          @default(0)
   isUnilateral Boolean      @default(false)
-  routineDayId String
-  routineDay   RoutineDay   @relation(fields: [routineDayId], references: [id], onDelete: Cascade)
+  // Stable private identity. The legacy prescription columns remain API adapters.
+  // NULL owner is retained only for unowned legacy plans; it cannot record work.
+  userId       String?
+  user         User?        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  archivedAt   DateTime?
+  routineDayId String?
+  routineDay   RoutineDay?  @relation(fields: [routineDayId], references: [id], onDelete: SetNull)
   workoutLogs  WorkoutLog[]
+  sourceRecords PersonalRecord[]
   pendingReminders PendingReminder[]
   suggestionLogs   SuggestionLog[]
 
@@ -206,6 +214,7 @@ model Exercise {
   @@index([name])
   // Historial por nombre (insensitive) + join a RoutineDay
   @@index([routineDayId, name])
+  @@index([userId, archivedAt])
 }
 
 // ==================== WORKOUTS ====================
@@ -214,7 +223,18 @@ model WorkoutLog {
   id          String    @id @default(cuid())
   date        DateTime  @default(now())
   exerciseId  String
-  exercise    Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  exercise    Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  // dbgenerated(): filled by the versioned SQL trigger, including old writers.
+  userId      String    @default(dbgenerated())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  exerciseNameSnapshot String @default(dbgenerated())
+  muscleGroupSnapshot String?
+  isUnilateralSnapshot Boolean?
+  snapshotSource String @default("recorded") // recorded | legacy-observed
+  contextCapturedAt DateTime? // Observation time, distinct from performed date/offline time.
+  // Provenance, deliberately not FKs to mutable/deletable planning.
+  originRoutineId String?
+  originRoutineDayId String?
   sets        SetLog[]
   notes       String?
 
@@ -222,6 +242,7 @@ model WorkoutLog {
   @@index([date])
   // Camino caliente: historial de un ejercicio ordenado por fecha DESC
   @@index([exerciseId, date])
+  @@index([userId, date])
 }
 
 model SetLog {
@@ -248,6 +269,9 @@ model PersonalRecord {
   reps         Int
   estimated1RM Float?
   date         DateTime @default(now())
+  // Winning identity, NULL for legacy records without provable provenance.
+  sourceExerciseId String?
+  sourceExercise Exercise? @relation(fields: [sourceExerciseId], references: [id], onDelete: Restrict)
   
   // Relación con usuario (opcional para migración)
   userId       String?
@@ -374,7 +398,7 @@ model SuggestionLog {
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   exerciseId      String
-  exercise        Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  exercise        Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
   date            DateTime @default(now())
   suggestedWeight Float
   suggestedReps   Int

@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { installEgressGuard } from '../../staging/egress.mjs';
+assert(process.send && process.env.NEXLIFT_PHASE6_PORT);
+const url = new URL(process.env.DATABASE_URL);
+assert.equal(url.hostname, '127.0.0.1'); assert.equal(url.port, process.env.NEXLIFT_PHASE6_PORT);
+assert.match(url.pathname, /^\/nexlift_ops_test_phase6_[a-f0-9_]+$/);
+installEgressGuard();
+const { startServer } = await import('../../src/index.js');
+const server = await startServer({ host: '127.0.0.1' });
+process.send({ port: server.address().port });
+process.on('message', message => { if (message === 'stop') process.emit('SIGTERM'); });

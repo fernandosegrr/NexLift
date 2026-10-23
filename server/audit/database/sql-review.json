@@ -1,0 +1,11 @@
+{
+  "offline": true,
+  "databaseAccessed": false,
+  "exit": 0,
+  "columnsAdded": 11,
+  "foreignKeysReplaced": 3,
+  "foreignKeysAdded": 3,
+  "indexesAdded": 2,
+  "reviewedDifferences": "Actual migration expands nullable, backfills, then constrains required fields atomically; adds provenance CHECK and SQL ownership/immutability triggers not expressible by Prisma.",
+  "work": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-phase6-trials\\sql-review-PEYRuQ"
+}

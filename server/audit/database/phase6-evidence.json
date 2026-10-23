@@ -1,0 +1,116 @@
+{
+  "productionTouched": false,
+  "baseline": "PROVISIONAL",
+  "trials": [],
+  "postgres": "PostgreSQL 18.4 on x86_64-windows, compiled by msvc-19.44.35227, 64-bit",
+  "root": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-phase6-trials\\trial-3DWwjG",
+  "catalog": {
+    "tables": 17,
+    "columns": 166,
+    "foreignKeys": 21,
+    "indexes": 50,
+    "extraObjects": 13
+  },
+  "performance": {
+    "sessions": 2004,
+    "sets": 12005,
+    "returned": 2000,
+    "queryCount": 3,
+    "readMs": 270.59219999999914,
+    "rebuildMs": 240.51720000000205,
+    "plan": [
+      {
+        "QUERY PLAN": [
+          {
+            "Plan": {
+              "Node Type": "Limit",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Startup Cost": 0.28,
+              "Total Cost": 8.29,
+              "Plan Rows": 1,
+              "Plan Width": 17,
+              "Actual Startup Time": 0.027,
+              "Actual Total Time": 0.028,
+              "Actual Rows": 1,
+              "Actual Loops": 1,
+              "Disabled": false,
+              "Shared Hit Blocks": 3,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0,
+              "Plans": [
+                {
+                  "Node Type": "Index Scan",
+                  "Parent Relationship": "Outer",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Scan Direction": "Backward",
+                  "Index Name": "WorkoutLog_userId_date_idx",
+                  "Relation Name": "WorkoutLog",
+                  "Alias": "WorkoutLog",
+                  "Startup Cost": 0.28,
+                  "Total Cost": 8.29,
+                  "Plan Rows": 1,
+                  "Plan Width": 17,
+                  "Actual Startup Time": 0.026,
+                  "Actual Total Time": 0.026,
+                  "Actual Rows": 1,
+                  "Actual Loops": 1,
+                  "Disabled": false,
+                  "Index Cond": "(\"userId\" = 'B'::text)",
+                  "Rows Removed by Index Recheck": 0,
+                  "Index Searches": 1,
+                  "Shared Hit Blocks": 3,
+                  "Shared Read Blocks": 0,
+                  "Shared Dirtied Blocks": 0,
+                  "Shared Written Blocks": 0,
+                  "Local Hit Blocks": 0,
+                  "Local Read Blocks": 0,
+                  "Local Dirtied Blocks": 0,
+                  "Local Written Blocks": 0,
+                  "Temp Read Blocks": 0,
+                  "Temp Written Blocks": 0
+                }
+              ]
+            },
+            "Planning": {
+              "Shared Hit Blocks": 0,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0
+            },
+            "Planning Time": 0.177,
+            "Triggers": [],
+            "Execution Time": 0.043
+          }
+        ]
+      }
+    ],
+    "largeRoutine": {
+      "days": 10,
+      "customExercises": 100,
+      "historicalLogs": 100,
+      "historicalSets": 600,
+      "editMs": 603.7756000000081,
+      "deleteMs": 12.543799999999464,
+      "preserved": {
+        "logs": 2104,
+        "sets": 12605,
+        "prs": 1
+      }
+    }
+  }
+}
