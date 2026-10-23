@@ -1,579 +1,515 @@
 # NexLift - Documentación Completa del Proyecto
 
 > **Documentación exhaustiva para IAs y desarrolladores que trabajen en este proyecto.**
-> **Versión:** 2.8.0 | **Última actualización:** 14 Julio 2026
-> **Historial de versiones:** [`changelog.md`](changelog.md) (movido ahí para que este archivo quepa en una sola lectura de una IA) | **Schema:** `server/prisma/schema.prisma` (única copia, no se duplica aquí)
+> **Versión:** 3.0.0 | **Última actualización:** 17 Octubre 2026
+> **Historial de versiones:** [`changelog.md`](changelog.md) | **Schema:** `server/prisma/schema.prisma`
+> **Checklist camino caliente:** [`checklist-cero-bugs.md`](checklist-cero-bugs.md)
 
 ---
 
 ## 🎯 ¿Qué es NexLift?
 
-**NexLift** es una Progressive Web App (PWA) completa de tracking de gimnasio. Está diseñada mobile-first con tema OLED oscuro para ahorro de batería en móviles con pantalla AMOLED. Se diferencia por su enfoque en la **periodización matemática** y el análisis de datos.
+**NexLift** es una Progressive Web App (PWA) completa de tracking de gimnasio y fuerza. Está diseñada mobile-first con tema OLED oscuro (`#0a0a0a` puro) para máximo ahorro de batería en móviles con pantalla AMOLED/OLED.
 
-### Funcionalidades Principales
+A diferencia de una simple libreta de notas de gimnasio, NexLift se diferencia por su **periodización matemática**, **autorregulación intra/inter-sesión**, **prevención de estancamiento** y **adherencia diaria**:
+1. **Doble progresión autorregulada por RIR**: En cada serie sugiere peso y repeticiones analizando la sesión anterior y ajustando intra-sesión con las series completadas hoy.
+2. **Entrenador inteligente adaptativo**: Detección de estancamiento (plateau), mesociclos (acumulación, intensificación, descarga) y descarga adaptativa automática cuando el volumen cae y varios ejercicios se estancan a la vez.
+3. **Rutina diaria con IA (o determinista)**: Para quien no tiene rutina fija, un cuestionario de 4 pasos genera la sesión de hoy balanceando volumen y rotación sin romper la continuidad del historial.
+4. **Adherencia & Hábitos (Daily Check-in)**: Registro diario de creatina, cumplimiento de déficit/dieta y cero calorías líquidas, con notificaciones Web Push escalonadas en 3 etapas.
+5. **Integración con Atajos de iOS (Shortcuts)**: Registrar series con un toque o por voz desde Siri/Atajos sin abrir la app, con soporte de sesiones parciales y reconciliación inteligente.
+6. **Resiliencia extrema (Offline-first + Backups diarios)**: Registro de series funcional en sótanos sin señal con cola de sincronización automática y backup diario encriptado a Cloudinary.
 
-| Característica | Descripción |
-|----------------|-------------|
-| 🏋️ **Registro de Entrenamientos** | Log de ejercicios con series, repeticiones, peso, RIR y notas |
-| 🎯 **Objetivos & Periodización** | **[NUEVO]** Generación automática de planes de fuerza basados en 1RM (Fórmula Epley) |
-| 📈 **Progreso Visual** | Gráficas de evolución, heatmaps de consistencia, PRs |
-| 📊 **Composición Corporal** | **[NUEVO]** Soporte para básculas inteligentes (Grasa, Agua, Músculo, Hueso, etc.) |
-| 📋 **Gestión de Rutinas** | Crear, editar, importar rutinas de entrenamiento (JSON/Plantillas) |
-| 📄 **Reportes PDF** | Exportar informes profesionales con estadísticas detalladas |
-| 👤 **Sistema Multi-Usuario** | Cuentas individuales con autenticación JWT |
-| 📱 **PWA Instalable** | Funciona offline, instalable como app nativa |
-
-### Stack Tecnológico
+### Stack Tecnológico Real
 
 ```
-Frontend:  React 18 + Vite + Tailwind CSS 4 + Recharts
-Backend:   Express.js + Prisma ORM + PostgreSQL
-Fotos:     Cloudinary (si está configurado) con fallback a Catbox.moe (uploadPhoto())
-Deploy:    VPS (Ubuntu + EasyPanel + Docker) | Local
-Formatos:  PDF (jsPDF + html2canvas) | JSON (Backup/Restore)
+Frontend:   React 19.2 + Vite 7.2 + Tailwind CSS 4.1 + Recharts 3.6 + Lucide React
+PWA:        Service Worker (Cache-first estáticos / Network-first API / Background sync) + Manifest
+Backend:    Express.js 4.18 (ÚNICO backend en dev y prod) + Prisma ORM 6.0 + PostgreSQL
+Seguridad:  JWT (365 días con tokenVersion para revocación inmediata) + bcryptjs + Helmet + Rate Limiting
+Push:       Web Push (VAPID) en segundo plano (recordatorio de descanso y creatina escalonada)
+Fotos:      Cloudinary (con SLA y firma autenticada) con fallback automático a Catbox.moe
+IA:         OpenAI GPT-4o-mini (opcional, para deduplicación de ejercicios y armado de rutina diaria)
+Reportes:   jsPDF 4.0 + html2canvas + jsPDF-AutoTable (PDFs de sesión y de periodo)
+Deploy:     Docker multi-stage en VPS (EasyPanel / Dokku / CapRover) con sync automático de Prisma
+Tests:      180 tests automatizados (104 Node tests en backend + 76 Vitest tests en frontend)
 ```
 
 ---
 
-## 📱 Páginas y Componentes
+## 🏗️ Arquitectura General del Sistema
+
+```
+NexLift/
+├── client/                     # Frontend SPA en React 19 + Vite 7
+│   ├── public/                 # sw.js, manifest.json, iconos OLED
+│   ├── src/
+│   │   ├── components/         # Componentes UI reutilizables
+│   │   │   ├── goals/          # GoalCard.jsx, GoalSection.jsx
+│   │   │   ├── layout/         # Layout.jsx (Nav 4 tabs + Brand bar móvil)
+│   │   │   └── ui/             # Celebration, MuscleIcon, Portal, Toast, WeekdayPicker
+│   │   ├── context/            # AuthContext.jsx (sesión, tokenVersion, push)
+│   │   ├── data/               # exercises.js, routineTemplates.js, strengthStandards.js
+│   │   ├── pages/              # 17 páginas completas (Dashboard, Workout, Progress, etc.)
+│   │   ├── services/           # api.js (cliente HTTP), offlineQueue.js (storage de cola)
+│   │   └── utils/              # smartLoading, dates, exerciseName, goalPlanner, routineDays, etc.
+│   └── vitest.config.js        # Configuración de pruebas unitarias
+├── server/                     # Backend Express 4 (ÚNICO backend)
+│   ├── prisma/schema.prisma    # Esquema PostgreSQL (fuente única de verdad)
+│   ├── src/
+│   │   ├── index.js            # Entry point Express, endpoints HTTP, tareas en background
+│   │   ├── logic.js            # Funciones puras extraídas y testeadas (fechas, smart loading, etc.)
+│   │   ├── logic.test.js       # Suite de 104 tests automatizados del backend
+│   │   ├── data/               # exerciseCatalog.js, splitTemplates.js (catálogos de backend)
+│   │   ├── services/           # aiRoutineAgent, aiRoutineService, backupService, exerciseAgent
+│   │   └── utils/              # exerciseName.js (normalización)
+│   ├── scripts/                # Scripts de mantenimiento (migraciones de fotos, fix de RIR)
+│   ├── analyze-suggestions.mjs # Script de calibración de sugerencias
+│   ├── backfill-routine-weekday.mjs # Migración de días de rutina
+│   └── restore-backup.mjs      # Restauración automatizada de backups de Cloudinary
+├── .agent/                     # Suite de documentación técnica para desarrolladores e IAs
+├── CLAUDE.md                   # Guía de convenciones para desarrollo
+├── Dockerfile                  # Build multi-stage para VPS con auto db push
+└── README.md                   # Presentación del proyecto para usuarios
+```
+
+---
+
+## 📱 Páginas y Componentes del Frontend
 
 ### 1. Dashboard (`Dashboard.jsx`)
 **Ruta:** `/` (Home)
-
-La página principal muestra un resumen del progreso del usuario:
-
-- **Header personalizado:** Saludo con nombre y hora del día
+- **Carga ultra-optimizada:** Consume el endpoint agregado `GET /api/stats/home` (un solo round-trip HTTP) con cache en `sessionStorage` (`nexlift_home_v3`, TTL 5 min) para renderizado instantáneo (stale-while-revalidate).
+- **Daily Check-in (Hábitos de Adherencia):** Toggles interactivos optimistas para:
+  - ⚡ Creatina tomada hoy (5g)
+  - 🥗 Cumplimiento de déficit calórico / dieta
+  - 💧 Cero calorías líquidas
 - **KPIs Rápidos:**
-  - Racha actual de entrenamientos (streak)
-  - Total de workouts del mes
-  - Personal Records del mes
-  - Días restantes en el mes
-- **Heatmap de actividad:** Calendario visual estilo GitHub mostrando días de entrenamiento
-- **Última sesión:** Resumen del último workout con ejercicios y PRs logrados/medallas.
-- **Acceso rápido:** Botón para ir al workout activo o iniciar una rutina.
-- **Logros:** tocar una medalla en `AchievementsStrip` abre un modal de detalle (ícono, descripción, progreso real, estado de desbloqueo) — v2.2.0, antes no hacía nada pese a invitar a tocarla.
-
-**API usada:**
-- `GET /api/stats/overview` - Estadísticas generales
-- `GET /api/stats/consistency` - Datos del heatmap
-- `GET /api/workouts/history?limit=1` - Última sesión
+  - Racha actual (streak de días consecutivos entrenando o descansando según rutina)
+  - Workouts completados del mes
+  - Personal Records (PRs) rotos en el mes
+  - Días restantes del mes
+- **Alerta de Plateau:** Si hay ejercicios estancados en el servidor, muestra tarjeta de aviso con link a Progreso.
+- **Tarjeta de Entrenamiento de Hoy:**
+  - Si la rutina es manual: resuelve qué día toca hoy vía `resolveTodayRoutineDay(activeRoutine.days)` usando el `weekday` CDMX.
+  - Si la rutina es IA (`source: 'ai'`): resuelve el día generado hoy vía `aiTodayDay`.
+  - Muestra split, ejercicios programados, target reps y sets, y banner de fase (Acumulación / Intensificación / Descarga).
+  - CTA principal "Entrenar Hoy" (con prefetch de chunk de Workout en idle) o botón para registrar día de descanso.
+- **Heatmap de Actividad:** Calendario de consistencia estilo GitHub (30/60 días) que integra fuerza y días de descanso programados.
+- **PRs Recientes:** Muestra las últimas marcas personales superadas.
 
 ### 2. Workout (`Workout.jsx`)
 **Ruta:** `/workout/:dayId`
+Página crítica para registrar el entrenamiento activo. Series-first (lo primero que ve el usuario son las tarjetas de series).
+- **Persistencia en tiempo real (`useWorkoutPersistence`):** Guarda en `localStorage` (`workout_${dayId}`) en cada pulsación de tecla para evitar pérdida de datos si el móvil cierra la pestaña o se apaga. Expira en 24h.
+- **Smart Loading (Doble Progresión Autorregulada por RIR) — 100% local, sin latencia:**
+  - **Serie 1 (Inter-sesión):** `computeWorkoutSuggestion` analiza la última sesión completa (ventana de 10). Si completaste el tope de reps con RIR ≤ 1 o todas las series tocaron el tope, sube peso (5kg piernas / 2.5kg torso) y reinicia reps. Nunca sugiere bajar peso entre días.
+  - **Series 2..N (Intra-sesión):** `suggestNextSetFromToday` analiza TODAS las series completadas hoy con RIR. Sí puede bajar peso si hubo fallo o fatiga excesiva.
+  - **Protección Top Set / Back-off:** Si la Serie 1 se hace al fallo (RIR 0 / RPE 10), sugiere automáticamente un Back-off Set (-12.5% de carga) para las siguientes.
+  - **Protección contra Ego-Lifting:** Series de 1 o 2 reps se ignoran para la referencia de trabajo a menos que el rango sea de fuerza máxima (lo ≤ 3).
+- **Modal de RIR:** Al marcar una serie como completada sin haber ingresado RIR, abre un modal interactivo con opciones (0 al fallo, 1, 2, 3+).
+- **Temporizador de Descanso Visual + Push:**
+  - Temporizador visual en pantalla basado en timestamp absoluto (`Date.now() + restSeconds * 1000`), sin congelarse cuando el móvil pasa a segundo plano.
+  - Agendamiento de push persistente (`POST /api/workouts/rest-reminder`) por serie. Al terminar la última serie del ejercicio, calcula `nextExerciseName` para que el aviso diga: *"Descanso terminado. Siguiente: [Próximo Ejercicio]"*.
+  - Sincronización de `prevSetsSnapshotRef` para evitar disparos fantasma al cargar series previas.
+- **Reconciliación con Atajo de iOS:** Si el Atajo registró series parciales hoy (ej. 1 de 3), muestra las series ya guardadas editables + filas vacías para las restantes. Al guardar, usa `PUT /api/workouts/:logId` para no fragmentar el día en dos registros.
+- **Calculadora de Calentamiento:** Panel `<details>` colapsable con rampa 40/60/80% y tabla libre de porcentajes.
+- **Chip de Objetivo:** Si el ejercicio tiene un `Goal` activo, muestra la meta de la semana actual calculada por `goalPlanner.js`.
+- **Soporte Unilateral:** Campos independientes para lado izquierdo y derecho; la progresión se rige por el lado débil.
+- **Cola Offline:** Si falla la red, guarda localmente, avisa con badge amarillo y encola para sincronizar al volver la conexión.
+- **Resumen Post-Sesión & PDF:** Al finalizar el día, muestra resumen con volumen total, PRs rotos y descarga instantánea del PDF de la sesión (`sessionPdf.js`).
 
-Página crítica para registrar el entrenamiento del día. Ha recibido actualizaciones masivas en v1.9.
+### 3. Rutinas (`Routines.jsx`) y Detalle (`RoutineDetail.jsx`)
+**Rutas:** `/routines`, `/routines/:id`
+- Lista de rutinas manuales e IA.
+- Indicador visual de rutina activa, botón de activación directa (`PUT /api/routines/:id/activate`).
+- Rutinas IA muestran tarjeta resumen con los últimos splits completados y botón "Cambiar ejercicios de hoy".
+- Visualización de bloques de mesociclo activos con indicador "Semana N de M" y botón para iniciar el siguiente bloque.
 
-- **Carga Inteligente:**
-  - Detecta ejercicios ya completados hoy (persistencia).
-  - Determina si es un día de descanso.
-- **Algoritmo de Sugerencia (Smart Loading) — 100% local, sin IA:**
-  - **Entre sesiones (S1):** analiza la última sesión completa (ventana 10). Doble progresión + RIR: sube peso al tope del rango; suma reps si sobró fuerza. Nunca sugiere bajar entre días.
-  - **Intra-sesión (S2…, v2.8.0):** `suggestNextSetFromToday` con **todas** las series de hoy; RIR obligatorio; **sí puede bajar peso**. Chip chico + auto-fill de filas vacías. Modal de pregunta RIR al completar sin RIR.
-  - Sugiere **peso Y reps**. Unilateral = lado débil. Incremento: 5kg piernas / 2.5kg resto.
-- **Cards de serie (`SetCard` en Workout.jsx):**
-  - React.memo; peso/reps/RIR; chip de sugerencia de esa serie; PR animado.
-- **Acciones:**
-  - Insignia "SUGERIDO" rellena series vacías con la sugerencia **inter-sesión**. El chip por serie aplica la sugerencia **intra**.
-  - "Copiar peso a todo": Facilita el llenado rápido.
-  - "Ver historial": Modal con sesiones pasadas.
-  - Guardado por ejercicio (granularidad) y finalización global.
-  - Persistencia local: `useWorkoutPersistence` guarda en `localStorage` cada keystroke para evitar pérdida de datos si se cierra la app.
-  - **Temporizador de descanso visual** (`useRestTimer`, v2.2.0, corregido a fondo en v2.3.0): cuenta regresiva en pantalla al marcar CADA serie individual como completada (no solo al terminar el ejercicio) — respaldo del push de `scheduleRestReminder` (poco fiable en iOS Safari/PWA), que ahora también se dispara por serie vía `POST /api/workouts/rest-reminder`. Basado en timestamp absoluto (no un contador de ticks), así que se recalcula correctamente al volver de segundo plano en vez de quedarse congelado. Persiste a través del auto-avance de ejercicio — solo se detiene al terminar, al tocar la X, o al salir del entreno.
-  - **Aviso de descanso correcto al cambiar de ejercicio** (v2.4.1): si la serie recién completada era la última del ejercicio actual, `triggerSetCompleted` resuelve el ejercicio SIGUIENTE en la lista del día y manda su nombre (`nextExerciseName`) al backend, que lo usa para componer el texto del push en vez de repetir el nombre del ejercicio que ya se terminó.
-  - **Sesiones parciales del Atajo de iOS** (v2.4.1): si el Atajo ya registró algunas series de un ejercicio hoy (menos que `targetSets`), `Workout.jsx` las muestra pre-llenadas + filas vacías para las restantes, todo editable — ya no bloquea el ejercicio como "completo" solo por tener algún log de hoy. Al guardar, actualiza (`PUT`) ese mismo `WorkoutLog` en vez de crear uno nuevo, para no fragmentar el día.
-  - **Calculadora de calentamiento** (v2.7.0): panel `<details>` junto a la Sugerencia — rampa 40/60/80% del peso base + tabla libre "peso @ X%", 100% informativo (no persiste nada). Ver Gotcha #12.
-  - **Chip de Objetivo activo** (v2.7.0): si el ejercicio actual coincide con un `Goal` no alcanzado, muestra "Objetivo: Xkg × Y — semana Z" (reusa `client/src/utils/goalPlanner.js`, extraído de `GoalCard.jsx`) — sin fusionarse con la Sugerencia. Ver Gotcha #12.
-
-**API usada:**
-- `GET /api/routines` - Obtener estructura del día
-- `POST /api/workouts/log` - Registrar ejercicio
-- `GET /api/workouts/exercise/:id/history` - Historial específico para algoritmos
-
-### 3. Routines (`Routines.jsx`)
-**Ruta:** `/routines`
-
-Gestión de rutinas de entrenamiento:
-
-- **Lista de rutinas:** Muestra todas las rutinas del usuario con sus días.
-- **Indicador de rutina activa:** Badge visual en la rutina en uso.
-- **Acciones por rutina:**
-  - Ver detalle
-  - Editar
-  - Activar/Desactivar
-  - Eliminar con confirmación
-- **Botón Importar:** Permite importar rutinas desde archivo JSON o Texto.
-
-**API usada:**
-- `GET /api/routines`
-- `PUT /api/routines/:id/activate`
-- `DELETE /api/routines/:id`
-
-### 4. Routine Detail (`RoutineDetail.jsx`)
-**Ruta:** `/routines/:id`
-
-Vista de solo lectura de una rutina específica:
-- Desglose completo de días y ejercicios.
-- Muestra series objetivo, rangos de reps y notas.
-
-### 5. Edit Routine (`EditRoutine.jsx`)
+### 4. Editor de Rutinas (`EditRoutine.jsx`)
 **Ruta:** `/routines/:id/edit`
+- Edición de nombre, descripción y días de entrenamiento.
+- **Selector de Día de la Semana (`WeekdayPicker.jsx`):** 7 chips (Lunes a Domingo). Asigna `RoutineDay.weekday` (0=Dom..6=Sáb) de forma explícita. Evita duplicados transfiriendo el día si ya estaba ocupado.
+- Reordenamiento de ejercicios y días.
+- Configuración de series objetivo, rango de repeticiones (`targetReps`, ej. `"8-12"`), tiempo de descanso en segundos y switch unilateral.
+- Gestión de Bloques de Mesociclo (`RoutineBlock`): creación, edición de fase (`accumulation`, `intensification`, `deload`, `custom`) y duración en semanas.
+- Preservación de historial: renombrar ejercicios actualiza el historial sin romper PRs históricos ni perder logs.
 
-Editor completo y complejo de rutinas:
+### 5. Importar / Crear Rutinas (`Import.jsx`)
+**Ruta:** `/import`
+Hub unificado con 4 pestañas:
+1. **Plantillas:** Selección de rutinas estándar comprobadas (PPL, Arnold Split, Upper/Lower, Full Body) con días de la semana y días de descanso preasignados.
+2. **Manual:** Diseñador paso a paso desde cero con `WeekdayPicker`.
+3. **JSON:** Importación directa de texto estructurado con deduplicación asistida por LLM (`exerciseAgent.js`) si hay API key, o por `canonicalExerciseKey` determinista.
+4. **IA:** Acceso directo al asistente de rutina diaria (`/ai-routine/setup`).
 
-- **Información básica:** Nombre y descripción editable.
-- **Gestión de días:** Agregar/eliminar días, marcar como descanso, reordenar (drag & drop implícito).
-- **Gestión de ejercicios:**
-  - Agregar ejercicios desde `exercises.js` o personalizados.
-  - Editar meta de series, reps, descanso, notas.
-  - Clasificación rápida de grupo muscular.
-- **Lógica de PRs:** Si se renombra un ejercicio, el backend actualiza inteligentemente los PRs históricos asociados.
-
-### 5.1 Create Routine / Import (`Import.jsx`)
-**Ruta:** `/routines/new`
-
-Página unificada para crear rutinas con 4 métodos:
-1.  **Plantillas:** Selección de rutinas probadas (PPL, Arnold, Full Body).
-2.  **Manual:** Constructor visual paso a paso.
-3.  **JSON:** Importación directa de texto estructurado.
-4.  **IA** (v2.7.0): CTA simple que lleva a `/ai-routine/setup` — no un formulario inline, el cuestionario es demasiado distinto de los otros 3 métodos.
-
-### 5.2 Rutina diaria con IA (`AiRoutineSetup.jsx`)
+### 6. Cuestionario de Rutina con IA (`AiRoutineSetup.jsx`)
 **Ruta:** `/ai-routine/setup`
+Flujo de 4 pasos para usuarios sin rutina fija:
+1. Objetivo principal: Hipertrofia (8-12 reps), Fuerza (4-6 reps), Salud general (10-15 reps).
+2. Días disponibles por semana (2 a 6 días).
+3. Equipamiento accesible (Barra, Mancuernas, Máquinas, Poleas, Peso corporal).
+4. Nivel de experiencia (Principiante, Intermedio, Avanzado).
+Guarda en `TrainingProfile` y genera la rutina activa `source: 'ai'`, navegando directamente al entrenamiento de hoy.
 
-Para quien no tiene rutina fija: cuestionario de 4 pasos (objetivo, días/semana, equipo disponible, experiencia) → `TrainingProfile` (1:1 por usuario) → genera/activa una `Routine{source:'ai'}` y navega directo a `/workout/:dayId` del día de hoy. Ver sección "Entrenador inteligente" abajo (apartado 5) para el detalle completo — el peso/reps de cada serie sigue siendo 100% Smart Loading, la IA solo decide qué ejercicios tocan.
-
-`Routines.jsx` (`RoutineCard`) muestra las rutinas IA con una tarjeta resumen (últimos splits entrenados + "Entrenar hoy" + "Cambiar ejercicios de hoy") en vez del acordeón de días normal — ver Gotcha #13. `Dashboard.jsx` resuelve "hoy" para estas rutinas vía `GET /api/ai-routine/today`, nunca recalculado en el cliente.
-
-### 6. Body Tracking (`BodyTracking.jsx`)
+### 7. Composición Corporal (`BodyTracking.jsx`)
 **Ruta:** `/body`
+- **Métricas completas:** Peso corporal + 8 valores de báscula de bioimpedancia: Grasa %, Masa Muscular kg, Agua %, Grasa Visceral, Masa Ósea kg, Proteína %, BMR (kcal) e IMC (BMI).
+- **Compresión de imágenes en el cliente:** Las fotos se comprimen en un `<canvas>` HTML5 (máximo 1200px, 85% calidad JPEG) antes de enviarse en Base64.
+- **Almacenamiento de Fotos:** Sube a Cloudinary con transformaciones automáticas (miniatura y visualización optimizada); si falta Cloudinary, utiliza Catbox.moe con 3 reintentos.
+- **Comparador Visual de Progreso:** Modal con `<Portal>` para fotos lado a lado o con deslizador, y visor fullscreen con zoom.
+- **Gráficos de Tendencia:** Evolución temporal de Peso, Grasa y Músculo con Recharts.
+- **Deltas inteligentes:** Comparativa automática contra la medición de hace ~30 días (coloreando verde la pérdida de grasa y la ganancia de músculo).
 
-Seguimiento de composición corporal completo (Actualizado v1.9.2):
-
-- **Formulario Dinámico:**
-  - *Básico:* Peso, Foto.
-  - *Avanzado (Expandible):* Grasa %, Agua %, Músculo kg, Hueso, Visceral, Proteína, BMR, BMI.
-- **Galería de Fotos:**
-  - Sube a Cloudinary si está configurado (v2.3.0), si no cae a Catbox.moe (`uploadPhoto()` en el backend).
-  - Grid de fotos ordenadas cronológicamente.
-  - Comparador visual (Modal, envuelto en `Portal` desde v2.3.0 — ver Gotcha #3).
-- **Gráficos:** Tabs para alternar entre Peso, Grasa Corporal y Masa Muscular a lo largo del tiempo.
-
-**API usada:**
-- `GET /api/body/logs`
-- `POST /api/body/log`
-- `GET /api/body/photos`
-
-### 7. Progress (`Progress.jsx`)
+### 8. Progreso & Analítica (`Progress.jsx`)
 **Ruta:** `/progress`
+Consume el endpoint agrupado `GET /api/stats/progress-page`:
+- **Pestaña General:** KPIs históricos, Heatmap anual interactivo, gráfico de cumplimiento semanal y gráfico de volumen por semana. Descarga de PDF de días individuales (`downloadDayPdf`).
+- **Pestaña Objetivos (Goals):** Renderiza `GoalSection` y `GoalCard` con planes de periodización matemática (fórmula Epley), semanas completadas y barra de avance hacia el 1RM objetivo.
+- **Pestaña Músculos:** Distribución de volumen de series por grupo muscular en gráfico de pastel y barras, y desglose de ejercicios por grupo.
+- **Pestaña PRs:** Récords personales con medallas de podio (🥇, 🥈, 🥉), insignias de estancamiento (Plateau) calculadas en el servidor, clasificación de fuerza según peso corporal (Principiante, Intermedio, Avanzado, Élite) y gráfico evolutivo de 1RM por ejercicio.
 
-Dashboard de análisis profundo. Se divide en pestañas:
-
-- **General:**
-  - KPIs de consistencia.
-  - Heatmap Anual interactivo.
-  - Gráfico de "Compliance" (Cumplimiento de meta semanal).
-- **Objetivos (Goals) [NUEVO]:**
-  - Muestra las tarjetas `GoalCard` activas.
-  - Visualización de la barra de progreso hacia la meta de fuerza.
-- **Músculos (Analítica):**
-  - Distribución de volumen por grupo muscular (Pie chart / Barras).
-- **PRs:**
-  - Lista de Récords Personales con medallas (🥇, 🥈, 🥉) según ranking histórico.
-  - Gráfico de evolución de 1RM estimado por ejercicio.
-
-**Componente Clave: `GoalCard.jsx`**
-Este componente encapsula la lógica de periodización.
-- Muestra el 1RM actual vs Meta.
-- Despliega el plan de entrenamiento (Semanas, % Intensidad, Series/Reps).
-- Permite marcar semanas como completadas.
-
-### 8. Export Report (`ExportReport.jsx`)
+### 9. Exportación de Reportes PDF (`ExportReport.jsx`)
 **Ruta:** `/export`
+Generador de informes profesionales en PDF usando `jsPDF` y `html2canvas`:
+- Rango seleccionable: Un día (1), Semanal (7), Mensual (30), Trimestral (90), Semestral (180), Anual (365).
+- Contenido: Resumen ejecutivo, tabla de PRs alcanzados, desglose diario de volumen, gráficos de composición corporal y galería de fotos de progreso incrustadas en base64.
+- Sanitización de emojis y compatibilidad con caracteres UTF-8.
 
-Generador de reportes PDF de alta calidad:
-
-- **Motor:** `jsPDF` + `html2canvas`.
-- **Selector de rango:** 7, 30, 90 días.
-- **Contenido del Reporte:**
-  1.  Resumen Ejecutivo (Stats clave).
-  2.  Tabla de Récords (PRs).
-  3.  **[NUEVO]** Sección Diaria Detallada: Comparativa de volumen vs semana anterior.
-  4.  Gráficos de Composición Corporal.
-  5.  Galería de Fotos de Progreso.
-- **Notas Técnicas:** Sanitización de Emojis (jsPDF no soporta UTF-8 complejo, se reemplazan por iconos SVG o texto).
-
-### 9. Profile (`Profile.jsx`)
+### 10. Perfil de Usuario (`Profile.jsx`)
 **Ruta:** `/profile`
+- Foto de perfil / Avatar con compresión a 400px, vista previa y subida a Cloudinary.
+- Métricas vitalicias (`_count` de rutinas, entrenamientos, PRs y mediciones corporales).
+- Información de contacto (teléfono y fecha de nacimiento formateada en día civil CDMX).
+- Accesos directos a Composición Corporal, Configuración y Cierre de Sesión (con revocación push).
 
-Hub del usuario (pulido v2.7.1):
-- Avatar (click para ver a pantalla completa / cambiar; validación tipo+tamaño, reset del input, errores ES).
-- Resumen de antigüedad ("Miembro por N días"), stats lifetime (`_count`: Rutinas / Mediciones / PRs).
-- Chips de teléfono y fecha de nacimiento si están en el perfil (nacimiento parseado por día calendario, sin desfase UTC).
-- Navegación a Settings (engranaje) + Cerrar sesión (revoca push best-effort vía `AuthContext`).
-
-### 10. Settings (`Settings.jsx`)
+### 11. Configuración & Seguridad (`Settings.jsx`)
 **Ruta:** `/settings`
+Dividido en 4 pestañas:
+1. **Cuenta:**
+   - Edición de nombre y apellidos (obligatorios), teléfono y fecha de nacimiento.
+   - Web Push: Toggle para recordatorios de descanso.
+   - **Recordatorios de Creatina:** Toggle para activar recordatorios diarios, selector de hora base (ej. 16:00 CDMX) y botón "Enviar prueba" para verificar la notificación push en el dispositivo.
+   - **Backup JSON:** Botón para forzar backup a Cloudinary (`POST /api/backup/run`) o descargar archivo local, y botón para importar backup JSON (`POST /api/backup/import`).
+2. **Seguridad:**
+   - Cambio de contraseña (exige contraseña actual; rota `tokenVersion` y devuelve nuevo token).
+   - Cambio de pregunta y respuesta de seguridad (exige contraseña actual; rota `tokenVersion`).
+3. **Músculos:**
+   - Listado completo de ejercicios del catálogo.
+   - Reclasificación de grupo muscular con propagación automática a todos los ejercicios con el mismo nombre.
+4. **Historial:**
+   - Búsqueda difusa (Fuzzy search con algoritmo Levenshtein).
+   - Filtros por rango de fechas, día de la semana y grupo muscular.
+   - Acciones por sesión: Descargar PDF de sesión (`downloadSessionPdf`), Editar sesión (`/session/:logId/edit`), o Eliminar sesión (con recálculo automático de PRs).
+   - Acceso a la papelera del sistema para consultar ejercicios archivados.
 
-Panel de control (v1.9.3 + auditoría v2.7.1):
+### 12. Edición de Sesión Pasada (`EditSession.jsx`)
+**Ruta:** `/session/:logId/edit`
+Permite corregir cualquier entrenamiento histórico: peso, repeticiones y RIR de cada serie, o agregar/eliminar series. Al guardar vía `PUT /api/workouts/:logId`, el backend recalcula los récords personales (PRs) del ejercicio.
 
-- **Tabs:**
-  1.  **Cuenta:** nombre/apellidos (obligatorios), teléfono, fecha de nacimiento; toggle Web Push de descanso; **Exportar Backup JSON** (sanitizado, versión en export alineada a la app, nombre de archivo con fecha CDMX).
-  2.  **Seguridad:** cambio de contraseña y pregunta de seguridad (exigen contraseña actual; backend rota `tokenVersion` y devuelve token nuevo — `updateToken` + `refreshProfile(token)`).
-  3.  **Músculos:** clasificar ejercicios con `MUSCLE_OPTIONS` / `toSpanishMuscleGroup` (incluye Antebrazos; ids EN se agrupan al ES canónico). Actualizar un ejercicio propaga por **mismo nombre** en la cuenta (misma regla server).
-  4.  **Historial:** búsqueda fuzzy, filtros fecha/día, paginación; **PDF de sesión** / Editar / Eliminar; papelera de historial. Fechas de cabecera por **día CDMX** (`mexicoCityDateStr`), no `toLocaleDateString` del device.
-- **API de errores** en español en updateProfile / avatar / muscle / deleteSession.
-
-### 11. Autenticación (`Login.jsx`, `Register.jsx`, `ForgotPassword.jsx`)
-**Rutas:** `/login`, `/register`, `/forgot-password`
-
-- **Login:** usuario/email + contraseña → `POST /api/auth/login` devuelve JWT de **365 días** (persistido por `AuthContext` en localStorage; la revocación real es vía `tokenVersion`, no la expiración). Rate limited por IP. Inputs con trim (v2.2.0).
-- **Register:** `POST /api/auth/register`. Contraseña mínima de 8 caracteres validada **server-side** (no solo en el form). Rate limited.
-- **ForgotPassword:** recuperación **sin email**, vía pregunta de seguridad (`POST /api/auth/recover/question` → `POST /api/auth/recover/verify`). Doble rate limit (por IP y por cuenta objetivo, 5 intentos/30 min — v2.2.0). Restablecer la contraseña incrementa `tokenVersion` (invalida todos los JWT emitidos antes).
-
-### 12. New Goal (`NewGoal.jsx`)
+### 13. Nuevo Objetivo de Fuerza (`NewGoal.jsx`)
 **Ruta:** `/goals/new`
+Creación de metas de fuerza (peso × repeticiones). Agrupa ejercicios por clave canónica, autocompleta el 1RM actual desde el historial real y persiste el snapshot para alimentar el generador de periodización.
 
-Creación de objetivos de fuerza (ejercicio + peso × reps meta):
-- Lista de ejercicios **consolidada** desde rutinas + catálogo `/exercises` (incluye archivados) + historial, agrupando por `canonicalExerciseKey` y resolviendo el grupo muscular con el primer valor no-nulo de cualquier copia (v2.0.1).
-- Filtro por músculo case-insensitive + buscador global + orden por número de sesiones.
-- Al crear un objetivo con historial se persiste un snapshot de `currentOneRepMax` (mejor 1RM de las últimas 3 sesiones) como respaldo para la tarjeta.
-- `POST /api/goals` rechaza con 409 un objetivo duplicado exacto no cumplido (v2.2.0).
-
-### 13. Edit Session (`EditSession.jsx`)
-**Ruta:** `/session/:logId/edit` (se llega desde Settings → Historial)
-
-Editor de una sesión pasada:
-- Edita todas las series de un `WorkoutLog` (peso/reps/RIR, ambos lados en unilateral).
-- Guarda vía `PUT /api/workouts/:logId` (**reemplaza TODAS las series del log** — el mismo endpoint que usa `Workout.jsx` para completar sesiones parciales del Atajo de iOS).
-- El backend recalcula los PRs desde los logs reales tras la edición, y el caché local de `Workout.jsx` se invalida para que el día activo refleje el cambio (v2.2.0).
+### 14. Autenticación (`Login.jsx`, `Register.jsx`, `ForgotPassword.jsx`)
+**Rutas:** `/login`, `/register`, `/forgot-password`
+- **Login:** Email/username + contraseña. Retorna JWT de 365 días persistido en `localStorage`. Rate limiting por IP.
+- **Register:** Nombre, email, username, contraseña (mínimo 8 caracteres validada en servidor) y pregunta de seguridad obligatoria.
+- **ForgotPassword:** Recuperación sin necesidad de servidor SMTP externo. Solicita username, consulta la pregunta de seguridad registrada y valida la respuesta con hash bcrypt. Rate limiting doble: por IP y por cuenta objetivo (máximo 5 intentos cada 30 min).
 
 ---
 
-## 🧠 Lógica de Negocio Avanzada
+## 🧠 Lógica de Negocio y Algoritmos Matemáticos
 
-### Algoritmos de Fuerza
-NexLift utiliza matemáticas estándar de powerlifting:
+### 1. Fórmula de 1RM (Epley con Guardas)
+Ubicación: `client/src/utils/exerciseName.js` y `client/src/utils/strength.js`
+$$ 1RM = Peso \times \left(1 + \frac{Reps}{30}\right) $$
+- Para $Reps = 1$, $1RM = Peso$.
+- Las repeticiones se acotan a un máximo de 36 ($Reps \le 36$) para evitar extrapolaciones hiperbólicas irreales en series de resistencia.
+- En ejercicios unilaterales, se calcula sobre el lado que levantó menor peso o menos repeticiones (lado débil limitante).
 
-1.  **Fórmula de Epley (1RM):**
-    $$ 1RM = Peso \times (1 + \frac{Reps}{30}) $$
-    Se utiliza para normalizar comparaciones entre series de diferentes repeticiones.
+### 2. Periodización de Objetivos (`goalPlanner.js`)
+- **Regresión Lineal:** Analiza la pendiente de progreso ($\text{kg/semana}$) y coeficiente $R^2$ sobre los últimos entrenamientos.
+- **Rampa de Hipertrofia (>5 reps):** 50% Acumulación (volumen alto, +2 reps sobre la meta, descanso 60-90s), 30% Intensificación (volumen moderado, intensidad media), 20% Realización (peso meta).
+- **Rampa de Fuerza ($\le 5$ reps):** 35% Acumulación (base a 8 reps ~72% 1RM), 35% Intensificación (5 reps con rampa progresiva de 72% a 85%), 30% Peaking (máxima especificidad, 1-3 reps, descanso 3-5 min).
+- Redondeo a incrementos de 5kg (discos estándar de gimnasio) y restricción monotónica (el peso prescrito nunca decrece entre semanas del plan).
 
-2.  **Generador de Periodización (Goals):**
-    Ubicación: `src/components/goals/GoalCard.jsx`
-    - **Fase Acumulación:** Alto volumen, intensidad media (~65-75% 1RM).
-    - **Fase Fuerza:** Rampa lineal de intensidad (0.75 → 0.85 1RM), bajando reps.
-    - **Fase Peaking:** Intensidad específica (0.86 → 1.0 1RM) para preparar el sistema nervioso.
-    - **Validación:** Si el usuario tiene un 1RM histórico real > input manual, el sistema usa el real.
+### 3. Smart Loading Inter-sesión (`computeWorkoutSuggestion`)
+Ubicación: `client/src/utils/smartLoading.js` y `server/src/logic.js` (paridad 100%)
+- **Paso 1: Selección de serie de trabajo (`pickWorkReference`):** Ignora singles/doubles de ego-lifting ($reps < 3$ si el rango tiene $lo > 3$) y drop sets ($peso < 75\%$ del peso máximo). Si hubo un Top Set pesado ($RIR \le 1$) al peso máximo, se ancla a ese peso.
+- **Paso 2: Evaluación de Doble Progresión:**
+  - Si el Top Set llegó al tope ($reps \ge hi$) con $RIR \le 1$, o si TODAS las series al peso de trabajo tocaron $hi$: **Sube peso** (+5kg en piernas, +2.5kg en torso) y reinicia reps en el suelo del rango ($lo$).
+  - Si la mejor serie tocó $hi$ pero otras quedaron cortas: **Mantiene peso** y aumenta la meta de reps en las series rezagadas ($minReps + 1$).
+  - Si no se llegó a $hi$: **Mantiene peso** y suma +1 rep (o +2 si sobró mucho margen con $RIR \ge 3$).
+- **Paso 3: Fases de Mesociclo:** En intensificación reduce el rango a la mitad; en acumulación sube el techo 50%; en descarga aplica un multiplicador de ~0.9 tras calcular la progresión normal.
 
-3.  **Smart Loading (Workout) — cálculo local, sin IA (v2.7.1):**
-    Doble progresión con autorregulación por RIR sobre la última sesión completa. Sugiere peso y reps.
-    - **Referencia de trabajo** (`pickWorkReference` / equivalente server): la serie con mayor 1RM estimado (no el single máximo absoluto ni el mínimo de reps). A ese peso se usan las **mejores** reps logradas (no se penaliza la fatiga entre series).
-    - **Incremento:** 5 kg solo si `muscleGroup` canónico es `'Piernas'`; resto 2.5 kg. Siempre normalizar con `toSpanishMuscleGroup` (`client/src/utils/muscleGroup.js`) — un `legs` o vacío rompe el redondeo de piernas en silencio.
-    - **Fases** (`adjustRepRangeForPhase`, cliente `smartLoading.js` + server `logic.js`, test de paridad): intensification reduce rango; accumulation sube techo; deload ~0.9 al peso final tras la doble progresión.
-    *Ejemplo: si hiciste 100kg x 12 (tope del rango 8-12) con RIR 2, sugerirá 102.5kg x 8 (sube carga, reinicia reps). Si hiciste 100kg x 9 con RIR 3, sugerirá 100kg x 10 (suma una rep).*
+### 4. Smart Loading Intra-sesión (`suggestNextSetFromToday`)
+Ubicación: `client/src/utils/smartLoading.js` y `server/src/logic.js`
+- Se ejecuta a partir de la Serie 2 calculando en tiempo real con lo ocurrido hoy. Exige RIR numérico en cada serie previa.
+- **Serie 1 al Fallo (RIR 0):** Sugiere automáticamente un Back-off Set con -12.5% de peso y busca +2 reps.
+- **Fallo o Reps bajo el rango en series siguientes:** **Baja 1 incremento de peso** (5kg piernas / 2.5kg resto).
+- **Fatiga acumulada (RIR 1 o caída de RIR $\ge 2$):** Mantiene peso y asegura repeticiones viables.
+- **Comodidad (RIR promedio $\ge 2.5$):** Mantiene peso e incrementa +1 o +2 reps.
 
-### 4. Entrenador inteligente (v2.4.0) — plateau, mesociclos, descarga adaptativa
-Las 3 fases del roadmap original se construyeron juntas en una sola pasada (no de forma incremental como se planteó originalmente), en orden de menor a mayor riesgo: primero la función pura de plateau (sin schema), luego el modelo de bloques (schema + CRUD, sin conectar comportamiento), y al final el mecanismo de descarga conectado a los dos algoritmos de sugerencia.
+### 5. Detección de Estancamiento (Plateau)
+Ubicación: `server/src/logic.js` (`detectPlateauForExercise`) y `client/src/utils/exerciseName.js`
+- Evalúa las últimas 4 a 6 sesiones del ejercicio.
+- Divide la ventana en dos mitades (antigua y reciente).
+- Si el 1RM máximo de la mitad reciente **no supera** al de la mitad antigua (un empate cuenta como estancamiento), marca `isPlateaued: true`.
 
-1.  **Detección de plateau** — `detectPlateau(sessions)` en `client/src/utils/exerciseName.js`: toma las últimas min(6, N) sesiones, las divide en mitad antigua/reciente, y marca plateau si el mejor 1RM de la mitad reciente no supera al de la antigua (empate cuenta como estancamiento). Requiere >=4 sesiones para tener señal. 100% cliente — `Progress.jsx` (`useProgressData`) y `Dashboard.jsx` agregaron `api.getWorkoutHistory(500)` a sus fetches existentes y corren `groupHistoryByExercise` una vez; no hay endpoint de servidor dedicado. Badge "Estancado" en `PRCard` (tab General y Músculos de Progress) y tarjeta agregada en Dashboard ("N ejercicios sin mejora reciente") si el conteo > 0.
-    - **Gotcha:** `PersonalRecord.exerciseName` se guarda solo con `.toLowerCase()` (no la normalización canónica completa) — cualquier cruce entre un PR y el historial agrupado debe pasar por `canonicalExerciseKey(pr.exerciseName)`, nunca comparar el string crudo, o el match falla en silencio ante acentos/plurales/paréntesis.
-2.  **Mesociclos (`RoutineBlock`)** — modelo nuevo, opcional por rutina (cero bloques = comportamiento idéntico a antes). `startedAt` (no un `isActive` separado) determina el bloque activo: el de `startedAt` no-nulo más reciente, calculado en lectura vía `getActiveBlock()` — evita mantener a mano la invariante "a lo más un activo". `phase` es un string libre (`accumulation`/`intensification`/`deload`/`custom`), no un enum de Prisma (el proyecto no tenía ninguno, y con solo `db push` un string es más fácil de extender). `durationWeeks` es informativo (para "Semana N de M"), nunca un corte duro. CRUD completo: `GET/POST/PUT/DELETE /api/routines/:id/blocks` + `POST .../blocks/:blockId/start`. UI: sección de bloques en `EditRoutine.jsx` (cada bloque se guarda al instante con su propio botón, no con el "Guardar" general de la rutina) y tira de bloques + "Iniciar siguiente bloque" en `RoutineDetail.jsx`.
-3.  **Descarga adaptativa + fases que ajustan la sugerencia** — `getRoutinePhaseStatus(routine)` en `server/src/index.js` es la ÚNICA función que decide "¿en qué fase está esta rutina ahora mismo?", devolviendo `{ isDeload, source, phase }` con prioridad fija: (a) si hay un bloque activo (cualquier fase), manda su `.phase` tal cual; (b) si no, cae a `Routine.adaptiveDeloadUntil` (ventana de 7 días, SOLO conoce `'deload'` — no hay forma de "acumular/intensificar automáticamente" sin un bloque configurado, decidido explícitamente así con el usuario: no existe una señal de datos limpia para saber cuándo pasar de acumulación a intensificación, a diferencia de la fatiga/plateau que sí es medible). El trigger adaptativo (`maybeEvaluateAdaptiveDeload`, corre 1x/día vía `setInterval`, mismo patrón que `checkReengagementReminders`) combina dos señales — volumen semanal actual <85% del anterior, Y >=3 ejercicios de la rutina en plateau simultáneo (nunca una señal sola) — con cooldown de 7 días entre evaluaciones (`Routine.lastAdaptiveCheckAt`).
-    - **`phase` ajusta el rango de reps usado para la sugerencia** (no el `Exercise.targetReps` guardado) vía `adjustRepRangeForPhase(lo, hi, phase)`, duplicada en `computeSuggestion` (cliente, `Workout.jsx`) y `computeWorkoutSuggestion` (servidor, `/api/shortcuts/next-set`) — **hay que tocar los dos siempre**: `intensification` reduce el rango a la mitad (ej. 8-12 → 4-6: más peso, menos reps), `accumulation` sube el techo 50% (ej. 8-12 → 8-18: más reps antes de subir peso), `deload` además reduce el peso final ~10% tras la doble progresión normal (constante fija, sin tocar el string `rationale` — lo consume un Atajo de iOS externo), `custom`/sin fase activa deja el rango sin cambios (idéntico al comportamiento antes de esta feature).
-    - Aviso visible en `Workout.jsx` vía el objeto `PHASE_BANNER`: banner + badge recoloreado por fase ("Descarga" ámbar, "Intensificación"/"Acumulación" violeta `--primary`) — nunca un ajuste silencioso. Las clases de Tailwind ahí están escritas completas y literales a propósito (`'bg-[var(--primary)]/10'`), NUNCA construidas interpolando el nombre de color en un template string — el compilador de Tailwind solo genera clases que puede ver como texto literal en el código fuente, así que una clase armada en runtime simplemente no se genera y el estilo se pierde en silencio.
-    - **Riesgo conocido, aceptado:** los umbrales del trigger adaptativo (15% de declive, 3 plateaus, 7 días) y los multiplicadores de fase (±50%, -10%) son de primera aproximación, sin validar contra datos reales de uso — ajustar las constantes en `server/src/index.js` (`ADAPTIVE_DELOAD_*`, `adjustRepRangeForPhase`) si en la práctica se sienten mal calibrados.
-    - **Gotcha de duplicación:** `detectPlateauForExercise` (servidor) es una segunda implementación de la regla de plateau, deliberadamente distinta a la del cliente — agrupa por `exerciseId` directo (no por nombre canónico), porque dentro de una sola rutina activa no hace falta consolidar variantes de nombre. Si se corrige un bug en la regla de plateau, corregir en los dos lados.
-    - Verificado en vivo con overrides temporales (nunca datos de prueba permanentes) y también contra un bloque de "Intensificación" real ya activo en la cuenta de producción: multiplicador de peso y ajuste de reps confirmados en ambos algoritmos de sugerencia, y el flujo end-to-end (DB → `getRoutinePhaseStatus` → API → UI) confirmado tanto con escritura directa de `adaptiveDeloadUntil` (revertida después) como con datos reales de un bloque activo.
-
----
-
-## 📊 Modelo de Datos
-
-**La fuente de verdad es `server/prisma/schema.prisma`** (única copia; sincronizar con `npx prisma db push`, NUNCA `migrate` — no hay historial de migraciones y `migrate dev` ofrece resetear todo el schema). Antes había aquí una copia pegada del schema completo; se eliminó porque vivió desincronizada del archivo real durante meses (hasta v2.2.0) — leer siempre el `.prisma` directamente.
-
-Resumen de los 12 modelos:
-
-| Modelo | Qué es | Detalle no obvio |
-|--------|--------|------------------|
-| `User` | Cuenta | `tokenVersion` revoca JWTs viejos; `lastReengagementNotifiedAt` limita el push de re-enganche a 1/día; `lastBackupAt`/`lastBackupError` (v2.5.0) reflejan el backup automático diario |
-| `Routine` | Rutina | `adaptiveDeloadUntil`/`lastAdaptiveCheckAt` = descarga adaptativa (v2.4.0); `source` (v2.7.0) `'manual'|'ai'` |
-| `RoutineBlock` | Mesociclo (opcional) | `phase` es string libre, no enum; activo = `startedAt` no-nulo más reciente |
-| `RoutineDay` | Día de rutina | `isRestDay`, `order`; `weekday` (v2.9.1, `Int?` 0=Dom..6=Sáb, `null`=sin programar) es la ÚNICA fuente de "qué toca hoy" en manuales — `dayName` es decorativo, ver Gotcha #14; `splitLabel` (v2.7.0, solo días IA, ej. `"Push"`) — para rutinas IA, `dayName` es una fecha ISO, no un día de la semana |
-| `TrainingProfile` | Perfil de Rutina diaria con IA (v2.7.0), 1:1 por usuario | `goal`/`daysPerWeek`/`equipment[]`/`experienceLevel` — alimenta el fallback determinista y (opcional) la capa de IA. Ver Gotcha #13 |
-| `Exercise` | Ejercicio de un día | `targetReps` es string `"8-12"`; `isUnilateral`; `restSeconds` |
-| `WorkoutLog` | Sesión de UN ejercicio en una fecha | `onDelete: Restrict` hacia `Exercise` — nunca borrar ejercicios con historial (archivar) |
-| `SetLog` | Serie individual | **`rpe` guarda `10 - RIR`, no el RIR crudo** (ver Gotcha #5); `weightRight`/`repsRight` en unilateral |
-| `PersonalRecord` | PR por ejercicio | `exerciseName` guardado solo en `.toLowerCase()` — cruzar siempre vía `canonicalExerciseKey` |
-| `Goal` | Objetivo de fuerza | `achievedAt` lo decide el backend (puerta de un solo sentido); snapshot `currentOneRepMax` |
-| `RestLog` | Día de descanso registrado | Cuenta para la racha |
-| `BodyLog` | Composición corporal | `photoUrl` (Cloudinary/Catbox), métricas de bioimpedancia |
-| `PushSubscription` | Web Push por dispositivo | `endpoint` único; se revoca en logout |
-| `PendingReminder` | Recordatorio de descanso pendiente (v2.5.1) | Espejo en DB del `setTimeout` en memoria; `@@unique([userId, exerciseId])`; recuperado al arrancar por `restorePendingReminders()` |
-| `SuggestionLog` | Instrumentación de calibración (v2.6.2) | Una fila por sugerencia mostrada/aplicada; `source: 'client'\|'shortcut'`; analizada por `server/analyze-suggestions.mjs` (solo lectura) |
+### 6. Descarga Adaptativa Automática
+Evaluada diariamente en background (`maybeEvaluateAdaptiveDeload`):
+- Condición 1: El volumen total de la semana actual es inferior al 85% del volumen de la semana anterior ($< 0.85$).
+- Condición 2: Al menos 3 ejercicios distintos de la rutina están en estancamiento (plateau) simultáneo.
+- Acción: Activa `Routine.adaptiveDeloadUntil` por 7 días con banner visible en la interfaz y cooldown de 7 días entre evaluaciones (`lastAdaptiveCheckAt`).
 
 ---
 
-## 🔌 Endpoints de la API (`server/src/index.js`)
+## ⏰ Manejo Estricto de Horarios y Fechas (América/Ciudad de México)
 
-Todos bajo auth JWT (`authMiddleware`) salvo registro/login/recuperación/vapid-public-key/health.
+> [!IMPORTANT]
+> El servidor Docker corre en UTC, pero NexLift opera bajo el calendario civil de **`America/Mexico_City`**.
+> Agrupar por `new Date().toISOString()` o `toLocaleDateString()` del navegador falla catastróficamente en la ventana nocturna de gimnasio (18:00 a 00:00 CDMX = día siguiente en UTC).
 
-**Auth**
-| Método/Ruta | Qué hace |
-|---|---|
-| `POST /api/auth/register` | Crear cuenta (rate limited, contraseña ≥8 server-side) |
-| `POST /api/auth/login` | Login → JWT 365 días (rate limited) |
-| `GET /api/auth/me` | Usuario actual |
-| `PUT /api/auth/profile` | Editar perfil |
-| `PUT /api/auth/password` | Cambiar contraseña — incrementa `tokenVersion` y **devuelve token nuevo** (el frontend debe persistirlo) |
-| `POST /api/auth/recover/question` / `POST /api/auth/recover/verify` | Recuperación por pregunta de seguridad (rate limit por IP **y** por cuenta) |
-| `PUT /api/auth/security-question` | Cambiar pregunta (exige contraseña actual; incrementa `tokenVersion`, devuelve token nuevo) |
-| `POST /api/auth/avatar` | Subir avatar (`uploadPhoto()`) |
-
-**Rutinas y ejercicios**
-| Método/Ruta | Qué hace |
-|---|---|
-| `GET /api/routines` | Listar (excluye la rutina-papelera) |
-| `GET /api/routines/trash` | Papelera de historial (ejercicios archivados) |
-| `GET /api/routines/active` | Rutina activa |
-| `POST /api/routines/import` | Importar rutina JSON/plantilla (dedup vía LLM si hay `OPENAI_API_KEY`, si no `canonicalExerciseKey`) |
-| `GET/PUT/DELETE /api/routines/:id` | Detalle / editar / borrar — PUT y DELETE en `$transaction`; borrar archiva ejercicios con historial |
-| `PUT /api/routines/:id/activate` | Activar rutina |
-| `GET/POST /api/routines/:id/blocks`, `PUT/DELETE .../blocks/:blockId`, `POST .../blocks/:blockId/start` | CRUD de mesociclos (v2.4.0) |
-| `POST /api/ai-routine/setup` | (v2.7.0) Cuestionario inicial → `TrainingProfile` + crea/reactiva la rutina IA + genera el día de hoy |
-| `GET /api/ai-routine/today` | (v2.7.0) Día de hoy de la rutina IA activa — idempotente, genera si falta |
-| `POST /api/ai-routine/reshuffle/:routineDayId` | (v2.7.0) "Cambia los ejercicios de hoy" — preserva ejercicios con series ya registradas hoy |
-| `GET /api/exercises` | Catálogo del usuario (incluye archivados) |
-| `PUT /api/exercises/:id/muscle` | Clasificar grupo muscular |
-| `GET /api/stats/routine/:id` | Stats por rutina |
-
-**Workouts**
-| Método/Ruta | Qué hace |
-|---|---|
-| `GET /api/workouts/today-log?exerciseId=X` | (v2.6.0) ¿Ya existe log de HOY (día CDMX) para este ejercicio? Usado por la reconciliación anti-duplicados de la cola offline — ver Gotcha #9 |
-| `POST /api/suggestions/log` | (v2.6.2) Instrumentación de calibración — registra que el usuario APLICÓ una sugerencia en la app (fire-and-forget desde `Workout.jsx`) |
-| `POST /api/workouts/log` | Registrar TODAS las series de un ejercicio — **siempre crea un log nuevo** |
-| `GET/PUT/DELETE /api/workouts/:logId` | Detalle / **reemplazar todas las series** (EditSession + sesiones parciales del Atajo) / borrar — PUT y DELETE recalculan PRs |
-| `GET /api/workouts/history` | Historial (con `limit`, filtros) |
-| `GET /api/workouts/exercise/:exerciseId/history` | Historial de un ejercicio (insumo del Smart Loading) |
-| `POST /api/workouts/rest-reminder` | Agendar push de descanso por serie (no toca `WorkoutLog`/`SetLog`) |
-| `POST /api/workouts/log-rest` | Registrar día de descanso |
-| `PUT /api/workouts/fix-weights` | Corrección masiva de pesos |
-| `POST /api/backup/run` | (v2.5.0) Forzar backup a Cloudinary para el usuario del token — ver Gotcha #6 |
-
-**Atajos de iOS**
-| Método/Ruta | Qué hace |
-|---|---|
-| `GET /api/shortcuts/next-set` | Rutina activa → día de hoy → próximo ejercicio → sugerencia Smart Loading (JSON plano) |
-| `POST /api/shortcuts/log-set` | Registrar UNA serie (acumula en el log de hoy; convierte RIR crudo → `10 - RIR`) |
-
-**Stats, cuerpo, goals, push, otros**
-| Método/Ruta | Qué hace |
-|---|---|
-| `GET /api/stats/overview` / `GET /api/stats/consistency` | KPIs del Dashboard / heatmap (usan helpers CDMX) |
-| `GET /api/stats/progress/:exerciseName` / `GET /api/stats/prs` | Evolución 1RM / récords |
-| `GET /api/body/logs`, `POST /api/body/log`, `GET/POST /api/body`, `GET /api/body/photos`, `GET /api/body/latest` | Composición corporal y fotos (conviven rutas nuevas y legacy) |
-| `GET /api/goals` | Lista objetivos — calcula y **persiste** `achievedAt` de forma autoritativa |
-| `POST /api/goals` | Crear (409 si duplicado exacto no cumplido) |
-| `PUT /api/goals/:id/weeks` / `DELETE /api/goals/:id` | Checklist de semanas / borrar |
-| `GET /api/push/vapid-public-key`, `POST/DELETE /api/push/subscribe` | Web Push |
-| `GET /api/health` | Healthcheck |
-| `GET *` | Sirve `client/dist` en producción (SPA fallback) |
+### Helpers Canónicos (`server/src/logic.js` y `client/src/utils/dates.js`)
+- `mexicoCityDateStr(date)`: Retorna la fecha exacta `YYYY-MM-DD` en horario CDMX.
+- `mexicoCityDayBounds(date)`: Retorna `{ start, end }` como objetos `Date` en UTC correspondientes a las `00:00:00.000` y `23:59:59.999` de ese día en CDMX.
+- `mexicoCityHour(date)`: Retorna la hora civil (0 a 23) en CDMX.
+- `dayOfWeekFromDateStr(dateStr)`: Ancla a mediodía UTC (`T12:00:00Z`) para obtener el día de la semana sin desfases por huso horario.
+- `scheduledRestWeekdays(days)`: Identifica los días de descanso formalmente programados para la racha y el heatmap.
 
 ---
 
-## 🎨 Sistema de Diseño & UI
+## 🔔 Sistema de Notificaciones Web Push (VAPID)
 
-### Variables Globales CSS (`index.css`)
-```css
-:root {
-  --bg-dark: #0a0a0a;       /* OLED Black puro */
-  --bg-card: #141414;       /* Cards ligeramente elevadas */
-  --primary: #8b5cf6;       /* Violeta Vivid */
-  --success: #22c55e;       /* Verde Éxito */
-  --warning: #eab308;       /* Amarillo Warning */
-  --error: #ef4444;         /* Rojo Error */
-  --text-primary: #ffffff;
-  --text-secondary: #a1a1aa;
-  --border: #27272a;
-}
-```
+El sistema soporta dos tipos de notificaciones autónomas:
 
-### Código de Colores Muscular
-Definido en `MuscleIcon.jsx` y `Settings.jsx`.
-*   🔴 **Pecho:** Rojo/Azul (Configurable, default Blue)
-*   🟢 **Espalda:** Verde
-*   🟠 **Hombros:** Naranja
-*   🟣 **Bíceps:** Púrpura
-*   🩷 **Tríceps:** Rosa
-*   🔴 **Piernas:** Rojo
-*   🔵 **Core:** Cian
+### 1. Recordatorios de Fin de Descanso
+- Disparados serie a serie mediante `POST /api/workouts/rest-reminder`.
+- **Deduplicación:** Cancela temporizadores anteriores para el mismo usuario y ejercicio.
+- **Persistencia en Base de Datos (`PendingReminder`):** Almacena la alarma en PostgreSQL. Si el contenedor Docker se reinicia o se despliega una nueva versión a mitad de un descanso, la función `restorePendingReminders()` recupera la alarma y la re-agenda al tiempo exacto restante (o la dispara si venció hace menos de 5 min).
+- **Aviso contextual:** Si fue la última serie del ejercicio, el texto anuncia el nombre del ejercicio siguiente en la rutina.
+
+### 2. Recordatorios Escalonados de Creatina (3 Etapas)
+Evaluados cada 10 minutos por `checkCreatineReminders()` en `server/src/index.js` usando `evaluateCreatineReminderStage` de `logic.js`:
+- **Etapa 1 (Hora programada por el usuario, default 16:00 CDMX):**
+  *"⚡ Hora de tu creatina (5g). Márcala en NexLift."*
+- **Etapa 2 (+3 horas después, si aún no se ha marcado):**
+  *"⏳ Pasaron 3 horas y aún no registras tu creatina de hoy."*
+- **Etapa 3 (Última llamada a las 23:00 CDMX):**
+  *"🚨 Última llamada (11 PM): No te vayas a dormir sin tomar tus 5g de creatina."*
+- Si el usuario marca la casilla de creatina en el Daily Check-in de `BodyLog`, las etapas restantes del día se anulan inmediatamente.
 
 ---
 
-## ⚠️ Gotchas y Consideraciones Técnicas
+## 📊 Modelo de Datos (Prisma / PostgreSQL)
 
-### 1. Manejo de Fechas
-PostgreSQL guarda en UTC. Agrupar o etiquetar "días de gym" por la zona del device o por el date-part UTC del ISO **falla de noche** (ventana gym ~18:00–00:00 CDMX).
-*   **Backend (v2.2.0, vive en `server/src/logic.js`):** `mexicoCityDateStr`, `mexicoCityDayBounds`, `mexicoCityHour`, `dayOfWeekFromDateStr` — obligatorios para streak/heatmap/hoy/día de semana. Nunca `new Date()`/`.getDay()`/`.toISOString()` para eso.
-*   **Frontend (v2.7.1):** mismo criterio en `client/src/utils/dates.js` (`mexicoCityDateStr`, `mexicoCityDayOfWeek`, `mexicoCityTodayName`, `mexicoCityLastNDays`). Usar al **mostrar o agrupar** logs (Settings historial, Body, ExportReport, etc.). No asumir que el reloj del teléfono está en CDMX.
-*   **Enviar fechas al API:** preferir `mexicoCityDateStr()` o `toLocaleDateString('sv')` solo cuando el valor es "día civil local del usuario" y el endpoint lo documenta; para "hoy en la app" el server debe calcular con helpers CDMX (ver `GET /api/workouts/today-log`).
+Fuente única de verdad: `server/prisma/schema.prisma`. Sincronización obligatoria con `npx prisma db push` (nunca `prisma migrate`, ver Gotcha #2).
 
-### 2. Backend único
-Desde v1.9.9 hay **un solo backend**: `server/src/index.js`. Existe una sola copia del schema (`server/prisma/schema.prisma`). Se eliminaron `api/` (serverless de Vercel) y `shared/` al migrar el deploy a Docker en VPS. Ya no hay regla de sincronización de schema ni lógica duplicada.
-
-### 3. Imágenes
-No almacenamos binarios.
-1.  Frontend recibe archivo -> Convierte a Base64.
-2.  Backend recibe Base64 -> `uploadPhoto()` -> Recibe URL.
-3.  `uploadPhoto()` (v2.3.0) usa Cloudinary si `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET` están configuradas (servicio con SLA real); si no, cae a la API de Catbox.moe (host anónimo gratuito, sin garantías) con 3 reintentos antes de darlo por fallido.
-4.  DB guarda la URL resultante (`https://res.cloudinary.com/...` o `https://files.catbox.moe/...`).
-5.  Backend valida que el contenido decodificado sea realmente una imagen (firma de bytes) antes de subirlo a Catbox, y que la URL de respuesta tenga el formato esperado antes de guardarla.
-6.  Si la foto falla y era el único dato del registro (v2.3.0), no se crea un registro vacío — se responde error para reintentar. Si había más datos (peso, métricas), se guardan igual y se marca `photoFailed: true` en la respuesta para que el frontend avise sin perder lo demás.
-7.  Migración de fotos ya alojadas en Catbox hacia Cloudinary: `server/migrate-catbox-to-cloudinary.mjs` (correr una vez con las credenciales de Cloudinary en `.env`; seguro de re-correr, solo toca lo que siga en Catbox).
-
-### 3.1. Modales y `position: fixed`
-Cualquier overlay `fixed inset-0` (modal, visor de foto) DEBE ir envuelto en `client/src/components/ui/Portal.jsx` (`createPortal` a `document.body`). Causa raíz (v2.3.0): las animaciones de entrada (`animate-fade-in`/`slide-up`/`scale-in` en `index.css`) usan `transform` con `animation-fill-mode: forwards`, que dejan el elemento "transformado" para siempre a ojos del navegador (aunque visualmente sea un no-op) — y cualquier ancestro con un `transform` computado distinto de `none` se convierte en el *containing block* de sus descendientes `position: fixed`, sacándolos de "fijo al viewport" y dejándolos posicionados como si fueran parte del contenido con scroll (aparecen centenares de píxeles fuera de pantalla en cuanto la página tiene scroll real). Confirmado en vivo midiendo el `getBoundingClientRect()` de un modal roto antes del fix. `Portal` es agnóstico a la causa exacta: saca el modal del árbol afectado por completo.
-
-### 4. Tests automatizados (desde v2.5.0) — cubren solo lógica pura
-Antes de v2.5.0 no existía ninguna suite de tests; el bug de zona horaria de v2.2.0 es el ejemplo directo de lo que pasa sin esto: se "arregló" 3 veces en sitios distintos antes de resolverse por completo. Ahora hay dos suites:
-- **Cliente:** `client/src/utils/exerciseName.test.js` (vitest) — `canonicalExerciseKey`, `epley1RM`, `best1RMRecent`, `bestOneRepMaxForTarget`, `detectPlateau`, `groupHistoryByExercise`. Correr con `cd client && npm test`.
-- **Servidor:** `server/src/logic.test.js` (`node --test`, sin dependencias nuevas) — helpers CDMX (con el caso exacto de medianoche UTC del bug histórico), `convertShortcutRir`, `adjustRepRangeForPhase`, `computeWorkoutSuggestion`, `detectPlateauForExercise`, `getActiveBlock`/`currentWeekInBlock`, `getRoutinePhaseStatus`. Correr con `cd server && npm test`.
-- **Paridad cliente/servidor:** `client/src/utils/smartLoading.parity.test.js` importa AMBAS copias de `adjustRepRangeForPhase` (cruzando de `client/` a `server/src/logic.js` — son módulos ES planos sin DOM ni Prisma) y corre los mismos fixtures de plateau por `detectPlateau` (cliente) y `detectPlateauForExercise` (servidor), documentando que la diferencia de agrupación (nombre canónico vs id) es deliberada.
-
-**Lo que SIGUE sin cobertura:** rutinas, auth, cualquier cosa que toque Prisma/DB o el DOM. Cualquier cambio ahí debe seguir probándose a mano (levantar `server`+`client`, probar en navegador contra datos reales) antes de darlo por bueno.
-
-### 5. Atajo de iOS: sesiones parciales y convención de RIR (v2.4.1)
-`POST /api/shortcuts/log-set` registra UNA serie a la vez, acumulando en el `WorkoutLog` de hoy si ya existe uno — un ejercicio puede entonces tener un log de hoy con MENOS series que `Exercise.targetSets`. `Workout.jsx` (`checkCompletedExercises`/`loadExerciseData`) debe comparar `sets.length` contra `targetSets`, no solo "¿existe un log hoy?", para decidir si el ejercicio está de verdad completo o solo parcialmente registrado (en cuyo caso se muestra editable, con las series ya guardadas + filas vacías para el resto). Al terminar de llenarlo a mano, se usa `PUT /api/workouts/:logId` (reemplaza todas las series, mismo endpoint que `EditSession.jsx`) sobre ESE log — nunca `POST /api/workouts/log`, que siempre crea uno nuevo y fragmentaría el día en 2.
-
-`SetLog.rpe` no guarda el RIR crudo pese al comentario del schema (`// RIR`) — guarda `10 - RIR` (ida y vuelta en `Workout.jsx`: `rpe: 10 - rir` al guardar, `rir: 10 - rpe` al leer). El Atajo pregunta "RIR?" directo (0-4, confirmado con capturas reales del Atajo del usuario) y lo manda bajo el nombre `rpe` — el endpoint debe aplicarle la misma conversión antes de guardar, o el valor queda invertido y no calza con ningún botón de RIR (0-3) en la UI. Datos ya guardados mal antes de este fix: `server/fix-shortcut-rir.mjs` (dry-run por defecto, `--apply` para escribir), identifica candidatos por rango (`rpe <= 6` solo puede venir del Atajo sin convertir, nunca del flujo manual).
-
-**Gotcha encontrado verificando este fix (no reportado, pero mismo sistema):** `loadExerciseData` compara `sets` contra `prevSetsSnapshotRef` para detectar "una serie se acaba de completar" y disparar el aviso de descanso. Si `setSets(...)` carga series YA completadas (del historial de hoy o del caché de `localStorage`) sin sincronizar `prevSetsSnapshotRef` en la misma pasada, el efecto las interpreta como transiciones recién ocurridas y dispara un aviso fantasma (timer reiniciado + push real) solo por abrir o revisitar la página — confirmado en vivo antes del fix (petición a `/api/workouts/rest-reminder` disparándose sin ninguna interacción del usuario). Cualquier rama que precargue `sets` con datos preexistentes debe actualizar el ref a juego.
-
-### 6. Backup automático a Cloudinary (v2.5.0)
-Job diario (~04:00 CDMX, mismo patrón `setInterval` que `checkReengagementReminders`) — `runDailyBackup()`/`maybeRunDailyBackup()` en `server/src/index.js` — exporta por usuario TODO su historial de entrenamiento (rutinas+días+ejercicios+bloques, workoutLogs+sets, bodyLogs, personalRecords, goals, restLogs) y lo sube a Cloudinary vía `server/src/services/backupService.js` como recurso `raw`+`type: 'authenticated'` (deliberadamente NO público, a diferencia de las fotos — el JSON contiene datos personales de composición corporal) en la carpeta `nexlift-backups/`, reteniendo los 14 más recientes (`pruneOldBackups`, borra los más viejos por `public_id` ordenado — el nombre incluye el timestamp ISO, así que el orden lexicográfico ya es cronológico).
-
-- **No-op sin credenciales:** mismo criterio que `uploadPhoto()`/VAPID — sin `CLOUDINARY_CLOUD_NAME`/`API_KEY`/`API_SECRET`, `runDailyBackup()` retorna de inmediato y el server arranca igual.
-- **Deliberadamente excluye `passwordHash`/`securityAnswerHash`:** el JSON queda en un CDN de terceros (aunque no público); esos campos no hacen falta para recuperar el historial de entrenamiento, que es el activo irreemplazable que este backup protege. El restore, por tanto, NUNCA toca contraseñas — solo reconecta datos a un usuario que ya debe existir.
-- **`POST /api/backup/run`** (autenticado): fuerza una corrida solo para el usuario del token — útil como botón futuro en Settings y como forma de probar la integración sin esperar a las 4am.
-- **`GET /api/health`** expone `backup.users[].lastBackupAt`/`lastBackupError` (persistidos en `User`, no solo en memoria, para sobrevivir un redeploy).
-- **Restauración:** `server/restore-backup.mjs` (dry-run por defecto, `--apply` para escribir — mismo patrón que `fix-shortcut-rir.mjs`). Idempotente vía `upsert` por `id` (los ids del backup son los cuids originales; se recrean tal cual, remapeando solo `userId` al usuario destino). El usuario destino debe existir ya en la DB con el mismo `username` que tenía el backup (o pasar `--user=` para forzar otro) — regístralo primero si es una DB nueva. Probado end-to-end con datos sintéticos: backup → borrado total de las tablas del usuario → restore dry-run (conteos correctos) → restore `--apply` (ids originales recuperados) → segundo `--apply` (idempotente, sin errores) → limpieza.
-- Documentación de uso completa en la sección "Backup y restauración" de `README.md`.
-
-### 7. Tests automatizados: qué NO está cubierto (v2.5.0)
-Ver Gotcha #4 arriba (sección "Sin tests automatizados", renombrada). Solo lógica pura tiene tests — `server/src/logic.js` y `client/src/utils/{exerciseName,smartLoading}.js`. Si extraes una función pura nueva de `index.js`/`Workout.jsx`, considera moverla a `logic.js`/`smartLoading.js` y agregarle un test ahí en vez de dejarla inline sin cobertura.
-
-### 8. Recordatorios de descanso persistentes (v2.5.1)
-Antes de v2.5.1, `scheduleRestReminder` vivía SOLO en memoria (`setTimeout` + `Map` en `server/src/index.js`) — cualquier redeploy o reinicio del contenedor a mitad de un descanso perdía el push en silencio. Con deploys frecuentes en EasyPanel esto pasaba en la práctica.
-
-- **Modelo `PendingReminder`** (`userId`, `exerciseId`, `fireAt`, `nextExerciseName`, `@@unique([userId, exerciseId])`): `scheduleRestReminder` ahora hace `upsert` de esta fila ADEMÁS de agendar el `setTimeout` — mismo unique que ya usaba el `Map` en memoria para el dedup, así que agendar un recordatorio nuevo reemplaza al pendiente anterior en ambos lados a la vez (memoria y DB).
-- **`firePendingReminder(userId, exerciseId, exerciseName, nextExerciseName)`** centraliza el disparo real (enviar el push + borrar la fila de `PendingReminder` + limpiar el `Map`) — compartido por el `setTimeout` normal Y por `restorePendingReminders()`, para no duplicar esa lógica en dos sitios.
-- **`restorePendingReminders()`**, llamado una vez desde `startServer()` (después de `prisma.$connect()`, antes de `app.listen()`): lee TODAS las filas de `PendingReminder` al arrancar. `fireAt` en el futuro → reagenda un `setTimeout` con el tiempo restante EXACTO (no un valor fijo). `fireAt` pasado hace menos de 5 minutos → dispara de inmediato (el aviso todavía sirve). Más viejo que eso → borra la fila sin disparar (un aviso de "descanso terminado" de hace 20 minutos ya no es útil, y podría confundir).
-- No-op completo si `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` no están configuradas (mismo criterio que antes) — en ese caso ni siquiera se escribe la fila en `PendingReminder`.
-- Verificado en vivo (usuario y ejercicios 100% sintéticos, borrados después): recordatorio con `restSeconds` largo → reinicio real del proceso a mitad del descanso → log `"1 reagendado(s)"` al arrancar → dispara a la hora correcta y limpia la fila. Ráfaga de 2 llamadas casi seguidas → una sola fila en DB (mismo `id`, `fireAt`/`nextExerciseName` de la más reciente) — dedup intacto. Fila insertada a mano con `fireAt` de hace 10 minutos → reinicio → log `"1 descartado(s) por viejos"`, fila borrada, nada disparado.
-
-### 9. Registro offline con cola de sincronización (v2.6.0) — 2 bugs reales encontrados verificándolo en el navegador
-Alcance deliberadamente acotado: SOLO `logWorkout`/`updateWorkoutSession`/`logRestDay` (el registro de entrenamiento). Nada de fotos, goals ni rutinas.
-
-- **`client/src/services/offlineQueue.js`** (storage puro, sin red — a propósito, para no formar un import circular con `api.js`, que sí necesita esta cola Y las llamadas de red reales): `enqueueWrite`/`getQueue`/`removeFromQueue` sobre un array en `localStorage` (`nexlift_offline_queue`), con expiración de 48h y `subscribeQueueChange` para que la UI reaccione sin poll.
-- **`client/src/services/api.js`**: `safeFetch` marca `err.isNetworkError = true` cuando `fetch()` mismo revienta (offline/DNS/timeout) — la señal que distingue "sin red" de un 4xx/5xx real (que llega como `Response`, no como excepción). `logWorkout`/`updateWorkoutSession`/`logRestDay` capturan SOLO ese caso, encolan, y devuelven `{ queued: true }` en vez de fingir éxito — los 3 callers (`Workout.jsx`, `Dashboard.jsx`, `EditSession.jsx`) chequean ese flag para mostrar "Guardado local — pendiente de sincronizar" en vez del toast de éxito normal, sin bloquear el flujo (Workout.jsx avanza al siguiente ejercicio igual). `replayOfflineQueue()` corre al abrir la app (código de nivel de módulo en `api.js`) y en el evento `online` de `window`.
-- **Bug real #1 (stack overflow confirmado en vivo, no teórico):** `getQueue()` llamaba a `writeQueue()` (que notifica `subscribeQueueChange`) en CADA lectura, para persistir la poda de expirados. El badge de `Workout.jsx` se suscribe con un callback que llama `hasPendingWrite()` → `getQueue()` de vuelta — cualquier lectura disparaba una notificación que disparaba otra lectura, ad infinitum, hasta `RangeError: Maximum call stack size exceeded` (reproducido con el DOM real, no en un test). Fix: la poda se persiste con `writeQueueSilent` (sin notificar); solo las mutaciones reales (`enqueueWrite`/`removeFromQueue`) notifican. Test de regresión en `offlineQueue.test.js`.
-- **Bug real #2 (mismo patrón de zona horaria que este proyecto ya resolvió 3 veces):** la reconciliación anti-duplicados (antes de reintentar un `logWorkout` encolado, ¿ya existe un log de hoy? si sí, `PUT` en vez de `POST` — cubre "el POST sí llegó pero se perdió la respuesta") originalmente mandaba una `fecha` calculada en el navegador (`new Date().toLocaleDateString('sv')`) contra `GET /api/workouts/history?dateFrom=X&dateTo=X` — ese endpoint filtra con `new Date(dateFrom)` (UTC ingenuo, sin pasar por los helpers CDMX). Reproducido en vivo: un log real creado a las 20:49 CDMX (02:49 UTC del día siguiente) no lo encontraba la query con `fecha` del día CDMX correcto, y el replay creaba un WorkoutLog **duplicado**. Fix: nuevo endpoint dedicado `GET /api/workouts/today-log?exerciseId=X` que calcula "hoy" con `mexicoCityDayBounds()` server-side — el cliente ya no manda ninguna fecha, elimina la clase entera de bug.
-- **Verificado en vivo end-to-end** (usuario y ejercicios sintéticos, borrados después): offline real (servidor detenido/fetch interceptado por endpoint) → guardar → badge visible → recargar la página → sigue pendiente → volver "online" (`window.dispatchEvent(new Event('online'))`) → sincroniza solo, exactamente 1 `WorkoutLog` correcto. Escenario de respuesta perdida (log ya existente + item encolado apuntando al mismo ejercicio) → replay hace `PUT`, NO duplica. Item con peso inválido (rechazado por `sanitizeSets`, 400) → se descarta de la cola sin reintentar infinito y sin crear datos corruptos.
-
-### 10. Auditoría de rendimiento (v2.6.1) — medir antes de optimizar
-Medido con Prisma directo (solo lectura) contra la cuenta real de fernando.segrr (281 WorkoutLogs, 794 SetLogs):
-
-- **`getWorkoutHistory(500)`** (usado por `Dashboard.jsx`/`Progress.jsx` para plateau/1RM): 246.7KB, 281 items. Bajo el umbral de 500KB que marcaba el plan como "vale la pena optimizar", pero crece sin límite con el historial — si en el futuro pesa demasiado, la opción es un endpoint de agregación server-side (calcular plateau/1RM en el servidor) en vez de mandar cada set al cliente.
-- Los tiempos absolutos medidos (~500-994ms por operación) están inflados por la latencia de red entre la máquina de desarrollo y el Postgres remoto del VPS — en producción, server y DB viven en el mismo VPS, así que el número real ahí es mucho menor. La comparación RELATIVA entre "antes" y "después" de un fix sí es válida y es la que se reporta abajo.
-- **Fix aplicado (bajo riesgo, puramente mecánico — cero cambio de comportamiento):** `GET /api/stats/overview` corría 7 queries de Prisma mutuamente independientes en `await` secuencial (7 round-trips seguidos); `GET /api/stats/consistency` corría 3 de la misma forma. Ambas cambiadas a `Promise.all`. Medido contra datos reales: **994ms → 522ms (~47% menos)** en `/api/stats/overview`. Verificado con datos sintéticos que el streak, `weeklyVolume` y la detección de días de descanso automáticos (desde la rutina activa) calculan exactamente igual que antes.
-- **Build de producción** (`npm run build` en `client/`): code-splitting sigue efectivo — recharts (`CartesianChart`/`XAxis`/`index.es`, ~275+56+158KB), jsPDF (~386+31KB) y html2canvas (~201KB) quedan en chunks separados del entry principal, cargados solo al visitar Progress/ExportReport. Chunk inicial: 292.92KB raw / 91.69KB gzip — la línea base de v2.0.0 era ~272KB raw, así que el crecimiento (~8%) tras varias features (mesociclos, plateau, descarga adaptativa, Atajo de iOS, backup, cola offline) es razonable, no una regresión.
-- **Lighthouse** (`npx lighthouse`, contra el build de producción vía `vite preview`, página de login — no requiere sesión): Performance 83 (emulación móvil, con throttling) / 100 (desktop), Best Practices 100, SEO 92, Accessibility 68. La categoría "PWA" ya no existe en Lighthouse stock desde v9+ (Google la movió a un plugin aparte) — no se pudo medir con la instalación estándar.
-- **NO corregido, fuera de alcance de esta auditoría (accesibilidad, no performance):** botones sin `aria-label` (accesible name), `user-scalable=no` en el `<meta viewport>` (bloquea pinch-zoom — común en PWAs mobile-first pero afecta a usuarios con baja visión), touch targets pequeños. Quedan documentados para una futura pasada dedicada, no se tocaron sin confirmación explícita porque cambiar el viewport es una decisión de producto, no solo un fix técnico.
-- **N+1 encontrado pero NO corregido** (fuera del alcance — endpoint raro, no "caliente" como los que pedía el plan): `DELETE /api/routines/:id` hace un `workoutLog.count()` por cada ejercicio de la rutina, dentro de un loop anidado por día. Borrar una rutina completa es una acción rara y de bajo tráfico; no se tocó.
-
-### 11. Instrumentación de calibración del entrenador inteligente (v2.6.2)
-Los umbrales del entrenador inteligente (declive <85%, ≥3 plateaus, ±50% de rango de reps, -10% en descarga) están marcados en la doc desde v2.4.0 como "primera aproximación, sin validar contra uso real". Esta fase NO valida nada todavía — solo instala la recolección de datos para poder hacerlo después.
-
-- **Modelo `SuggestionLog`** (`exerciseId`, `date`, `suggestedWeight`, `suggestedReps`, `phase`, `source`): una fila por cada vez que se GENERA o se APLICA una sugerencia.
-  - `source: 'shortcut'` — escrita fire-and-forget en `GET /api/shortcuts/next-set` cada vez que ese endpoint calcula una sugerencia (se muestre o no se aplique después — el Atajo de iOS solo la consulta).
-  - `source: 'client'` — escrita vía `POST /api/suggestions/log` (nuevo endpoint), llamado fire-and-forget desde `applySuggestion` en `Workout.jsx` SOLO cuando el usuario TOCA la insignia "SUGERIDO" (no cada vez que se calcula/muestra — eso ya lo cubre el cliente sin necesidad de otra fila, ver `useExerciseHistory`).
-  - Ninguna de las dos escrituras bloquea ni puede tumbar el flujo real (guardar una serie, responder al Atajo) si falla — mismo criterio que `scheduleRestReminder`.
-- **`server/analyze-suggestions.mjs`** (solo lectura, sin dependencias nuevas): para cada `SuggestionLog`, busca el `WorkoutLog` de ESE ejercicio en el MISMO día calendario CDMX (`mexicoCityDateStr` de `server/src/logic.js` — nunca una fecha de cliente, mismo cuidado de zona horaria que motivó el fix de P3) y compara contra la "serie de trabajo real" (mayor 1RM estimado ese día, lado débil en unilateral — mismo criterio que `computeWorkoutSuggestion`). Agrupa por ejercicio+fase e imprime: cuántas sugerencias, cuántas con dato real ese día, cuántas se seguiste al pie de la letra, delta promedio de peso, RIR promedio real (para detectar si la sugerencia viene quedando corta o larga).
-- **Verificado en vivo** con datos sintéticos (usuario, rutina y ejercicio de prueba, borrados después): una sugerencia vía `next-set` (source `shortcut`) + una aplicada tocando la insignia en la UI (source `client`) + un `WorkoutLog` real guardado ese mismo día con exactamente el peso/reps sugeridos → el script reporta 2/2 "siguió la sugerencia", delta de peso +0.0kg.
-- **No se tocó ninguna constante** de `adjustRepRangeForPhase` ni de la descarga adaptativa — eso es una decisión del usuario, con el reporte de este script en la mano, después de semanas de datos reales acumulados.
-
-### 12. Calculadora de calentamiento y Objetivo visible (v2.7.0)
-Dos features chicas, sin backend nuevo, agregadas al mismo tiempo que la Rutina con IA (Gotcha #13).
-
-- **Calculadora:** panel `<details>` en `Workout.jsx` (sibling del bloque "Por qué esta sugerencia") con rampa 40/60/80% del peso base (`suggestion || previousBest`) + tabla libre "peso @ X%", reusando `estimate1RM`/`roundWeight` ya existentes en el archivo. 100% informativo — no persiste nada, no toca schema. `<details>` en vez de modal a propósito, evita el requisito de `<Portal>` (Gotcha #3.1).
-- **Objetivo visible:** chip "Objetivo: Xkg × Y — semana Z" cuando el ejercicio actual coincide (`canonicalExerciseKey`) con un `Goal` activo no alcanzado — nunca se fusiona con Smart Loading.
-- **Extracción necesaria:** la lógica de periodización de Goals vivía completa dentro de `GoalCard.jsx` (~150 líneas). Se extrajo a `client/src/utils/goalPlanner.js` (`generatePeriodizedPlan`, `computeGoalPrediction`, `computeGoalProgress`, `filterVisibleWeeks`, y la nueva `getCurrentGoalTarget`, que compone las otras 4). `GoalCard.jsx` ahora llama estas funciones — comportamiento idéntico, verificado en vivo (mismo 1RM/semana/plan antes y después del refactor) — y es la única fuente de esta lógica.
-- **Gotcha real encontrado:** `GET /api/workouts/exercise/:exerciseId/history` (el que `Workout.jsx` ya usa) no incluye la relación `exercise` en su respuesta — `groupHistoryByExercise()` depende de `workout.exercise?.name`, así que llamarla directo sobre esos datos devuelve un Map vacío en silencio. El shape `{sessions:[{best1RM,...}]}` que pide `goalPlanner.js` se deriva LOCALMENTE dentro de `useExerciseHistory`, reusando `effectiveSet`/`estimate1RM` ya presentes en el archivo — sin fetch nuevo.
-
-### 13. Rutina diaria con IA (v2.7.0)
-Para quien no tiene rutina fija ni conoce de gym: cuestionario corto (`AiRoutineSetup.jsx` → `TrainingProfile`, 1:1 por usuario) y la app decide **qué** entrenar cada día — el peso/reps sigue siendo 100% Smart Loading, sin cambios. Mismo patrón que `exerciseAgent.js`: IA opcional asistiendo una decisión estructural de bajo riesgo, con fallback determinista si no hay `OPENAI_API_KEY`.
-
-- **Modelo:** `Routine.source` (`'manual'|'ai'`, default `'manual'`), `RoutineDay.splitLabel` (solo días IA). Cada día ENTRENADO genera un `RoutineDay` fresco con `dayName = mexicoCityDateStr()` — los de descanso no generan fila. Se descartó a propósito un diseño de "slots fijos reordenados" (Push/Pull/Legs reusados semana a semana): calza peor con "decide fresco cada día" y, confirmado el punto siguiente, no hacía falta para la continuidad del historial.
-- **Por qué un `RoutineDay` nuevo por día es seguro:** tanto `GET /api/workouts/exercise/:exerciseId/history` como `/api/shortcuts/next-set` resuelven historial por **nombre exacto** (insensible a mayúsculas) en TODA la cuenta, no por el id de la fila — confirmado leyendo ambas rutas. Una fila `Exercise` nueva hereda la continuidad de Smart Loading mientras el nombre coincida con usos anteriores. Esto NO es el matching difuso (`canonicalExerciseKey`) del resto del proyecto — "Press Banca" y "Press de Banca con Barra" no calzarían. Mitigado en 2 capas: la IA elige de una lista CERRADA de candidatos (nunca texto libre), y el camino determinista siempre usa los mismos nombres literales del catálogo.
-- **Catálogo del servidor** (`server/src/data/exerciseCatalog.js`, copia deliberada de `client/src/data/exercises.js`, mismo criterio que Epley/plateau) usa `muscleGroup` en **ESPAÑOL** (`'Piernas'`) a propósito — el catálogo cliente usa ids en inglés (`'legs'`), y el redondeo a 5kg de piernas compara contra el string `'Piernas'`; copiar el inglés habría dejado ese redondeo sin efecto para ejercicios de pierna generados por IA. `server/src/data/splitTemplates.js`: plantillas fijas por `daysPerWeek` (`<=3`→Full Body A/B, `4`→Upper/Lower A/B, `>=5`→Push/Pull/Legs) — fallback 100% funcional sin IA.
-- **Rotación** (`pickNextSplitDay`, `server/src/logic.js`, pura y testeada): round-robin sobre el último split entrenado. La cuota semanal vive en `server/src/services/aiRoutineService.js` (`planToday`, también puro — sin Prisma, mismo patrón que `exerciseAgent.js`/`backupService.js`; `index.js` hace las consultas reales y le pasa los datos ya cargados).
-- **Riesgo de crecimiento sin límite, mitigado:** un `RoutineDay` nuevo por cada día entrenado, para siempre, haría crecer sin cota `GET /api/routines`/`.../active`/`.../:id` (golpeados en casi cada carga de página). Para rutinas `source:'ai'`, estos 3 endpoints limitan `days` a los 7 más recientes (`daysIncludeFor()` en `index.js`) — "qué toca hoy" nunca depende de esto, pasa por `GET /api/ai-routine/today` (consulta por `dayName` exacto). Mismo principio que la rutina-papelera del sistema.
-- **Gap cerrado en `/api/shortcuts/next-set`:** su resolución de "día de hoy" por nombre de día de la semana nunca hacía match contra un `dayName` de fecha ISO — devolvía "descanso" para siempre, en silencio, para cualquier rutina IA activa. Ahora branchea en `routine.source === 'ai'` y comparte `resolveOrGenerateAiRoutineDay()` con `GET /api/ai-routine/today` — una sola fuente de verdad para PWA y Atajo. El backfill `?date=` no aplica a rutinas IA (ignorado a propósito: generar un día "del pasado" tras uno más reciente rompería el orden que asume la rotación).
-- **Capa de IA** (`server/src/services/aiRoutineAgent.js`, espejo de `exerciseAgent.js`): con `OPENAI_API_KEY`, el LLM elige entre una lista CERRADA de candidatos (catálogo filtrado por equipo + ejercicios ya entrenados por el usuario, marcados `yaEntrenado: true` para preferir continuidad). Fallback determinista en cualquier falla.
-- **Bug real encontrado y corregido verificando el reshuffle** (`POST /api/ai-routine/reshuffle/:routineDayId`, solo hoy, preserva ejercicios con serie ya registrada): la primera versión regeneraba TODOS los slots del split (incluyendo los ya cubiertos por ejercicios conservados), duplicando esos grupos musculares — confirmado en vivo (2 "Press de Banca con Barra" en el mismo día). Fix: `pickReplacementExercises(profile, exercisesToReplace, excludeNames)` reemplaza puntualmente solo por el grupo muscular de lo removido, excluyendo TODOS los nombres del día (conservados + removidos). Determinista a propósito, no pasa por la IA.
-- **Verificado en vivo end-to-end** con usuarios sintéticos (borrados después): cuestionario completo → generación filtrada por equipo → idempotencia (`GET /today` repetido devuelve el mismo día) → Dashboard/Routines con la rama IA renderizando correctamente → Atajo de iOS funcionando contra una rutina IA activa (antes del fix, `isRestDay` para siempre) → reshuffle preservando el ejercicio con serie registrada y sin duplicar grupos musculares (confirmado tras el fix).
-
-### 14. Día de la semana explícito en rutinas manuales (v2.9.1)
-Mismo bug de fondo que el Gotcha #13 (`/api/shortcuts/next-set` resolviendo "hoy" por nombre de día de la semana) pero del lado MANUAL, y mucho más extendido: `normalizeDay(dayName)` (`.slice(0,3)` sin acentos) nunca hacía match salvo que el día se llamara literalmente "Lunes".."Domingo". Las 4 plantillas incorporadas, "Agregar día" (genera "Día N") y el ejemplo de JSON que la propia app mostraba producían rutinas que mostraban "descanso" TODOS los días — encontrado reproduciendo un reporte real contra la cuenta de producción (rutina activa "Día 1..Día 7", cero coincidencias posibles).
-
-- **Fix:** `RoutineDay.weekday` (`Int?`, 0=Domingo..6=Sábado, `null`=sin programar) explícito, asignado por el usuario con `WeekdayPicker.jsx` (fila de 7 chips en `EditRoutine.jsx`/`Import.jsx`). `dayName` queda 100% decorativo. Resolver único duplicado con paridad: `findRoutineDayForWeekday`/`scheduledRestWeekdays` en `server/src/logic.js` y `client/src/utils/routineDays.js` (`routineDays.parity.test.js`). **`0` es un valor válido** — todo el código compara `!= null`, nunca truthiness (`d.weekday &&` descartaría Domingo en silencio).
-- **Inferencia SOLO en escritura:** `inferWeekdayFromName()` (tokeniza — nunca `.slice(0,3)` sobre el nombre completo, que es justo el origen de los falsos positivos como `"Dominadas y remo"` → "dom" = Domingo) corre en `POST /api/routines/import`/`PUT /api/routines/:id` vía `resolveIncomingWeekday()`, solo si el cliente no mandó `weekday` explícito. La lectura nunca vuelve a mirar `dayName`.
-- **Gotcha de `select` silencioso:** un `select` de Prisma que traiga `days` sin listar `weekday` explícitamente hace que el resolver vea "nada es hoy" sin ningún error — pasó en los 3 `select` de `stats/home|overview|progress-page` (el de `consistency` usa `include`, no le afectaba).
-- **Migración:** `server/backfill-routine-weekday.mjs` (dry-run/`--apply`, idempotente) — infiere por nombre si puede, si no asigna posicional contiguo desde el lunes por `order`. Rutinas `source:'ai'` y la papelera del sistema se saltan enteras (asignarles weekday inflaría la racha en falso). Corrido en vivo contra producción: 27 días en 4 rutinas (incluida la que motivó el reporte).
-- **Verificado en vivo end-to-end** con un usuario sintético (borrado después): rutina manual de 2 días con nombres genéricos ("Día 1"/"Día 2") → picker auto-asigna Lunes/Martes → mover un chip tomado transfiere el weekday con toast → Dashboard muestra la tarjeta de entrenar (no descanso) con link `/workout/:id` válido → Workout carga el ejercicio correcto → `GET /api/shortcuts/next-set` devuelve el día real en vez de `isRestDay` fijo → `?date=` de un día de descanso programado sí devuelve `isRestDay:true`.
+| Modelo | Descripción y Propósito | Detalles No Obvios |
+|--------|-------------------------|-------------------|
+| `User` | Cuenta de usuario, credenciales y configuración | `tokenVersion` para revocar JWTs antiguos; `lastReengagementNotifiedAt` (push si lleva 3+ días sin ir); `lastBackupAt`/`lastBackupError` para monitor de salud; `creatineReminderEnabled`, `creatineReminderTime`, `lastCreatineReminderDate`, `lastCreatineReminderStage` |
+| `Routine` | Rutina de entrenamiento | `source`: `'manual'` o `'ai'`; `adaptiveDeloadUntil` y `lastAdaptiveCheckAt` para descarga adaptativa |
+| `RoutineBlock` | Bloque o mesociclo de periodización | `phase`: `'accumulation'`, `'intensification'`, `'deload'`, `'custom'`. El bloque activo es el que tiene el `startedAt` más reciente |
+| `RoutineDay` | Día estructurado dentro de una rutina | `weekday` (`Int?`, 0=Dom..6=Sáb): Única fuente para resolver "qué toca hoy" en manuales. `splitLabel` (ej. "Push") en días IA donde `dayName` es fecha ISO |
+| `Exercise` | Ejercicio asignado a un día de rutina | `targetReps` en string (`"8-12"`); `isUnilateral` booleano; `restSeconds` descanso; `onDelete: Cascade` hacia RoutineDay |
+| `WorkoutLog` | Registro de una sesión de UN ejercicio en una fecha | Vinculado a `Exercise`. `onDelete: Restrict` en la lógica de negocio para no perder historial al editar rutinas |
+| `SetLog` | Serie individual registrada en un entrenamiento | **`rpe` almacena `10 - RIR`** (inversión intencional); `weightRight` y `repsRight` para unilateral |
+| `PersonalRecord` | Récord Personal histórico por ejercicio | `exerciseName` almacenado en minúsculas; recalculado automáticamente en cada edición o borrado de sesión |
+| `RestLog` | Registro formal de día de descanso | Cuenta positivamente para la racha y consistencia en el heatmap |
+| `BodyLog` | Peso, fotos y bioimpedancia corporal | `photoUrl` en Cloudinary; métricas de báscula; hábitos diarios: `creatineTaken`, `dietCompliant`, `zeroLiquidCalories` |
+| `Goal` | Objetivo de fuerza a largo plazo | `targetWeight`, `targetReps`, `completedWeeks[]`; el backend calcula y sella `achievedAt` |
+| `PushSubscription`| Suscripción Web Push del dispositivo | Endpoint único, clave pública `p256dh` y `auth`. Se revoca automáticamente en logout |
+| `PendingReminder`| Alarma de descanso persistida en disco | Clave única `[userId, exerciseId]`. Reagendada al reiniciar el servidor por `restorePendingReminders()` |
+| `SuggestionLog` | Calibración y telemetría de sugerencias | Registra peso y reps sugeridos con `source: 'client' \| 'shortcut' \| 'intra'` para análisis posterior |
+| `TrainingProfile`| Perfil para generación de Rutina con IA | Relación 1:1 con `User`: `goal`, `daysPerWeek`, `equipment[]`, `experienceLevel` |
+| `CardioSession` / `CardioSegment` | Modelos de cardio en base de datos | Estructuras en DB preparadas para sesiones y tramos de cardio (minutos e inclinación) |
 
 ---
 
-## 📝 Guía para Modificar Documentación
+## 🔌 Catálogo de Endpoints de la API (`server/src/index.js`)
 
-Para mantener esta documentación al día:
+Todos los endpoints (salvo registro, login, recuperación, VAPID key y health) requieren cabecera `Authorization: Bearer <token>`.
 
-1.  **Integridad:** Este archivo es la fuente de verdad narrativa. Si el código cambia, actualiza esto primero.
-2.  **Detalle:** Mantén la descripción detallada de "Páginas y Componentes" — una sección por página de `client/src/pages/`. No resumas excesivamente.
-3.  **Schema:** NO copiar el schema aquí — la única copia es `server/prisma/schema.prisma` (se sincroniza con `db push`; el proyecto no usa migraciones). Aquí solo se mantiene la tabla-resumen de modelos; si agregas un modelo o campo con comportamiento no obvio, agrega su fila/nota.
-4.  **Changelog:** Registra cada cambio significativo en [`changelog.md`](changelog.md), no aquí. Actualiza la versión y fecha del encabezado de este archivo.
-5.  **Tamaño:** este archivo debe caber en una sola lectura de una IA (< ~500 líneas). Si crece más, mover historia/detalle a archivos hermanos en `.agent/`.
+### Autenticación y Cuenta
+- `POST /api/auth/register` — Registro de cuenta con validación de contraseña ($\ge 8$ caracteres) y pregunta de seguridad.
+- `POST /api/auth/login` — Autenticación por username/email y password. Retorna JWT de 365 días.
+- `GET /api/auth/me` — Datos del usuario autenticado con conteos (`_count`) de rutinas, logs y PRs.
+- `PUT /api/auth/profile` — Actualización de nombre, teléfono y fecha de nacimiento (anclada a mediodía UTC).
+- `PUT /api/auth/password` — Cambio de contraseña. Incrementa `tokenVersion` y retorna un nuevo JWT.
+- `POST /api/auth/recover/question` — Obtiene la pregunta de seguridad configurada para un username.
+- `POST /api/auth/recover/verify` — Valida la respuesta de seguridad y restablece la contraseña. Doble rate limit.
+- `PUT /api/auth/security-question` — Actualiza la pregunta de seguridad exigiendo la contraseña actual.
+- `POST /api/auth/avatar` — Sube foto de perfil a Cloudinary y actualiza `avatarUrl`.
+
+### Rutinas y Mesociclos
+- `GET /api/routines` — Lista las rutinas del usuario (excluye la papelera del sistema).
+- `GET /api/routines/trash` — Consulta los ejercicios archivados en la papelera de reciclaje.
+- `GET /api/routines/active` — Retorna la rutina activa actual con sus días, ejercicios y bloque activo.
+- `POST /api/routines/import` — Crea o importa una rutina con deduplicación por IA (`exerciseAgent.js`).
+- `GET /api/routines/:id` — Detalle completo de una rutina.
+- `PUT /api/routines/:id` — Edita una rutina, sus días y ejercicios bajo una transacción Prisma segura.
+- `DELETE /api/routines/:id` — Elimina la rutina archivando en la papelera los ejercicios que tengan historial.
+- `PUT /api/routines/:id/activate` — Establece una rutina como la activa para el usuario.
+- `GET /api/routines/:id/blocks` — Lista los mesociclos configurados para la rutina.
+- `POST /api/routines/:id/blocks` — Agrega un bloque de mesociclo (`accumulation`, `intensification`, etc.).
+- `PUT /api/routines/:id/blocks/:blockId` — Modifica nombre, fase o semanas de un bloque.
+- `DELETE /api/routines/:id/blocks/:blockId` — Elimina un bloque de mesociclo.
+- `POST /api/routines/:id/blocks/:blockId/start` — Inicia un bloque marcando `startedAt = now()`.
+
+### Rutina Diaria con IA
+- `POST /api/ai-routine/setup` — Guarda el `TrainingProfile`, crea la rutina IA y genera el día de hoy.
+- `GET /api/ai-routine/today` — Obtiene o genera de forma idempotente el día de hoy para la rutina IA activa.
+- `POST /api/ai-routine/reshuffle/:routineDayId` — Regenera los ejercicios no iniciados de hoy sin tocar los ya registrados.
+
+### Ejercicios y Catálogo
+- `GET /api/exercises` — Catálogo consolidado de ejercicios del usuario (incluyendo archivados).
+- `PUT /api/exercises/:id/muscle` — Clasifica el grupo muscular y lo propaga a homónimos.
+
+### Entrenamientos y Registro
+- `GET /api/workouts/today-log?exerciseId=X` — Revisa si ya existe un log hoy en CDMX para evitar duplicados en offline replay.
+- `POST /api/workouts/log` — Registra una sesión completa de un ejercicio (crea un nuevo `WorkoutLog` con sus `SetLog`).
+- `GET /api/workouts/:logId` — Obtiene el detalle de un registro de entrenamiento.
+- `PUT /api/workouts/:logId` — Reemplaza todas las series de un log (usado por EditSession y por sesiones parciales). Recalcula PRs.
+- `DELETE /api/workouts/:logId` — Elimina un log de entrenamiento y recalcula PRs.
+- `GET /api/workouts/history` — Historial de entrenamientos con paginación y filtros (búsqueda, fechas CDMX, día).
+- `GET /api/workouts/exercise/:exerciseId/history` — Historial específico de un ejercicio para Smart Loading.
+- `POST /api/workouts/rest-reminder` — Agenda alarma de descanso Web Push para una serie completada.
+- `POST /api/workouts/log-rest` — Registra un día de descanso en `RestLog`.
+- `PUT /api/workouts/fix-weights` — Corrección masiva de pesos por renombre o error.
+
+### Atajos de iOS (Apple Shortcuts)
+- `GET /api/shortcuts/next-set` — Resuelve la rutina activa, el día de hoy y sugiere peso/reps del próximo ejercicio en JSON plano.
+- `POST /api/shortcuts/log-set` — Registra UNA serie acumulándola en el log de hoy. Convierte RIR crudo a `10 - RIR`.
+
+### Estadísticas y Analítica
+- `GET /api/stats/home` — Endpoint consolidado del Dashboard (KPIs, consistencia, rutina activa, PRs, plateaus, check-in).
+- `GET /api/stats/progress-page` — Endpoint consolidado de la página de Progreso.
+- `GET /api/stats/overview` — Métricas generales rápidas en paralelo (`Promise.all`).
+- `GET /api/stats/consistency` — Heatmap de consistencia en días CDMX.
+- `GET /api/stats/plateaus` — Detección de ejercicios estancados en el servidor (ventana de 10 sesiones).
+- `GET /api/stats/prs` — Lista de récords personales con medallas de podio.
+- `GET /api/stats/progress/:exerciseName` — Historial de evolución de 1RM para gráficos de línea.
+- `GET /api/stats/routine/:id` — Métricas de rendimiento de una rutina específica.
+
+### Composición Corporal y Hábitos
+- `GET /api/body/logs` — Listado histórico de mediciones corporales.
+- `POST /api/body/log` — Registra peso, bioimpedancia y foto (Cloudinary/Catbox).
+- `GET /api/body/photos` — Galería cronológica de fotos de progreso.
+- `GET /api/body/latest` — Último peso registrado para cálculo de estándares de fuerza.
+- `GET /api/body/checkin` — Consulta el estado de los hábitos diarios (creatina, déficit, cero calorías líquidas) de hoy.
+- `PUT /api/body/checkin` — Actualiza los hábitos diarios en el `BodyLog` de hoy (creándolo si no existe).
+
+### Objetivos (Goals)
+- `GET /api/goals` — Lista los objetivos activos evaluando y sellando `achievedAt` si se cumplieron.
+- `POST /api/goals` — Crea un nuevo objetivo (retorna 409 si ya existe un objetivo idéntico no cumplido).
+- `PUT /api/goals/:id/weeks` — Marca semanas completadas en el checklist del plan.
+- `DELETE /api/goals/:id` — Elimina un objetivo de fuerza.
+
+### Web Push y Recordatorios
+- `GET /api/push/vapid-public-key` — Retorna la clave pública VAPID.
+- `POST /api/push/subscribe` — Registra la suscripción Web Push del navegador.
+- `DELETE /api/push/subscribe` — Elimina la suscripción del dispositivo.
+- `PUT /api/push/creatine-reminder` — Configura hora y estado del recordatorio diario de creatina.
+- `POST /api/push/test-creatine` — Envía una notificación push de prueba inmediata al dispositivo.
+
+### Backups y Sistema
+- `POST /api/backup/run` — Fuerza la ejecución inmediata del backup en Cloudinary para el usuario del token.
+- `POST /api/backup/import` — Importa y restaura una estructura de backup JSON completa en la cuenta autenticada.
+- `GET /api/health` — Healthcheck del servidor, estado de la base de datos y último backup registrado.
+- `GET *` — SPA Fallback: sirve `client/dist/index.html` en producción.
 
 ---
 
-## 📋 Changelog
+## ⚠️ Gotchas Críticos y Reglas de Oro
 
-El historial completo de versiones vive en [`changelog.md`](changelog.md).
+### 1. Manejo de Fechas en CDMX
+PostgreSQL almacena fechas en UTC. La lógica de negocio corre en CDMX (`America/Mexico_City`).
+- **NUNCA** uses `new Date().toISOString().split('T')[0]` ni `date.getDay()` para agrupar por día o decidir qué día toca hoy.
+- **SIEMPRE** usa `mexicoCityDateStr(date)` y `mexicoCityDayBounds(date)` de `server/src/logic.js` en backend y `client/src/utils/dates.js` en frontend.
 
-**Versión actual: 2.9.1** (25 Julio 2026) — día de la semana explícito en rutinas manuales (Gotcha #14). Versiones intermedias (2.8.x autorregulación/UI/cero-bugs, 2.9.0 Cardio) narradas en [`changelog.md`](changelog.md), no repetidas aquí. Base: v2.7.1 (auditoría end-to-end), v2.7.0 (calentamiento, chip de objetivo, Rutina diaria con IA — Gotchas #12/#13), v2.6.x (calibración, perf, offline), v2.5.x (backup, tests, recordatorios persistentes).
+### 2. Base de Datos: Solo `prisma db push`
+- **NUNCA** ejecutes `npx prisma migrate dev` ni `migrate deploy`. No existe historial de migraciones (`prisma/migrations`). Ejecutar `migrate` provocará "drift detected" y Prisma ofrecerá **borrar toda la base de datos**.
+- Aplica cambios de esquema con `npx prisma db push`. En Windows, si el servidor está corriendo con `node --watch`, ejecuta `npx prisma generate` con el servidor apagado para evitar el bloqueo del archivo `.dll` del query engine.
+
+### 3. Modales y Overlays: Siempre dentro de `<Portal>`
+Cualquier modal, menú emergente o visor de fotos con `fixed inset-0` **DEBE** envolverse en `<Portal>` (`client/src/components/ui/Portal.jsx`).
+- *Causa raíz:* Las animaciones de entrada (`animate-fade-in`, `slide-up`, etc.) en `index.css` utilizan `transform` con `animation-fill-mode: forwards`. Un ancestro con propiedad `transform` distinta de `none` se convierte en el *containing block* del elemento fixed, sacándolo de la pantalla cuando la página tiene scroll. `<Portal>` monta el modal directamente en `document.body`.
+
+### 4. Convención de RIR Invertido (`SetLog.rpe`)
+- `SetLog.rpe` en la base de datos guarda **`10 - RIR`**, NO el RIR crudo.
+- Al guardar: `rpe = 10 - rir`.
+- Al leer: `rir = 10 - rpe`.
+- El endpoint de Atajos de iOS (`/api/shortcuts/log-set`) recibe el RIR crudo (0 a 4) y lo convierte mediante `convertShortcutRir(rawRir)` antes de guardar en Prisma. Si olvidas esta conversión, el RIR queda invertido y no se selecciona ningún botón en la UI.
+
+### 5. Paridad Estricta Cliente / Servidor
+El proyecto no comparte un paquete `shared/` para mantener el backend autocontenido.
+- Las funciones matemáticas (`computeWorkoutSuggestion`, `suggestNextSetFromToday`, `adjustRepRangeForPhase`, `findRoutineDayForWeekday`, `scheduledRestWeekdays`) existen de forma deliberada en `client/src/utils/` y `server/src/logic.js`.
+- La paridad está blindada mediante tests automáticos cruzados (`smartLoading.parity.test.js` y `routineDays.parity.test.js`). Si modificas una lógica en el cliente o servidor, **debes actualizar ambas copias y correr los tests**.
+
+### 6. Resolución de "Qué Toca Hoy" en Rutinas Manuales
+- `RoutineDay.weekday` (`Int?`, 0=Domingo..6=Sábado) es la **única** fuente de verdad para asignar días en rutinas manuales.
+- `dayName` es 100% decorativo ("Día 1", "Torso Pesado", "Push A").
+- En JavaScript, el número `0` (Domingo) es falsey. Compara **siempre** con `weekday != null`, nunca con `if (day.weekday)`.
+- Todo `select` de Prisma que consulte `RoutineDay` debe incluir `weekday` de forma explícita.
+
+### 7. Deduplicación y Persistencia de Recordatorios Push
+- Para evitar que completar varias series de golpe envíe ráfagas de notificaciones, el servidor mantiene un mapa en memoria y una tabla `PendingReminder` con clave única `@@unique([userId, exerciseId])`.
+- Agendar un recordatorio nuevo sobrescribe automáticamente el recordatorio pendiente anterior.
+- Al cargar datos preexistentes en `Workout.jsx`, sincroniza siempre `prevSetsSnapshotRef.current` para evitar que el efecto detecte las series viejas como recién completadas y dispare avisos fantasma.
+
+### 8. Registro Offline y Reconciliación Anti-Duplicados
+- Si la conexión falla en el gimnasio, `safeFetch` detecta el error de red (`err.isNetworkError = true`) y encola la operación en `localStorage` (`nexlift_offline_queue`).
+- Para evitar llamadas recursivas infinitas (`RangeError: Maximum call stack size exceeded`), `getQueue()` **nunca** debe notificar a los suscriptores al podar registros viejos; solo las mutaciones explícitas (`enqueueWrite`, `removeFromQueue`) notifican a la UI.
+- Al reconectarse, la cola consulta `GET /api/workouts/today-log?exerciseId=X` usando los bounds CDMX del servidor. Si el log ya se había creado en el backend (porque el POST original llegó pero se perdió la respuesta), la cola convierte la operación a `PUT /api/workouts/:logId` para no duplicar la sesión del día.
+
+### 9. Preservación del Historial de Ejercicios (Papelera del Sistema)
+- `WorkoutLog` está vinculado a `Exercise` con `onDelete: Restrict` en la lógica de negocio.
+- Cuando un usuario edita una rutina y elimina un ejercicio que ya tiene sesiones registradas, el backend **nunca** lo borra físicamente: lo transfiere automáticamente a la rutina oculta "Bin" (`getRecycleBinDay`).
+- Si en el futuro el usuario vuelve a agregar un ejercicio con el mismo nombre, el sistema rescata el ejercicio archivado restaurando su vinculación histórica.
 
 ---
 
-## 🚀 Comandos
+## 🚀 Comandos de Desarrollo y Verificación
 
 ```bash
-# Iniciar Backend
-cd server && npm run dev
+# ================= BACKEND =================
+cd server
 
-# Iniciar Frontend
-cd client && npm run dev
+# Iniciar servidor en desarrollo con hot reload
+npm run dev
 
-# Prisma Studio (Ver datos)
-cd server && npx prisma studio
+# Ejecutar suite de pruebas unitarias (104 tests)
+npm test
 
-# Tests (funciones puras, sin DB ni navegador — ver Gotcha #4/#7)
-cd client && npm test
-cd server && npm test
+# Sincronizar cambios del schema Prisma con la base de datos
+npm run db:push
 
-# Backup manual / restore (ver Gotcha #6)
-curl -X POST http://localhost:3001/api/backup/run -H "Authorization: Bearer <token>"
-cd server && node restore-backup.mjs --apply
+# Inspeccionar base de datos con GUI web
+npm run db:studio
 
-# Análisis de calibración del entrenador inteligente (ver Gotcha #11, solo lectura)
-cd server && node analyze-suggestions.mjs
+# Forzar backup manual a Cloudinary
+node -e "import('./src/services/backupService.js').then(b => console.log('Backup service loaded'))"
+curl -X POST http://localhost:3001/api/backup/run -H "Authorization: Bearer <TOKEN>"
+
+# Restaurar backup de Cloudinary (dry-run primero, luego aplicar)
+node restore-backup.mjs
+node restore-backup.mjs --apply
+
+# Analizar telemetría de calibración de sugerencias
+node analyze-suggestions.mjs
+
+# ================= FRONTEND =================
+cd client
+
+# Iniciar servidor de desarrollo Vite
+npm run dev
+
+# Ejecutar suite de pruebas unitarias (76 tests)
+npm test
+
+# Compilar para producción (validación de tipos y chunks)
+npm run build
+
+# Preview del build de producción
+npm run preview
 ```

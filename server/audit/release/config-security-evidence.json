@@ -1,0 +1,33 @@
+{
+  "workflowYamlParsed": true,
+  "workflowExecuted": false,
+  "productionTouched": false,
+  "audit": [
+    {
+      "omitDev": false,
+      "exit": 1,
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 8,
+        "high": 12,
+        "critical": 0,
+        "total": 20
+      },
+      "error": null
+    },
+    {
+      "omitDev": true,
+      "exit": 1,
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 4,
+        "high": 9,
+        "critical": 0,
+        "total": 13
+      },
+      "error": null
+    }
+  ]
+}

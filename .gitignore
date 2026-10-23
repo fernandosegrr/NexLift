@@ -4,6 +4,8 @@ node_modules/
 
 # Build outputs
 client/dist/
+packages/shared/dist/
+server/build/
 .vercel/
 
 # IDE
@@ -16,5 +18,46 @@ client/dist/
 .DS_Store
 Thumbs.db
 
-# Prisma
-server/prisma/migrations/
+# Future Prisma migrations must be versioned (Phase 2.1 preparation).
+# No migration history is activated by this change.
+
+# Local recovery archives and connection service files can contain secrets.
+*.dump
+*.pg_service.conf
+
+# Runtime secrets and local exports (templates remain versioned).
+**/.env*
+!**/.env.example
+*.pgpass
+*.sql.gz
+*.backup
+*.bak
+*.pem
+*.key
+
+# Staging credentials, snapshots and sensitive source manifests stay local.
+*.private
+*.private.*
+**/postgres-data/
+**/compose-private/
+
+client/build/
+
+# Publication: retain local trial diagnostics without publishing temporary artifacts.
+server/audit/**/attempts/
+server/audit/**/*development*
+server/audit/**/*diagnostic*
+server/audit/**/*preview*
+server/audit/**/*progress*
+server/audit/**/*preservation*
+server/audit/**/*checkpoint*.json
+server/audit/**/source-before*.json
+server/audit/**/source-inventory.json
+server/audit/**/git-status*.txt
+server/audit/**/staged*.txt
+server/audit/**/diff-check*.txt
+server/audit/**/lint-global.json
+server/audit/**/lint.json
+server/audit/**/lint-final.json
+server/audit/**/work-in-progress.json
+server/audit/**/prune-rewritten-package-lock.json

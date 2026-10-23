@@ -3,7 +3,37 @@
 > Historial completo de versiones, movido desde `context.md` (8 Jul 2026) para mantener el contexto principal en un tamaño legible de una sola pasada.
 > Las reglas vivas del proyecto están en `.agent/context.md` — este archivo es solo historia.
 
-### v2.9.1 (25 Julio 2026) - **Current**
+### v3.0.0 (17 Octubre 2026) - **Current**
+**MAJOR RELEASE — Creatina escalonada, Daily Check-in de hábitos, endpoints agrupados de ultra-bajo roundtrip, importación web de backups y auditoría camino caliente.**
+
+*   **FEATURE — Recordatorios escalonados de Creatina (Web Push CDMX):**
+    - Configurable en Configuración → Cuenta (toggle + hora personalizada, default 16:00 CDMX).
+    - 3 etapas evaluadas cada 10 min en background (`checkCreatineReminders` con `evaluateCreatineReminderStage` de `logic.js`):
+      - Etapa 1 (hora base, ej. 16:00): *"⚡ Hora de tu creatina (5g). Márcala en NexLift."*
+      - Etapa 2 (+3 horas): *"⏳ Pasaron 3 horas y aún no registras tu creatina de hoy."*
+      - Etapa 3 (23:00 CDMX): *"🚨 Última llamada (11 PM): No te vayas a dormir sin tomar tus 5g de creatina."*
+    - Endpoints: `PUT /api/push/creatine-reminder` (configura), `POST /api/push/test-creatine` (prueba inmediata).
+    - Persiste en `User`: `creatineReminderEnabled`, `creatineReminderTime`, `lastCreatineReminderDate`, `lastCreatineReminderStage`.
+*   **FEATURE — Daily Check-in (Hábitos de Adherencia en Dashboard & BodyLog):**
+    - Tres toggles interactivos con actualización optimista en el Dashboard:
+      1. Creatina tomada hoy (5g) — al marcarla anula las etapas push pendientes del día.
+      2. Dieta cumplida (déficit calórico respetado).
+      3. Cero calorías líquidas (cero refrescos azucarados / jugos).
+    - Persistidos en `BodyLog` (`creatineTaken`, `dietCompliant`, `zeroLiquidCalories`).
+    - Endpoints dedicados: `GET /api/body/checkin` y `PUT /api/body/checkin`.
+*   **PERF — Endpoints Agrupados (1 solo round-trip por vista):**
+    - `GET /api/stats/home`: unifica en un solo request KPIs del dashboard, consistencia CDMX, rutina activa (con días y ejercicios), PRs del mes, conteo de plateaus y check-in del día.
+    - `GET /api/stats/progress-page`: unifica en un solo request KPIs de progreso, consistencia anual, PRs con clasificación de fuerza y distribución muscular, eliminando 5 llamadas HTTP paralelas y la descarga de 120 sesiones de historial.
+    - `GET /api/stats/plateaus`: cálculo centralizado en PostgreSQL de ejercicios estancados sobre ventana de 10 sesiones.
+*   **FEATURE — Importación web de backup JSON:**
+    - Nuevo endpoint `POST /api/backup/import` con normalización automática de datos legacy (`normalizeBackupBodyLog`), permitiendo restaurar el historial completo directamente desde la interfaz de Configuración.
+*   **AUDITORÍA & LIMPIEZA DE CÓDIGO (Cero Bugs):**
+    - Poda de código muerto: eliminación de `Cardio.jsx` y `AchievementsStrip.jsx` para aligerar el bundle de la app y enfocar el camino caliente en fuerza, mesociclos y adherencia diaria.
+    - Service Worker actualizado a `v3.0.0-creatine-push` con gestión de cache y soporte de tags push específicos.
+    - `Dockerfile` con `npx prisma db push --skip-generate` automático en cada inicio del contenedor.
+    - 180 tests automatizados en verde (104 backend en `logic.test.js` + `aiRoutineService.test.js`, 76 frontend en Vitest).
+
+### v2.9.1 (25 Julio 2026)
 **FIX CRÍTICO — día de la semana explícito en rutinas manuales.** Reportado en producción: la rutina activa mostraba "día de descanso" en cualquier día de la semana.
 
 *   **Causa:** "qué toca hoy" comparaba `dayName` contra el nombre del día de semana normalizado a 3 letras (`normalizeDay`). Fallaba en silencio para cualquier rutina no nombrada literalmente "Lunes".."Domingo" — las 4 plantillas incorporadas, "Agregar día" (genera "Día N") y el propio ejemplo de JSON de la app. Falsos positivos también: `"Dominadas y remo"` → "dom" = Domingo.

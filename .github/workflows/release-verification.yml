@@ -1,0 +1,29 @@
+name: Release rehearsal (no deployment)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.22.1'
+      - run: npm install --global npm@11.19.1
+      - run: npm ci --no-audit --no-fund
+      - run: npm run db:generate
+      - run: npm run build
+      - run: npm run check:typescript
+      - run: npm run test:contracts
+      - run: npm run test:release
+      - run: npm run lint:release
+      - run: npm run verify:release
+      - run: npm run check:bundle
+      - run: npm run test:release:docker
+        env:
+          NEXLIFT_DOCKER_REHEARSAL: 'true'
+# No credentials, publish/upload, environment deployment or production network.
+# Does not claim to execute Windows/Edge historical tests on Linux.

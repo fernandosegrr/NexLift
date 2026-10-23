@@ -1,0 +1,36 @@
+{
+  "browser": "Microsoft Edge",
+  "reactHookAndApiReal": true,
+  "httpReal": true,
+  "receiptAwaited": true,
+  "ownerPreserved": true,
+  "explicitCancellationAcknowledged": true,
+  "unmountPreserved": true,
+  "requests": [
+    {
+      "method": "POST",
+      "payload": {
+        "exerciseId": "ea",
+        "nextExerciseName": null
+      },
+      "authenticatedAsSyntheticA": true
+    },
+    {
+      "method": "DELETE",
+      "payload": {
+        "reminderId": "generation-0",
+        "fireAt": "2026-10-22T17:00:00.000Z"
+      },
+      "authenticatedAsSyntheticA": true
+    },
+    {
+      "method": "POST",
+      "payload": {
+        "exerciseId": "ea",
+        "nextExerciseName": null
+      },
+      "authenticatedAsSyntheticA": true
+    }
+  ],
+  "productionTouched": false
+}

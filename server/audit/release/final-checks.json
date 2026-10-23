@@ -1,0 +1,32 @@
+{
+  "createdAt": "2026-10-23T04:53:33.775Z",
+  "receivedFiles": 848,
+  "unchanged": 840,
+  "changed": [
+    ".agent/checklist-cero-bugs.md",
+    ".dockerignore",
+    ".node-version",
+    ".nvmrc",
+    "CLAUDE.md",
+    "package.json",
+    "scripts/verify-monorepo.mjs",
+    "server/test/infra.integration.test.js"
+  ],
+  "missing": [],
+  "sourceHashes": 626,
+  "sourceMismatch": [],
+  "finalDiskMismatch": [],
+  "gitDiffCheckExit": 0,
+  "headUnchanged": true,
+  "stagedFiles": [],
+  "protectedChanges": [],
+  "npmTestExit": 0,
+  "uniqueTests": 1464,
+  "repeatedTests": 613,
+  "commands": 88,
+  "allCommandExitsZero": true,
+  "implementation": "COMPLETADA en desarrollo",
+  "localCertification": "CON LIMITACIONES",
+  "deploymentAuthorization": "NO AUTORIZADA",
+  "productionTouched": false
+}

@@ -1,0 +1,21 @@
+{
+  "scope": "Actual HTTP factories with releaseConfig production; injected SQL port, no real database or providers; supplementary assertions not added to unique test total",
+  "postEndpointsDisabled": false,
+  "contract": "Existing authenticated operation endpoints retained; production negotiation/client flags remain false",
+  "results": [
+    {
+      "transport": "express",
+      "route": "/api/v1/workout-capabilities",
+      "status": 200,
+      "enabled": false,
+      "resolutionsAdvertised": false
+    },
+    {
+      "transport": "fastify",
+      "route": "/api/v1/workout-capabilities",
+      "status": 200,
+      "enabled": false,
+      "resolutionsAdvertised": false
+    }
+  ]
+}

@@ -5,9 +5,49 @@
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-![Version](https://img.shields.io/badge/Version-2.7.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-4.0.0-blue?style=flat-square)
 
 ---
+
+## Publicación v4.0 — Fases 1–10
+
+El propietario autorizó commits, push directo a main y su posible despliegue automático.
+El Dockerfile raíz usa ahora la misma receta que Dockerfile.release: Node 24.22.1,
+build de workspaces y arranque HTTP sin DDL. Express continúa disponible; Fastify
+requiere selección y autorización de configuración explícitas.
+
+Configurar las variables obligatorias y puerto 3001 conforme a
+[EasyPanel v4](docs/RELEASE-V4-EASYPANEL.md). El arranque rechaza configuración
+incompleta o esquema incompatible: publicar no ejecuta ni autoriza migraciones
+sobre una baseline desconocida. Linux/Docker y producción aún no están certificados.
+[Runbook](docs/RELEASE-V4-RUNBOOK.md) e
+[informe de publicación](docs/PUBLICATION-V4.md).
+
+Las instrucciones v3 de db push que aparecen más abajo son históricas y quedan
+retiradas: no ejecutarlas sobre producción. Los informes de cada fase conservan
+la autorización y resultados de su ejecución original.
+
+## Desarrollo v4: monorepo (Fase 4.1)
+
+Fase 6: [modelo, migración y recuperación del historial](server/audit/database/PHASE-6-COMPLETE.md).
+`npm run test:database:integration` usa únicamente PostgreSQL nuevo desechable;
+`npm test` verifica compatibilidad anterior y el modelo nuevo en una copia aislada.
+Baseline PROVISIONAL, sin autorización de migración o despliegue productivo.
+
+Con Node **24.22.1** y npm **11.19.1**, desde la raíz: `npm ci`,
+`npm run db:generate`, `npm run check` y `npm run build`. Desarrollo independiente:
+`npm run dev:client` / `npm run dev:server`, exclusivamente con un destino local
+autorizado. `npm test` ejecuta la matriz completa en otra copia y bases desechables;
+`npm run test:client` y `npm run test:server` ejecutan las unitarias independientes.
+
+Procedimiento, lockfiles, límites de shared y TypeScript:
+[docs/MONOREPO.md](docs/MONOREPO.md). Informe:
+[PHASE-4.1.md](server/audit/monorepo/PHASE-4.1.md).
+La primera migración TypeScript (Fase 4.2), sus builds y fachadas de compatibilidad
+se explican en [docs/TYPESCRIPT.md](docs/TYPESCRIPT.md).
+La baseline continúa **PROVISIONAL**. No se modifica producción ni se habilita
+la sincronización nueva allí. El Dockerfile operativo fue sustituido al publicar
+v4; cualquier migración persistente sigue requiriendo una revisión posterior.
 
 ## 📱 Descripción
 
@@ -43,25 +83,34 @@ Funciona instalada como app nativa (offline-first) y también admite registrar s
 - Registra una serie sin abrir la app: un Atajo consulta la sugerencia del próximo ejercicio y guarda la serie contra la misma cuenta.
 - Compatible con sesiones parciales: si ya registraste algunas series por el Atajo, la app las muestra editables junto con las que faltan, sin fragmentar el registro del día.
 
-### 🔔 Notificaciones Push
-- Aviso de fin de descanso al completar cada serie (con el nombre del ejercicio correcto si tocaba cambiar de ejercicio).
-- Recordatorio de "¿no vas a entrenar hoy?" si llevas 3+ días sin registrar actividad, a tu hora habitual de gym.
+### 🔔 Notificaciones Push (Web Push / VAPID)
+- **Recordatorios escalonados de Creatina (3 etapas):** Notificaciones automáticas en horario CDMX a la hora programada (ej. 16:00), a las +3 horas si no se ha tomado, y última llamada a las 23:00 antes de dormir.
+- **Aviso de fin de descanso:** Alerta al completar cada serie (con el nombre del ejercicio siguiente si tocaba cambiar de ejercicio).
+- **Re-enganche:** Recordatorio de "¿no vas a entrenar hoy?" si llevas 3+ días sin registrar actividad, a tu hora habitual de gym.
 - Totalmente opcional — sin claves VAPID configuradas, la app funciona igual, solo sin push.
 
+### ⚡ Daily Check-in & Hábitos (Adherencia en Dashboard)
+- Toggles interactivos optimistas en la pantalla de inicio para registrar diariamente:
+  - ⚡ Creatina tomada (5g) — anula automáticamente las etapas push restantes del día.
+  - 🥗 Déficit calórico o dieta cumplida.
+  - 💧 Cero calorías líquidas (cero refrescos o jugos con azúcar).
+
 ### 📊 Análisis y Progreso
-- Dashboard con racha, heatmap de consistencia estilo GitHub, PRs del mes y logros con progreso real (no solo un ícono).
+- **Carga instantánea:** Endpoints agrupados (`/api/stats/home` y `/api/stats/progress-page`) que devuelven todas las métricas en un solo roundtrip HTTP.
+- Dashboard con racha, heatmap de consistencia estilo GitHub y PRs del mes.
 - Evolución de 1RM estimado, distribución de volumen por grupo muscular, cumplimiento semanal.
 - **Objetivos (Goals):** planes de periodización (Fuerza/Hipertrofia) generados desde tu 1RM real o uno manual.
 
 ### 🏋️ Body Tracking
 - Peso corporal + 8 métricas de báscula inteligente (grasa, agua, músculo, hueso, visceral, proteína, BMI, BMR).
 - Fotos de progreso: suben a Cloudinary si está configurado, con fallback automático a Catbox.moe.
+- Comparador visual con deslizador y visor fullscreen con zoom.
 
 ### 📄 Reportes PDF
 - Exportación con rango configurable (7/30/90 días): resumen ejecutivo, tabla de PRs, detalle diario de volumen, composición corporal y galería de fotos.
 
 ### 🎨 PWA
-- OLED negro puro, instalable desde el navegador, funciona offline (assets cache-first, navegación y API network-first con respaldo).
+- OLED negro puro, instalable desde el navegador, shell/assets offline. API y Authorization solo por red; journal y borradores propios en Dexie bajo las flags de ensayo, con conservación de legacy y confirmación mediante comprobantes (Fases 3.1–3.5).
 
 ---
 
@@ -87,6 +136,11 @@ Funciona instalada como app nativa (offline-first) y también admite registrar s
 
 ```
 NexLift/
+├── package.json + package-lock.json # npm workspaces y versiones reproducibles
+├── packages/shared/            # Paquete puro mínimo; sin lógica deportiva todavía
+├── configs/                    # Bases TypeScript para adopción gradual
+├── scripts/                    # Verificación aislada, límites y Prisma offline
+├── docs/MONOREPO.md            # Procedimiento actual de desarrollo
 ├── client/                    # React SPA (Vite)
 │   ├── src/
 │   │   ├── components/        # goals/, layout/, ui/ + componentes sueltos
@@ -98,10 +152,10 @@ NexLift/
 │   └── public/                 # sw.js (service worker), manifest, íconos
 ├── server/                    # Express — ÚNICO backend (desarrollo y producción)
 │   ├── src/index.js            # API + helpers de fecha CDMX + sirve client/dist en prod
-│   ├── prisma/schema.prisma     # Schema (se sincroniza con `db push`, sin carpeta migrations/)
+│   ├── prisma/                  # Schema intacto + migraciones PROVISIONALES
 │   └── scripts/ + *.mjs          # Mantenimiento: migración de fotos a Cloudinary, fix de RIR del Atajo...
 ├── .agent/
-│   └── context.md              # Documentación exhaustiva para IA — fuente de verdad técnica
+│   └── context.md              # Contexto histórico; contrastar con código e informes PHASE
 ├── CLAUDE.md                   # Guía para Claude Code (arquitectura, convenciones, gotchas)
 └── Dockerfile                  # Build multi-stage: compila client, genera Prisma, arranca server
 ```
@@ -138,21 +192,29 @@ Plantilla completa en [`server/.env.example`](server/.env.example).
 
 ### Backup y restauración
 
-Con `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET` configuradas, el server sube automáticamente cada día (~04:00 hora CDMX) un JSON completo de rutinas, entrenamientos, PRs, body logs, goals y descansos por usuario a Cloudinary, como recurso `raw`+`authenticated` (no público) en la carpeta `nexlift-backups/`. Se conservan los 14 más recientes; los más viejos se borran solos. Sin esas 3 variables, el job es un no-op silencioso — el server arranca igual.
+El formato v4 centraliza la exportación manual y automática: 15 modelos exportables, IDs, rutinas manuales/IA, historial, objetivos, mesociclos, cardio, perfil y preferencias seguras, con manifiesto y SHA-256. `GET /api/backup/export` entrega un snapshot consistente sin truncar el historial. Settings analiza cada importación antes de mostrar el botón para aplicarla. La restauración es transaccional, remapea IDs al cambiar de cuenta y rechaza contenidos existentes diferentes sin sobrescribirlos.
 
 - **Forzar un backup ahora:** `POST /api/backup/run` (autenticado) — corre solo para el usuario del token, útil antes de una operación riesgosa o para probar la integración.
-- **Ver la fecha del último backup exitoso:** `GET /api/health` → `backup.users[].lastBackupAt` (y `lastBackupError` si algo falló).
-- **Restaurar** (DB nueva/perdida, o revertir un desastre): el usuario destino debe existir ya en la DB (mismo `username` que tenía el backup — regístralo primero si hace falta). Luego:
-  ```bash
+- **Consultar el respaldo propio:** `GET /api/backup/status` con autenticación → `lastBackupAt` y `hasBackupError`. Los probes públicos `/api/health` y `/api/ready` no exponen datos de respaldos.
+- **Restaurar JSON:** la cuenta destino debe estar registrada; sus credenciales nunca se importan. Las CLI ya **no cargan `.env` ni infieren el destino de `DATABASE_URL`**. Ejemplo con una base local nueva:
+  ```powershell
   cd server
-  node restore-backup.mjs                    # dry-run: solo cuenta qué restauraría, usa el backup más reciente
-  node restore-backup.mjs --apply             # aplica de verdad (idempotente — puede correrse más de una vez)
-  node restore-backup.mjs --user=otro_usuario --apply   # forzar a qué cuenta reconectar los datos
-  node restore-backup.mjs --file=./backup.json --apply  # restaurar desde un JSON ya descargado a mano
+  $env:NEXLIFT_RESTORE_DATABASE_URL='postgresql://usuario@127.0.0.1:5432/nexlift_recuperacion'
+  node restore-backup.mjs --file=./backup.json --user=cuenta
+  node restore-backup.mjs --file=./backup.json --user=cuenta --apply
   ```
-  El backup **no incluye** contraseña ni pregunta de seguridad (se excluyen a propósito antes de subir el JSON a un CDN de terceros) — el restore solo repone historial de entrenamiento, nunca credenciales.
+  `--restore-profile` permite aplicar el perfil seguro; `--allow-incomplete` reconoce las omisiones detalladas de un legacy. Cloudinary exige `--source-user-id=<id>`; los archivos anteriores requieren además `--public-id` explícito y `--allow-legacy-cloud`. No se selecciona el último respaldo global.
 
-**Complemento recomendado (segunda capa, no automatizada por la app):** además de este backup a nivel aplicación, agregar un cron a nivel VPS con `pg_dump` completo de la base (EasyPanel permite agregar un servicio/cron aparte). Este backup de Cloudinary cubre "perdí el JSON estructurado de mis datos"; un `pg_dump` cubre "perdí la base completa" (incluye credenciales, todos los usuarios, y no depende de que el server de la app haya podido correr ese día).
+Con Cloudinary configurado, el job diario (~04:00 CDMX) sube recursos `raw` + `authenticated` y verifica su descarga. Se organizan en `nexlift-backups/users/<hash-del-id>/`; la retención tiene límite de 14 por cuenta y ordena por `created_at`. **La poda está en análisis por defecto** (`NEXLIFT_BACKUP_PRUNE_ENABLED=false`). Su activación operativa posterior afecta solamente al nuevo namespace; los archivos legacy no se podan. Acceso autenticado no equivale a cifrado propio del archivo.
+
+Un archivo recién exportado indica `restoreVerified:false`. Para certificar **ese archivo**, el siguiente comando crea un PostgreSQL temporal nuevo, restaura, compara todos los datos y comprueba la repetición; el comprobante externo identifica su checksum:
+
+```powershell
+cd server
+node test/run-backup-integration.mjs --verify-file=C:/respaldos/backup.json --receipt=C:/respaldos/backup.verificado.json
+```
+
+La recuperación PostgreSQL utiliza `postgres-recovery.mjs` (`pg_dump`/`pg_restore`, esquema y datos seguros). Por la política de excluir secretos, omite credenciales y push; requiere restablecer el acceso a las cuentas. Restore exige una base nueva sin tablas y verifica conteos y datos antes del commit. **Las fotos solo se conservan como URL; sus binarios no están respaldados.** Procedimientos, resultados, retención externa y límites: [informe de fase 1.3](server/test/PHASE-1.3.md).
 
 ---
 
@@ -167,8 +229,8 @@ Con `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET` configu
       "dayName": "Torso",
       "weekday": 1,
       "exercises": [
-        { "name": "press banca", "sets": 4, "reps": "8-10" },
-        { "name": "remo pendlay", "sets": 4, "reps": "8-10" }
+        { "name": "press banca", "targetSets": 4, "targetReps": "8-10", "restSeconds": 150, "muscleGroup": "Pecho" },
+        { "name": "remo pendlay", "targetSets": 4, "targetReps": "4-6", "restSeconds": 0, "muscleGroup": "Espalda", "isUnilateral": false, "note": "Técnica controlada" }
       ]
     },
     {
@@ -183,9 +245,33 @@ Con `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET` configu
 
 `weekday`: 0=Domingo … 6=Sábado. Si lo omites y `dayName` trae un día ("Lunes - Torso"), se asigna solo — pero un nombre sin día ("Push", "Día 1") queda sin programar hasta que lo asignes en el editor.
 
+Se conservan los alias históricos `sets`, `reps`, `rest`, `muscle` y `day.name`. Si aparecen junto a su campo canónico, deben expresar el mismo valor; los conflictos devuelven `400` indicando el campo. `restSeconds: 0` significa cero segundos y `null` significa sin descanso configurado. Los valores por defecto solo se aplican a campos ausentes. El servidor valida el grafo completo y confirma la importación después de completar la transacción. Contrato, reglas y pruebas: [informe de fase 1.4](server/test/PHASE-1.4.md).
+
 > 💡 **Tip:** Pídele a ChatGPT que genere tu rutina en este formato JSON.
 
+La persistencia de entrenamientos, series y récords personales se verifica en el
+[informe de fase 1.5](server/test/PHASE-1.5.md), con transacciones, concurrencia,
+contratos HTTP y pruebas sobre PostgreSQL aislado.
+
 ---
+
+La auditoría de PostgreSQL y preparación de migraciones está en el
+[informe de fase 2.1](server/audit/postgresql/PHASE-2.1.md), con inventario completo,
+SQL de lectura y procedimiento de baseline pendiente de activación.
+
+La [fase 2.2](server/audit/postgresql/PHASE-2.2.md) incorpora una baseline
+**PROVISIONAL**, ensayos aislados de Prisma Migrate, recuperación del historial
+y una propuesta de arranque con validación previa. No activa migraciones en producción.
+
+La [fase 2.3](server/audit/infrastructure/PHASE-2.3.md) prepara Node 24 LTS,
+Docker multietapa de ensayo y separa fallos de PostgreSQL de sesiones inválidas.
+El [procedimiento de infraestructura](server/deploy/INFRASTRUCTURE-2.3.md) sigue
+sin activar migraciones ni sustituir el Dockerfile de producción.
+
+La [fase 2.4](server/audit/staging/PHASE-2.4.md) crea staging local aislado con
+PostgreSQL, API y frontend, referencia sintética protegida y restauraciones
+verificadas. El [procedimiento operativo](server/deploy/STAGING-2.4.md) incluye
+Compose y EasyPanel pendientes de validación. La baseline continúa PROVISIONAL.
 
 ## 🔧 Desarrollo Local
 
@@ -213,16 +299,22 @@ npm run dev
 
 **Tests (funciones puras, sin DB ni navegador):**
 ```bash
-cd client && npm test   # vitest — exerciseName.js, paridad cliente/servidor
-cd server && npm test   # node --test — server/src/logic.js
+cd client && npm test   # vitest — 76 tests (exerciseName, dates, routineDays parity, smartLoading parity, offlineQueue)
+cd server && npm test   # node --test — 104 tests (server/src/logic.js, aiRoutineService.js)
 ```
-> ⚠️ Estos tests cubren solo lógica pura (fechas, plateau, Smart Loading, RIR). El resto (rutinas, auth, integración con Prisma/UI) sigue sin cobertura automatizada — pruébalo a mano (navegador, datos reales) antes de darlo por bueno.
+> ⚠️ La suite de 180 tests automatizados cubre de forma exhaustiva la lógica pura (fechas CDMX, periodización, Smart Loading, paridad cliente/servidor, rotaciones y creatina).
 
 ---
 
 ## 📜 Changelog
 
 Historial completo y detallado (con causa raíz de cada fix) en [`.agent/changelog.md`](.agent/changelog.md). Resumen de versiones recientes:
+
+### v3.0.0 (17 Oct 2026) — Creatina, Daily Check-in y Endpoints Agrupados
+Recordatorios escalonados de creatina (Web Push en 3 etapas), Daily Check-in de hábitos en Dashboard (`BodyLog`: creatina, dieta, cero calorías líquidas), endpoints agregados de 1 solo roundtrip (`/api/stats/home` y `/api/stats/progress-page`), importación web de backups (`POST /api/backup/import`), poda de código muerto y suite de 180 tests automáticos.
+
+### v2.9.1 (25 Jul 2026) — Día de la semana explícito en rutinas manuales
+`RoutineDay.weekday` explícito (0=Dom..6=Sáb) asignado vía `WeekdayPicker.jsx` para que las rutinas manuales siempre identifiquen correctamente qué día toca hoy sin depender del nombre de texto. Migración automática de datos existentes y tests de paridad.
 
 ### v2.8.2 (14 Jul 2026) — Camino caliente a prueba de bugs
 Fix `getTodayName` (día de semana CDMX, no UTC del contenedor), filtros de historial por día CDMX, validación centralizada de series/RIR (API + Atajo), tests ampliados y checklist anti-regresión (`.agent/checklist-cero-bugs.md`).
@@ -286,3 +378,19 @@ Service worker instalable y offline, code-splitting del bundle, sistema de logro
 Este proyecto está licenciado bajo la [Licencia MIT](LICENSE).
 
 Copyright © 2026 Fernando Guerrero
+
+## NexLift — Fase 3.1
+
+Backend de operaciones idempotentes preparado y probado exclusivamente en PostgreSQL desechable. Contrato, migración provisional, concurrencia, fechas originales y recuperación: [informe de la fase 3.1](server/audit/operations/PHASE-3.1.md). La sincronización automática del frontend sigue sin activarse.
+
+## NexLift — Fase 3.2
+
+La sincronización automática del frontend se incorpora bajo activación explícita y se demuestra en ensayo aislado. Producción continúa deshabilitada. El journal conserva identificadores, fechas, conflictos y datos legacy; PostgreSQL aporta la idempotencia. Arquitectura, configuración, pruebas y límites pendientes: [informe de la fase 3.2](server/audit/sync/PHASE-3.2.md).
+
+## NexLift — Fase 3.3
+
+La migración recuperable a IndexedDB/Dexie se documenta en [Fase 3.3](server/audit/storage/PHASE-3.3.md). Ambas flags permanecen deshabilitadas por defecto; no se retiran los originales legacy.
+
+Fase 3.4: [Resolución de conflictos y concurrencia offline](server/audit/conflicts/PHASE-3.4.md).
+
+Fase 3.5: [Estabilización integral offline, pruebas end-to-end y gates de activación](server/audit/offline/PHASE-3.5.md). La activación en producción permanece bloqueada.

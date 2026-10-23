@@ -1,0 +1,11 @@
+{
+  "exit": 0,
+  "createdAt": "2026-10-23T04:51:39.438Z",
+  "isolatedDirectory": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-verification\\nexlift-phase10-verification-B201jV",
+  "uniqueTests": 1464,
+  "historicalTests": 1441,
+  "newTests": 23,
+  "repeatedTests": 613,
+  "commands": 88,
+  "allCommandExitsZero": true
+}

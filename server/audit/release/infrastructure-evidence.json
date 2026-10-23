@@ -1,0 +1,20 @@
+{
+  "createdAt": "2026-10-23T04:12:03.6333509Z",
+  "os": "Windows x64",
+  "node": "24.22.1",
+  "npm": "11.19.1",
+  "nodeRuntime": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-phase10-runtime-690c75b7-a37f-455c-aa6c-f8c5a3cf35bf\\node-v24.22.1-win-x64",
+  "runtimeArchiveSha256": "d2046d28c2c3dcd211ac5145c0bf30e2047ef9dfb306693c8c6e2eccd8b95fa5",
+  "dockerCliAvailable": false,
+  "podmanAvailable": false,
+  "wslInstalled": false,
+  "linuxExecuted": false,
+  "easyPanelAccessed": false,
+  "workflowExecuted": false,
+  "nodeBase": "node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205",
+  "postgresBase": "postgres:18.4-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382",
+  "digestsSource": "Docker Hub registry-1.docker.io public manifest HEAD/GET; no runtime execution",
+  "backup": "C:/Users/guerr/.codex/artifacts/nexlift-phase10-received-4326dd32-6bbd-4128-8bb2-881502686d71",
+  "verifiedReceivedFiles": 848,
+  "productionTouched": false
+}

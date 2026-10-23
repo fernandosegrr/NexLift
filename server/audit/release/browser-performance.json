@@ -1,0 +1,28 @@
+{
+  "browser": "Edge desktop",
+  "mode": "Vite development, synthetic HTTP harness, disabled browser cache, warm compiler",
+  "measurements": [
+    {
+      "dashboardVisibleMs": 4059.7000000029802,
+      "firstContentfulPaintMs": null,
+      "resources": 70,
+      "homeRequests": 1
+    },
+    {
+      "dashboardVisibleMs": 546.8999999910593,
+      "firstContentfulPaintMs": 496,
+      "resources": 68,
+      "homeRequests": 1
+    },
+    {
+      "dashboardVisibleMs": 457.1000000089407,
+      "firstContentfulPaintMs": 420,
+      "resources": 68,
+      "homeRequests": 1
+    }
+  ],
+  "p50": 546.8999999910593,
+  "p95": 4059.7000000029802,
+  "n": 3,
+  "note": "Small descriptive sample, polled upper bound to visible dashboard; not Lighthouse, production load or physical iPhone."
+}

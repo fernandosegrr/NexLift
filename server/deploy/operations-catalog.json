@@ -1,0 +1,238 @@
+{
+  "extras": [],
+  "tables": [
+    {
+      "rls": false,
+      "kind": "r",
+      "name": "IdempotencyRecord"
+    }
+  ],
+  "columns": [
+    {
+      "name": "createdAt",
+      "type": "timestamp(3) with time zone",
+      "table": "IdempotencyRecord",
+      "default": "CURRENT_TIMESTAMP",
+      "identity": "",
+      "nullable": false,
+      "collation": null,
+      "generated": ""
+    },
+    {
+      "name": "kind",
+      "type": "text",
+      "table": "IdempotencyRecord",
+      "default": null,
+      "identity": "",
+      "nullable": false,
+      "collation": "default",
+      "generated": ""
+    },
+    {
+      "name": "operationId",
+      "type": "uuid",
+      "table": "IdempotencyRecord",
+      "default": null,
+      "identity": "",
+      "nullable": false,
+      "collation": null,
+      "generated": ""
+    },
+    {
+      "name": "performedAt",
+      "type": "timestamp(3) with time zone",
+      "table": "IdempotencyRecord",
+      "default": null,
+      "identity": "",
+      "nullable": false,
+      "collation": null,
+      "generated": ""
+    },
+    {
+      "name": "performedDay",
+      "type": "date",
+      "table": "IdempotencyRecord",
+      "default": null,
+      "identity": "",
+      "nullable": false,
+      "collation": null,
+      "generated": ""
+    },
+    {
+      "name": "requestHash",
+      "type": "text",
+      "table": "IdempotencyRecord",
+      "default": null,
+      "identity": "",
+      "nullable": false,
+      "collation": "default",
+      "generated": ""
+    },
+    {
+      "name": "resourceId",
+      "type": "text",
+      "table": "IdempotencyRecord",
+      "default": null,
+      "identity": "",
+      "nullable": false,
+      "collation": "default",
+      "generated": ""
+    },
+    {
+      "name": "response",
+      "type": "jsonb",
+      "table": "IdempotencyRecord",
+      "default": null,
+      "identity": "",
+      "nullable": false,
+      "collation": null,
+      "generated": ""
+    },
+    {
+      "name": "responseStatus",
+      "type": "integer",
+      "table": "IdempotencyRecord",
+      "default": null,
+      "identity": "",
+      "nullable": false,
+      "collation": null,
+      "generated": ""
+    },
+    {
+      "name": "state",
+      "type": "text",
+      "table": "IdempotencyRecord",
+      "default": "'confirmed'::text",
+      "identity": "",
+      "nullable": false,
+      "collation": "default",
+      "generated": ""
+    },
+    {
+      "name": "userId",
+      "type": "text",
+      "table": "IdempotencyRecord",
+      "default": null,
+      "identity": "",
+      "nullable": false,
+      "collation": "default",
+      "generated": ""
+    }
+  ],
+  "indexes": [
+    {
+      "name": "IdempotencyRecord_pkey",
+      "ready": true,
+      "table": "IdempotencyRecord",
+      "valid": true,
+      "unique": true,
+      "primary": true,
+      "definition": "CREATE UNIQUE INDEX \"IdempotencyRecord_pkey\" ON nexlift_operations.\"IdempotencyRecord\" USING btree (\"userId\", \"operationId\")"
+    },
+    {
+      "name": "IdempotencyRecord_resourceId_idx",
+      "ready": true,
+      "table": "IdempotencyRecord",
+      "valid": true,
+      "unique": false,
+      "primary": false,
+      "definition": "CREATE INDEX \"IdempotencyRecord_resourceId_idx\" ON nexlift_operations.\"IdempotencyRecord\" USING btree (\"userId\", \"resourceId\")"
+    }
+  ],
+  "constraints": [
+    {
+      "name": "IdempotencyRecord_hash_check",
+      "type": "c",
+      "table": "IdempotencyRecord",
+      "validated": true,
+      "deferrable": false,
+      "definition": "CHECK (\"requestHash\" ~ '^[a-f0-9]{64}$'::text)",
+      "initiallyDeferred": false
+    },
+    {
+      "name": "IdempotencyRecord_kind_check",
+      "type": "c",
+      "table": "IdempotencyRecord",
+      "validated": true,
+      "deferrable": false,
+      "definition": "CHECK (kind = ANY (ARRAY['workout.create'::text, 'workout.appendSet'::text, 'workout.replaceSets'::text, 'workout.delete'::text, 'rest.create'::text]))",
+      "initiallyDeferred": false
+    },
+    {
+      "name": "IdempotencyRecord_pkey",
+      "type": "p",
+      "table": "IdempotencyRecord",
+      "validated": true,
+      "deferrable": false,
+      "definition": "PRIMARY KEY (\"userId\", \"operationId\")",
+      "initiallyDeferred": false
+    },
+    {
+      "name": "IdempotencyRecord_response_check",
+      "type": "c",
+      "table": "IdempotencyRecord",
+      "validated": true,
+      "deferrable": false,
+      "definition": "CHECK (jsonb_typeof(response) = 'object'::text AND length(\"resourceId\") > 0)",
+      "initiallyDeferred": false
+    },
+    {
+      "name": "IdempotencyRecord_state_check",
+      "type": "c",
+      "table": "IdempotencyRecord",
+      "validated": true,
+      "deferrable": false,
+      "definition": "CHECK (state = 'confirmed'::text)",
+      "initiallyDeferred": false
+    },
+    {
+      "name": "IdempotencyRecord_status_check",
+      "type": "c",
+      "table": "IdempotencyRecord",
+      "validated": true,
+      "deferrable": false,
+      "definition": "CHECK (\"responseStatus\" = ANY (ARRAY[200, 201]))",
+      "initiallyDeferred": false
+    },
+    {
+      "name": "IdempotencyRecord_time_check",
+      "type": "c",
+      "table": "IdempotencyRecord",
+      "validated": true,
+      "deferrable": false,
+      "definition": "CHECK (isfinite(\"performedAt\") AND isfinite(\"performedDay\") AND \"performedDay\" = (\"performedAt\" AT TIME ZONE 'America/Mexico_City'::text)::date)",
+      "initiallyDeferred": false
+    },
+    {
+      "name": "IdempotencyRecord_userId_fkey",
+      "type": "f",
+      "table": "IdempotencyRecord",
+      "validated": true,
+      "deferrable": false,
+      "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+      "initiallyDeferred": false
+    }
+  ],
+  "foreignKeys": [
+    {
+      "name": "IdempotencyRecord_userId_fkey",
+      "table": "IdempotencyRecord",
+      "columns": [
+        "userId"
+      ],
+      "onDelete": "CASCADE",
+      "onUpdate": "CASCADE",
+      "validated": true,
+      "deferrable": false,
+      "triggerModes": [
+        "O"
+      ],
+      "referencedTable": "User",
+      "referencedSchema": "public",
+      "initiallyDeferred": false,
+      "referencedColumns": [
+        "id"
+      ]
+    }
+  ]
+}

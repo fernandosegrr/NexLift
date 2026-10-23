@@ -1,8 +1,9 @@
-# Plan de mejoras de NexLift — para ejecutar con una IA (Sonnet)
+# Plan de mejoras de NexLift — para ejecutar con una IA
 
-> **Estado (13 Julio 2026):** P0–P5 **completadas** (v2.5.0 → v2.6.2). Después: producto v2.7.0 (calentamiento, chip de objetivo, rutina IA) y **auditoría de producto v2.7.1** (fix/polish sección por sección — ver `.agent/changelog.md`). Este archivo queda como referencia histórica del plan técnico; no re-ejecutar fases ya cerradas sin leer el changelog.
+> **Estado (17 Octubre 2026):** P0–P5 **completadas** (v2.5.0 → v2.6.2). Mejoras de producto y estabilidad v2.7.x–v2.9.x completadas. **v3.0.0 completada** (recordatorios escalonados de creatina, Daily Check-in de hábitos, endpoints agrupados de 1 solo round-trip `stats/home` y `stats/progress-page`, importación web de backups y 180 tests automatizados — ver `.agent/changelog.md`).
 >
-> **Cómo se usó este plan:** UNA fase por sesión, en orden (P0 → P5). Al terminar cada fase: verificar a mano (+ tests de P1 en adelante), actualizar `.agent/context.md` + `.agent/changelog.md`, versionar, commitear con prefijo `feat:`/`fix:` en español.
+> Este archivo queda como referencia histórica y metodológica de la evolución de las fases de ingeniería del proyecto.
+
 
 ---
 

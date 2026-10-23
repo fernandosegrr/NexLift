@@ -1,0 +1,408 @@
+{
+  "errors": 19,
+  "warnings": 2,
+  "newFindings": 0,
+  "globalLintExit": 1,
+  "findings": [
+    {
+      "file": "src/components/ui/Celebration.jsx",
+      "messages": [
+        {
+          "ruleId": "react-hooks/purity",
+          "severity": 2,
+          "message": "Error: Cannot call impure function during render\n\n`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).\n\n  37 |                         backgroundColor: p.color,\n  38 |                         borderRadius: '2px',\n> 39 |                         transform: `rotate(${Math.random() * 360}deg)`\n     |                                              ^^^^^^^^^^^^^ Cannot call impure function\n  40 |                     }}\n  41 |                 />\n  42 |             ))}",
+          "line": 39,
+          "column": 46,
+          "nodeType": null,
+          "endLine": 39,
+          "endColumn": 59
+        }
+      ]
+    },
+    {
+      "file": "src/components/ui/MuscleIcon.jsx",
+      "messages": [
+        {
+          "ruleId": "react-refresh/only-export-components",
+          "severity": 2,
+          "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.",
+          "line": 72,
+          "column": 17,
+          "nodeType": "Identifier",
+          "messageId": "namedExport",
+          "endLine": 72,
+          "endColumn": 31
+        },
+        {
+          "ruleId": "react-refresh/only-export-components",
+          "severity": 2,
+          "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.",
+          "line": 79,
+          "column": 17,
+          "nodeType": "Identifier",
+          "messageId": "namedExport",
+          "endLine": 79,
+          "endColumn": 30
+        },
+        {
+          "ruleId": "react-refresh/only-export-components",
+          "severity": 2,
+          "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.",
+          "line": 86,
+          "column": 17,
+          "nodeType": "Identifier",
+          "messageId": "namedExport",
+          "endLine": 86,
+          "endColumn": 31
+        }
+      ]
+    },
+    {
+      "file": "src/components/ui/Toast.jsx",
+      "messages": [
+        {
+          "ruleId": "react-refresh/only-export-components",
+          "severity": 2,
+          "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.",
+          "line": 11,
+          "column": 17,
+          "nodeType": "Identifier",
+          "messageId": "namedExport",
+          "endLine": 11,
+          "endColumn": 25
+        }
+      ]
+    },
+    {
+      "file": "src/context/AuthContext.jsx",
+      "messages": [
+        {
+          "ruleId": "react-hooks/immutability",
+          "severity": 2,
+          "message": "Error: Cannot access variable before it is declared\n\n`logout` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.\n\n  48 |                     // En errores de red (backend caído) mantener la sesión guardada.\n  49 |                     if (err && err.status === 401 && localStorage.getItem(TOKEN_KEY) === savedToken) {\n> 50 |                         logout();\n     |                         ^^^^^^ `logout` accessed before it is declared\n  51 |                     }\n  52 |                     // Error de red/transitorio: conservar el usuario almacenado.\n  53 |                 })\n\n  113 |     };\n  114 |\n> 115 |     function logout() {\n      |     ^^^^^^^^^^^^^^^^^^^\n> 116 |         authGeneration.current++;\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 117 |         accountScope(null, null);\n      …\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 129 |         clearHomeCache();\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 130 |     };\n      | ^^^^^^ `logout` is declared here\n  131 |\n  132 |     const updateProfile = async (data) => {\n  133 |         const updated = await api.updateProfile(token, data);",
+          "line": 50,
+          "column": 25,
+          "nodeType": null,
+          "endLine": 50,
+          "endColumn": 31
+        },
+        {
+          "ruleId": "react-refresh/only-export-components",
+          "severity": 2,
+          "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.",
+          "line": 189,
+          "column": 17,
+          "nodeType": "Identifier",
+          "messageId": "namedExport",
+          "endLine": 189,
+          "endColumn": 24
+        }
+      ]
+    },
+    {
+      "file": "src/pages/BodyTracking.jsx",
+      "messages": [
+        {
+          "ruleId": "react-refresh/only-export-components",
+          "severity": 2,
+          "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.",
+          "line": 18,
+          "column": 17,
+          "nodeType": "Identifier",
+          "messageId": "namedExport",
+          "endLine": 18,
+          "endColumn": 31
+        }
+      ]
+    },
+    {
+      "file": "src/pages/Dashboard.jsx",
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "message": "'prs' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u.",
+          "line": 60,
+          "column": 11,
+          "nodeType": "Identifier",
+          "messageId": "unusedVar",
+          "endLine": 60,
+          "endColumn": 14,
+          "suggestions": [
+            {
+              "messageId": "removeVar",
+              "data": {
+                "varName": "prs"
+              },
+              "fix": {
+                "range": [
+                  2357,
+                  2416
+                ],
+                "text": ""
+              },
+              "desc": "Remove unused variable 'prs'."
+            }
+          ]
+        },
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "message": "'Icon' is defined but never used.",
+          "line": 404,
+          "column": 42,
+          "nodeType": "Identifier",
+          "messageId": "unusedVar",
+          "endLine": 404,
+          "endColumn": 46,
+          "suggestions": [
+            {
+              "messageId": "removeVar",
+              "data": {
+                "varName": "Icon"
+              },
+              "fix": {
+                "range": [
+                  20804,
+                  20815
+                ],
+                "text": ""
+              },
+              "desc": "Remove unused variable 'Icon'."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "src/pages/EditSession.jsx",
+      "messages": [
+        {
+          "ruleId": "react-hooks/exhaustive-deps",
+          "severity": 1,
+          "message": "React Hook useEffect has a missing dependency: 'fetchSession'. Either include it or remove the dependency array.",
+          "line": 43,
+          "column": 8,
+          "nodeType": "ArrayExpression",
+          "endLine": 43,
+          "endColumn": 15,
+          "suggestions": [
+            {
+              "desc": "Update the dependencies array to be: [fetchSession, logId]",
+              "fix": {
+                "range": [
+                  2012,
+                  2019
+                ],
+                "text": "[fetchSession, logId]"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "src/pages/ExportReport.jsx",
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "message": "'error' is defined but never used.",
+          "line": 131,
+          "column": 18,
+          "nodeType": "Identifier",
+          "messageId": "unusedVar",
+          "endLine": 131,
+          "endColumn": 23
+        }
+      ]
+    },
+    {
+      "file": "src/pages/NewGoal.jsx",
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "message": "'setFrequencyPerWeek' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u.",
+          "line": 55,
+          "column": 30,
+          "nodeType": "Identifier",
+          "messageId": "unusedVar",
+          "endLine": 55,
+          "endColumn": 49,
+          "suggestions": [
+            {
+              "messageId": "removeVar",
+              "data": {
+                "varName": "setFrequencyPerWeek"
+              },
+              "fix": {
+                "range": [
+                  2833,
+                  2854
+                ],
+                "text": ""
+              },
+              "desc": "Remove unused variable 'setFrequencyPerWeek'."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "src/pages/Settings.jsx",
+      "messages": [
+        {
+          "ruleId": "react-hooks/exhaustive-deps",
+          "severity": 1,
+          "message": "React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array.",
+          "line": 249,
+          "column": 8,
+          "nodeType": "ArrayExpression",
+          "endLine": 249,
+          "endColumn": 10,
+          "suggestions": [
+            {
+              "desc": "Update the dependencies array to be: [fetchData]",
+              "fix": {
+                "range": [
+                  10076,
+                  10078
+                ],
+                "text": "[fetchData]"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "message": "'err' is defined but never used.",
+          "line": 522,
+          "column": 18,
+          "nodeType": "Identifier",
+          "messageId": "unusedVar",
+          "endLine": 522,
+          "endColumn": 21
+        },
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "message": "'err' is defined but never used.",
+          "line": 542,
+          "column": 18,
+          "nodeType": "Identifier",
+          "messageId": "unusedVar",
+          "endLine": 542,
+          "endColumn": 21
+        }
+      ]
+    },
+    {
+      "file": "src/pages/Workout.jsx",
+      "messages": [
+        {
+          "ruleId": "react-hooks/set-state-in-effect",
+          "severity": 2,
+          "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).\n\n  155 |\n  156 |     useEffect(() => {\n> 157 |         setPreviousBest(null);\n      |         ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect\n  158 |         setSuggestion(null);\n  159 |         setGoalSessions([]);\n  160 |         setLastSession(null);",
+          "line": 157,
+          "column": 9,
+          "nodeType": null,
+          "endLine": 157,
+          "endColumn": 24
+        }
+      ]
+    },
+    {
+      "file": "src/services/api.js",
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "message": "'e' is defined but never used.",
+          "line": 34,
+          "column": 14,
+          "nodeType": "Identifier",
+          "messageId": "unusedVar",
+          "endLine": 34,
+          "endColumn": 15
+        },
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "message": "'e' is defined but never used.",
+          "line": 421,
+          "column": 18,
+          "nodeType": "Identifier",
+          "messageId": "unusedVar",
+          "endLine": 421,
+          "endColumn": 19
+        }
+      ]
+    },
+    {
+      "file": "src/utils/dayPdf.js",
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "message": "'epley' is defined but never used. Allowed unused vars must match /^[A-Z_]/u.",
+          "line": 21,
+          "column": 10,
+          "nodeType": "Identifier",
+          "messageId": "unusedVar",
+          "endLine": 21,
+          "endColumn": 15,
+          "suggestions": [
+            {
+              "messageId": "removeVar",
+              "data": {
+                "varName": "epley"
+              },
+              "fix": {
+                "range": [
+                  685,
+                  864
+                ],
+                "text": ""
+              },
+              "desc": "Remove unused variable 'epley'."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "src/utils/goalPlanner.js",
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "message": "'frequency' is assigned a value but never used.",
+          "line": 14,
+          "column": 91,
+          "nodeType": "Identifier",
+          "messageId": "unusedVar",
+          "endLine": 14,
+          "endColumn": 100,
+          "suggestions": [
+            {
+              "messageId": "removeVar",
+              "data": {
+                "varName": "frequency"
+              },
+              "fix": {
+                "range": [
+                  675,
+                  690
+                ],
+                "text": ""
+              },
+              "desc": "Remove unused variable 'frequency'."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

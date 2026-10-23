@@ -1,7 +1,7 @@
 # NexLift - Claude Code Guide
 
 ## Project Overview
-NexLift is a PWA gym tracking app. Mobile-first, OLED dark theme. Built with React 18 + Vite + Tailwind CSS 4 (frontend) and Express.js + Prisma + PostgreSQL (backend).
+NexLift is a PWA gym tracking app. Mobile-first, OLED dark theme. Built with React 19 + Vite 7 + Tailwind CSS 4 (frontend) and Express.js + Prisma + PostgreSQL (backend).
 
 ## Architecture
 ```
@@ -11,23 +11,38 @@ client/          → React frontend (Vite)
   src/services/  → API client functions
   src/context/   → React context providers
   src/data/      → Static data (exercises.js)
-server/          → Express.js backend (ÚNICO backend, dev y prod)
-  src/index.js   → Main server entry (sirve también client/dist en prod)
+server/          → Monolito modular; Express operativo y Fastify 5 de ensayo
+  src/index.js   → Entrada Express conservada para producción/referencia
+  src/app/       → Factories, catálogo de rutas y fronteras HTTP
+  src/modules/   → Dominios compartidos por ambos transportes
+  src/entrypoints/fastify.mjs → Entrada opt-in, solo PostgreSQL desechable local
   prisma/        → Prisma schema & migrations
 ```
-Backend único: `server/src/index.js` es el único backend. El antiguo `api/` (serverless de Vercel) y `shared/` fueron eliminados al migrar el deploy a Docker en VPS.
+Backend único de negocio: ambos transportes comparten los mismos dominios, servicios y Prisma. `npm start` en server continúa usando Express. Fastify no está autorizado en producción; exige build y configuración explícita de ensayo, sin leer .env, sin proveedores reales ni DDL al arrancar. El antiguo `api/` serverless sigue retirado. `packages/shared/` contiene los contratos y el motor deportivo TypeScript de Fase 5. Ver [procedimiento actual](docs/MONOREPO.md) y [cierre de Fase 7](server/audit/backend/PHASE-7-COMPLETE.md).
 
 ## Key Commands
 ```bash
-cd server && npm run dev     # Start backend
-cd client && npm run dev     # Start frontend
-cd server && npx prisma studio  # View DB data
+npm ci                      # Node 24.22.0 / npm 11.19.1, desde raíz
+npm run db:generate         # Offline, sin leer .env operativo
+npm run dev:server          # Solo destino de desarrollo autorizado
+npm run dev:client
+npm test                    # Copia nueva + bases desechables verificadas
 ```
 
-## Prisma: usar `db push`, nunca `migrate`
-No existe `server/prisma/migrations/` — el schema siempre se ha sincronizado con `npx prisma db push`. Correr `prisma migrate dev`/`migrate deploy` falla con "drift detected" y ofrece resetear TODO el schema (pérdida total de datos) porque no hay historial de migraciones contra el que reconciliar. Para cualquier cambio de schema: `cd server && npx prisma db push` (y `npx prisma generate` aparte si el server estaba corriendo — Windows bloquea el archivo del query engine).
+## Prisma: baseline PROVISIONAL, sin migraciones persistentes
+Existen `0_init`, la migración provisional SQL de 3.1 y la expansión de historial de Fase 6. La solicitud de Fase 6 autoriza modificar Prisma y añadir SQL incremental; no autoriza bases persistentes. `0_init` y 3.1 conservan sus bytes. La nueva migración exige identidad, comentario y opt-in de su runner PostgreSQL desechable. No ejecutar db push, migrate dev/deploy/resolve, resets ni reparaciones sobre producción o staging persistente. `npm run db:generate` genera sin leer .env; `npm run test:database:integration` crea su propio clúster. Ver `server/audit/database/PHASE-6-COMPLETE.md`. El Dockerfile operativo antiguo permanece intacto y no debe ejecutarse como parte de estas verificaciones. Los informes PHASE y el código actual prevalecen sobre las secciones históricas v3 restantes de esta guía.
 
-## Deploy (VPS + EasyPanel + Docker)
+## Preparación de release v4 — Fase 10
+
+El Dockerfile raíz es legado v3 y **NO debe usarse para lanzar v4**. La propuesta
+actual es `Dockerfile.release` (Node 24.22.1, parche de seguridad; Prisma 6.19.3),
+arranque directo `node deploy/release-http.mjs`, sin DDL, transporte explícito y
+Express disponible. `npm start` operativo no cambia. Docker/Linux/EasyPanel y
+baseline real requieren sus gates; no existe autorización de despliegue.
+Ver `docs/RELEASE-V4-RUNBOOK.md` y `docs/RELEASE-V4-EASYPANEL.md`.
+Las migraciones recibidas siguen intactas y deliberadamente bloquean bases
+persistentes. No eludir sus guards ni marcar producción como desechable.
+## Deploy histórico v3 (no aplicable al release v4)
 - `Dockerfile` (raíz): build multi-stage → compila el cliente, genera Prisma y arranca `server` (que sirve `client/dist` + API en el mismo puerto).
 - **Variables de entorno obligatorias en EasyPanel:** `DATABASE_URL`, `JWT_SECRET` (el server NO arranca en producción sin `JWT_SECRET`), `NODE_ENV=production`. Opcional: `PORT`.
 - **Variables opcionales (nuevas funciones, degradan sin romper si faltan):** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` (Web Push de recordatorio de descanso — sin ellas, `scheduleRestReminder` es no-op), `OPENAI_API_KEY` (deduplicación de ejercicios al importar rutinas — sin ella, cae al matching determinista por `canonicalExerciseKey`), `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET` (avatar/fotos de progreso — sin ellas, `uploadPhoto()` cae a Catbox como antes). Ver `server/.env.example`.
@@ -143,12 +158,15 @@ Objetivo: **0 bugs en camino caliente** (registrar, sugerir, fechas, RIR, offlin
 - **Validación única:** `sanitizeSets` / `sanitizeWorkoutLogBody` / `sanitizeShortcutLogSet` en `server/src/logic.js` (testeadas). RIR obligatorio en series con trabajo; Atajo exige RIR 0–4 crudo.
 - **UI save:** Workout y EditSession bloquean guardar sin RIR en series con peso/reps.
 
-## Cardio por tramos (v2.9.0)
-Sección **aparte de fuerza** (`/cardio`): `CardioSession` + `CardioSegment` (minutos + inclinación + velocidad opcional).
-- API: `GET/POST /api/cardio`, `PUT/DELETE /api/cardio/:id`
-- Cuenta para racha/heatmap (home, overview, consistency, progress-page). **No** entra en Smart Loading ni volumen kg×reps.
-- UI: tramos editables; default 10′@12 → 5′@3 → 10′@12 (caminadora). Entrada desde Dashboard, Progreso, Perfil.
-- Backup JSON incluye `cardioSessions`.
+## Creatina escalonada y Daily Check-in (v3.0.0)
+- **Recordatorios Web Push en 3 etapas:** Evaluados cada 10 min en horario CDMX (`evaluateCreatineReminderStage` en `server/src/logic.js`):
+  1. Hora base configurada (default 16:00 CDMX).
+  2. +3 horas si no se ha registrado la dosis.
+  3. 23:00 CDMX última llamada antes de dormir.
+- **Hábitos diarios (`BodyLog`):** `creatineTaken`, `dietCompliant`, `zeroLiquidCalories`. Toggles en Dashboard (`PUT /api/body/checkin`) con actualización optimista. Marcar creatina desactiva las etapas restantes del día.
+- **Endpoints agrupados (1 round-trip):** `GET /api/stats/home` (dashboard) y `GET /api/stats/progress-page` (progreso).
+- **Importación de backup:** `POST /api/backup/import` con normalización automática de datos legacy (`normalizeBackupBodyLog`).
+- **Nota sobre Cardio:** Los modelos `CardioSession` y `CardioSegment` permanecen en `schema.prisma`, pero la interfaz `/cardio` fue podada en la auditoría v3.0.0 (`964bb3f`) para mantener el camino caliente enfocado en fuerza, mesociclos y rendimiento móvil.
 
 ## Día de la semana explícito en rutinas manuales (v2.9.1)
 `RoutineDay.weekday` (`Int?`, 0=Domingo..6=Sábado, `null`=sin programar) es la **única** fuente de verdad para "qué día de rutina toca hoy" en rutinas manuales — `dayName` es puramente decorativo (puede ser "Día 1", "Push", "Pierna A", lo que sea) y **nunca** se vuelve a parsear en lectura.
@@ -161,13 +179,13 @@ Sección **aparte de fuerza** (`/cardio`): `CardioSession` + `CardioSegment` (mi
 - **⚠ Cualquier `select` de Prisma que traiga `RoutineDay`** debe incluir `weekday` explícitamente — a diferencia de un `include`, un `select` que lo omita hace que el resolver vea "nada es hoy / nada es descanso" en silencio, sin error. Los 3 sitios que ya lo necesitan: `daySelect` de `GET /api/stats/home` y los `select` de `overview`/`progress-page`.
 - **Migración de datos existentes:** `server/backfill-routine-weekday.mjs` (dry-run por defecto, `--apply` para escribir, idempotente) — infiere por nombre si puede (rutinas viejas tipo "Lunes: Torso" quedan intactas), si no asigna posicional contiguo desde el lunes por `order`. Rutinas `source:'ai'` y la papelera del sistema se saltan enteras a propósito.
 
-## Current Version: 2.9.1
+## Current Version: 3.0.0
 
 ## Conventions
 - Spanish UI, Spanish commit messages preferred
 - Commits follow: `feat:`, `fix:`, `refactor:` prefixes
 - Exercise history and PRs are tied by exercise ID — never delete exercises with logs (use archive system)
-- **Tests automatizados (desde v2.5.0):** cubren solo lógica pura — `client/src/utils/*.test.js` (vitest, `npm test` en `client/`) y `server/src/logic.test.js` (`node --test`, `npm test` en `server/`), incluyendo tests de paridad cliente/servidor. Rutinas, auth e integración con Prisma/UI siguen sin cobertura — cualquier cambio ahí debe probarse a mano (levantar server+client, probar en navegador) antes de darlo por bueno.
+- **Tests automatizados (180 tests):** cubren de forma exhaustiva la lógica pura — `client/src/utils/*.test.js` (vitest, `npm test` en `client/`, 76 tests) y `server/src/logic.test.js` (`node --test`, `npm test` en `server/`, 104 tests), incluyendo tests de paridad cliente/servidor. Rutinas, auth e integración con Prisma/UI siguen requiriendo verificación manual en navegador.
 
 ## Entrenador inteligente (plateau, mesociclos, descarga adaptativa)
 - **Plateau (UI v2.8.0):** fuente de verdad en servidor — `detectPlateauForExercise` sobre las últimas 10 sesiones por nombre de ejercicio (`GET /api/stats/plateaus`, y `plateauCount` en home). La copia cliente `detectPlateau(sessions)` en `exerciseName.js` sigue existiendo para tests/paridad y scripts; Progress ya no la usa para pintar dots. Al cruzar con PRs, claves en **minúsculas** (`pr.exerciseName.toLowerCase()`), no `canonicalExerciseKey` (los PRs se guardan en lowercase, no con la normalización completa).
