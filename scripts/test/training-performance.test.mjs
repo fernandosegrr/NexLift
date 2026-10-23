@@ -230,7 +230,12 @@ test('5.2 harness preserves every historical assertion/action and original timeo
         }
         visit(source); return { assertions, actions };
     };
-    const old = scan(before), current = scan(after); assert.equal(old.assertions.length, 60); assert.deepEqual(current.assertions, old.assertions);
+    const old = scan(before), current = scan(after); assert.equal(old.assertions.length, 60);
+    // Every historical assertion still matches exactly and in order. Permit
+    // only the two reviewed waiting/pending-data assertions from availability.
+    const additions = ["assert.equal(await update.evaluate(`!!document.querySelector('script[src=\"/${oldManifest['index.html'].file}\"]')`),true)","assert.deepEqual((await state(update)).find(x=>x.id===saved.operationId).payload,original.payload)"];
+    assert.deepEqual(current.assertions.filter(value => !additions.includes(value)), old.assertions);
+    assert.deepEqual(current.assertions.filter(value => additions.includes(value)), additions);
     for (const action of old.actions) assert(current.actions.includes(action), action);
     assert(before.includes('timeoutMs = 15000')); assert(after.includes('timeoutMs = 15000'));
     assert.equal((after.match(/'process.env.NODE_ENV':'"production"'/g) || []).length, 2);
