@@ -6,8 +6,10 @@
 > destructivas. Las precondiciones de esquema/configuración siguen siendo obligatorias.
 > El resto del documento conserva los gates y procedimientos de preparación.
 
-**Preparación exclusivamente. Despliegue NO AUTORIZADO.** No ejecutar la sección
-de activación hasta cerrar todos los gates y obtener aprobación explícita posterior.
+**Publicación de main y posible autodespliegue autorizados por el propietario.**
+La ejecución manual de migraciones persistentes y los cambios al panel siguen fuera
+del alcance autorizado. Los gates siguientes describen el procedimiento operativo
+pendiente y no impiden el push solicitado.
 Repositorio real: `C:/Users/guerr/OneDrive/Escritorio/NexLift`.
 
 ## 1. Verificar una revisión candidata aislada

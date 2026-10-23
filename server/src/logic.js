@@ -325,6 +325,41 @@ export function resolveIncomingWeekday(day) {
     return inferWeekdayFromName(day?.dayName);
 }
 
+// Compatibilidad del parser puro v3; HTTP v4 valida con normalizeRoutineImport.
+// Contrato histórico de un ejercicio importado: lo que
+// viene en el JSON se guarda tal cual (nombre solo con .trim(), sin normalizar,
+// sin fuzzy-match). Acepta ambos juegos de claves (targetSets/targetReps/
+// restSeconds y los alias sets/reps/rest) — antes el servidor solo leía los
+// alias mientras el cliente mandaba los nombres largos, y todo caía a 3x8-12.
+export function parseImportedExercise(ex, index) {
+    const src = ex || {};
+    const name = String(src.name ?? '').trim() || 'Ejercicio';
+    const targetSets = Math.trunc(Number(src.targetSets ?? src.sets)) || 3;
+    const targetReps = String(src.targetReps ?? src.reps ?? '8-12').trim() || '8-12';
+    const rawRest = src.restSeconds ?? src.rest;
+    const restNum = rawRest === undefined || rawRest === null || rawRest === '' ? NaN : Number(rawRest);
+    return {
+        name,
+        targetSets,
+        targetReps,
+        restSeconds: Number.isFinite(restNum) ? Math.trunc(restNum) : null,
+        note: src.note || null,
+        isUnilateral: !!src.isUnilateral,
+        order: index
+    };
+}
+
+// Días entrantes ya parseados, en el orden exacto del array (order = índice).
+export function parseImportedDays(days) {
+    return (days || []).map((day, dayIndex) => ({
+        dayName: day.dayName,
+        isRestDay: !!day.isRestDay,
+        weekday: day.weekday,
+        order: dayIndex,
+        exercises: (day.exercises || []).map((ex, exIndex) => parseImportedExercise(ex, exIndex))
+    }));
+}
+
 // Valida el array final de días (weekday ya resuelto vía resolveIncomingWeekday)
 // antes de persistir: rechaza valores inválidos/fuera de rango y dos días con
 // el mismo weekday. Los `null` (sin asignar) nunca cuentan como duplicado.

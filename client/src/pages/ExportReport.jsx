@@ -911,7 +911,7 @@ export default function ExportReport() {
             if (computed.filteredPRs.length > 0) {
                 builder.printSectionTitle('RÉCORDS PERSONALES (PRs)', 50);
                 const rows = computed.filteredPRs.map(pr => {
-                    const est1RM = pr.estimated1RM ? `~${Math.round(pr.estimated1RM)}` : '--';
+                    const est1RM = pr.estimated1RM ? `${Math.round(pr.estimated1RM)}` : '--';
                     return [
                         truncateText(pr.exerciseName, 28),
                         `${pr.weight}kg`,

@@ -9,7 +9,8 @@ import {
     sanitizeSets, sanitizeShortcutLogSet, sanitizeWorkoutLogBody, suggestNextSetFromToday,
     mexicoCityDayOfWeek, inferWeekdayFromName, findRoutineDayForWeekday, scheduledRestWeekdays,
     normalizeIncomingWeekday, resolveIncomingWeekday, validateRoutineDayWeekdays,
-    normalizeBackupBodyLog, normalizeBackupBodyLogs, evaluateCreatineReminderStage
+    normalizeBackupBodyLog, normalizeBackupBodyLogs, evaluateCreatineReminderStage,
+    parseImportedDays
 } from './logic.js';
 
 describe('helpers CDMX (zona horaria)', () => {
@@ -808,3 +809,42 @@ describe('evaluateCreatineReminderStage (notificaciones Web Push escalonadas CDM
 
 
 
+
+describe('parseImportedDays (import JSON: se guarda tal cual)', () => {
+    const json = {
+        days: Array.from({ length: 6 }, (_, d) => ({
+            dayName: `Día ${d + 1}`,
+            exercises: [
+                { name: '  remo en máquina ', targetSets: 2, targetReps: '5-8', restSeconds: 120 },
+                { name: 'press inclinado (mancuernas)', sets: 2, reps: '6-8' },
+                { name: 'Curl Martillo', targetSets: 2, targetReps: '6-8', restSeconds: 0 }
+            ]
+        }))
+    };
+
+    it('conserva nombres exactos (solo trim), orden, 2 series y rangos 5-8 / 6-8', () => {
+        const out = parseImportedDays(json.days);
+        assert.equal(out.length, 6);
+        out.forEach((day, i) => {
+            assert.equal(day.order, i);
+            assert.deepEqual(day.exercises.map(e => e.name),
+                ['remo en máquina', 'press inclinado (mancuernas)', 'Curl Martillo']);
+            assert.deepEqual(day.exercises.map(e => e.order), [0, 1, 2]);
+            assert.deepEqual(day.exercises.map(e => e.targetSets), [2, 2, 2]);
+            assert.deepEqual(day.exercises.map(e => e.targetReps), ['5-8', '6-8', '6-8']);
+        });
+    });
+
+    it('restSeconds: explícito se respeta (incluido 0), ausente → null', () => {
+        const [ex1, ex2, ex3] = parseImportedDays(json.days)[0].exercises;
+        assert.equal(ex1.restSeconds, 120);
+        assert.equal(ex2.restSeconds, null);
+        assert.equal(ex3.restSeconds, 0);
+    });
+
+    it('sin sets/reps → defaults 3 y 8-12', () => {
+        const [ex] = parseImportedDays([{ dayName: 'X', exercises: [{ name: 'A' }] }])[0].exercises;
+        assert.equal(ex.targetSets, 3);
+        assert.equal(ex.targetReps, '8-12');
+    });
+});

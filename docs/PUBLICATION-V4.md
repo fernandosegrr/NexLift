@@ -61,3 +61,37 @@ No se accede al panel ni se consultan credenciales.
    los datos antes de decidir una recuperación.
 
 No se inicia NexLift Coach ni Fase 11.
+
+## Integración remota
+
+Se integran 6e83026 y 4925b2c sin reescribir su historia. Se conserva el ajuste
+del formato PDF y el parser puro de importación con sus tres tests remotos.
+La protección de caché ya es más estricta en v4: Cache-Control no-store.
+Los dos conflictos en Import.jsx e index.js se resuelven conservando el frontend
+y backend modular de Fases 1–10. HTTP usa el contrato estricto v4 de importación
+y sus transacciones autorizadas; no se restaura el handler monolítico v3 que
+reemplazaba rutinas por nombre. La resolución canónica de nombres del contrato
+v4 se conserva; no se afirma que sea idéntica a la importación literal v3.
+El contador esperado de la matriz incorpora los tres tests adicionales sin
+eliminar casos ni atribuirlos a las nuevas pruebas de Fase 10.
+
+## Verificación posterior a la integración
+
+En una copia nueva, sin .env y con Node 24.22.1: manifests/locks, build completo,
+TypeScript estricto, generated check, contratos HTTP, unitarias frontend,
+transportes Express/Fastify, seguridad, release y 13 pruebas PostgreSQL desechables
+aprobaron. Los artefactos del frontend se reprodujeron y el bundle cumplió su
+presupuesto. Lint de tooling/backend/release: salida 0; lint global: salida 1
+por los mismos 19 errores y 2 advertencias históricos, sin incremento.
+
+La batería seleccionada informó 225 casos core/transportes/seguridad/release,
+227 de cliente, 56 de contratos y 13 de integración release; contiene solapamientos
+y no se suma como pruebas únicas nuevas. No se volvió a ejecutar npm test integral
+en esta publicación ni se declara ejecutada su expectativa futura de 1,467 casos.
+La verificación reutilizó dependencias locales fijadas; no representa una
+instalación limpia nueva. La matriz integral anterior sí documenta instalaciones
+limpias y sus límites propios.
+
+La API pública de GitHub devolvió 404 para repositorio, Actions y deployments sin
+credenciales. Esto impide certificar el estado del autodespliegue; no demuestra
+una caída del servicio. No se conoce aquí una URL pública verificada del servicio.

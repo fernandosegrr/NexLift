@@ -80,6 +80,8 @@ async function run(name, args, cwd = '.', { repeat = false } = {}) {
     return;
   }
 }
+// Three upstream import-parser cases were preserved while merging origin/main.
+const upstreamAdditionalTests = 3;
 const unique = () => results.filter(result => !result.repeat).reduce((sum, result) => sum + result.tests, 0);
 async function hashSources(dir, prefix = '') {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -122,63 +124,63 @@ try {
     await run('staging-integration', [npm, 'run', 'test:staging:integration', '--workspace', 'nexlift-server']);
     await run('infra-static', ['test/check-infrastructure.mjs'], 'server');
     await run('staging-static', ['test/check-staging.mjs'], 'server');
-    assert.equal(unique(), 730);
+    assert.equal(unique(), 730 + upstreamAdditionalTests);
     // The provisional migration is copied only into this fresh test copy.
     await cp(path.join(source, 'server/prisma/migrations', migration), path.join(root, 'server/prisma/migrations', migration), { recursive: true });
     await run('operations-unit', [npm, 'run', 'test:operations', '--workspace', 'nexlift-server']);
     await run('operations-integration', [npm, 'run', 'test:operations:integration', '--workspace', 'nexlift-server']);
-    await run('operations-static', ['test/check-operations.mjs'], 'server'); assert.equal(unique(), 800);
+    await run('operations-static', ['test/check-operations.mjs'], 'server'); assert.equal(unique(), 800 + upstreamAdditionalTests);
     for (const file of syncTests) await cp(path.join(source, 'client/src/services', file), path.join(root, 'client/src/services', file));
     await run('sync-client', [npm, 'run', 'test:client', '--', ...syncTests.map(file => `src/services/${file}`)]);
     await run('sync-postgres-browser', [npm, 'run', 'test:sync:integration', '--workspace', 'nexlift-server']);
-    await run('sync-static', ['test/check-sync.mjs'], 'server'); assert.equal(unique(), 870);
+    await run('sync-static', ['test/check-sync.mjs'], 'server'); assert.equal(unique(), 870 + upstreamAdditionalTests);
     await run('storage-postgres-browser', [npm, 'run', 'test:storage:integration', '--workspace', 'nexlift-server']);
-    await run('storage-static', ['test/check-storage.mjs'], 'server'); assert.equal(unique(), 917);
+    await run('storage-static', ['test/check-storage.mjs'], 'server'); assert.equal(unique(), 917 + upstreamAdditionalTests);
     await run('conflicts-postgres-browser', [npm, 'run', 'test:conflicts:integration', '--workspace', 'nexlift-server']);
-    await run('conflicts-static', ['test/check-conflicts.mjs'], 'server'); assert.equal(unique(), 973);
+    await run('conflicts-static', ['test/check-conflicts.mjs'], 'server'); assert.equal(unique(), 973 + upstreamAdditionalTests);
     await run('offline-sw', [npm, 'run', 'test:offline:sw', '--workspace', 'nexlift-server']);
     await run('offline-postgres-browser', [npm, 'run', 'test:offline:integration', '--workspace', 'nexlift-server']);
-    await run('offline-static', ['test/check-stabilization.mjs'], 'server'); assert.equal(unique(), 1007);
-    await run('monorepo-tests', [npm, 'run', 'test:monorepo']); assert.equal(unique(), 1019);
-    await run('typescript-tests', [npm, 'run', 'test:typescript']); assert.equal(unique(), 1031);
-    await run('typescript-development-entry', [npm, 'run', 'test:typescript:dev', '--workspace', 'nexlift-server']); assert.equal(unique(), 1032);
-    await run('shared-contracts-and-http-consumers', [npm, 'run', 'test:contracts']); assert.equal(unique(), 1088);
-    await run('client-import-response-contracts', [npm, 'run', 'test:contracts', '--workspace', 'client']); assert.equal(unique(), 1091);
-    await run('phase44-real-typescript-consumers', [npm, 'run', 'test:phase44']); assert.equal(unique(), 1104);
-    await run('phase52-training-engine', [npm, 'run', 'test:training']); assert.equal(unique(), 1141);
-    await run('phase52-performance-domain', [npm, 'run', 'test:performance']); assert.equal(unique(), 1169);
-    await run('phase52-performance-http-postgres', [npm, 'run', 'test:performance:integration']); assert.equal(unique(), 1173);
-    await run('phase53-smart-domain-and-react', [npm, 'run', 'test:smart-loading']); assert.equal(unique(), 1198);
-    await run('phase53-smart-http-postgres', [npm, 'run', 'test:smart-loading:integration']); assert.equal(unique(), 1202);
-    await run('phase54-analysis-domain-and-react', [npm, 'run', 'test:analysis']); assert.equal(unique(), 1232);
-    await run('phase55-analysis-http-postgres', [npm, 'run', 'test:analysis:integration']); assert.equal(unique(), 1236);
+    await run('offline-static', ['test/check-stabilization.mjs'], 'server'); assert.equal(unique(), 1007 + upstreamAdditionalTests);
+    await run('monorepo-tests', [npm, 'run', 'test:monorepo']); assert.equal(unique(), 1019 + upstreamAdditionalTests);
+    await run('typescript-tests', [npm, 'run', 'test:typescript']); assert.equal(unique(), 1031 + upstreamAdditionalTests);
+    await run('typescript-development-entry', [npm, 'run', 'test:typescript:dev', '--workspace', 'nexlift-server']); assert.equal(unique(), 1032 + upstreamAdditionalTests);
+    await run('shared-contracts-and-http-consumers', [npm, 'run', 'test:contracts']); assert.equal(unique(), 1088 + upstreamAdditionalTests);
+    await run('client-import-response-contracts', [npm, 'run', 'test:contracts', '--workspace', 'client']); assert.equal(unique(), 1091 + upstreamAdditionalTests);
+    await run('phase44-real-typescript-consumers', [npm, 'run', 'test:phase44']); assert.equal(unique(), 1104 + upstreamAdditionalTests);
+    await run('phase52-training-engine', [npm, 'run', 'test:training']); assert.equal(unique(), 1141 + upstreamAdditionalTests);
+    await run('phase52-performance-domain', [npm, 'run', 'test:performance']); assert.equal(unique(), 1169 + upstreamAdditionalTests);
+    await run('phase52-performance-http-postgres', [npm, 'run', 'test:performance:integration']); assert.equal(unique(), 1173 + upstreamAdditionalTests);
+    await run('phase53-smart-domain-and-react', [npm, 'run', 'test:smart-loading']); assert.equal(unique(), 1198 + upstreamAdditionalTests);
+    await run('phase53-smart-http-postgres', [npm, 'run', 'test:smart-loading:integration']); assert.equal(unique(), 1202 + upstreamAdditionalTests);
+    await run('phase54-analysis-domain-and-react', [npm, 'run', 'test:analysis']); assert.equal(unique(), 1232 + upstreamAdditionalTests);
+    await run('phase55-analysis-http-postgres', [npm, 'run', 'test:analysis:integration']); assert.equal(unique(), 1236 + upstreamAdditionalTests);
     const legacyClient = path.join(root, 'phase6-clients/legacy');
     await cp(path.join(root, 'server/node_modules/.prisma/client'), legacyClient, { recursive: true });
     await writeFile(path.join(root, 'server/prisma/schema.prisma'), currentSchema);
     await cp(path.join(source, 'server/prisma/migrations', historyMigration), path.join(root, 'server/prisma/migrations', historyMigration), { recursive: true });
     await run('phase6-current-prisma-generate', [npm, 'run', 'db:generate']);
-    await run('phase6-migration-history-http-recovery', ['server/test/run-phase6-integration.mjs']); assert.equal(unique(), 1290);
+    await run('phase6-migration-history-http-recovery', ['server/test/run-phase6-integration.mjs']); assert.equal(unique(), 1290 + upstreamAdditionalTests);
     await run('phase6-offline-current-schema-edge-dexie', [npm, 'run', 'test:offline:integration', '--workspace', 'nexlift-server'], '.', { repeat: true });
     await run('phase6-current-schema-strict-build', [npm, 'run', 'check:typescript']);
     await run('phase6-persistence-lint', ['scripts/check-phase6.mjs']);
     await run('phase7-native-http-jobs-security', ['--test', 'server/test/phase7-http.test.js', 'server/test/phase7-notifications.test.js']);
-    await run('phase7-independent-postgres-http-equivalence', ['server/test/run-phase7-integration.mjs']); assert.equal(unique(), 1355);
+    await run('phase7-independent-postgres-http-equivalence', ['server/test/run-phase7-integration.mjs']); assert.equal(unique(), 1355 + upstreamAdditionalTests);
     await run('phase7-fastify-edge-dexie-offline', ['server/test/run-phase7-offline.mjs'], '.', { repeat: true });
     await run('phase8-query-unit', [npm, 'run', 'test:frontend', '--workspace', 'client']);
     await run('phase8-react-edge-mobile', ['--test', 'scripts/test/frontend.test.mjs']);
-    assert.equal(unique(), 1381);
+    assert.equal(unique(), 1381 + upstreamAdditionalTests);
     await run('phase9-security-http-sw', ['--test', 'server/test/phase9-security.test.js']);
     await run('phase9-client-privacy', [npm, 'exec', '--workspace', 'client', '--', 'vitest', 'run', '--config', 'test/security.config.js']);
     await run('phase9-edge-rest-cancellation', ['--test', 'scripts/test/security-browser.test.mjs']);
     await run('phase9-postgres-push-processes', ['server/test/run-phase9-integration.mjs']);
-    assert.equal(unique(), 1441);
+    assert.equal(unique(), 1441 + upstreamAdditionalTests);
     env.NODE_ENV = 'production';
     await run('phase10-production-artifacts-build', [npm, 'run', 'build:client']);
     env.NODE_ENV = 'test';
     await run('phase10-release-config-docker-capacity', [npm, 'run', 'test:release']);
     await run('phase10-postgres-migrate-recovery-transports', [npm, 'run', 'test:release:integration']);
     await run('phase10-edge-first-render', [npm, 'run', 'test:release:browser']);
-    assert.equal(unique(), 1464);
+    assert.equal(unique(), 1464 + upstreamAdditionalTests);
     await run('phase10-reproducible-artifacts', [npm, 'run', 'verify:release']);
     await run('phase10-release-lint', [npm, 'run', 'lint:release']);
     await run('phase7-modular-runtime-lint', ['scripts/check-phase7.mjs']);
@@ -244,7 +246,7 @@ try {
     for (const file of ['integration-evidence.json', 'api-inventory.json', 'API-MATRIX.md', 'browser-cancellation-evidence.json']) await cp(path.join(root, 'server/audit/security', file), path.join(destination, 'phase9-' + file));
     await writeFile(path.join(destination, 'matrix-evidence.json'), JSON.stringify({ createdAt: new Date().toISOString(), node: process.versions.node,
         npm: JSON.parse(await readFile(path.join(path.dirname(npm), '../package.json'))).version, baseline: 'PROVISIONAL', productionTouched: false,
-        persistentDatabaseAccessed: false, dockerExecuted: false, isolatedDirectory: root, historicalTests: 1441, newTests: 23, uniqueTests: unique(),
+        persistentDatabaseAccessed: false, dockerExecuted: false, isolatedDirectory: root, historicalTests: 1441 + upstreamAdditionalTests, upstreamAdditionalTests, newTests: 23, uniqueTests: unique(),
         repeatedTests: results.filter(r => r.repeat).reduce((n, r) => n + r.tests, 0), installStrategy: 'nested', results, artifacts }, null, 2) + '\n');
     console.log(`Approved: ${unique()} unique tests. Evidence: server/audit/release/matrix-evidence.json`);
 } finally {

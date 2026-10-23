@@ -30,7 +30,7 @@ La UI y el comportamiento real del proxy/orquestador deben verificarse en ensayo
 | Logs | stdout/stderr JSON redactado; rotación/tamaño/retención del host, sin bodies, JWT, URLs con password ni manifiestos sensibles |
 | Backups | Dump integral privado cifrado fuera del volumen del servidor + restore periódico; medios externos por separado |
 | Migraciones | Job independiente; las actuales son provisionales y bloquean persistentes. No habilitar deploy scripts de DDL |
-| Auto deploy | Desactivado hasta aprobación posterior; no publicar esta revisión ahora |
+| Auto deploy | Push a main y su posible autodespliegue autorizados por el propietario; no se modifica el panel ni se ejecuta DDL |
 
 Variables obligatorias, **sin valores secretos**:
 
