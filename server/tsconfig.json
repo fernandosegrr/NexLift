@@ -1,0 +1,5 @@
+{
+  "extends": "../configs/tsconfig.node.json",
+  "compilerOptions": { "allowJs": true, "checkJs": false, "types": ["node"] },
+  "include": ["src/**/*.ts", "src/**/*.cts", "type-tests/**/*.ts", "type-tests/**/*.cts"]
+}

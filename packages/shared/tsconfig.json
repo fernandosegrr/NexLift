@@ -1,0 +1,5 @@
+{
+  "extends": "../../configs/tsconfig.node.json",
+  "compilerOptions": {},
+  "include": ["src/**/*.ts", "type-tests/**/*.ts", "type-tests/**/*.cts", "test/fixtures/**/*.ts"]
+}

@@ -1,0 +1,13 @@
+{
+  "cause": "npm prune normalized indentation in the isolated copy",
+  "entireParsedJsonIdentical": true,
+  "sourceSha256": "e811077ed547b5969c3c08088567d088c4c5e68604c989abd1bcb13a8f57684d",
+  "prunedFormattingSha256": "357bcfd94c00a85bc6eaf10e0015678c274c5276721dc8baca8587440c5da9c9",
+  "sourceModified": false,
+  "packageGraphChanged": false,
+  "versionChanges": 0,
+  "auxiliaryByteCheckExit": 1,
+  "auxiliaryCheck": "phase44-close.mjs initially rejected the differing bytes at server/package-lock.json",
+  "resolution": "Archived npm output, established full parsed-data equality, restored only the test-copy lock original bytes. No source or installed package changed.",
+  "originalDiagnostic": "Tool output ad7152"
+}

@@ -1,0 +1,31 @@
+{
+  "errors": 27,
+  "warnings": 3,
+  "newDiagnostics": 0,
+  "sameDiagnosticsAs42": true,
+  "exactLineFingerprint": false,
+  "lineChanges": [
+    {
+      "file": "src/services/api.js",
+      "rule": "no-unused-vars",
+      "message": "'e' is defined but never used.",
+      "previousLines": [
+        24,
+        380
+      ],
+      "currentLine": 25,
+      "explanation": "The new import shifts existing api.js findings by one line"
+    },
+    {
+      "file": "src/services/api.js",
+      "rule": "no-unused-vars",
+      "message": "'e' is defined but never used.",
+      "previousLines": [
+        24,
+        380
+      ],
+      "currentLine": 381,
+      "explanation": "The new import shifts existing api.js findings by one line"
+    }
+  ]
+}

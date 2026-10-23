@@ -1,0 +1,88 @@
+import { parseCanonicalWorkoutEffort } from '../domain/training/effort.js';
+import { canonicalInstant, fail, identifier, isRecord, isSessionVersion, record } from '../validation/primitives.js';
+
+/** Wire values. rpe is the stored historical 10-RIR; never rename/reinterpret it. */
+export interface SetValues {
+    weight: number; reps: number; rpe: number | null; completed: boolean;
+    weightRight: number | null; repsRight: number | null;
+}
+export interface SetLog extends SetValues { id: string; setNumber: number; workoutLogId?: string }
+export interface WorkoutLog { id: string; exerciseId: string; date: string; notes: string | null; sets: SetLog[] }
+export interface SessionResponse { workoutLog: WorkoutLog; sessionVersion: string }
+/** Historical API callers can use a projected session before requesting a
+ * cryptographically verified base. Optional values stay optional. */
+export interface SessionSetView {
+    weight: number; reps: number; rpe?: number | null; completed?: boolean;
+    weightRight?: number | null; repsRight?: number | null; id?: string; setNumber?: number; workoutLogId?: string;
+}
+export interface SessionView {
+    id: string; exerciseId?: string; date?: string; notes?: string | null; sets: SessionSetView[];
+}
+export interface SessionViewResponse { workoutLog: SessionView; sessionVersion: string }
+export function isSessionSetView(value: unknown): value is SessionSetView {
+    if (!isRecord(value)) return false;
+    return ['weight', 'reps', 'rpe', 'weightRight', 'repsRight'].every(key => {
+        const number = value[key];
+        if (!['weight', 'reps'].includes(key) && (number === undefined || number === null)) return true;
+        return typeof number === 'number' && Number.isFinite(number) && number >= 0
+            && number <= (key === 'rpe' ? 10 : key.includes('reps') ? 1000 : 2000)
+            && (key.startsWith('weight') || Number.isInteger(number));
+    }) && (value.completed === undefined || typeof value.completed === 'boolean')
+        && (value.id === undefined || typeof value.id === 'string' && !!value.id)
+        && (value.setNumber === undefined || typeof value.setNumber === 'number' && Number.isInteger(value.setNumber) && value.setNumber > 0)
+        && (value.workoutLogId === undefined || typeof value.workoutLogId === 'string');
+}
+
+/** A check only: returns the original object, including historical extension fields. */
+export function isSetValues(value: unknown): value is SetValues {
+    if (!isRecord(value)) return false;
+    return ['weight', 'reps', 'rpe', 'weightRight', 'repsRight'].every(key => {
+        const number = value[key];
+        if (['rpe', 'weightRight', 'repsRight'].includes(key) && number === null) return true;
+        return typeof number === 'number' && Number.isFinite(number) && number >= 0
+            && number <= (key === 'rpe' ? 10 : key.includes('reps') ? 1000 : 2000)
+            && (key.startsWith('weight') || Number.isInteger(number));
+    }) && typeof value.completed === 'boolean';
+}
+export function isSetLog(value: unknown): value is SetLog {
+    return isSetValues(value) && isRecord(value) && typeof value.id === 'string' && value.id.length > 0
+        && typeof value.setNumber === 'number' && Number.isInteger(value.setNumber) && value.setNumber > 0
+        && (value.workoutLogId === undefined || typeof value.workoutLogId === 'string');
+}
+export function isWorkoutLog(value: unknown): value is WorkoutLog {
+    return isRecord(value) && typeof value.id === 'string' && !!value.id && typeof value.exerciseId === 'string' && !!value.exerciseId
+        && typeof value.date === 'string' && Number.isFinite(Date.parse(value.date)) && new Date(value.date).toISOString() === value.date
+        && (typeof value.notes === 'string' || value.notes === null) && Array.isArray(value.sets) && value.sets.every(isSetLog);
+}
+export function isSessionResponse(value: unknown): value is SessionViewResponse {
+    if (!isRecord(value) || !isSessionVersion(value.sessionVersion) || !isRecord(value.workoutLog)) return false;
+    const log = value.workoutLog;
+    return typeof log.id === 'string' && !!log.id && (log.exerciseId === undefined || typeof log.exerciseId === 'string')
+        && (log.date === undefined || typeof log.date === 'string' && Number.isFinite(Date.parse(log.date)) && new Date(log.date).toISOString() === log.date)
+        && (log.notes === undefined || log.notes === null || typeof log.notes === 'string')
+        && Array.isArray(log.sets) && log.sets.every(isSessionSetView);
+}
+export function readSessionResponse(value: unknown): SessionViewResponse {
+    if (!isSessionResponse(value)) fail('response', 'Incompatible session response', 'INCOMPATIBLE_OPERATION');
+    return value;
+}
+// Request series are normalized only at the established HTTP boundary. The
+// caller supplies the existing sanitizer so legacy sporting rules stay single.
+export function readSetInput(value: unknown): Record<string, unknown>[] {
+    if (!Array.isArray(value)) fail('sets', 'sets must be an array');
+    return value.map(raw => {
+        const set = record(raw, 'set');
+        if (Object.keys(set).some(key => set[key] !== undefined && !['weight', 'reps', 'rpe', 'rir', 'weightRight', 'repsRight', 'completed'].includes(key))) fail('set', 'Unknown set field');
+        for (const name of ['weight', 'reps', 'weightRight', 'repsRight', 'rpe', 'rir']) {
+            if (set[name] === undefined || (set[name] === null && !['weight', 'reps', 'rir'].includes(name))) continue;
+            const number = set[name];
+            if (typeof number !== 'number' || !Number.isFinite(number) || (name !== 'weight' && name !== 'weightRight' && !Number.isInteger(number))) fail(name, `Invalid ${name}`);
+        }
+        if (set.completed !== undefined && typeof set.completed !== 'boolean') fail('completed', 'completed must be boolean');
+        const effort = parseCanonicalWorkoutEffort(set);
+        if (effort.state === 'invalid') fail(effort.field, effort.message);
+        return { ...set, rpe: effort.storedRpe };
+    });
+}
+export function readSessionIdentity(value: unknown): string { return identifier(value, 'logId'); }
+export function readSessionDate(value: unknown): string { return canonicalInstant(value, 'date'); }

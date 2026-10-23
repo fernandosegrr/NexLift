@@ -1,0 +1,331 @@
+[
+  {
+    "file": "index-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 225193,
+    "newLength": 225193,
+    "firstDifference": {
+      "before": "iRoutineSetup-HASH.js\"])))=>i.map(i=>d[i]);\nimport{c as Wo,g as Jo,r as le,j as A,u as Ho,N as Ra,O as Qo,d as Xo,L as Pa,B as Yo,e as Zo,f as De,h as Kn,i as es}from\"./react-vendor-HASH.js\";import{_ as Ie}from\"./pdf-HASH.js\";import{H as ts,D as rs,T as ns,U a",
+      "after": "iRoutineSetup-HASH.js\"])))=>i.map(i=>d[i]);\nimport{c as Wo,g as Jo,r as le,j as N,u as Qo,N as Ri,O as Xo,d as Yo,L as Pi,B as Go,e as Zo,f as De,h as Un,i as es}from\"./react-vendor-HASH.js\";import{_ as Ie}from\"./pdf-HASH.js\";import{H as ts,D as rs,T as ns,U a"
+    }
+  },
+  {
+    "file": "react-vendor-HASH.js",
+    "sameBytes": true,
+    "sameWithoutChunkNames": true,
+    "oldLength": 428848,
+    "newLength": 428848,
+    "firstDifference": null
+  },
+  {
+    "file": "icons-HASH.js",
+    "sameBytes": true,
+    "sameWithoutChunkNames": true,
+    "oldLength": 16709,
+    "newLength": 16709,
+    "firstDifference": null
+  },
+  {
+    "file": "recharts-HASH.js",
+    "sameBytes": true,
+    "sameWithoutChunkNames": true,
+    "oldLength": 386519,
+    "newLength": 386519,
+    "firstDifference": null
+  },
+  {
+    "file": "pdf-HASH.js",
+    "sameBytes": true,
+    "sameWithoutChunkNames": true,
+    "oldLength": 778106,
+    "newLength": 778106,
+    "firstDifference": null
+  },
+  {
+    "file": "Dashboard-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 37121,
+    "newLength": 37126,
+    "firstDifference": {
+      "before": "ionPdf-HASH.js\",\"assets/DraftBoundary-HASH.js\"])))=>i.map(i=>d[i]);\nimport{_ as ge}from\"./pdf-HASH.js\";import{r as l,j as e,L}from\"./react-vendor-HASH.js\";import{u as ve,a as De,r as X,m as P,b as Ae,c as E,w as O}from\"./index-HASH.js\";import{r as je}from\"./ro",
+      "after": "ionPdf-HASH.js\",\"assets/DraftBoundary-HASH.js\"])))=>i.map(i=>d[i]);\nimport{_ as Ne}from\"./pdf-HASH.js\";import{r as l,j as e,L as z}from\"./react-vendor-HASH.js\";import{u as ve,a as De,r as X,m as I,b as je,c as A,w as E}from\"./index-HASH.js\";import{r as Ce}from"
+    }
+  },
+  {
+    "file": "Routines-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 37653,
+    "newLength": 37653,
+    "firstDifference": {
+      "before": "import{r as o,j as e,L as D,d as P}from\"./react-vendor-HASH.js\";import{a as G,c as A,d as I}from\"./index-HASH.js\";import{P as B}from\"./Portal-HASH.js\";import{r as H,w as L}from\"./routineDays-HASH.js\";import{f as w,l as k,d as z,D as S,h as _,m as M,b as E,",
+      "after": "import{r as o,j as e,L as D,d as P}from\"./react-vendor-HASH.js\";import{a as U,c as y,d as I}from\"./index-HASH.js\";import{P as B}from\"./Portal-HASH.js\";import{r as _,w as A}from\"./routineDays-HASH.js\";import{f as V,l as w,d as k,D as S,h as M,m as W,b as E,"
+    }
+  },
+  {
+    "file": "RoutineDetail-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 14883,
+    "newLength": 14883,
+    "firstDifference": {
+      "before": "import{k as b,r as c,j as e,L as o}from\"./react-vendor-HASH.js\";import{a as j,c as m}from\"./index-HASH.js\";import{r as A,w as N}from\"./routineDays-HASH.js\";import{q as R,o as E,r as L,k as y,h",
+      "after": "import{k as D,r as c,j as e,L as o}from\"./react-vendor-HASH.js\";import{a as j,c as u}from\"./index-HASH.js\";import{r as R,w as g}from\"./routineDays-HASH.js\";import{q as E,o as L,r as z,k as y,h"
+    }
+  },
+  {
+    "file": "Workout-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 96952,
+    "newLength": 96952,
+    "firstDifference": {
+      "before": "import{k as ze,j as e,d as gr,r as d}from\"./react-vendor-HASH.js\";import{u as He,a as hr,c as F,s as br,i as xe,h as Nr,m as te,e as vr}from\"./index-HASH.js\";import{P as Ue}from\"./Portal-HASH.",
+      "after": "import{k as Fe,j as e,d as xr,r as f}from\"./react-vendor-HASH.js\";import{u as Be,a as br,c as M,s as hr,i as ge,h as Nr,m as se,e as vr}from\"./index-HASH.js\";import{P as Oe}from\"./Portal-HASH."
+    }
+  },
+  {
+    "file": "Import-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 53267,
+    "newLength": 53267,
+    "firstDifference": {
+      "before": "import{j as e,d as fe,r as m,L as M}from\"./react-vendor-HASH.js\";import{a as be,c as R}from\"./index-HASH.js\";import{P as he}from\"./Portal-HASH.js\";import{s as Ne,W as ge,g as ve,b as De,E as $,a as j",
+      "after": "import{j as e,d as xe,r as m,L as M}from\"./react-vendor-HASH.js\";import{a as be,c as k}from\"./index-HASH.js\";import{P as ge}from\"./Portal-HASH.js\";import{s as he,W as Ne,g as ve,b as De,E as $,a as j"
+    }
+  },
+  {
+    "file": "Progress-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 87832,
+    "newLength": 87832,
+    "firstDifference": {
+      "before": "js\"])))=>i.map(i=>d[i]);\nimport{_ as le}from\"./pdf-HASH.js\";import{u as je,r as d,j as e,L as H}from\"./react-vendor-HASH.js\";import{m as L,a as Ae,u as Ce,c as J,b as Ee}from\"./index-HASH.js\";import{P as Te}from\"./Portal-HASH.js\";import{t as be}from\"./muscleGr",
+      "after": "js\"])))=>i.map(i=>d[i]);\nimport{_ as le}from\"./pdf-HASH.js\";import{u as je,r as x,j as e,L as G}from\"./react-vendor-HASH.js\";import{m as L,a as Ce,u as Ee,c as J,b as ze}from\"./index-HASH.js\";import{P as Te}from\"./Portal-HASH.js\";import{t as he}from\"./muscleGr"
+    }
+  },
+  {
+    "file": "Settings-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 78653,
+    "newLength": 78653,
+    "firstDifference": {
+      "before": "import{d as fa,r as l,j as e}from\"./react-vendor-HASH.js\";import{a as ga,u as xa,f as se,g as ba,c as f,m as ge,j as ha,k as pe,l as Na,e as va}from\"./index-HASH.js\";import{P as Da}from\"./Port",
+      "after": "import{d as ds,r as l,j as e}from\"./react-vendor-HASH.js\";import{a as gs,u as bs,f as re,g as xs,c as d,m as ge,j as hs,k as pe,l as Ns,e as vs}from\"./index-HASH.js\";import{P as Ds}from\"./Port"
+    }
+  },
+  {
+    "file": "EditRoutine-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 39766,
+    "newLength": 39766,
+    "firstDifference": {
+      "before": "import{k as re,d as ie,r as f,j as e,L as D}from\"./react-vendor-HASH.js\";import{a as te,c as x}from\"./index-HASH.js\";import{W as se,E as U,a as le}from\"./routinePayload-HASH.js\";import{M as ne",
+      "after": "import{k as ae,d as ie,r as f,j as e,L as D}from\"./react-vendor-HASH.js\";import{a as te,c as g}from\"./index-HASH.js\";import{W as se,E as U,a as le}from\"./routinePayload-HASH.js\";import{M as ne"
+    }
+  },
+  {
+    "file": "routinePayload-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 8488,
+    "newLength": 8488,
+    "firstDifference": {
+      "before": "`,children:b[l]},l,!1,{fileName:\"C:/Users/guerr/AppData/Local/Temp/nexlift-phase35-verification-uAGO5a/client/src/components/ui/WeekdayPicker.jsx\",lineNumber:32,columnNumber:21},this)})},void 0,!1,{fileName:\"C:/Users/guerr/AppData/Local/Temp/nexlift-phase35-ve",
+      "after": "`,children:b[l]},l,!1,{fileName:\"C:/Users/guerr/AppData/Local/Temp/nexlift-phase41-verification-gHObzf/client/src/components/ui/WeekdayPicker.jsx\",lineNumber:32,columnNumber:21},this)})},void 0,!1,{fileName:\"C:/Users/guerr/AppData/Local/Temp/nexlift-phase41-ve"
+    }
+  },
+  {
+    "file": "routineDays-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": true,
+    "oldLength": 893,
+    "newLength": 893,
+    "firstDifference": null
+  },
+  {
+    "file": "EditSession-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 19406,
+    "newLength": 19406,
+    "firstDifference": {
+      "before": "import{k as G,j as e,d as $,r as l}from\"./react-vendor-HASH.js\";import{u as T,a as M,c as v,m as W,e as L}from\"./index-HASH.js\";import{d as q}from\"./sessionPdf-HASH.js\";import{D as B,u as Q}fr",
+      "after": "import{k as A,j as e,d as $,r as l}from\"./react-vendor-HASH.js\";import{u as T,a as M,c as v,m as W,e as L}from\"./index-HASH.js\";import{d as q}from\"./sessionPdf-HASH.js\";import{D as B,u as G}fr"
+    }
+  },
+  {
+    "file": "DraftBoundary-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": true,
+    "oldLength": 253,
+    "newLength": 253,
+    "firstDifference": null
+  },
+  {
+    "file": "sessionPdf-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": true,
+    "oldLength": 4196,
+    "newLength": 4196,
+    "firstDifference": null
+  },
+  {
+    "file": "BodyTracking-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 50521,
+    "newLength": 50521,
+    "firstDifference": {
+      "before": "import{r,j as e,L as Ne}from\"./react-vendor-HASH.js\";import{a as ve,c as H,l as ye,m as ce}from\"./index-HASH.js\";import{P as De}from\"./Portal-HASH.js\";import{c as je,a as Te}from\"./cloudinary-HASH.js\";import{f as Ae,q as ke,N as K,Q as oe,a2 as S,D as X",
+      "after": "import{r,j as e,L as Ne}from\"./react-vendor-HASH.js\";import{a as ve,c as G,l as ye,m as ce}from\"./index-HASH.js\";import{P as De}from\"./Portal-HASH.js\";import{c as je,a as Te}from\"./cloudinary-HASH.js\";import{f as ke,q as Ce,N as K,Q as oe,a2 as M,D as X"
+    }
+  },
+  {
+    "file": "ExportReport-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 48337,
+    "newLength": 48337,
+    "firstDifference": {
+      "before": "or-HASH.js\"])))=>i.map(i=>d[i]);\nimport{_ as Ne}from\"./pdf-HASH.js\";import{l as Re,r as Y,j as t,L as je}from\"./react-vendor-HASH.js\";import{a as we,u as Le,m as T,c as oe}from\"./index-HASH.js\";import{q as Te,O as Se,h as Oe,C as Fe,T as Ve,$ as Ue}from\"./icon",
+      "after": "or-HASH.js\"])))=>i.map(i=>d[i]);\nimport{_ as Ne}from\"./pdf-HASH.js\";import{l as je,r as q,j as t,L as we}from\"./react-vendor-HASH.js\";import{a as Le,u as Te,m as S,c as oe}from\"./index-HASH.js\";import{q as Se,O as ze,h as Ae,C as Oe,T as He,$ as Fe}from\"./icon"
+    }
+  },
+  {
+    "file": "Register-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 22346,
+    "newLength": 22346,
+    "firstDifference": {
+      "before": "import{d as y,r as m,j as e,L as h}from\"./react-vendor-HASH.js\";import{u as E}from\"./index-HASH.js\";import{S as L}from\"./securityQuestions-HASH.js\";import{u as R,C as U,U as w,a8 as T,L as N,E",
+      "after": "import{d as E,r as m,j as e,L as x}from\"./react-vendor-HASH.js\";import{u as L}from\"./index-HASH.js\";import{S as A}from\"./securityQuestions-HASH.js\";import{u as R,C as U,U as w,a8 as T,L as h,E"
+    }
+  },
+  {
+    "file": "securityQuestions-HASH.js",
+    "sameBytes": true,
+    "sameWithoutChunkNames": true,
+    "oldLength": 209,
+    "newLength": 209,
+    "firstDifference": null
+  },
+  {
+    "file": "ForgotPassword-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 19726,
+    "newLength": 19726,
+    "firstDifference": {
+      "before": "import{d as T,r as s,j as e,L as V}from\"./react-vendor-HASH.js\";import{c as w}from\"./index-HASH.js\";import{e as O,u as G,ab as k,C as A,U as S,b as D,V as R,L as C,E as q,a as B}from\"./icons-H",
+      "after": "import{d as V,r as a,j as e,L as A}from\"./react-vendor-HASH.js\";import{c as w}from\"./index-HASH.js\";import{e as z,u as O,ab as H,C as D,U as k,b as C,V as S,L as y,E as R,a as q}from\"./icons-H"
+    }
+  },
+  {
+    "file": "Profile-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 19490,
+    "newLength": 19490,
+    "firstDifference": {
+      "before": "q}from\"./index-HASH.js\";import{P as W}from\"./Portal-HASH.js\";import{c as Y,a as H}from\"./cloudinary-HASH.js\";import{R as w,a3 as T,ac as J,a9 as K,h as Q,ad as E,D as Z,N as O,k as V,ae as ee,X as ae}from\"./icons-HASH.js\";import\"./pdf-HASH.js\";const re=8*1024*",
+      "after": "q}from\"./index-HASH.js\";import{P as W}from\"./Portal-HASH.js\";import{c as Y,a as G}from\"./cloudinary-HASH.js\";import{R as w,a3 as T,ac as J,a9 as K,h as Q,ad as E,D as Z,N as z,k as O,ae as ee,X as re}from\"./icons-HASH.js\";import\"./pdf-HASH.js\";const ae=8*1024*"
+    }
+  },
+  {
+    "file": "cloudinary-HASH.js",
+    "sameBytes": true,
+    "sameWithoutChunkNames": true,
+    "oldLength": 421,
+    "newLength": 421,
+    "firstDifference": null
+  },
+  {
+    "file": "Portal-HASH.js",
+    "sameBytes": true,
+    "sameWithoutChunkNames": true,
+    "oldLength": 127,
+    "newLength": 127,
+    "firstDifference": null
+  },
+  {
+    "file": "NewGoal-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 21614,
+    "newLength": 21614,
+    "firstDifference": {
+      "before": "import{d as oe,r,j as e}from\"./react-vendor-HASH.js\";import{a as ne,c as A}from\"./index-HASH.js\";import{n as F,g as ce,c as ue,b as pe}from\"./exerciseName-HASH.js\";import{t as h}from\"./muscleGroup-HASH.js\";import{b as z,u as me,D as $,M as q,g as fe,Z a",
+      "after": "import{d as oe,r,j as e}from\"./react-vendor-HASH.js\";import{a as ne,c as E}from\"./index-HASH.js\";import{n as R,g as ce,c as pe,b as ue}from\"./exerciseName-HASH.js\";import{t as g}from\"./muscleGroup-HASH.js\";import{b as P,u as me,D as F,M as $,g as fe,Z a"
+    }
+  },
+  {
+    "file": "muscleGroup-HASH.js",
+    "sameBytes": true,
+    "sameWithoutChunkNames": true,
+    "oldLength": 671,
+    "newLength": 671,
+    "firstDifference": null
+  },
+  {
+    "file": "AiRoutineSetup-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 14774,
+    "newLength": 14774,
+    "firstDifference": {
+      "before": "js\";import{a as E,c as S}from\"./index-HASH.js\";import{u as C,B as y,n as L,D as T,b as R}from\"./icons-HASH.js\";import\"./pdf-HASH.js\";const G=[{id:\"hypertrophy\",label:\"Ganar músculo\",desc:\"Más volumen, 8-12 reps por serie\"},{id:\"strength\",label:\"Ganar fuerza\",d",
+      "after": "js\";import{a as E,c as S}from\"./index-HASH.js\";import{u as C,B as y,n as L,D as z,b as T}from\"./icons-HASH.js\";import\"./pdf-HASH.js\";const R=[{id:\"hypertrophy\",label:\"Ganar músculo\",desc:\"Más volumen, 8-12 reps por serie\"},{id:\"strength\",label:\"Ganar fuerza\",d"
+    }
+  },
+  {
+    "file": "purify.es-HASH.js",
+    "sameBytes": true,
+    "sameWithoutChunkNames": true,
+    "oldLength": 27950,
+    "newLength": 27950,
+    "firstDifference": null
+  },
+  {
+    "file": "GoalSection-HASH.js",
+    "sameBytes": false,
+    "sameWithoutChunkNames": false,
+    "oldLength": 30186,
+    "newLength": 30186,
+    "firstDifference": {
+      "before": "import{r as o,j as e,d as T}from\"./react-vendor-HASH.js\";import{a as C,c as j}from\"./index-HASH.js\";import{c as L,a as O,f as U}from\"./goalPlanner-HASH.js\";import{p as D,g as A,D as V,T as y,h as w,j as E,a",
+      "after": "import{r as o,j as e,d as A}from\"./react-vendor-HASH.js\";import{a as G,c as j}from\"./index-HASH.js\";import{c as T,a as H,f as L}from\"./goalPlanner-HASH.js\";import{p as E,g as C,D as O,T as U,h as V,j as z,a"
+    }
+  },
+  {
+    "file": "goalPlanner-HASH.js",
+    "sameBytes": true,
+    "sameWithoutChunkNames": true,
+    "oldLength": 4132,
+    "newLength": 4132,
+    "firstDifference": null
+  },
+  {
+    "file": "exerciseName-HASH.js",
+    "sameBytes": true,
+    "sameWithoutChunkNames": true,
+    "oldLength": 3131,
+    "newLength": 3131,
+    "firstDifference": null
+  },
+  {
+    "file": "index-HASH.css",
+    "sameBytes": true,
+    "sameWithoutChunkNames": true,
+    "oldLength": 107239,
+    "newLength": 107239,
+    "firstDifference": null
+  }
+]

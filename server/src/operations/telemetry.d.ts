@@ -1,0 +1,1 @@
+export function operationalLog(entry: { event: string; category: string; requestId?: string; status?: number; module?: string; durationMs?: number; count?: number }, write?: (line: string) => void): void;

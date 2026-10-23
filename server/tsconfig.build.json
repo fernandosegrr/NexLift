@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "noEmit": false,
+    "noEmitOnError": true,
+    "rootDir": "src",
+    "outDir": "build",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "inlineSources": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.cts"],
+  "exclude": ["src/generated"]
+}

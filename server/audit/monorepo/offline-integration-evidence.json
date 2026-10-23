@@ -1,0 +1,113 @@
+{
+  "createdAt": "2026-10-19T20:36:05.513Z",
+  "source": "SYNTHETIC_ONLY_NOT_PRODUCTION",
+  "productionTouched": false,
+  "realPostgres": true,
+  "browserEvidence": {
+    "browser": "Microsoft Edge real",
+    "compiledReact": true,
+    "realIndexedDB": true,
+    "realPostgres": true,
+    "actualForm": true,
+    "browserRestart": true,
+    "backendRestart": true,
+    "postgresStopStart": true,
+    "twoBrowserProcesses": true,
+    "actualServiceWorkerUpdate": true,
+    "physicalIndexedDbUpgrade": "20 -> 30",
+    "load": [
+      {
+        "size": 10,
+        "initializedMs": 9.5,
+        "queryMs": 1.2000000001862645,
+        "recoveryMs": 3.300000000745058,
+        "syncMs": 295.8999999994412,
+        "ticks": 5,
+        "maxDriftMs": 6.7999999998137355,
+        "workouts": 1,
+        "rests": 9,
+        "exportBytes": 29547,
+        "originUsage": 4530166,
+        "requests": 21,
+        "posts": 10,
+        "redundantPosts": 0,
+        "aggregate": "69177c028eedd010d6fbd8bab1384adb06a3956f7e1782dc49e20f82a7e5a416"
+      },
+      {
+        "size": 100,
+        "initializedMs": 9.099999999627471,
+        "queryMs": 4.2999999998137355,
+        "recoveryMs": 5.699999999254942,
+        "syncMs": 3363,
+        "ticks": 67,
+        "maxDriftMs": 12.800000000745058,
+        "workouts": 10,
+        "rests": 90,
+        "exportBytes": 289904,
+        "originUsage": 4137786,
+        "requests": 201,
+        "posts": 100,
+        "redundantPosts": 0,
+        "aggregate": "cfd601dbd4c9daefa21751b37d962e07ed29bb5591241ed17f21a592095f3101"
+      },
+      {
+        "size": 1000,
+        "initializedMs": 15.400000000372529,
+        "queryMs": 33.5,
+        "recoveryMs": 42.200000000186265,
+        "syncMs": 27161.599999999627,
+        "ticks": 543,
+        "maxDriftMs": 21.800000000745058,
+        "workouts": 100,
+        "rests": 900,
+        "exportBytes": 2897929,
+        "originUsage": 7167380,
+        "requests": 2001,
+        "posts": 1000,
+        "redundantPosts": 0,
+        "aggregate": "45f30bea6d42e56777dbe91490f2f6ca577ea5f876cdf8a30f6db537b074ef1c"
+      },
+      {
+        "size": 5000,
+        "initializedMs": 16.299999999813735,
+        "queryMs": 137.20000000018626,
+        "recoveryMs": 183.70000000018626,
+        "syncMs": 131369.7000000002,
+        "ticks": 2621,
+        "maxDriftMs": 77.80000000074506,
+        "workouts": 500,
+        "rests": 4500,
+        "exportBytes": 14509129,
+        "originUsage": 35990349,
+        "requests": 10001,
+        "posts": 5000,
+        "redundantPosts": 0,
+        "aggregate": "1d11f7ea593aedbda1c66137375caabc3c152349603295b85243aa8a290fa1a7"
+      },
+      {
+        "visual": true,
+        "size": 1000,
+        "syncMs": 28389,
+        "renderedRows": 50,
+        "retainedRows": 1000
+      },
+      {
+        "visual": true,
+        "size": 5000,
+        "displayMs": 1789,
+        "renderedRows": 100,
+        "retainedRows": 6000,
+        "pending": 5000
+      }
+    ]
+  },
+  "counts": {
+    "logs": 717,
+    "sets": 718,
+    "rest": 6405,
+    "receipts": 7122
+  },
+  "prRebuildMatched": true,
+  "orphanSets": 0,
+  "originalTimesConfirmedAfterMidnight": 7115
+}

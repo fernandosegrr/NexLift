@@ -1,0 +1,27 @@
+{
+  "createdAt": "2026-10-20T21:41:18.788Z",
+  "source": "SYNTHETIC_ONLY_NOT_PRODUCTION",
+  "productionTouched": false,
+  "realPostgres": true,
+  "realNodeRestart": true,
+  "realPostgresRestart": true,
+  "sqlFailureImmediatelyBeforeCommit": true,
+  "httpResponseDroppedImmediatelyAfterCommit": true,
+  "frontendEngine": "Actual client modules; replaceable local Storage adapter",
+  "browserEvidence": {
+    "browser": "Real headless Microsoft Edge/Chromium",
+    "automaticReconnect": true,
+    "actualWebLocks": true,
+    "realReload": true,
+    "realBrowserRestart": true,
+    "actualServiceWorker": true,
+    "pendingAndConfirmedUI": true,
+    "duplicateDatabaseEffects": 0
+  },
+  "counts": {
+    "logs": 15,
+    "sets": 28,
+    "rest": 3,
+    "receipts": 17
+  }
+}

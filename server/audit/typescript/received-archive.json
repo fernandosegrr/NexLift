@@ -1,0 +1,273 @@
+{
+  "createdAt": "2026-10-20T02:02:26.751Z",
+  "directory": "C:/Users/guerr/.codex/artifacts/nexlift-phase42-received-1858caef-204c-4b10-b6d7-03d8b4094ba9",
+  "files": 358,
+  "allOriginalHashesVerified": true,
+  "missingTemporaryEntriesRecoveredFromMatchingBytes": [
+    {
+      "file": ".claude/launch.json",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\.claude\\launch.json"
+    },
+    {
+      "file": ".claude/scheduled_tasks.lock",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\.claude\\scheduled_tasks.lock"
+    },
+    {
+      "file": ".claude/settings.local.json",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\.claude\\settings.local.json"
+    },
+    {
+      "file": "client/.gitignore",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\.gitignore"
+    },
+    {
+      "file": "client/eslint.config.js",
+      "verifiedSource": "git HEAD (exact received hash verified)"
+    },
+    {
+      "file": "client/index.html",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\index.html"
+    },
+    {
+      "file": "client/public/icon-192.png",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\public\\icon-192.png"
+    },
+    {
+      "file": "client/public/icon-512.png",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\public\\icon-512.png"
+    },
+    {
+      "file": "client/public/logo.png",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\public\\logo.png"
+    },
+    {
+      "file": "client/public/manifest.json",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\public\\manifest.json"
+    },
+    {
+      "file": "client/public/vite.svg",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\public\\vite.svg"
+    },
+    {
+      "file": "client/README.md",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\README.md"
+    },
+    {
+      "file": "client/src/App.css",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\App.css"
+    },
+    {
+      "file": "client/src/assets/react.svg",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\assets\\react.svg"
+    },
+    {
+      "file": "client/src/components/ExerciseLibrary.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\components\\ExerciseLibrary.jsx"
+    },
+    {
+      "file": "client/src/components/goals/GoalCard.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\components\\goals\\GoalCard.jsx"
+    },
+    {
+      "file": "client/src/components/goals/GoalSection.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\components\\goals\\GoalSection.jsx"
+    },
+    {
+      "file": "client/src/components/RoutineTemplateSelector.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\components\\RoutineTemplateSelector.jsx"
+    },
+    {
+      "file": "client/src/components/ui/Celebration.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\components\\ui\\Celebration.jsx"
+    },
+    {
+      "file": "client/src/components/ui/MuscleIcon.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\components\\ui\\MuscleIcon.jsx"
+    },
+    {
+      "file": "client/src/components/ui/Portal.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\components\\ui\\Portal.jsx"
+    },
+    {
+      "file": "client/src/components/ui/Toast.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\components\\ui\\Toast.jsx"
+    },
+    {
+      "file": "client/src/components/ui/WeekdayPicker.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\components\\ui\\WeekdayPicker.jsx"
+    },
+    {
+      "file": "client/src/data/exercises.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\data\\exercises.js"
+    },
+    {
+      "file": "client/src/data/routineTemplates.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\data\\routineTemplates.js"
+    },
+    {
+      "file": "client/src/data/strengthStandards.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\data\\strengthStandards.js"
+    },
+    {
+      "file": "client/src/index.css",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\index.css"
+    },
+    {
+      "file": "client/src/main.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\main.jsx"
+    },
+    {
+      "file": "client/src/pages/AiRoutineSetup.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\pages\\AiRoutineSetup.jsx"
+    },
+    {
+      "file": "client/src/pages/ForgotPassword.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\pages\\ForgotPassword.jsx"
+    },
+    {
+      "file": "client/src/pages/Login.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\pages\\Login.jsx"
+    },
+    {
+      "file": "client/src/pages/NewGoal.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\pages\\NewGoal.jsx"
+    },
+    {
+      "file": "client/src/pages/Register.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\pages\\Register.jsx"
+    },
+    {
+      "file": "client/src/pages/RoutineDetail.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\pages\\RoutineDetail.jsx"
+    },
+    {
+      "file": "client/src/pages/Routines.jsx",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\pages\\Routines.jsx"
+    },
+    {
+      "file": "client/src/utils/cloudinary.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\scripts\\fixtures\\legacy-cloudinary.js"
+    },
+    {
+      "file": "client/src/utils/dates.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\utils\\dates.js"
+    },
+    {
+      "file": "client/src/utils/dates.test.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\utils\\dates.test.js"
+    },
+    {
+      "file": "client/src/utils/dayPdf.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\utils\\dayPdf.js"
+    },
+    {
+      "file": "client/src/utils/exerciseName.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\utils\\exerciseName.js"
+    },
+    {
+      "file": "client/src/utils/exerciseName.test.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\utils\\exerciseName.test.js"
+    },
+    {
+      "file": "client/src/utils/goalPlanner.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\utils\\goalPlanner.js"
+    },
+    {
+      "file": "client/src/utils/homeCache.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\utils\\homeCache.js"
+    },
+    {
+      "file": "client/src/utils/muscleGroup.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\utils\\muscleGroup.js"
+    },
+    {
+      "file": "client/src/utils/push.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\utils\\push.js"
+    },
+    {
+      "file": "client/src/utils/routineDays.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\utils\\routineDays.js"
+    },
+    {
+      "file": "client/src/utils/routineDays.parity.test.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\utils\\routineDays.parity.test.js"
+    },
+    {
+      "file": "client/src/utils/securityQuestions.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\utils\\securityQuestions.js"
+    },
+    {
+      "file": "client/src/utils/sessionPdf.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\utils\\sessionPdf.js"
+    },
+    {
+      "file": "client/src/utils/strength.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\src\\utils\\strength.js"
+    },
+    {
+      "file": "client/vite.config.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\client\\vite.config.js"
+    },
+    {
+      "file": "LICENSE",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\LICENSE"
+    },
+    {
+      "file": "server/analyze-suggestions.mjs",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\server\\analyze-suggestions.mjs"
+    },
+    {
+      "file": "server/backfill-routine-weekday.mjs",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\server\\backfill-routine-weekday.mjs"
+    },
+    {
+      "file": "server/fix-shortcut-rir.mjs",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\server\\fix-shortcut-rir.mjs"
+    },
+    {
+      "file": "server/migrate-catbox-to-cloudinary.mjs",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\server\\migrate-catbox-to-cloudinary.mjs"
+    },
+    {
+      "file": "server/scripts/migrate-photos.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\server\\scripts\\migrate-photos.js"
+    },
+    {
+      "file": "server/src/data/exerciseCatalog.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\server\\src\\data\\exerciseCatalog.js"
+    },
+    {
+      "file": "server/src/data/splitTemplates.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\server\\src\\data\\splitTemplates.js"
+    },
+    {
+      "file": "server/src/services/aiRoutineAgent.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\server\\src\\services\\aiRoutineAgent.js"
+    },
+    {
+      "file": "server/src/services/aiRoutineService.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\server\\src\\services\\aiRoutineService.js"
+    },
+    {
+      "file": "server/src/services/aiRoutineService.test.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\server\\src\\services\\aiRoutineService.test.js"
+    },
+    {
+      "file": "server/src/services/exerciseAgent.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\server\\src\\services\\exerciseAgent.js"
+    },
+    {
+      "file": "server/src/utils/exerciseName.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\server\\src\\utils\\exerciseName.js"
+    },
+    {
+      "file": "verify_merge.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\verify_merge.js"
+    },
+    {
+      "file": "verify_restore.js",
+      "verifiedSource": "C:\\Users\\guerr\\OneDrive\\Escritorio\\NexLift\\verify_restore.js"
+    }
+  ],
+  "noSourceOrOldTemporaryFilesDeleted": true
+}

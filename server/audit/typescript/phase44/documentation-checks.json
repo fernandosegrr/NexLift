@@ -1,0 +1,39 @@
+{
+  "status": "COMPLETADO en desarrollo por checkpoints",
+  "uniqueTests": 1104,
+  "oldTests": 1091,
+  "newTests": 13,
+  "codeFilesMatched": 350,
+  "sourceHashesMatched": 433,
+  "localLinksResolved": 18,
+  "jsonFilesParsed": 20,
+  "modifiedReceived": 20,
+  "newSourceTestConfigDocumentationFiles": 30,
+  "deletedFiles": 0,
+  "staged": false,
+  "earlierTestFilesUnchanged": 44,
+  "prismaInputsUnchanged": 4,
+  "locksUnchanged": 3,
+  "typescriptLint": {
+    "files": 22,
+    "errors": 0,
+    "warnings": 0
+  },
+  "toolingLint": {
+    "files": 39,
+    "errors": 0,
+    "warnings": 0
+  },
+  "globalLint": {
+    "errors": 27,
+    "warnings": 3,
+    "newDiagnostics": 0
+  },
+  "productionTouched": false,
+  "persistentMigrations": false,
+  "baseline": "PROVISIONAL",
+  "productionNewSyncEnabled": false,
+  "commits": false,
+  "deployments": false,
+  "phase5Started": false
+}

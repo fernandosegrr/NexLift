@@ -1,0 +1,35 @@
+// GENERATED from TypeScript by npm run build:typed; do not edit.
+"use strict";
+Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+const logic_js = require("../logic.js");
+const shared = require("./contracts.cjs");
+const operationHash_js = require("../services/operationHash.js");
+class OperationError extends Error {
+  constructor(status, code, message, { retryable = false, outcome = "not_committed" } = {}) {
+    super(message);
+    Object.assign(this, { status, code, retryable, outcome });
+  }
+}
+function adaptContract(action) {
+  try {
+    return action();
+  } catch (error) {
+    if (error instanceof shared.ContractValidationError) throw new OperationError(422, error.code, error.message);
+    throw error;
+  }
+}
+const operationId = (value) => adaptContract(() => shared.operationId(value));
+const parseOperation = (input) => adaptContract(() => shared.parseWorkoutOperation(input, { sanitizeSets: logic_js.sanitizeSets, mexicoCityDateStr: logic_js.mexicoCityDateStr }));
+Object.defineProperty(exports, "requestHash", {
+  enumerable: true,
+  get: () => operationHash_js.requestHash
+});
+Object.defineProperty(exports, "sessionVersion", {
+  enumerable: true,
+  get: () => operationHash_js.sessionVersion
+});
+exports.OperationError = OperationError;
+exports.adaptContract = adaptContract;
+exports.operationId = operationId;
+exports.parseOperation = parseOperation;
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoib3BlcmF0aW9uQ29udHJhY3QuY2pzIiwic291cmNlcyI6WyIuLi9zZXJ2aWNlcy9vcGVyYXRpb25Db250cmFjdC50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgdHlwZSB7IENhbm9uaWNhbE9wZXJhdGlvbiB9IGZyb20gJ0BuZXhsaWZ0L3NoYXJlZCc7XG5pbXBvcnQgeyBzYW5pdGl6ZVNldHMsIG1leGljb0NpdHlEYXRlU3RyIH0gZnJvbSAnLi4vbG9naWMuanMnO1xuaW1wb3J0IHsgQ29udHJhY3RWYWxpZGF0aW9uRXJyb3IsIG9wZXJhdGlvbklkIGFzIHNoYXJlZE9wZXJhdGlvbklkLCBwYXJzZVdvcmtvdXRPcGVyYXRpb24gfSBmcm9tICdAbmV4bGlmdC9zaGFyZWQnO1xuXG5leHBvcnQgY2xhc3MgT3BlcmF0aW9uRXJyb3IgZXh0ZW5kcyBFcnJvciB7XG4gICAgZGVjbGFyZSBzdGF0dXM6IG51bWJlcjtcbiAgICBkZWNsYXJlIGNvZGU6IHN0cmluZztcbiAgICBkZWNsYXJlIHJldHJ5YWJsZTogYm9vbGVhbjtcbiAgICBkZWNsYXJlIG91dGNvbWU6ICdub3RfY29tbWl0dGVkJyB8ICd1bmtub3duJztcbiAgICBjb25zdHJ1Y3RvcihzdGF0dXM6IG51bWJlciwgY29kZTogc3RyaW5nLCBtZXNzYWdlOiBzdHJpbmcsIHsgcmV0cnlhYmxlID0gZmFsc2UsIG91dGNvbWUgPSAnbm90X2NvbW1pdHRlZCcgfTogeyByZXRyeWFibGU/OiBib29sZWFuOyBvdXRjb21lPzogJ25vdF9jb21taXR0ZWQnIHwgJ3Vua25vd24nIH0gPSB7fSkge1xuICAgICAgICBzdXBlcihtZXNzYWdlKTsgT2JqZWN0LmFzc2lnbih0aGlzLCB7IHN0YXR1cywgY29kZSwgcmV0cnlhYmxlLCBvdXRjb21lIH0pO1xuICAgIH1cbn1cblxuZXhwb3J0IGZ1bmN0aW9uIGFkYXB0Q29udHJhY3Q8VD4oYWN0aW9uOiAoKSA9PiBUKTogVCB7XG4gICAgdHJ5IHsgcmV0dXJuIGFjdGlvbigpOyB9XG4gICAgY2F0Y2ggKGVycm9yKSB7XG4gICAgICAgIGlmIChlcnJvciBpbnN0YW5jZW9mIENvbnRyYWN0VmFsaWRhdGlvbkVycm9yKSB0aHJvdyBuZXcgT3BlcmF0aW9uRXJyb3IoNDIyLCBlcnJvci5jb2RlLCBlcnJvci5tZXNzYWdlKTtcbiAgICAgICAgdGhyb3cgZXJyb3I7XG4gICAgfVxufVxuZXhwb3J0IGNvbnN0IG9wZXJhdGlvbklkID0gKHZhbHVlOiB1bmtub3duKTogc3RyaW5nID0+IGFkYXB0Q29udHJhY3QoKCkgPT4gc2hhcmVkT3BlcmF0aW9uSWQodmFsdWUpKTtcbmV4cG9ydCBjb25zdCBwYXJzZU9wZXJhdGlvbiA9IChpbnB1dDogdW5rbm93bik6IENhbm9uaWNhbE9wZXJhdGlvbiA9PiBhZGFwdENvbnRyYWN0KCgpID0+IHBhcnNlV29ya291dE9wZXJhdGlvbihpbnB1dCwgeyBzYW5pdGl6ZVNldHMsIG1leGljb0NpdHlEYXRlU3RyIH0pKTtcbmV4cG9ydCB7IHJlcXVlc3RIYXNoLCBzZXNzaW9uVmVyc2lvbiB9IGZyb20gJy4vb3BlcmF0aW9uSGFzaC5qcyc7XG4iXSwibmFtZXMiOlsiQ29udHJhY3RWYWxpZGF0aW9uRXJyb3IiLCJzaGFyZWRPcGVyYXRpb25JZCIsInBhcnNlV29ya291dE9wZXJhdGlvbiIsInNhbml0aXplU2V0cyIsIm1leGljb0NpdHlEYXRlU3RyIl0sIm1hcHBpbmdzIjoiOzs7OztBQUlPLE1BQU0sdUJBQXVCLE1BQU07QUFBQSxFQUt0QyxZQUFZLFFBQWdCLE1BQWMsU0FBaUIsRUFBRSxZQUFZLE9BQU8sVUFBVSxnQkFBQSxJQUFvRixJQUFJO0FBQzlLLFVBQU0sT0FBTztBQUFHLFdBQU8sT0FBTyxNQUFNLEVBQUUsUUFBUSxNQUFNLFdBQVcsU0FBUztBQUFBLEVBQzVFO0FBQ0o7QUFFTyxTQUFTLGNBQWlCLFFBQW9CO0FBQ2pELE1BQUk7QUFBRSxXQUFPLE9BQUE7QUFBQSxFQUFVLFNBQ2hCLE9BQU87QUFDVixRQUFJLGlCQUFpQkEsK0JBQXlCLE9BQU0sSUFBSSxlQUFlLEtBQUssTUFBTSxNQUFNLE1BQU0sT0FBTztBQUNyRyxVQUFNO0FBQUEsRUFDVjtBQUNKO0FBQ08sTUFBTSxjQUFjLENBQUMsVUFBMkIsY0FBYyxNQUFNQyxPQUFBQSxZQUFrQixLQUFLLENBQUM7QUFDNUYsTUFBTSxpQkFBaUIsQ0FBQyxVQUF1QyxjQUFjLE1BQU1DLE9BQUFBLHNCQUFzQixPQUFPLEVBQUEsY0FBRUMsdUJBQUEsbUJBQWNDLFNBQUFBLG1CQUFtQixDQUFDOzs7Ozs7Ozs7Ozs7OyJ9

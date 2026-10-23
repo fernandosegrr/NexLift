@@ -1,0 +1,8 @@
+{
+  "errors": 27,
+  "warnings": 3,
+  "newDiagnostics": 0,
+  "comparison": "same file/rule/severity/message; line shifts from imports recorded in raw outputs",
+  "typescriptErrors": 0,
+  "typescriptWarnings": 0
+}

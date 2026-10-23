@@ -1,0 +1,26 @@
+{
+  "createdAt": "2026-10-19T20:32:26.543Z",
+  "simulatedChildOutput": true,
+  "applicationTestsAdded": 0,
+  "attempts": 2,
+  "oldDirectoryDeleted": false,
+  "results": [
+    {
+      "name": "offline-postgres-browser",
+      "exit": 1,
+      "milliseconds": 336,
+      "repeat": true,
+      "tests": 31,
+      "cleanupDiagnostic": true,
+      "retainedCleanup": "C:\\Users\\guerr\\AppData\\Local\\Temp\\nexlift-stabilization-tests-Jz3AYO",
+      "log": "offline-postgres-browser-cleanup-diagnostic-1.private.log"
+    },
+    {
+      "name": "offline-postgres-browser",
+      "exit": 0,
+      "milliseconds": 175,
+      "repeat": false,
+      "tests": 0
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "createdAt": "2026-10-20T17:07:33.664Z",
+  "phase43DefaultBuild": "C:/Users/guerr/AppData/Local/Temp/nexlift-phase43-verification-ETbH0k/client/dist/assets",
+  "cssFile": "index-Bq6ij0Fo.css",
+  "cssBytes": 107239,
+  "cssSha256": "50cd2c0ab880c45a97a2dfd308f16dc6d05290e77aa9c9a545d85b11caf9461f",
+  "phase42CssSha256": "50cd2c0ab880c45a97a2dfd308f16dc6d05290e77aa9c9a545d85b11caf9461f",
+  "browserModules": 2664,
+  "browserBoundaryVerified": true,
+  "limitation": "Only CSS is compared here; JavaScript chunks may change names/bytes with the new executable contracts",
+  "cssIdentical": true
+}

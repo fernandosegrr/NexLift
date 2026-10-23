@@ -1,0 +1,32 @@
+{
+  "checkedAt": "2026-10-20T02:03:03.686Z",
+  "dockerInputsAvailable": [
+    "configs/tsconfig.base.json",
+    "configs/tsconfig.node.json",
+    "packages/shared/tsconfig.json",
+    "packages/shared/tsconfig.build.json",
+    "packages/shared/src/index.ts",
+    "scripts/build-typescript.mjs",
+    "scripts/check-server.mjs",
+    "server/tsconfig.json",
+    "server/tsconfig.build.json",
+    "server/src/operations/errors.ts",
+    "server/src/generated/errors.cjs",
+    "client/src/utils/cloudinary.ts",
+    "client/src/generated/cloudinary.js"
+  ],
+  "dockerPrivateAndGeneratedBuildInputsExcluded": [
+    "server/.env",
+    "client/.env.production",
+    "server/src/credentials.json",
+    "packages/shared/src/secrets.json",
+    "server/test/typescript-dev.integration.test.js",
+    "server/build/operations/errors.js",
+    "packages/shared/dist/index.js"
+  ],
+  "legacyCharacterizationFixturesIdentical": true,
+  "operativeDockerUnchanged": true,
+  "schemaUnchanged": true,
+  "serviceWorkerUnchanged": true,
+  "dockerCliExecuted": false
+}

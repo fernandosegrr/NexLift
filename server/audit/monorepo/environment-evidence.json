@@ -1,0 +1,15 @@
+{
+  "checkedAt": "2026-10-19T20:22:04.571Z",
+  "node": "24.22.0",
+  "npm": "11.19.1",
+  "postgres": "18.4",
+  "browser": "Edge 155.0.4283.62",
+  "platform": "win32",
+  "arch": "x64",
+  "prismaClient": "6.19.3",
+  "prismaCli": "6.19.3",
+  "dockerAvailable": false,
+  "podmanAvailable": false,
+  "productionTouched": false,
+  "persistentDatabaseAccessed": false
+}

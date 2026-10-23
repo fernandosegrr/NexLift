@@ -1,0 +1,23 @@
+{
+  "capturedAt": "2026-10-20T15:18:24.2265721-06:00",
+  "node": "v24.22.0",
+  "npm": "11.19.1",
+  "postgres": "postgres (PostgreSQL) 18.4",
+  "edge": "155.0.4283.62",
+  "os": "Microsoft Windows NT 10.0.26300.0",
+  "dockerAvailable": false,
+  "podmanAvailable": false,
+  "databasePolicy": "Only verified fresh synthetic clusters",
+  "productionAccessed": false,
+  "persistentMigrations": false,
+  "recoveredRuntime": {
+    "Root": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-phase44-runtime-0938c5306f904b8796b159e4fc5a540d",
+    "ArchiveSha256": "f9683a19877e12a9b167305c8db71040d812876359de21f0d2e97c3f321f80c3",
+    "Node": "v24.22.0",
+    "Npm": "11.19.1",
+    "NodeBinarySha256": "ba93f9a70bd86fce3ebbb39ec758501458453467aa92a34a0a3602d1e3fc2b9c",
+    "PreviousNodeBinarySha256": "ba93f9a70bd86fce3ebbb39ec758501458453467aa92a34a0a3602d1e3fc2b9c"
+  },
+  "runtimeGlobalModified": false,
+  "runtimeLossActor": "Unknown"
+}

@@ -5,6 +5,21 @@ import tailwindcss from '@tailwindcss/vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // Vite only transpiles. Explicit emit settings let a standalone client copy
+  // compile real TSX without the monorepo's parent typecheck configuration.
+  // The strict tsc project remains unchanged; phase44 tests compare these flags.
+  esbuild: {
+    // A string is intentional: Vite merges object-form options with the parent
+    // tsconfig before transforming TSX; the string form is self-contained.
+    tsconfigRaw: JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022',
+        jsx: 'react-jsx',
+        useDefineForClassFields: true,
+        verbatimModuleSyntax: true,
+      },
+    }),
+  },
   build: {
     // Chunks estables: al actualizar una página no se invalida todo el vendor
     rollupOptions: {
