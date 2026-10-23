@@ -293,6 +293,15 @@ export async function runStabilizationBrowser({ root, backend, tokenA, tokenB, e
             oldMode=false;release=2;bridge='/'+manifest['test/stabilization-harness.html'].file;
             try { await update.evaluate(`navigator.serviceWorker.getRegistration().then(r=>r.update()).then(()=>true)`); }
             catch(error) { if(!/Inspected target navigated|Execution context was destroyed/.test(error.message))throw error; }
+            // The availability SW deliberately waits while a document is open.
+            // Verify the old page and pending operation survive, then model the
+            // user closing/reopening this test tab. Never force skipWaiting.
+            await until(()=>update.evaluate(`navigator.serviceWorker.getRegistration().then(r=>!!r.waiting)`),'new SW waits for open document');
+            assert.equal(await update.evaluate(`!!document.querySelector('script[src="/${oldManifest['index.html'].file}"]')`),true);
+            assert.deepEqual((await state(update)).find(x=>x.id===saved.operationId).payload,original.payload);
+            await update.command('Page.navigate',{url:'about:blank'});
+            await until(()=>update.evaluate(`location.href==='about:blank'&&document.readyState==='complete'`),'test document closed');
+            await update.command('Page.navigate',{url:origin+'/workout/A-RoutineDay'});
             await until(()=>update.evaluate(`(async()=>!!document.querySelector('script[src="/${manifest['index.html'].file}"]')
                 &&(await caches.keys()).includes('nexlift-static-v35-isolated-2')
                 &&(await indexedDB.databases()).some(d=>d.name==='nexlift-offline'&&d.version===30))()`),'new frontend / active SW / additive upgrade');
@@ -307,7 +316,7 @@ export async function runStabilizationBrowser({ root, backend, tokenA, tokenB, e
         });
         return {browser:'Microsoft Edge real',compiledReact:true,realIndexedDB:true,realPostgres:true,
             actualForm:true,browserRestart:true,backendRestart:true,postgresStopStart:true,twoBrowserProcesses:true,
-            actualServiceWorkerUpdate:true,physicalIndexedDbUpgrade:'20 -> 30',load:metrics};
+            actualServiceWorkerUpdate:true,deferredActivationWithoutForcedReload:true,physicalIndexedDbUpgrade:'20 -> 30',load:metrics};
     }finally{
         for(const p of pages)p.close();
         await processes.close();
