@@ -143,8 +143,8 @@ Integración de Coach, sin tocar su rama original:
 git worktree add -b release/coach-with-availability /ABS/NUEVO-COACH feat/nexlift-coach
 git -C /ABS/NUEVO-COACH cherry-pick 2025096d4161eb23e76382bfdbd8e29c7142f621
 # Conflicto conocido únicamente en scripts/verify-monorepo.mjs:
-# copiar coach-integrated-verify-monorepo.mjs de esta carpeta audit
-# sobre /ABS/NUEVO-COACH/scripts/verify-monorepo.mjs, sin cambiar su contenido.
+cp /ABS/HOTFIX/server/audit/hotfix/coach-integrated-verify-monorepo.mjs /ABS/NUEVO-COACH/scripts/verify-monorepo.mjs
+# /ABS/HOTFIX es este worktree, que contiene el informe y el archivo de resolución.
 git -C /ABS/NUEVO-COACH add scripts/verify-monorepo.mjs
 git -C /ABS/NUEVO-COACH cherry-pick --continue
 cd /ABS/NUEVO-COACH
@@ -163,6 +163,14 @@ npm test
 ~~~
 
 El archivo de resolución preserva los 94 casos Coach y agrega los 13 del hotfix: expectativa **1574**, aún sin certificar con una matriz completa integrada. Se verificó el conflicto con merge-tree, y se preparó la rama local rehearsal/coach-availability, commit adc6367, resolviendo ese único archivo; su ejecución integrada se registra en integrated-candidate.json: **108 pruebas aprobadas**, build y TypeScript aprobados. Son reejecuciones de las 94 de Coach, 13 del hotfix y 1 de compatibilidad, no 108 pruebas nuevas. No es un release productivo.
+
+También se puede partir directamente de la integración local ya ensayada, sin repetir el conflicto:
+
+~~~sh
+git worktree add -b release/coach-candidate /ABS/NUEVO-CANDIDATO adc636772a64f6e3d3a0b45f6cf42ecc7969ccf0
+~~~
+
+Esto prepara código para revisión y pruebas; no habilita las rutas Coach en producción.
 
 ## Backup, migración, imagen y despliegue futuro
 
