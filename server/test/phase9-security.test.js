@@ -205,9 +205,9 @@ test('9 SW: malformed and legacy push remain compatible; duplicate events do not
     await w.event('push', { data: { json: () => ({ tag: 'same' }) } });
     assert.equal(w.calls.show[5][1].renotify, true);
 });
-test('9 SW: same-origin window is reused and receives only a safe local target', async () => {
+test('9 SW: same-origin window is focused without navigating an active workout', async () => {
     const w = await worker(); let focused = false, navigated;
-    w.context.clients.matchAll = async () => [{ url: 'https://app.synthetic.invalid/workout', navigate: async url => { navigated = url; return { focus: async () => { focused = true; } }; }, focus() {} }];
+    w.context.clients.matchAll = async () => [{ url: 'https://app.synthetic.invalid/workout', navigate: async url => { navigated = url; return { focus: async () => { focused = true; } }; }, focus() { focused = true; } }];
     await w.event('notificationclick', { notification: { data: { url: '/?checkin=creatine' }, close() {} } });
-    assert(focused); assert.equal(navigated, '/?checkin=creatine'); assert.equal(w.calls.open.length, 0);
+    assert(focused); assert.equal(navigated, undefined); assert.equal(w.calls.open.length, 0);
 });
