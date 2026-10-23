@@ -245,7 +245,9 @@ try {
     await run('coach-domain-assistant-scenarios', [npm, 'run', 'test:coach']);
     await run('coach-postgres-transports-backups', [npm, 'run', 'test:coach:integration']);
     await run('coach-edge-react-mobile-privacy', [npm, 'run', 'test:coach:browser']);
+    env.NODE_ENV = 'production';
     await run('coach-final-production-build', [npm, 'run', 'build']);
+    env.NODE_ENV = 'test';
     await run('coach-final-bundle', [npm, 'run', 'check:bundle']);
     await run('coach-final-module-lint', [npm, 'run', 'lint:backend']);
     await run('coach-final-workspace-regression', [npm, 'run', 'test:unit'], '.', { repeat: true });
