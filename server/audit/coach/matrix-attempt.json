@@ -1,0 +1,415 @@
+{
+  "complete": false,
+  "resolvedBy": {
+    "isolatedDirectory": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-verification\\nexlift-phase10-verification-WBrDa0",
+    "npmTestExit": 0,
+    "uniqueTests": 1561,
+    "newTests": 94,
+    "environmentRecovery": "Authorized recycle-bin cleanup completed with exit 0; reversible NTFS compression preserved owned trial files. Dependency deletion was rejected by automatic review and was not bypassed."
+  },
+  "npmTestExit": 1,
+  "reason": "Insufficient disk space: about 137 MB free on C; Edge/IndexedDB load-5000 failed. Automatic approval rejected deletion of reinstallable dependencies from this task owned verification copies: blocked by policy.",
+  "productionTouched": false,
+  "persistentDatabaseAccessed": false,
+  "uniquePassedBeforeFailure": 1293,
+  "newTargetedTests": 94,
+  "sourceUnchanged": true,
+  "changedSources": [],
+  "isolatedDirectory": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-verification\\nexlift-phase10-verification-xMzWjm",
+  "failures": [
+    {
+      "name": "phase6-offline-current-schema-edge-dexie",
+      "exit": 1,
+      "milliseconds": 133038,
+      "repeat": true,
+      "tests": 28
+    }
+  ],
+  "results": [
+    {
+      "name": "root-ci",
+      "exit": 0,
+      "milliseconds": 43803,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "root-workspaces",
+      "exit": 0,
+      "milliseconds": 1215,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "root-project-check",
+      "exit": 0,
+      "milliseconds": 792,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "prisma-generate",
+      "exit": 0,
+      "milliseconds": 6157,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "initial-typescript-build",
+      "exit": 0,
+      "milliseconds": 9794,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "strict-typechecks-generated-and-lint",
+      "exit": 0,
+      "milliseconds": 21627,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "shared-resolution",
+      "exit": 0,
+      "milliseconds": 2398,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "server-test",
+      "exit": 0,
+      "milliseconds": 1245,
+      "repeat": false,
+      "tests": 107
+    },
+    {
+      "name": "server-test-integration",
+      "exit": 0,
+      "milliseconds": 9544,
+      "repeat": false,
+      "tests": 48
+    },
+    {
+      "name": "server-test-backup",
+      "exit": 0,
+      "milliseconds": 916,
+      "repeat": false,
+      "tests": 17
+    },
+    {
+      "name": "server-test-backup-integration",
+      "exit": 0,
+      "milliseconds": 28851,
+      "repeat": false,
+      "tests": 41
+    },
+    {
+      "name": "server-test-import",
+      "exit": 0,
+      "milliseconds": 651,
+      "repeat": false,
+      "tests": 22
+    },
+    {
+      "name": "server-test-import-integration",
+      "exit": 0,
+      "milliseconds": 9165,
+      "repeat": false,
+      "tests": 39
+    },
+    {
+      "name": "server-test-workout-integration",
+      "exit": 0,
+      "milliseconds": 23190,
+      "repeat": false,
+      "tests": 84
+    },
+    {
+      "name": "server-test-workout-baseline",
+      "exit": 0,
+      "milliseconds": 6538,
+      "repeat": false,
+      "tests": 13
+    },
+    {
+      "name": "server-test-schema-audit",
+      "exit": 0,
+      "milliseconds": 24058,
+      "repeat": false,
+      "tests": 54
+    },
+    {
+      "name": "server-test-baseline",
+      "exit": 0,
+      "milliseconds": 53505,
+      "repeat": false,
+      "tests": 46
+    },
+    {
+      "name": "server-test-infra",
+      "exit": 0,
+      "milliseconds": 3895,
+      "repeat": false,
+      "tests": 37
+    },
+    {
+      "name": "server-test-infra-integration",
+      "exit": 0,
+      "milliseconds": 23744,
+      "repeat": false,
+      "tests": 14
+    },
+    {
+      "name": "client-historical-tests",
+      "exit": 0,
+      "milliseconds": 3858,
+      "repeat": false,
+      "tests": 176
+    },
+    {
+      "name": "default-workspace-build",
+      "exit": 0,
+      "milliseconds": 36653,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "client-bundle-boundaries",
+      "exit": 0,
+      "milliseconds": 9900,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "staging-unit",
+      "exit": 0,
+      "milliseconds": 1006,
+      "repeat": false,
+      "tests": 12
+    },
+    {
+      "name": "staging-integration",
+      "exit": 0,
+      "milliseconds": 114954,
+      "repeat": false,
+      "tests": 23
+    },
+    {
+      "name": "infra-static",
+      "exit": 0,
+      "milliseconds": 2539,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "staging-static",
+      "exit": 0,
+      "milliseconds": 2255,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "operations-unit",
+      "exit": 0,
+      "milliseconds": 715,
+      "repeat": false,
+      "tests": 30
+    },
+    {
+      "name": "operations-integration",
+      "exit": 0,
+      "milliseconds": 26059,
+      "repeat": false,
+      "tests": 40
+    },
+    {
+      "name": "operations-static",
+      "exit": 0,
+      "milliseconds": 2506,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "sync-client",
+      "exit": 0,
+      "milliseconds": 2647,
+      "repeat": false,
+      "tests": 51
+    },
+    {
+      "name": "sync-postgres-browser",
+      "exit": 0,
+      "milliseconds": 28727,
+      "repeat": false,
+      "tests": 19
+    },
+    {
+      "name": "sync-static",
+      "exit": 0,
+      "milliseconds": 10176,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "storage-postgres-browser",
+      "exit": 0,
+      "milliseconds": 23724,
+      "repeat": false,
+      "tests": 47
+    },
+    {
+      "name": "storage-static",
+      "exit": 0,
+      "milliseconds": 2908,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "conflicts-postgres-browser",
+      "exit": 0,
+      "milliseconds": 29609,
+      "repeat": false,
+      "tests": 56
+    },
+    {
+      "name": "conflicts-static",
+      "exit": 0,
+      "milliseconds": 8361,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "offline-sw",
+      "exit": 0,
+      "milliseconds": 661,
+      "repeat": false,
+      "tests": 3
+    },
+    {
+      "name": "offline-postgres-browser",
+      "exit": 0,
+      "milliseconds": 225961,
+      "repeat": false,
+      "tests": 31
+    },
+    {
+      "name": "offline-static",
+      "exit": 0,
+      "milliseconds": 8307,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "monorepo-tests",
+      "exit": 0,
+      "milliseconds": 1686,
+      "repeat": false,
+      "tests": 12
+    },
+    {
+      "name": "typescript-tests",
+      "exit": 0,
+      "milliseconds": 7392,
+      "repeat": false,
+      "tests": 12
+    },
+    {
+      "name": "typescript-development-entry",
+      "exit": 0,
+      "milliseconds": 7455,
+      "repeat": false,
+      "tests": 1
+    },
+    {
+      "name": "shared-contracts-and-http-consumers",
+      "exit": 0,
+      "milliseconds": 3766,
+      "repeat": false,
+      "tests": 56
+    },
+    {
+      "name": "client-import-response-contracts",
+      "exit": 0,
+      "milliseconds": 2351,
+      "repeat": false,
+      "tests": 3
+    },
+    {
+      "name": "phase44-real-typescript-consumers",
+      "exit": 0,
+      "milliseconds": 9766,
+      "repeat": false,
+      "tests": 13
+    },
+    {
+      "name": "phase52-training-engine",
+      "exit": 0,
+      "milliseconds": 5750,
+      "repeat": false,
+      "tests": 37
+    },
+    {
+      "name": "phase52-performance-domain",
+      "exit": 0,
+      "milliseconds": 4740,
+      "repeat": false,
+      "tests": 28
+    },
+    {
+      "name": "phase52-performance-http-postgres",
+      "exit": 0,
+      "milliseconds": 5946,
+      "repeat": false,
+      "tests": 4
+    },
+    {
+      "name": "phase53-smart-domain-and-react",
+      "exit": 0,
+      "milliseconds": 6730,
+      "repeat": false,
+      "tests": 25
+    },
+    {
+      "name": "phase53-smart-http-postgres",
+      "exit": 0,
+      "milliseconds": 6218,
+      "repeat": false,
+      "tests": 4
+    },
+    {
+      "name": "phase54-analysis-domain-and-react",
+      "exit": 0,
+      "milliseconds": 7322,
+      "repeat": false,
+      "tests": 30
+    },
+    {
+      "name": "phase55-analysis-http-postgres",
+      "exit": 0,
+      "milliseconds": 6293,
+      "repeat": false,
+      "tests": 4
+    },
+    {
+      "name": "phase6-current-prisma-generate",
+      "exit": 0,
+      "milliseconds": 2080,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "phase6-migration-history-http-recovery",
+      "exit": 0,
+      "milliseconds": 70865,
+      "repeat": false,
+      "tests": 54
+    },
+    {
+      "name": "phase6-offline-current-schema-edge-dexie",
+      "exit": 1,
+      "milliseconds": 133038,
+      "repeat": true,
+      "tests": 28
+    }
+  ]
+}

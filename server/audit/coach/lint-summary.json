@@ -1,0 +1,9 @@
+{
+  "exit": 1,
+  "errors": 19,
+  "warnings": 2,
+  "newFindings": 0,
+  "coachBackendTestsErrors": 0,
+  "coachBackendTestsWarnings": 0,
+  "historicalSubsetVerified": true
+}

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-23T04:49:29.678Z",
+  "generatedAt": "2026-10-23T17:34:53.675Z",
   "declaredEndpoints": 79,
   "receivedEndpoints": 75,
   "coverage": "100% received routes preserved + 3 disabled web-session rehearsal routes + generation-scoped reminder cancellation",
@@ -1731,6 +1731,9 @@
       "frontendSources": [
         "client/src/components/ExerciseLibrary.jsx",
         "client/src/components/RoutineTemplateSelector.jsx",
+        "client/src/features/coach/CoachForms.jsx",
+        "client/src/features/coach/CurrentSetForm.jsx",
+        "client/src/pages/Coach.jsx",
         "client/src/pages/EditRoutine.jsx",
         "client/src/pages/Import.jsx",
         "client/src/services/api.js"
@@ -1801,6 +1804,9 @@
       "frontendSources": [
         "client/src/components/ExerciseLibrary.jsx",
         "client/src/components/RoutineTemplateSelector.jsx",
+        "client/src/features/coach/CoachForms.jsx",
+        "client/src/features/coach/CurrentSetForm.jsx",
+        "client/src/pages/Coach.jsx",
         "client/src/pages/EditRoutine.jsx",
         "client/src/pages/Import.jsx",
         "client/src/services/api.js"
@@ -4171,6 +4177,7 @@
       "applicationCalls": [],
       "frontendSources": [
         "client/src/components/layout/Layout.jsx",
+        "client/src/pages/Coach.jsx",
         "client/src/pages/Profile.jsx",
         "client/src/pages/Progress.jsx",
         "client/src/services/api.js"
@@ -4302,6 +4309,7 @@
       ],
       "frontendSources": [
         "client/src/components/layout/Layout.jsx",
+        "client/src/pages/Coach.jsx",
         "client/src/pages/Profile.jsx",
         "client/src/pages/Progress.jsx",
         "client/src/services/api.js"
