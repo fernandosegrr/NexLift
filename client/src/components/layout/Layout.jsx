@@ -1,5 +1,7 @@
+import ConnectionStatus from '../../features/offline/ConnectionStatus';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { Home, Dumbbell, TrendingUp, User } from 'lucide-react';
+import SyncStatus from './SyncStatus';
 
 // 4 tabs: Cuerpo/Export viven bajo el hub de Progreso
 const navItems = [
@@ -87,6 +89,7 @@ export default function Layout() {
                     }`}
                 >
                     <div className="max-w-5xl mx-auto w-full">
+                        <ConnectionStatus /><SyncStatus />
                         <Outlet />
                     </div>
                 </main>

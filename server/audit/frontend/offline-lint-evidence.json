@@ -1,0 +1,233 @@
+{
+  "errors": 23,
+  "warnings": 2,
+  "newErrors": 0,
+  "newWarnings": 0,
+  "findings": [
+    {
+      "file": "public/sw.js",
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "line": 127,
+          "message": "'e' is defined but never used."
+        },
+        {
+          "ruleId": "no-undef",
+          "severity": 2,
+          "line": 157,
+          "message": "'clients' is not defined."
+        },
+        {
+          "ruleId": "no-undef",
+          "severity": 2,
+          "line": 166,
+          "message": "'clients' is not defined."
+        },
+        {
+          "ruleId": "no-undef",
+          "severity": 2,
+          "line": 166,
+          "message": "'clients' is not defined."
+        }
+      ]
+    },
+    {
+      "file": "src/components/ui/Celebration.jsx",
+      "messages": [
+        {
+          "ruleId": "react-hooks/purity",
+          "severity": 2,
+          "line": 39,
+          "message": "Error: Cannot call impure function during render\n\n`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).\n\n  37 |                         backgroundColor: p.color,\n  38 |                         borderRadius: '2px',\n> 39 |                         transform: `rotate(${Math.random() * 360}deg)`\n     |                                              ^^^^^^^^^^^^^ Cannot call impure function\n  40 |                     }}\n  41 |                 />\n  42 |             ))}"
+        }
+      ]
+    },
+    {
+      "file": "src/components/ui/MuscleIcon.jsx",
+      "messages": [
+        {
+          "ruleId": "react-refresh/only-export-components",
+          "severity": 2,
+          "line": 72,
+          "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+        },
+        {
+          "ruleId": "react-refresh/only-export-components",
+          "severity": 2,
+          "line": 79,
+          "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+        },
+        {
+          "ruleId": "react-refresh/only-export-components",
+          "severity": 2,
+          "line": 86,
+          "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+        }
+      ]
+    },
+    {
+      "file": "src/components/ui/Toast.jsx",
+      "messages": [
+        {
+          "ruleId": "react-refresh/only-export-components",
+          "severity": 2,
+          "line": 11,
+          "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+        }
+      ]
+    },
+    {
+      "file": "src/context/AuthContext.jsx",
+      "messages": [
+        {
+          "ruleId": "react-hooks/immutability",
+          "severity": 2,
+          "line": 49,
+          "message": "Error: Cannot access variable before it is declared\n\n`logout` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.\n\n  47 |                     // En errores de red (backend caído) mantener la sesión guardada.\n  48 |                     if (err && err.status === 401 && localStorage.getItem(TOKEN_KEY) === savedToken) {\n> 49 |                         logout();\n     |                         ^^^^^^ `logout` accessed before it is declared\n  50 |                     }\n  51 |                     // Error de red/transitorio: conservar el usuario almacenado.\n  52 |                 })\n\n  107 |     };\n  108 |\n> 109 |     function logout() {\n      |     ^^^^^^^^^^^^^^^^^^^\n> 110 |         accountScope(null, null);\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 111 |         // Best-effort: revocar la suscripción push de este dispositivo para que la\n      …\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 121 |         clearHomeCache();\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 122 |     };\n      | ^^^^^^ `logout` is declared here\n  123 |\n  124 |     const updateProfile = async (data) => {\n  125 |         const updated = await api.updateProfile(token, data);"
+        },
+        {
+          "ruleId": "react-refresh/only-export-components",
+          "severity": 2,
+          "line": 181,
+          "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+        }
+      ]
+    },
+    {
+      "file": "src/pages/BodyTracking.jsx",
+      "messages": [
+        {
+          "ruleId": "react-refresh/only-export-components",
+          "severity": 2,
+          "line": 18,
+          "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+        }
+      ]
+    },
+    {
+      "file": "src/pages/Dashboard.jsx",
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "line": 60,
+          "message": "'prs' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u."
+        },
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "line": 404,
+          "message": "'Icon' is defined but never used."
+        }
+      ]
+    },
+    {
+      "file": "src/pages/EditSession.jsx",
+      "messages": [
+        {
+          "ruleId": "react-hooks/exhaustive-deps",
+          "severity": 1,
+          "line": 43,
+          "message": "React Hook useEffect has a missing dependency: 'fetchSession'. Either include it or remove the dependency array."
+        }
+      ]
+    },
+    {
+      "file": "src/pages/ExportReport.jsx",
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "line": 131,
+          "message": "'error' is defined but never used."
+        }
+      ]
+    },
+    {
+      "file": "src/pages/NewGoal.jsx",
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "line": 55,
+          "message": "'setFrequencyPerWeek' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u."
+        }
+      ]
+    },
+    {
+      "file": "src/pages/Settings.jsx",
+      "messages": [
+        {
+          "ruleId": "react-hooks/exhaustive-deps",
+          "severity": 1,
+          "line": 249,
+          "message": "React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array."
+        },
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "line": 522,
+          "message": "'err' is defined but never used."
+        },
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "line": 542,
+          "message": "'err' is defined but never used."
+        }
+      ]
+    },
+    {
+      "file": "src/pages/Workout.jsx",
+      "messages": [
+        {
+          "ruleId": "react-hooks/set-state-in-effect",
+          "severity": 2,
+          "line": 157,
+          "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).\n\n  155 |\n  156 |     useEffect(() => {\n> 157 |         setPreviousBest(null);\n      |         ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect\n  158 |         setSuggestion(null);\n  159 |         setGoalSessions([]);\n  160 |         setLastSession(null);"
+        }
+      ]
+    },
+    {
+      "file": "src/services/api.js",
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "line": 26,
+          "message": "'e' is defined but never used."
+        },
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "line": 388,
+          "message": "'e' is defined but never used."
+        }
+      ]
+    },
+    {
+      "file": "src/utils/dayPdf.js",
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "line": 21,
+          "message": "'epley' is defined but never used. Allowed unused vars must match /^[A-Z_]/u."
+        }
+      ]
+    },
+    {
+      "file": "src/utils/goalPlanner.js",
+      "messages": [
+        {
+          "ruleId": "no-unused-vars",
+          "severity": 2,
+          "line": 14,
+          "message": "'frequency' is assigned a value but never used."
+        }
+      ]
+    }
+  ]
+}

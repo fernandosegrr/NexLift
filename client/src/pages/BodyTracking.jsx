@@ -1,3 +1,6 @@
+import { useRemoteRead } from '../app/useRemoteRead';
+import { readDatedCollection } from '../features/remoteViews';
+import RemoteStatus from '../components/ui/RemoteStatus';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Scale, Camera, TrendingUp, Plus, X, Check, Activity, Droplet, Dumbbell, ChevronDown, ChevronUp, Flame, Waves, Heart, Bone, AlertTriangle, ArrowLeft } from 'lucide-react';
@@ -115,12 +118,12 @@ export default function BodyTracking() {
     const fileInputRef = useRef(null);
     const photoPreviewRef = useRef(null);
 
-    // Consolidated data state
-    const [logs, setLogs] = useState([]);
-    const [photos, setPhotos] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [loadError, setLoadError] = useState(false);
-
+    const bodyQuery = useRemoteRead('body', ['logs', 90], () => api.getBodyLogs(90), readDatedCollection);
+    const photoQuery = useRemoteRead('body', ['photos'], () => api.getBodyPhotos(), readDatedCollection);
+    const logs = useMemo(() => (bodyQuery.data || []).filter(l => ['weight', 'bmi', 'bodyFat', 'muscleMass', 'bmr', 'bodyWater', 'visceralFat', 'boneMass', 'protein', 'photo', 'photoUrl'].some(field => l[field] != null)), [bodyQuery.data]);
+    const photos = photoQuery.data || [];
+    const loading = bodyQuery.isPending || photoQuery.isPending;
+    const loadError = bodyQuery.isError || photoQuery.isError;
     // Form state - basic fields
     const [weight, setWeight] = useState('');
     const [photoPreview, setPhotoPreview] = useState(null);
@@ -144,9 +147,6 @@ export default function BodyTracking() {
     const [selectedPhoto, setSelectedPhoto] = useState(null);
     const [activeChart, setActiveChart] = useState('weight'); // 'weight' | 'bodyFat' | 'muscleMass'
 
-    useEffect(() => {
-        fetchData();
-    }, []);
 
     // Keep a ref in sync with the current preview URL and revoke it on unmount
     useEffect(() => {
@@ -160,38 +160,7 @@ export default function BodyTracking() {
         };
     }, []);
 
-    async function fetchData() {
-        try {
-            setLoadError(false);
-            const [logsData, photosData] = await Promise.all([
-                api.getBodyLogs(90),
-                api.getBodyPhotos()
-            ]);
-            const metricLogs = Array.isArray(logsData)
-                ? logsData.filter(l =>
-                    l.weight != null ||
-                    l.bmi != null ||
-                    l.bodyFat != null ||
-                    l.muscleMass != null ||
-                    l.bmr != null ||
-                    l.bodyWater != null ||
-                    l.visceralFat != null ||
-                    l.boneMass != null ||
-                    l.protein != null ||
-                    l.photo != null ||
-                    l.photoUrl != null
-                )
-                : [];
-            setLogs(metricLogs);
-            setPhotos(Array.isArray(photosData) ? photosData : []);
-        } catch (error) {
-            console.error('Error:', error);
-            setLoadError(true);
-            toast.error('Error al cargar datos corporales');
-        } finally {
-            setLoading(false);
-        }
-    }
+    const fetchData = () => Promise.all([bodyQuery.refetch(), photoQuery.refetch()]);
 
     async function handlePhotoSelect(e) {
         const file = e.target.files?.[0];
@@ -357,7 +326,7 @@ export default function BodyTracking() {
                 <p className="font-bold text-lg">No se pudo cargar el seguimiento</p>
                 <button
                     type="button"
-                    onClick={() => { setLoading(true); fetchData(); }}
+                    onClick={() => { void fetchData(); }}
                     className="mt-2 px-4 py-2 rounded-xl bg-[var(--primary)] text-white font-semibold text-sm active:scale-95"
                 >
                     Reintentar

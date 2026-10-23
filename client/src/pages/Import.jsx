@@ -18,6 +18,7 @@ import MuscleIcon, { MUSCLE_LIST } from '../components/ui/MuscleIcon';
 import { toSpanishMuscleGroup } from '../utils/muscleGroup';
 import { duplicateWeekdays, firstFreeWeekday, weekdayLabel } from '../utils/routineDays';
 import WeekdayPicker from '../components/ui/WeekdayPicker';
+import { buildRoutineFormPayload, buildTemplateRoutinePayload } from '../utils/routinePayload';
 
 // Tabs con diseño más compacto
 const TABS = [
@@ -65,28 +66,8 @@ export default function CreateRoutine() {
     if (!selectedTemplate) { toast.error('Selecciona una plantilla primero'); return; }
     setSaving(true);
     const template = getTemplate(selectedTemplate);
-    const routineData = {
-      name: template.name,
-      description: template.description,
-      days: template.days.map(day => ({
-        dayName: day.dayName,
-        isRestDay: day.isRestDay,
-        weekday: day.weekday,
-        exercises: (day.exercises || []).map(ex => {
-          const exerciseData = EXERCISES.find(e => e.id === ex.exerciseId);
-          return {
-            name: exerciseData?.name || ex.exerciseId,
-            muscleGroup: toSpanishMuscleGroup(exerciseData?.muscleGroup),
-            isUnilateral: exerciseData?.isUnilateral || false,
-            targetSets: parseInt(exerciseData?.defaultSets, 10) || 3,
-            targetReps: exerciseData?.defaultReps || '8-12',
-            restSeconds: parseInt(exerciseData?.restSeconds, 10) || 90,
-            note: ''
-          };
-        })
-      }))
-    };
     try {
+      const routineData = buildTemplateRoutinePayload(template, EXERCISES);
       await api.importRoutine(routineData);
       toast.success(`¡"${template.name}" creada!`);
       navigate('/routines');
@@ -155,9 +136,9 @@ export default function CreateRoutine() {
     const existingEx = EXERCISES.find(e => e.name === exerciseName || e.id === exerciseName);
     const newExercise = {
       name: isCustom ? exerciseName : (existingEx?.name || exerciseName),
-      targetSets: existingEx?.defaultSets || 3,
-      targetReps: existingEx?.defaultReps || '8-12',
-      restSeconds: existingEx?.restSeconds || 90,
+      targetSets: existingEx?.defaultSets === undefined ? 3 : existingEx.defaultSets,
+      targetReps: existingEx?.defaultReps === undefined ? '8-12' : existingEx.defaultReps,
+      restSeconds: existingEx?.restSeconds === undefined ? 90 : existingEx.restSeconds,
       note: '',
       muscleGroup: toSpanishMuscleGroup(existingEx?.muscleGroup),
       isUnilateral: !!existingEx?.isUnilateral
@@ -225,22 +206,7 @@ export default function CreateRoutine() {
     if (emptyName) { toast.error('Hay ejercicios sin nombre'); return; }
 
     setSaving(true);
-    const payload = {
-      name: manualRoutine.name.trim(),
-      description: manualRoutine.description || '',
-      days: manualRoutine.days.map(day => ({
-        ...day,
-        dayName: day.dayName.trim() || 'Día',
-        exercises: day.isRestDay ? [] : day.exercises.map(ex => ({
-          ...ex,
-          name: ex.name.trim(),
-          muscleGroup: toSpanishMuscleGroup(ex.muscleGroup) || null,
-          targetSets: parseInt(ex.targetSets, 10) || 3,
-          restSeconds: parseInt(ex.restSeconds, 10) || 90,
-          isUnilateral: !!ex.isUnilateral
-        }))
-      }))
-    };
+    const payload = buildRoutineFormPayload(manualRoutine);
     try {
       await api.importRoutine(payload);
       toast.success('¡Rutina creada!');
@@ -258,50 +224,17 @@ export default function CreateRoutine() {
     let parsed;
     try {
       parsed = JSON.parse(jsonText);
-    } catch (e) {
+    } catch {
       setJsonStatus('error');
       setJsonMessage('JSON inválido — revisa comillas y comas');
-      return;
-    }
-
-    if (!parsed.name || !parsed.days) {
-      setJsonStatus('error');
-      setJsonMessage('Faltan campos: "name" o "days"');
-      return;
-    }
-    if (!Array.isArray(parsed.days) || parsed.days.length === 0) {
-      setJsonStatus('error');
-      setJsonMessage('"days" debe ser un array con al menos un día');
       return;
     }
 
     setJsonStatus('loading');
     setJsonMessage('Importando...');
 
-    const normalizedRoutine = {
-      name: String(parsed.name).trim(),
-      description: parsed.description || '',
-      days: parsed.days.map(day => ({
-        dayName: day.dayName || day.name || 'Día',
-        isRestDay: !!day.isRestDay,
-        // Si el JSON no trae "weekday" se omite la clave por completo (no
-        // undefined ni null) para que el servidor lo infiera de dayName
-        // ("Lunes - Torso" -> 1) — ver resolveIncomingWeekday en logic.js.
-        ...(Object.prototype.hasOwnProperty.call(day, 'weekday') ? { weekday: day.weekday } : {}),
-        exercises: day.isRestDay ? [] : (day.exercises || []).map(ex => ({
-          name: ex.name || 'Ejercicio',
-          muscleGroup: toSpanishMuscleGroup(ex.muscleGroup || ex.muscle) || null,
-          isUnilateral: !!ex.isUnilateral,
-          targetSets: parseInt(ex.targetSets ?? ex.sets, 10) || 3,
-          targetReps: ex.targetReps || ex.reps || '8-12',
-          restSeconds: parseInt(ex.restSeconds ?? ex.rest, 10) || 90,
-          note: ex.note || ''
-        }))
-      }))
-    };
-
     try {
-      await api.importRoutine(normalizedRoutine);
+      await api.importRoutine(parsed);
       setJsonStatus('success');
       setJsonMessage(`¡"${parsed.name}" importada!`);
       setTimeout(() => navigate('/routines'), 800);
@@ -537,7 +470,7 @@ export default function CreateRoutine() {
                               <div className="flex items-center justify-center gap-0.5">
                                 <input
                                   type="number"
-                                  value={ex.restSeconds}
+                                  value={ex.restSeconds ?? ''}
                                   onChange={(e) => updateExercise(dayIndex, exIndex, 'restSeconds', e.target.value)}
                                   className="w-full bg-transparent text-center font-bold text-sm outline-none p-1"
                                 />
@@ -591,20 +524,21 @@ export default function CreateRoutine() {
       "dayName": "Push",
       "weekday": 1,
       "exercises": [
-        { "name": "Press Banca", "sets": 4, "reps": "8-10" },
-        { "name": "Press Inclinado", "sets": 3, "reps": "10-12" }
+        { "name": "Press Banca", "targetSets": 4, "targetReps": "8-10", "restSeconds": 150, "muscleGroup": "Pecho" },
+        { "name": "Press Inclinado", "targetSets": 3, "targetReps": "10-12", "isUnilateral": false }
       ]
     },
     {
       "dayName": "Pull",
       "weekday": 4,
-      "exercises": [...]
+      "exercises": [{ "name": "Remo", "targetSets": 4, "targetReps": "4-6", "muscleGroup": "Espalda" }]
     }
   ]
 }`}
               </pre>
               <p className="text-[10px] text-[var(--text-secondary)] mt-2">
                 "weekday": 0=Domingo … 6=Sábado. Si lo omites y "dayName" trae un día ("Lunes - Torso"), se asigna solo.
+                {' '}También se aceptan sets, reps y rest; si incluyes ambos nombres, sus valores deben coincidir.
               </p>
             </div>
 

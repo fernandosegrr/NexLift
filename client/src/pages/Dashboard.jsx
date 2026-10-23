@@ -1,3 +1,6 @@
+import { useRemoteRead } from '../app/useRemoteRead';
+import { readHome } from '../features/remoteViews';
+import RemoteStatus from '../components/ui/RemoteStatus';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -12,7 +15,6 @@ import {
     mexicoCityLastNDays
 } from '../utils/dates';
 import { resolveTodayRoutineDay } from '../utils/routineDays';
-import { readHomeCache, writeHomeCache } from '../utils/homeCache';
 
 // Prefetch del chunk de Workout en idle (el botón "Entrenar" no espera a bajar JS)
 function prefetchWorkoutChunk() {
@@ -46,53 +48,28 @@ function getHeatmapIntensity(count) {
     return 1;
 }
 
-function applyHomePayload(payload, setters) {
-    const {
-        setStats, setActiveRoutine, setConsistency, setPrs,
-        setPlateauCount, setAiTodayDay, setAiTodayLoading, setTodayCheckin
-    } = setters;
-
-    setStats(payload.stats || null);
-    setActiveRoutine(payload.activeRoutine || null);
-    setConsistency(buildConsistencyMap(payload));
-    setPrs(Array.isArray(payload.prs) ? payload.prs : []);
-    setPlateauCount(payload.plateauCount || 0);
-    setAiTodayDay(payload.aiTodayDay || null);
-    setAiTodayLoading(false);
-    if (setTodayCheckin && payload.todayCheckin) {
-        setTodayCheckin({
-            creatineTaken: !!payload.todayCheckin.creatineTaken,
-            dietCompliant: !!payload.todayCheckin.dietCompliant,
-            zeroLiquidCalories: !!payload.todayCheckin.zeroLiquidCalories
-        });
-    }
-}
-
 export default function Dashboard() {
     const { user } = useAuth();
     const toast = useToast();
-    const cached = useMemo(() => readHomeCache(), []);
-    const [stats, setStats] = useState(() => cached?.stats || null);
-    const [activeRoutine, setActiveRoutine] = useState(() => cached?.activeRoutine || null);
-    const [consistency, setConsistency] = useState(() => buildConsistencyMap(cached));
-    const [prs, setPrs] = useState(() => Array.isArray(cached?.prs) ? cached.prs : []);
-    const [plateauCount, setPlateauCount] = useState(() => cached?.plateauCount || 0);
-    const [aiTodayDay, setAiTodayDay] = useState(() => cached?.aiTodayDay || null);
-    const [aiTodayLoading, setAiTodayLoading] = useState(false);
-    const [todayCheckin, setTodayCheckin] = useState(() => ({
-        creatineTaken: !!cached?.todayCheckin?.creatineTaken,
-        dietCompliant: !!cached?.todayCheckin?.dietCompliant,
-        zeroLiquidCalories: !!cached?.todayCheckin?.zeroLiquidCalories
-    }));
-    // Si hay cache fresco, no bloquear UI con spinner
-    const [loading, setLoading] = useState(() => !cached);
-    const [loadError, setLoadError] = useState(false);
+    const [todayStr, setTodayStr] = useState(() => mexicoCityDateStr());
+    const remote = useRemoteRead('home', [todayStr], () => api.getHome(), readHome);
+    const payload = remote.data;
+    const stats = payload?.stats || null;
+    const activeRoutine = payload?.activeRoutine || null;
+    const consistency = useMemo(() => buildConsistencyMap(payload), [payload]);
+    const prs = Array.isArray(payload?.prs) ? payload.prs : [];
+    const plateauCount = payload?.plateauCount || 0;
+    const aiTodayDay = payload?.aiTodayDay || null;
+    const aiTodayLoading = remote.isFetching && !payload;
+    const loading = remote.isPending;
+    const loadError = remote.isError;
+    const [todayCheckin, setTodayCheckin] = useState({ creatineTaken: false, dietCompliant: false, zeroLiquidCalories: false });
+    useEffect(() => { if (payload?.todayCheckin) setTodayCheckin(payload.todayCheckin); }, [payload]);
     const [showHeatmap, setShowHeatmap] = useState(false);
     const [loggingRest, setLoggingRest] = useState(false);
     const heatmapRef = useRef(null);
 
-    // Hoy en CDMX (no reloj local del device) — se actualiza automáticamente al cruzar medianoche o volver al foco
-    const [todayStr, setTodayStr] = useState(() => mexicoCityDateStr());
+
 
     useEffect(() => {
         const refreshToday = () => {
@@ -110,43 +87,8 @@ export default function Dashboard() {
     }, []);
 
     useEffect(() => {
-        let isMounted = true;
-        const setters = {
-            setStats, setActiveRoutine, setConsistency, setPrs,
-            setPlateauCount, setAiTodayDay, setAiTodayLoading, setTodayCheckin
-        };
-
-        async function fetchData() {
-            try {
-                setLoadError(false);
-                // 1 request en vez de 5 (overview+active+consistency+prs+history)
-                const home = await api.getHome();
-                if (!isMounted) return;
-                applyHomePayload(home, setters);
-                writeHomeCache(home);
-            } catch (error) {
-                if (isMounted) {
-                    console.error('Dashboard error:', error);
-                    // Solo error total si no había cache para mostrar
-                    if (!cached) {
-                        setLoadError(true);
-                        toast.error('Error al cargar el dashboard');
-                    }
-                }
-            } finally {
-                if (isMounted) setLoading(false);
-            }
-        }
-
-        fetchData();
-        // Prefetch Workout en idle para que "Entrenar" abra al toque
-        if (typeof requestIdleCallback === 'function') {
-            requestIdleCallback(() => prefetchWorkoutChunk(), { timeout: 2000 });
-        } else {
-            setTimeout(prefetchWorkoutChunk, 600);
-        }
-        return () => { isMounted = false; };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        const handle = setTimeout(prefetchWorkoutChunk, 600);
+        return () => clearTimeout(handle);
     }, []);
 
     // null = sin día asignado a hoy (routine sin días, o ningún RoutineDay con
@@ -235,36 +177,16 @@ export default function Dashboard() {
         if (loggingRest) return;
         setLoggingRest(true);
 
-        const previousConsistency = consistency;
-        const previousStats = stats;
-
-        // Update optimista
-        setConsistency(prev => ({
-            ...prev,
-            [todayStr]: (prev[todayStr] || 0) + 1
-        }));
-        // Sube la racha en el card de inmediato (server la recalculará después)
-        if (stats) {
-            setStats(prev => prev ? { ...prev, currentStreak: (prev.currentStreak || 0) + 1 } : prev);
-        }
-
         try {
-            const result = await api.logRestDay();
+            const result = await api.logRestDay(null, { ownerId: user.id });
             if (result?.queued) {
-                toast.info('Guardado local — se sincronizará cuando vuelva la conexión');
+                toast.info(result.reason || 'Descanso guardado localmente; pendiente de confirmar');
             } else {
-                const home = await api.getHome();
-                applyHomePayload(home, {
-                    setStats, setActiveRoutine, setConsistency, setPrs,
-                    setPlateauCount, setAiTodayDay, setAiTodayLoading, setTodayCheckin
-                });
-                writeHomeCache(home);
+                await remote.refetch();
             }
         } catch (error) {
             console.error('Failed to log rest:', error);
-            setConsistency(previousConsistency);
-            setStats(previousStats);
-            toast.error('Error de conexión, no se pudo registrar el descanso');
+            toast.error(error.isStorageError ? error.message : 'No se pudo confirmar el descanso');
         } finally {
             setLoggingRest(false);
         }
@@ -276,19 +198,11 @@ export default function Dashboard() {
         const updatedCheckin = { ...todayCheckin, [field]: nextVal };
 
         setTodayCheckin(updatedCheckin);
-        const cachedPayload = readHomeCache();
-        if (cachedPayload) {
-            writeHomeCache({ ...cachedPayload, todayCheckin: updatedCheckin });
-        }
-
         try {
             await api.updateDailyCheckin({ [field]: nextVal });
         } catch (error) {
             console.error('Failed to update daily checkin:', error);
             setTodayCheckin(prevCheckin);
-            if (cachedPayload) {
-                writeHomeCache({ ...cachedPayload, todayCheckin: prevCheckin });
-            }
             toast.error('No se pudo actualizar el hábito');
         }
     };
@@ -343,6 +257,7 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-5 animate-fade-in max-w-2xl mx-auto pb-4">
+            <RemoteStatus fetching={remote.isFetching} stale={remote.isStale} error={remote.error} updatedAt={remote.dataUpdatedAt} retry={() => { void remote.refetch(); }} />
             {/* Header */}
             <div className="pt-2 px-1">
                 <p className="text-[var(--text-secondary)] text-sm">

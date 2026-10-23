@@ -1,4 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useRemoteRead } from '../../app/useRemoteRead';
+import { readGoals, readConfirmedHistory } from '../../features/remoteViews';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Target, Plus, Loader2, AlertTriangle } from 'lucide-react';
 import { api } from '../../services/api';
@@ -9,33 +11,12 @@ import { canonicalExerciseKey, groupHistoryByExercise } from '../../utils/exerci
 export default function GoalSection() {
     const navigate = useNavigate();
     const toast = useToast();
-    const [goals, setGoals] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [loadError, setLoadError] = useState(false);
-    // Map: clave canónica de ejercicio -> { names, muscleGroup, sessions }
-    const [workoutHistory, setWorkoutHistory] = useState(() => new Map());
-
-    useEffect(() => {
-        async function loadAll() {
-            try {
-                setLoadError(false);
-                const [goalsData, historyData] = await Promise.all([
-                    api.getGoals(),
-                    api.getWorkoutHistory(200)
-                ]);
-                setGoals(goalsData || []);
-                setWorkoutHistory(groupHistoryByExercise(historyData));
-            } catch (err) {
-                console.error('Error loading goals data:', err);
-                setLoadError(true);
-                toast.error('Error al cargar objetivos');
-            } finally {
-                setLoading(false);
-            }
-        }
-        loadAll();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    const goalQuery = useRemoteRead('goals', [], () => api.getGoals(), readGoals);
+    const historyQuery = useRemoteRead('history', [200], () => api.getWorkoutHistory(200), readConfirmedHistory);
+    const goals = useMemo(() => goalQuery.data || [], [goalQuery.data]);
+    const loading = goalQuery.isPending || historyQuery.isPending;
+    const loadError = goalQuery.isError || historyQuery.isError;
+    const workoutHistory = useMemo(() => groupHistoryByExercise(historyQuery.data || []), [historyQuery.data]);
 
     // Activos primero, logrados al final; dentro de cada grupo por fecha de creación
     const sortedGoals = useMemo(() => {
@@ -56,9 +37,9 @@ export default function GoalSection() {
         }
         try {
             await api.deleteGoal(goalId);
-            setGoals(prev => prev.filter(g => g.id !== goalId));
+            await goalQuery.refetch();
             toast.success('Objetivo eliminado');
-        } catch (err) {
+        } catch {
             toast.error('Error al eliminar');
         }
     }
@@ -67,8 +48,8 @@ export default function GoalSection() {
         return workoutHistory.get(canonicalExerciseKey(goalExerciseName)) || null;
     }
 
-    function handleUpdateGoal(updatedGoal) {
-        setGoals(prev => prev.map(g => g.id === updatedGoal.id ? updatedGoal : g));
+    function handleUpdateGoal() {
+        void goalQuery.refetch();
     }
 
     if (loading) {

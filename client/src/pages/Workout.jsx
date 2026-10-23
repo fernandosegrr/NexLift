@@ -1,10 +1,14 @@
-import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
+import RirDialog from '../features/workouts/RirDialog';
+import SetCard from '../features/workouts/SetCard';
+import { useRestTimer } from '../features/workouts/useRestTimer';
+import { formRirToStoredRpe, storedRpeToFormRir } from '../generated/training.js';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Check, Save, Trophy, History, X, ChevronLeft, ChevronRight,
     Target, ArrowRight, TrendingUp, Sparkles, Dumbbell, AlertTriangle, Percent, Pencil, FileDown, Loader2
 } from 'lucide-react';
-import { api } from '../services/api';
+import { api, operationRuntime, operationsEnabled } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { Portal } from '../components/ui/Portal';
 import {
@@ -21,6 +25,9 @@ import { getCurrentGoalTarget } from '../utils/goalPlanner';
 import { mexicoCityDateStr } from '../utils/dates';
 import { downloadSessionPdf } from '../utils/sessionPdf';
 import { useAuth } from '../context/AuthContext';
+import { usePreparedDraft } from '../storage/usePreparedDraft';
+import DraftBoundary from '../components/layout/DraftBoundary';
+import { conflictResolutionEnabled, indexedStorageEnabled } from '../storage/runtime';
 
 // Fila vacía de serie — siempre incluye L/R para no romper el toggle a unilateral
 // a mitad de ejercicio ni las sesiones parciales del Atajo.
@@ -30,64 +37,36 @@ function makeEmptySet() {
 
 // ==================== CUSTOM HOOKS ====================
 
-// Hook para manejo de persistencia en localStorage
-function useWorkoutPersistence(dayId) {
-    const [workoutData, setWorkoutData] = useState({});
-    const [completedExerciseIds, setCompletedExerciseIds] = useState([]);
-    const [skippedExerciseIds, setSkippedExerciseIds] = useState([]);
-
-    const loadFromStorage = useCallback(() => {
-        const savedData = localStorage.getItem(`workout_${dayId}`);
-        if (savedData) {
-            try {
-                const parsed = JSON.parse(savedData);
-                const isExpired = parsed.timestamp && (Date.now() - parsed.timestamp > 24 * 60 * 60 * 1000);
-                if (isExpired) {
-                    localStorage.removeItem(`workout_${dayId}`);
-                    return;
-                }
-                // Usamos función de actualización para evitar re-renders si el estado es el mismo
-                setWorkoutData(prev => JSON.stringify(prev) !== JSON.stringify(parsed.workoutData || {}) ? (parsed.workoutData || {}) : prev);
-                setCompletedExerciseIds(prev => JSON.stringify(prev) !== JSON.stringify(parsed.completedExerciseIds || []) ? (parsed.completedExerciseIds || []) : prev);
-                setSkippedExerciseIds(prev => JSON.stringify(prev) !== JSON.stringify(parsed.skippedExerciseIds || []) ? (parsed.skippedExerciseIds || []) : prev);
-            } catch (error) {
-                console.error('Error parsing saved workout:', error);
-            }
+// Drafts are account/day scoped. Legacy and earlier-day drafts remain available
+// for explicit recovery in the synchronization panel; they are never auto-loaded.
+function useWorkoutPersistence(dayId, ownerId) {
+    const store = usePreparedDraft('workout', dayId, ownerId);
+    const [initial] = useState(() => {
+        try { return { data: store.load() || {}, error: null }; }
+        catch (error) { return { data: {}, error: error.message }; }
+    });
+    const [workoutData, setWorkoutData] = useState(initial.data.workoutData || {});
+    const [sessionBases, setSessionBases] = useState(initial.data.sessionBases || {});
+    const [dayContext, setDayContext] = useState(initial.data.dayContext || null);
+    const [exerciseModes, setExerciseModes] = useState(initial.data.exerciseModes || {});
+    const [completedExerciseIds, setCompletedExerciseIds] = useState(initial.data.completedExerciseIds || []);
+    const [skippedExerciseIds, setSkippedExerciseIds] = useState(initial.data.skippedExerciseIds || []);
+    const [persistenceError, setPersistenceError] = useState(initial.error);
+    const saveToStorage = useCallback(async (data, completed, skipped = []) => {
+        try {
+            if (initial.error) throw new Error(initial.error);
+            await store.save({ workoutData: data, completedExerciseIds: completed, skippedExerciseIds: skipped, sessionBases,
+                ...(indexedStorageEnabled ? { dayContext, exerciseModes } : {}) });
+            setPersistenceError(null);
+            return true;
+        } catch (error) {
+            setPersistenceError(`No se pudo guardar el borrador: ${error.message}. Copia tus datos antes de salir.`);
+            return false;
         }
-    }, [dayId]);
-
-    useEffect(() => {
-        loadFromStorage();
-        
-        const handleStorage = (e) => {
-            if (e.key === `workout_${dayId}` || e.key === null) {
-                loadFromStorage();
-            }
-        };
-
-        window.addEventListener('storage', handleStorage);
-        return () => window.removeEventListener('storage', handleStorage);
-    }, [dayId, loadFromStorage]);
-
-    const saveToStorage = useCallback((data, completed, skipped = []) => {
-        localStorage.setItem(`workout_${dayId}`, JSON.stringify({
-            workoutData: data,
-            completedExerciseIds: completed,
-            skippedExerciseIds: skipped,
-            timestamp: Date.now()
-        }));
-    }, [dayId]);
-
-    const clearStorage = useCallback(() => {
-        localStorage.removeItem(`workout_${dayId}`);
-    }, [dayId]);
-
-    return {
-        workoutData, setWorkoutData,
-        completedExerciseIds, setCompletedExerciseIds,
-        skippedExerciseIds, setSkippedExerciseIds,
-        saveToStorage, clearStorage
-    };
+    }, [store, initial.error, sessionBases, dayContext, exerciseModes]);
+    return { workoutData, setWorkoutData, completedExerciseIds, setCompletedExerciseIds,
+        skippedExerciseIds, setSkippedExerciseIds, saveToStorage,
+        persistenceError, originalDay: store.originalDay, sessionBases, setSessionBases, dayContext, setDayContext, exerciseModes, setExerciseModes };
 }
 
 // Alias locales: effectiveSet/roundWeight se usan en varios sitios del archivo
@@ -181,7 +160,7 @@ function useExerciseHistory(exerciseId, targetReps, muscleGroup, phase, exercise
         setLastSession(null);
         if (!exerciseId) return;
 
-        const requestId = exerciseId;
+        const requestId = Symbol(exerciseId);
         currentRequestRef.current = requestId;
 
         function apply(history) {
@@ -216,6 +195,7 @@ function useExerciseHistory(exerciseId, targetReps, muscleGroup, phase, exercise
                 }
             }
         })();
+        return () => { if (currentRequestRef.current === requestId) currentRequestRef.current = null; };
     }, [exerciseId, targetReps, muscleGroup, phase, exerciseName, preloadedHistory]);
 
     return { previousBest, suggestion, loading, goalSessions, lastSession };
@@ -249,29 +229,6 @@ function findTodayLog(history) {
 }
 
 /** Compara lo que YA escribiste/marcaste vs la misma serie de la sesión pasada. No es una sugerencia. */
-function setDeltaLabel(current, last) {
-    if (!last || current == null) return null;
-    const cw = Number(current.weight);
-    const cr = Number(current.reps);
-    const lw = Number(last.weight);
-    const lr = Number(last.reps);
-    // Solo con números reales cargados ('' → 0 no cuenta)
-    if (!Number.isFinite(cw) || !Number.isFinite(cr) || cw <= 0 || cr <= 0) return null;
-    if (!Number.isFinite(lw) || !Number.isFinite(lr) || lw <= 0 || lr <= 0) return null;
-    const dW = Math.round((cw - lw) * 10) / 10;
-    const dR = cr - lr;
-    if (dW === 0 && dR === 0) return { text: 'igual que última', tone: 'neutral' };
-    const parts = [];
-    if (dW !== 0) parts.push(`${dW > 0 ? '+' : ''}${dW} kg`);
-    if (dR !== 0) parts.push(`${dR > 0 ? '+' : ''}${dR} reps`);
-    const better = dW > 0 || (dW === 0 && dR > 0);
-    const worse = dW < 0 || (dW === 0 && dR < 0);
-    return {
-        text: parts.join(' · '),
-        tone: better ? 'up' : worse ? 'down' : 'neutral'
-    };
-}
-
 // Objetivo activo (no alcanzado) para el ejercicio actual, si existe — reusa la
 // misma lógica de predicción que GoalCard.jsx (client/src/utils/goalPlanner.js),
 // sin fusionarse con computeSuggestion/Smart Loading (algoritmos deliberadamente
@@ -289,79 +246,6 @@ function useGoalChip(exerciseName, goals, goalSessions) {
 // Hook para el temporizador visual de descanso (respaldo cliente de la notificación
 // push de scheduleRestReminder, que no es fiable en iOS Safari/PWA). Cuenta hacia
 // atrás desde `seconds` y se puede reiniciar llamando a start() de nuevo.
-function useRestTimer() {
-    const [secondsLeft, setSecondsLeft] = useState(null); // null = sin temporizador activo
-    const [isDone, setIsDone] = useState(false);
-    const intervalRef = useRef(null);
-    // Timestamp absoluto de fin, no un contador de ticks: los navegadores
-    // móviles pausan/limitan setInterval en segundo plano, así que un contador
-    // que solo resta 1 por tick se queda "congelado" en vez de reflejar el
-    // tiempo real transcurrido al volver. Con un endTime fijo, recalculamos
-    // contra Date.now() en cada tick y también al recuperar foco/visibilidad.
-    const endTimeRef = useRef(null);
-
-    const clear = useCallback(() => {
-        if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-        }
-    }, []);
-
-    const recompute = useCallback(() => {
-        if (endTimeRef.current === null) return;
-        const remaining = Math.max(0, Math.round((endTimeRef.current - Date.now()) / 1000));
-        if (remaining <= 0) {
-            const wasRunning = endTimeRef.current !== null;
-            clear();
-            endTimeRef.current = null;
-            setSecondsLeft(0);
-            setIsDone(true);
-            // Vibrar solo al cruzar a "listo" (no en cada recompute ya terminado)
-            if (wasRunning && navigator.vibrate) navigator.vibrate([80, 40, 80, 40, 120]);
-        } else {
-            setSecondsLeft(remaining);
-        }
-    }, [clear]);
-
-    const start = useCallback((seconds) => {
-        clear();
-        if (!seconds || seconds <= 0) return;
-        setIsDone(false);
-        endTimeRef.current = Date.now() + seconds * 1000;
-        setSecondsLeft(seconds);
-        intervalRef.current = setInterval(recompute, 1000);
-    }, [clear, recompute]);
-
-    const stop = useCallback(() => {
-        clear();
-        endTimeRef.current = null;
-        setSecondsLeft(null);
-        setIsDone(false);
-    }, [clear]);
-
-    // Al volver de segundo plano (app minimizada, pantalla bloqueada, cambio de
-    // pestaña), recalcula de inmediato en vez de esperar al siguiente tick del
-    // interval — que pudo no haber corrido en absoluto mientras no era visible.
-    useEffect(() => {
-        function handleResume() {
-            if (document.visibilityState === 'visible') recompute();
-        }
-        document.addEventListener('visibilitychange', handleResume);
-        window.addEventListener('focus', recompute);
-        window.addEventListener('pageshow', recompute); // iOS Safari bfcache
-        return () => {
-            document.removeEventListener('visibilitychange', handleResume);
-            window.removeEventListener('focus', recompute);
-            window.removeEventListener('pageshow', recompute);
-        };
-    }, [recompute]);
-
-    // Limpieza al desmontar
-    useEffect(() => clear, [clear]);
-
-    return { secondsLeft, isDone, start, stop };
-}
-
 // ==================== COMPONENTES UI ====================
 
 const SkeletonLoader = () => (
@@ -378,268 +262,6 @@ const SkeletonLoader = () => (
 );
 
 // Preguntas RIR (obligatorio al completar) — lenguaje de gym, no jerga fría
-const RIR_QUESTIONS = [
-    { value: 0, label: '0', desc: 'Al fallo' },
-    { value: 1, label: '1', desc: '1 en recámara' },
-    { value: 2, label: '2', desc: '2 en recámara' },
-    { value: 3, label: '3+', desc: 'Cómodo' }
-];
-
-// Componente memoizado - compara props específicas para detectar cambios
-const SetCard = memo(({ set, index, onUpdate, onToggle, onSetRIR, isLocked, previousBest, isUnilateral, lastSet, setSuggestion, onApplySetSuggestion }) => {
-    const handleFocus = (e) => e.target.select();
-
-    const isPR = useMemo(() => {
-        if (!previousBest || isLocked || !set.completed) return false;
-        const w = Number(set.weight) || 0;
-        const r = Number(set.reps) || 0;
-        const effW = isUnilateral ? Math.min(w, Number(set.weightR) || w) : w;
-        const effR = isUnilateral ? Math.min(r, Number(set.repsR) || r) : r;
-        const currentScore = effW * (1 + effR / 30);
-        return currentScore > estimate1RM(previousBest);
-    }, [set, previousBest, isLocked, isUnilateral]);
-
-    // Delta solo DESPUÉS de tener peso/reps (o completada) — no confundir con sugerencia
-    const vsLast = useMemo(
-        () => setDeltaLabel(
-            { weight: set.weight, reps: set.reps },
-            lastSet ? { weight: lastSet.weight, reps: lastSet.reps } : null
-        ),
-        [set.weight, set.reps, lastSet]
-    );
-
-    const showSuggestion = !isLocked && !set.completed && !!setSuggestion;
-
-    return (
-        <div className={`group relative rounded-2xl p-3 transition-all duration-300 ${set.completed
-            ? 'bg-[var(--success)]/10 ring-1 ring-[var(--success)]/50'
-            : 'bg-[var(--bg-card)] border border-[var(--border)]'
-            }`}>
-            <div className="grid grid-cols-10 gap-3 items-center">
-                {/* Número de serie horizontal — más legible en móvil que el label vertical */}
-                <div className="col-span-1 flex flex-col items-start pt-3 gap-1">
-                    <span
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black tabular-nums ${set.completed
-                            ? 'bg-[var(--success)] text-white'
-                            : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] border border-[var(--border)]'
-                            }`}
-                        aria-hidden
-                    >
-                        {index + 1}
-                    </span>
-                </div>
-                <div className="col-span-7 space-y-2">
-                    {!isUnilateral ? (
-                        /* Bilateral: standard weight + reps row */
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="relative">
-                                <input
-                                    type="number"
-                                    inputMode="decimal"
-                                    value={set.weight}
-                                    onFocus={handleFocus}
-                                    onChange={(e) => onUpdate(index, 'weight', e.target.value)}
-                                    placeholder="0"
-                                    readOnly={isLocked}
-                                    aria-label={`Serie ${index + 1} peso`}
-                                    className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.weight ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-                                        } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
-                                />
-                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">KG</span>
-                            </div>
-                            <div className="relative">
-                                <input
-                                    type="number"
-                                    inputMode="numeric"
-                                    value={set.reps}
-                                    onFocus={handleFocus}
-                                    onChange={(e) => onUpdate(index, 'reps', e.target.value)}
-                                    placeholder="0"
-                                    readOnly={isLocked}
-                                    aria-label={`Serie ${index + 1} reps`}
-                                    className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.reps ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-                                        } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
-                                />
-                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">REP</span>
-                            </div>
-                        </div>
-                    ) : (
-                        /* Unilateral: separate L/R rows for weight + reps */
-                        <div className="space-y-2">
-                            {/* Left side */}
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        inputMode="decimal"
-                                        value={set.weight}
-                                        onFocus={handleFocus}
-                                        onChange={(e) => onUpdate(index, 'weight', e.target.value)}
-                                        placeholder="0"
-                                        readOnly={isLocked}
-                                        className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.weight ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-                                            } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
-                                    />
-                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">KG</span>
-                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-orange-400 pointer-events-none font-bold">IZQ</span>
-                                </div>
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        inputMode="numeric"
-                                        value={set.reps}
-                                        onFocus={handleFocus}
-                                        onChange={(e) => onUpdate(index, 'reps', e.target.value)}
-                                        placeholder="0"
-                                        readOnly={isLocked}
-                                        className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.reps ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-                                            } ${isLocked ? 'opacity-60' : 'focus:ring-[var(--primary)]/50 focus:bg-[var(--bg-dark)]'}`}
-                                    />
-                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">REP</span>
-                                </div>
-                            </div>
-                            {/* Right side */}
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        inputMode="decimal"
-                                        value={set.weightR || ''}
-                                        onFocus={handleFocus}
-                                        onChange={(e) => onUpdate(index, 'weightR', e.target.value)}
-                                        placeholder="0"
-                                        readOnly={isLocked}
-                                        className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.weightR ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-                                            } ${isLocked ? 'opacity-60' : 'focus:ring-orange-500/50 focus:bg-[var(--bg-dark)]'}`}
-                                    />
-                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">KG</span>
-                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-orange-400 pointer-events-none font-bold">DER</span>
-                                </div>
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        inputMode="numeric"
-                                        value={set.repsR || ''}
-                                        onFocus={handleFocus}
-                                        onChange={(e) => onUpdate(index, 'repsR', e.target.value)}
-                                        placeholder="0"
-                                        readOnly={isLocked}
-                                        className={`w-full bg-[var(--bg-dark)]/50 rounded-xl py-3 px-1 text-center text-xl font-bold tabular-nums focus:outline-none focus:ring-2 transition-all ${set.repsR ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
-                                            } ${isLocked ? 'opacity-60' : 'focus:ring-orange-500/50 focus:bg-[var(--bg-dark)]'}`}
-                                    />
-                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-secondary)] pointer-events-none font-medium">REP</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* RIR — obligatorio al completar (también se pide en modal) */}
-                    <div className={`flex items-center rounded-xl p-1 min-h-[44px] ${
-                        !isLocked && !set.completed && set.rir == null && set.weight && set.reps
-                            ? 'bg-[var(--warning)]/10 ring-1 ring-[var(--warning)]/40'
-                            : 'bg-[var(--bg-dark)]/50'
-                    }`}>
-                        <span className="text-[10px] text-[var(--text-secondary)] w-8 text-center font-bold shrink-0">RIR</span>
-                        <div className="flex flex-1 justify-end gap-1 h-full min-h-[40px]">
-                            {RIR_QUESTIONS.map(({ value: rir, label }) => (
-                                <button
-                                    key={rir}
-                                    type="button"
-                                    onClick={() => onSetRIR(index, rir)}
-                                    disabled={isLocked}
-                                    aria-label={`RIR ${rir}`}
-                                    aria-pressed={set.rir === rir}
-                                    className={`flex-1 min-h-[40px] min-w-[40px] rounded-lg flex items-center justify-center text-xs font-bold transition-all ${set.rir === rir
-                                        ? 'bg-[var(--primary)] text-white shadow-sm'
-                                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-card)]'
-                                        }`}
-                                >
-                                    {label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Check Button — única forma de marcar la serie completa (dispara descanso) */}
-                <div className="col-span-2 flex justify-end">
-                    <button
-                        onClick={() => onToggle(index)}
-                        disabled={isLocked}
-                        aria-label={set.completed ? `Serie ${index + 1} completada` : `Marcar serie ${index + 1} completada`}
-                        aria-pressed={set.completed}
-                        className={`w-12 h-12 min-w-[48px] min-h-[48px] rounded-xl flex items-center justify-center transition-all duration-200 active:scale-90 ${set.completed
-                            ? 'bg-[var(--success)] text-white shadow-lg shadow-[var(--success)]/30 scale-105'
-                            : 'bg-[var(--bg-dark)] border-2 border-[var(--border)] text-[var(--text-tertiary)] hover:border-[var(--primary)] hover:text-[var(--primary)]'
-                            }`}
-                    >
-                        <Check size={24} strokeWidth={set.completed ? 3 : 2} />
-                    </button>
-                </div>
-            </div>
-
-            {/* Izq = sesión pasada · Der = sugerencia de ESTA serie (naranja) o delta si ya escribiste */}
-            {(lastSet || showSuggestion || vsLast) && (
-                <div className="mt-2 flex items-center justify-between gap-2 text-[10px] px-1">
-                    {lastSet ? (
-                        <span className="text-[var(--text-secondary)] tabular-nums">
-                            Última:{' '}
-                            <span className="font-semibold text-[var(--text-primary)]/80">
-                                {lastSet.weight} kg × {lastSet.reps}
-                            </span>
-                        </span>
-                    ) : <span />}
-                    {showSuggestion ? (
-                        <button
-                            type="button"
-                            onClick={() => onApplySetSuggestion?.(index, setSuggestion)}
-                            title={setSuggestion.rationale || 'Aplicar sugerencia de esta serie'}
-                            className="font-bold tabular-nums text-orange-400 active:scale-95 flex items-center gap-1 min-h-[32px]"
-                        >
-                            <Sparkles size={10} className="shrink-0" aria-hidden />
-                            Sugerido {setSuggestion.weight}×{setSuggestion.reps}
-                        </button>
-                    ) : vsLast ? (
-                        <span className={`font-bold tabular-nums ${
-                            vsLast.tone === 'up' ? 'text-[var(--success)]'
-                            : vsLast.tone === 'down' ? 'text-red-400'
-                            : 'text-[var(--text-secondary)]'
-                        }`}>
-                            {vsLast.text}
-                        </span>
-                    ) : null}
-                </div>
-            )}
-
-            {/* PR Badge */}
-            {isPR && (
-                <div className="absolute -top-2 -right-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 animate-in zoom-in z-20">
-                    <Sparkles size={10} fill="currentColor" /> PR
-                </div>
-            )}
-        </div>
-    );
-}, (prevProps, nextProps) => {
-    const sugEq = (a, b) => {
-        if (!a && !b) return true;
-        if (!a || !b) return false;
-        return a.weight === b.weight && a.reps === b.reps
-            && (a.rationale || '') === (b.rationale || '');
-    };
-    return prevProps.set.weight === nextProps.set.weight &&
-        prevProps.set.reps === nextProps.set.reps &&
-        prevProps.set.weightR === nextProps.set.weightR &&
-        prevProps.set.repsR === nextProps.set.repsR &&
-        prevProps.set.completed === nextProps.set.completed &&
-        prevProps.set.rir === nextProps.set.rir &&
-        prevProps.index === nextProps.index &&
-        prevProps.isLocked === nextProps.isLocked &&
-        prevProps.isUnilateral === nextProps.isUnilateral &&
-        prevProps.previousBest === nextProps.previousBest &&
-        prevProps.lastSet === nextProps.lastSet &&
-        sugEq(prevProps.setSuggestion, nextProps.setSuggestion);
-});
-
 // Aviso por fase del bloque activo (nunca silencioso). Compacto en chips del header.
 // Clases Tailwind literales completas — el compilador no genera las interpoladas.
 const PHASE_BANNER = {
@@ -731,6 +353,12 @@ function WarmupCalculator({ base1RM, increment }) {
 
 export default function Workout() {
     const { dayId } = useParams();
+    const { user } = useAuth();
+    return <DraftBoundary key={`${user?.id}:${dayId}`} kind="workout" resourceId={dayId} ownerId={user?.id}><WorkoutPage /></DraftBoundary>;
+}
+
+function WorkoutPage() {
+    const { dayId } = useParams();
     const navigate = useNavigate();
     const toast = useToast();
     const { user } = useAuth();
@@ -759,6 +387,7 @@ export default function Workout() {
     // Id del WorkoutLog de hoy — para PUT al resumir (Atajo parcial) y para el
     // enlace "Editar sesión" cuando el ejercicio ya está completo.
     const [todayLogId, setTodayLogId] = useState(null);
+    const [todaySessionVersion, setTodaySessionVersion] = useState(null);
     const currentExerciseIdRef = useRef(null);
     // Resultados de ESTA sesión (para el resumen): { [exId]: { name, sets, volume, skipped } }
     const sessionResultsRef = useRef({});
@@ -773,9 +402,11 @@ export default function Workout() {
         workoutData, setWorkoutData,
         completedExerciseIds, setCompletedExerciseIds,
         skippedExerciseIds, setSkippedExerciseIds,
-        saveToStorage, clearStorage
-    } = useWorkoutPersistence(dayId);
-    const restTimer = useRestTimer();
+        saveToStorage, persistenceError, originalDay, sessionBases, setSessionBases, dayContext, setDayContext, exerciseModes, setExerciseModes
+    } = useWorkoutPersistence(dayId, user?.id);
+    const restTimer = useRestTimer(() => { void api.cancelRestReminder().then(result => { if (result?.cancelled === false) toast.info('El aviso ya fue procesado o reemplazado.'); }).catch(() => toast.error('Se detuvo el temporizador local; no se pudo cancelar el aviso remoto.')); });
+    const [localOperations, setLocalOperations] = useState({});
+    const [offlineContext, setOfflineContext] = useState(false);
 
     const currentExercise = workoutState.exercises[workoutState.currentIndex];
     const preloadedHistory = currentExercise && historiesLoaded
@@ -805,9 +436,18 @@ export default function Workout() {
     const [pendingSync, setPendingSync] = useState(false);
     useEffect(() => {
         if (!currentExercise) { setPendingSync(false); return undefined; }
-        setPendingSync(hasPendingWrite(currentExercise.id));
-        return subscribeQueueChange(() => setPendingSync(hasPendingWrite(currentExercise.id)));
-    }, [currentExercise]);
+        const refresh = () => {
+            try { setPendingSync(hasPendingWrite(currentExercise.id)); } catch { setPendingSync(true); }
+            if (operationsEnabled) void operationRuntime().store.list(user.id, { includeHistory: false }).then(items => {
+                if (currentExerciseIdRef.current === currentExercise.id) setPendingSync(hasPendingWrite(currentExercise.id)
+                    || items.some(item => !['confirmed', 'resolved_preserved'].includes(item.status) && (item.payload.exerciseId === currentExercise.id || item.payload.logId === todayLogId)));
+            }).catch(() => setPendingSync(true));
+        };
+        refresh();
+        const old = subscribeQueueChange(refresh);
+        const next = operationsEnabled ? operationRuntime().store.subscribe(refresh) : () => {};
+        return () => { old(); next(); };
+    }, [currentExercise, user.id, todayLogId]);
 
     // Valores computados
     const isAlreadyLogged = useMemo(() =>
@@ -845,6 +485,21 @@ export default function Workout() {
 
     async function fetchDay() {
         setHistoriesLoaded(false);
+        async function display(context, offline = false) {
+            const { exercises, historyByExerciseId: map } = context;
+            const items = operationsEnabled ? await operationRuntime().store.list(user.id, { includeHistory: false }) : [];
+            // A durable unconfirmed creation must not become another Save button
+            // after reload. Its original UUID/payload remain the only retry.
+            const protectedOps = Object.fromEntries(items.filter(item => item.ownerId === user.id
+                && item.originalDay === originalDay && item.payload.kind === 'workout.create'
+                && !['confirmed', 'resolved_preserved'].includes(item.status)).map(item => [item.payload.exerciseId, item]));
+            setLocalOperations(protectedOps); setOfflineContext(offline);
+            setHistoryByExerciseId(map); setHistoriesLoaded(true);
+            setWorkoutState(prev => ({ ...prev, exercises, dayName: context.dayName, phase: context.phase, currentIndex: 0 }));
+            applyCompletedFromHistories(exercises, map, Object.keys(protectedOps));
+            if (exercises.length) loadExerciseData(exercises[0], 0, map, protectedOps);
+            else setSets([]);
+        }
         try {
             const routines = await api.getRoutines();
             let found = false;
@@ -869,22 +524,10 @@ export default function Workout() {
                     })
                 );
                 const map = Object.fromEntries(pairs);
-                setHistoryByExerciseId(map);
-                setHistoriesLoaded(true);
-                setWorkoutState(prev => ({
-                    ...prev,
-                    exercises,
-                    dayName: day.dayName || '',
-                    phase: routine.phase || null,
-                    currentIndex: 0
-                }));
-
-                applyCompletedFromHistories(exercises, map);
-                if (exercises.length > 0) {
-                    loadExerciseData(exercises[0], 0, map);
-                } else {
-                    setSets([]);
-                }
+                const context = { ownerId: user.id, dayId, originalDay, exercises, dayName: day.dayName || '',
+                    phase: routine.phase || null, historyByExerciseId: map };
+                if (indexedStorageEnabled) setDayContext(context);
+                await display(context);
                 break;
             }
             if (!found) {
@@ -893,9 +536,14 @@ export default function Workout() {
                 setWorkoutState(prev => ({ ...prev, exercises: [], dayName: '' }));
             }
         } catch (error) {
-            console.error('Error:', error);
-            toast.error(error?.message || 'Error al cargar rutina');
-            setWorkoutState(prev => ({ ...prev, exercises: [] }));
+            if (indexedStorageEnabled && (error.isNetworkError || [500, 502, 503, 504].includes(error.status)) && dayContext?.ownerId === user.id
+                && dayContext.dayId === dayId && dayContext.originalDay === originalDay && Array.isArray(dayContext.exercises)) {
+                await display(dayContext, true);
+            } else {
+                console.error('Error:', error);
+                toast.error(error?.message || 'Error al cargar rutina');
+                setWorkoutState(prev => ({ ...prev, exercises: [] }));
+            }
         } finally {
             setWorkoutState(prev => ({ ...prev, loading: false }));
         }
@@ -903,7 +551,7 @@ export default function Workout() {
 
     // Marca ejercicios completos hoy a partir del mapa de historiales (sin red).
     // "Hoy" = día calendario CDMX (mismo criterio que el server).
-    function applyCompletedFromHistories(exerciseList, historyMap) {
+    function applyCompletedFromHistories(exerciseList, historyMap, protectedIds = []) {
         const completed = [];
         for (const ex of exerciseList) {
             const history = historyMap[ex.id];
@@ -925,18 +573,30 @@ export default function Workout() {
             }
         }
         const checkedIds = new Set(exerciseList.map(ex => ex.id));
-        setCompletedExerciseIds(prev => [...new Set([...prev.filter(id => !checkedIds.has(id)), ...completed])]);
+        setCompletedExerciseIds(prev => [...new Set([...prev.filter(id => !checkedIds.has(id)), ...completed, ...protectedIds])]);
     }
 
-    function loadExerciseData(exercise, index, historyMapOverride) {
+    async function loadExerciseData(exercise, index, historyMapOverride, protectedOverride) {
         if (!exercise?.id) {
             setSets([]);
             return;
         }
         currentExerciseIdRef.current = exercise.id;
-        setIsUnilateral(!!exercise.isUnilateral);
+        const mode = indexedStorageEnabled && typeof exerciseModes[exercise.id] === 'boolean' ? exerciseModes[exercise.id]
+            : !!exercise.isUnilateral || (indexedStorageEnabled && workoutData[exercise.id]?.some(s => s.weightR !== '' && s.weightR != null || s.repsR !== '' && s.repsR != null));
+        setIsUnilateral(!!mode);
         setCompletedAt(null);
         setTodayLogId(null);
+        setTodaySessionVersion(null);
+        const protectedOperation = (protectedOverride || localOperations)[exercise.id];
+        if (protectedOperation) {
+            setIsUnilateral(protectedOperation.payload.sets.some(s => s.weightRight != null || s.repsRight != null));
+            const localSets = protectedOperation.payload.sets.map(s => ({ weight: String(s.weight), reps: String(s.reps),
+                weightR: s.weightRight == null ? '' : String(s.weightRight), repsR: s.repsRight == null ? '' : String(s.repsRight),
+                rir: storedRpeToFormRir(s.rpe), completed: s.completed }));
+            setCompletedAt(new Date(protectedOperation.payload.performedAt));
+            setSets(localSets); prevSetsSnapshotRef.current = { exerciseId: exercise.id, sets: localSets }; return;
+        }
         // El descanso NO se cancela al cambiar de ejercicio: tras guardar se avanza
         // ~300ms y sigues descansando en la siguiente pantalla. Solo se detiene al
         // terminar el timer, al tocar la X, o al salir del entreno.
@@ -944,17 +604,37 @@ export default function Workout() {
         const targetSets = Math.max(1, Number(exercise.targetSets) || 3);
         const historyMap = historyMapOverride || historyByExerciseId;
         const history = historyMap[exercise.id];
-        const todayLog = findTodayLog(history);
+        let todayLog = findTodayLog(history);
+        if (operationsEnabled && workoutData[exercise.id]?.length && (todayLog?.id || sessionBases[exercise.id])) {
+            // An older draft without a base remains editable/exportable, but
+            // cannot acquire today's remote version without explicit review.
+            setTodayLogId(sessionBases[exercise.id]?.logId || todayLog.id);
+            setTodaySessionVersion(sessionBases[exercise.id]?.version || null);
+            setSets(workoutData[exercise.id]);
+            prevSetsSnapshotRef.current = { exerciseId: exercise.id, sets: workoutData[exercise.id] };
+            return;
+        }
+        if (operationsEnabled && todayLog?.id) {
+            try {
+                const found = await api.getWorkoutSession(todayLog.id);
+                if (currentExerciseIdRef.current !== exercise.id) return;
+                todayLog = found;
+                setTodaySessionVersion(found.sessionVersion);
+                setSessionBases(prev => ({ ...prev, [exercise.id]: { logId: found.id, version: found.sessionVersion,
+                    ...(conflictResolutionEnabled ? { snapshot: { ownerId: user.id, workoutLog: found, sessionVersion: found.sessionVersion } } : {}) } }));
+            } catch { /* Without a reviewed version, replacement stays blocked. */ }
+        }
 
         if (todayLog?.sets?.length) {
             const loggedSets = todayLog.sets.map(s => ({
+                id: s.id,
                 // weight/reps null del API reventaban .toString() y crasheaban al reabrir
                 weight: s.weight != null ? String(s.weight) : '',
                 reps: s.reps != null ? String(s.reps) : '',
                 weightR: s.weightRight != null ? String(s.weightRight) : '',
                 repsR: s.repsRight != null ? String(s.repsRight) : '',
-                rir: s.rpe != null ? (10 - s.rpe) : null,
-                completed: true
+                rir: storedRpeToFormRir(s.rpe),
+                completed: s.completed ?? true
             }));
             setTodayLogId(todayLog.id || null);
 
@@ -1137,7 +817,7 @@ export default function Workout() {
                     weightRight: s.weightR,
                     repsRight: s.repsR,
                     rir: s.rir,
-                    rpe: s.rir != null ? 10 - s.rir : null
+                    rpe: formRirToStoredRpe(s.rir)
                 });
                 completedToday.push({
                     weight: eff.weight,
@@ -1294,6 +974,11 @@ export default function Workout() {
     }
 
     async function handlePrimaryAction() {
+        if (originalDay !== mexicoCityDateStr()) {
+            saveToStorage({ ...workoutData, [currentExercise.id]: sets }, completedExerciseIds, skippedExerciseIds);
+            toast.error('Cambió el día en CDMX. El borrador conserva su fecha original y requiere revisión.');
+            return;
+        }
         if (isAlreadyLogged) {
             if (workoutState.currentIndex < workoutState.exercises.length - 1) {
                 goToExercise(workoutState.currentIndex + 1);
@@ -1317,9 +1002,10 @@ export default function Workout() {
             .filter(s => s.weight !== '' && s.reps !== '')
             .map(s => {
                 const setData = {
+                    ...(conflictResolutionEnabled && todayLogId && sessionBases[currentExercise.id]?.snapshot ? { id: s.id || crypto.randomUUID() } : {}),
                     weight: parseFloat(s.weight),
                     reps: parseInt(s.reps, 10),
-                    rpe: s.rir != null ? (10 - s.rir) : null,
+                    rpe: formRirToStoredRpe(s.rir),
                     // Solo true si el usuario marcó ✓ (RIR obligatorio en esas)
                     completed: !!s.completed
                 };
@@ -1354,9 +1040,11 @@ export default function Workout() {
         try {
             // Sesión parcial del Atajo: PUT sobre todayLogId (no POST nuevo).
             const result = todayLogId
-                ? await api.updateWorkoutSession(todayLogId, validSets, currentExercise.id)
-                : await api.logWorkout(currentExercise.id, validSets);
+                ? await api.updateWorkoutSession(todayLogId, validSets, currentExercise.id, { ownerId: user.id, expectedVersion: todaySessionVersion,
+                    ...(conflictResolutionEnabled ? { baseSnapshot: sessionBases[currentExercise.id]?.snapshot } : {}) })
+                : await api.logWorkout(currentExercise.id, validSets, null, { ownerId: user.id });
             const { workoutLog, queued } = result;
+            if (result.sessionVersion) setTodaySessionVersion(result.sessionVersion);
             setCompletedExerciseIds(prev => [...prev, currentExercise.id]);
             setCompletedAt(workoutLog?.date ? new Date(workoutLog.date) : new Date());
             if (workoutLog?.id) setTodayLogId(workoutLog.id);
@@ -1387,7 +1075,7 @@ export default function Workout() {
             setSkippedExerciseIds(prev => prev.filter(id => id !== currentExercise.id));
 
             if (queued) {
-                toast.info('Guardado local — se sincronizará cuando vuelva la conexión');
+                toast.info(result.reason || 'Guardado local — pendiente de confirmar en el servidor');
             } else {
                 toast.success('¡Guardado!');
             }
@@ -1400,7 +1088,7 @@ export default function Workout() {
             }
         } catch (error) {
             console.error('Save error:', error);
-            toast.error('Error al guardar');
+            toast.error(error.isStorageError ? error.message : 'Error al guardar; conserva los datos antes de salir');
         } finally {
             setUIState(prev => ({ ...prev, saving: false }));
         }
@@ -1467,9 +1155,12 @@ export default function Workout() {
         };
     }
 
-    function finishWorkout() {
+    async function finishWorkout() {
         const summary = buildSessionSummary();
-        clearStorage();
+        if (!await saveToStorage({ ...workoutData, [currentExercise.id]: sets }, completedExerciseIds, skippedExerciseIds)) {
+            toast.error('No se pudo conservar el borrador. Copia tus datos antes de salir.');
+            return;
+        }
         setSessionSummary(summary);
         setUIState(prev => ({ ...prev, showSuccess: true }));
     }
@@ -1603,6 +1294,7 @@ export default function Workout() {
 
     return (
         <div className="min-h-[calc(100dvh-4rem)] max-w-lg mx-auto bg-[var(--bg-main)] px-3 pt-2 pb-4">
+            {offlineContext && <p role="status" className="mb-3 text-sm text-amber-400">Sin conexión: recuperamos el día del borrador de esta cuenta. El historial mostrado puede estar desactualizado; los guardados esperan comprobante.</p>}
 
             {/* Timer — sobre bottom nav + safe area iOS */}
             {restTimer.secondsLeft !== null && (
@@ -1680,6 +1372,7 @@ export default function Workout() {
                 </button>
             </div>
 
+            {persistenceError && <p role="alert" className="text-sm text-red-400 mb-3">{persistenceError}</p>}
             {/* Título + meta (compacto) */}
             <div className="mb-3 text-center">
                 <div className="flex items-center justify-between gap-1 mb-1">
@@ -1732,7 +1425,10 @@ export default function Workout() {
                 <div className="flex items-center justify-center gap-2 flex-wrap">
                     <button
                         type="button"
-                        onClick={() => setIsUnilateral(!isUnilateral)}
+                        onClick={() => {
+                            if (indexedStorageEnabled) setExerciseModes(prev => ({ ...prev, [currentExercise.id]: !isUnilateral }));
+                            setIsUnilateral(!isUnilateral);
+                        }}
                         aria-pressed={isUnilateral}
                         className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${isUnilateral
                             ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
@@ -1773,7 +1469,7 @@ export default function Workout() {
                         <Check size={16} strokeWidth={3} aria-hidden />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="font-bold text-[var(--success)] text-sm">Completado</p>
+                        <p className="font-bold text-[var(--success)] text-sm">{pendingSync ? 'Guardado local; pendiente de comprobante' : 'Completado'}</p>
                         <p className="text-[var(--success)]/80 text-xs">Hoy a las {(completedAt || new Date()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
                     {todayLogId && (
@@ -1903,7 +1599,7 @@ export default function Workout() {
                         onToggle={toggleComplete}
                         onSetRIR={setRIR}
                         isLocked={isAlreadyLogged}
-                        previousBest={previousBest}
+                        previousBestScore={previousBest ? estimate1RM(previousBest) : null}
                         isUnilateral={isUnilateral}
                         lastSet={lastSession?.sets?.[i] || null}
                         setSuggestion={suggestionByIndex[i] || null}
@@ -1913,48 +1609,7 @@ export default function Workout() {
             </div>
 
             {/* Pregunta RIR obligatoria al completar serie */}
-            {rirPrompt && (
-                <Portal>
-                    <div
-                        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center animate-fade-in"
-                        onClick={() => setRirPrompt(null)}
-                    >
-                        <div
-                            className="bg-[var(--bg-card)] w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 border border-[var(--border)] shadow-2xl animate-slide-up"
-                            onClick={e => e.stopPropagation()}
-                            role="dialog"
-                            aria-labelledby="rir-prompt-title"
-                        >
-                            <h3 id="rir-prompt-title" className="text-lg font-bold text-white mb-1">
-                                ¿Cuántas te quedaban en la recámara?
-                            </h3>
-                            <p className="text-sm text-[var(--text-secondary)] mb-4">
-                                Serie {rirPrompt.index + 1} — el coach ajusta la siguiente con tu RIR
-                            </p>
-                            <div className="grid grid-cols-2 gap-2">
-                                {RIR_QUESTIONS.map(({ value, label, desc }) => (
-                                    <button
-                                        key={value}
-                                        type="button"
-                                        onClick={() => answerRirPrompt(value)}
-                                        className="flex flex-col items-start gap-0.5 p-4 rounded-2xl bg-[var(--bg-dark)] border border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--primary)]/10 active:scale-[0.98] transition-all text-left"
-                                    >
-                                        <span className="text-2xl font-black text-[var(--primary)] tabular-nums">{label}</span>
-                                        <span className="text-xs text-[var(--text-secondary)] font-medium">{desc}</span>
-                                    </button>
-                                ))}
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setRirPrompt(null)}
-                                className="w-full mt-3 py-2.5 text-sm text-[var(--text-secondary)]"
-                            >
-                                Cancelar
-                            </button>
-                        </div>
-                    </div>
-                </Portal>
-            )}
+            {rirPrompt && <RirDialog index={rirPrompt.index} onClose={() => setRirPrompt(null)} onAnswer={answerRirPrompt} />}
 
             {/* Botón Copiar Peso (Solo si hay datos y no está bloqueado) */}
             {!isAlreadyLogged && sets[0]?.weight && sets.length > 1 && (
@@ -2087,7 +1742,7 @@ export default function Workout() {
                                             <div className="flex gap-2 flex-wrap">
                                                 {log.sets.map((s, j) => {
                                                     const hasRight = s.repsRight != null || s.weightRight != null;
-                                                    const rir = s.rpe != null ? (10 - s.rpe) : null;
+                                                    const rir = storedRpeToFormRir(s.rpe);
                                                     return (
                                                         <div key={j} className="bg-[var(--bg-card)] px-3 py-1.5 rounded-lg border border-[var(--border)] flex items-baseline gap-1 shadow-sm">
                                                             {hasRight ? (

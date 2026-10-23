@@ -1,0 +1,430 @@
+{
+  "checkpoint": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-phase8-received-9cc27aa2-7de6-4639-af7a-eb5ff7e85db7",
+  "node": "24.22.0",
+  "environmentFilesRead": false,
+  "before": {
+    "milliseconds": 8734.9503,
+    "chunks": [
+      {
+        "name": "index",
+        "entry": true,
+        "raw": 214733,
+        "gzip": 69396
+      },
+      {
+        "name": "react-vendor",
+        "entry": false,
+        "raw": 231659,
+        "gzip": 74334
+      },
+      {
+        "name": "icons",
+        "entry": false,
+        "raw": 16709,
+        "gzip": 6069
+      },
+      {
+        "name": "recharts",
+        "entry": false,
+        "raw": 367463,
+        "gzip": 108923
+      },
+      {
+        "name": "pdf",
+        "entry": false,
+        "raw": 779097,
+        "gzip": 236774
+      },
+      {
+        "name": "Dashboard",
+        "entry": false,
+        "raw": 18481,
+        "gzip": 5865
+      },
+      {
+        "name": "Routines",
+        "entry": false,
+        "raw": 17351,
+        "gzip": 4897
+      },
+      {
+        "name": "RoutineDetail",
+        "entry": false,
+        "raw": 6440,
+        "gzip": 2197
+      },
+      {
+        "name": "Workout",
+        "entry": false,
+        "raw": 51468,
+        "gzip": 14089
+      },
+      {
+        "name": "Import",
+        "entry": false,
+        "raw": 28977,
+        "gzip": 7799
+      },
+      {
+        "name": "Progress",
+        "entry": false,
+        "raw": 41815,
+        "gzip": 11769
+      },
+      {
+        "name": "Settings",
+        "entry": false,
+        "raw": 39552,
+        "gzip": 10205
+      },
+      {
+        "name": "EditRoutine",
+        "entry": false,
+        "raw": 20094,
+        "gzip": 5241
+      },
+      {
+        "name": "routinePayload",
+        "entry": false,
+        "raw": 8177,
+        "gzip": 2580
+      },
+      {
+        "name": "routineDays",
+        "entry": false,
+        "raw": 897,
+        "gzip": 445
+      },
+      {
+        "name": "EditSession",
+        "entry": false,
+        "raw": 9708,
+        "gzip": 3186
+      },
+      {
+        "name": "DraftBoundary",
+        "entry": false,
+        "raw": 258,
+        "gzip": 205
+      },
+      {
+        "name": "sessionPdf",
+        "entry": false,
+        "raw": 4135,
+        "gzip": 1865
+      },
+      {
+        "name": "BodyTracking",
+        "entry": false,
+        "raw": 23741,
+        "gzip": 6248
+      },
+      {
+        "name": "ExportReport",
+        "entry": false,
+        "raw": 33021,
+        "gzip": 10674
+      },
+      {
+        "name": "Register",
+        "entry": false,
+        "raw": 10895,
+        "gzip": 2625
+      },
+      {
+        "name": "securityQuestions",
+        "entry": false,
+        "raw": 209,
+        "gzip": 154
+      },
+      {
+        "name": "ForgotPassword",
+        "entry": false,
+        "raw": 9019,
+        "gzip": 2274
+      },
+      {
+        "name": "Profile",
+        "entry": false,
+        "raw": 9379,
+        "gzip": 2997
+      },
+      {
+        "name": "cloudinary",
+        "entry": false,
+        "raw": 448,
+        "gzip": 313
+      },
+      {
+        "name": "Portal",
+        "entry": false,
+        "raw": 127,
+        "gzip": 133
+      },
+      {
+        "name": "NewGoal",
+        "entry": false,
+        "raw": 10743,
+        "gzip": 3662
+      },
+      {
+        "name": "muscleGroup",
+        "entry": false,
+        "raw": 677,
+        "gzip": 341
+      },
+      {
+        "name": "AiRoutineSetup",
+        "entry": false,
+        "raw": 6638,
+        "gzip": 2095
+      },
+      {
+        "name": "purify.es",
+        "entry": false,
+        "raw": 27950,
+        "gzip": 10571
+      },
+      {
+        "name": "GoalSection",
+        "entry": false,
+        "raw": 12244,
+        "gzip": 3830
+      },
+      {
+        "name": "goalPlanner",
+        "entry": false,
+        "raw": 3754,
+        "gzip": 1867
+      },
+      {
+        "name": "exerciseName",
+        "entry": false,
+        "raw": 300,
+        "gzip": 244
+      }
+    ]
+  },
+  "after": {
+    "milliseconds": 7690.140600000002,
+    "chunks": [
+      {
+        "name": "index",
+        "entry": true,
+        "raw": 244904,
+        "gzip": 78462
+      },
+      {
+        "name": "react-vendor",
+        "entry": false,
+        "raw": 231659,
+        "gzip": 74334
+      },
+      {
+        "name": "icons",
+        "entry": false,
+        "raw": 16709,
+        "gzip": 6069
+      },
+      {
+        "name": "recharts",
+        "entry": false,
+        "raw": 367463,
+        "gzip": 108923
+      },
+      {
+        "name": "pdf",
+        "entry": false,
+        "raw": 779097,
+        "gzip": 236774
+      },
+      {
+        "name": "Dashboard",
+        "entry": false,
+        "raw": 17336,
+        "gzip": 5619
+      },
+      {
+        "name": "Routines",
+        "entry": false,
+        "raw": 17534,
+        "gzip": 4978
+      },
+      {
+        "name": "RoutineDetail",
+        "entry": false,
+        "raw": 6483,
+        "gzip": 2267
+      },
+      {
+        "name": "RemoteStatus",
+        "entry": false,
+        "raw": 607,
+        "gzip": 427
+      },
+      {
+        "name": "Workout",
+        "entry": false,
+        "raw": 51445,
+        "gzip": 14215
+      },
+      {
+        "name": "useDialogFocus",
+        "entry": false,
+        "raw": 758,
+        "gzip": 424
+      },
+      {
+        "name": "Import",
+        "entry": false,
+        "raw": 28977,
+        "gzip": 7797
+      },
+      {
+        "name": "Progress",
+        "entry": false,
+        "raw": 41709,
+        "gzip": 11793
+      },
+      {
+        "name": "Settings",
+        "entry": false,
+        "raw": 39552,
+        "gzip": 10204
+      },
+      {
+        "name": "EditRoutine",
+        "entry": false,
+        "raw": 20094,
+        "gzip": 5239
+      },
+      {
+        "name": "routinePayload",
+        "entry": false,
+        "raw": 8177,
+        "gzip": 2579
+      },
+      {
+        "name": "routineDays",
+        "entry": false,
+        "raw": 897,
+        "gzip": 445
+      },
+      {
+        "name": "EditSession",
+        "entry": false,
+        "raw": 10090,
+        "gzip": 3325
+      },
+      {
+        "name": "DraftBoundary",
+        "entry": false,
+        "raw": 258,
+        "gzip": 204
+      },
+      {
+        "name": "sessionPdf",
+        "entry": false,
+        "raw": 4135,
+        "gzip": 1864
+      },
+      {
+        "name": "BodyTracking",
+        "entry": false,
+        "raw": 23621,
+        "gzip": 6271
+      },
+      {
+        "name": "remoteViews",
+        "entry": false,
+        "raw": 9976,
+        "gzip": 3626
+      },
+      {
+        "name": "ExportReport",
+        "entry": false,
+        "raw": 33021,
+        "gzip": 10675
+      },
+      {
+        "name": "Register",
+        "entry": false,
+        "raw": 10895,
+        "gzip": 2627
+      },
+      {
+        "name": "securityQuestions",
+        "entry": false,
+        "raw": 209,
+        "gzip": 154
+      },
+      {
+        "name": "ForgotPassword",
+        "entry": false,
+        "raw": 9019,
+        "gzip": 2274
+      },
+      {
+        "name": "Profile",
+        "entry": false,
+        "raw": 9379,
+        "gzip": 2997
+      },
+      {
+        "name": "cloudinary",
+        "entry": false,
+        "raw": 448,
+        "gzip": 313
+      },
+      {
+        "name": "Portal",
+        "entry": false,
+        "raw": 127,
+        "gzip": 133
+      },
+      {
+        "name": "NewGoal",
+        "entry": false,
+        "raw": 10743,
+        "gzip": 3662
+      },
+      {
+        "name": "muscleGroup",
+        "entry": false,
+        "raw": 677,
+        "gzip": 341
+      },
+      {
+        "name": "AiRoutineSetup",
+        "entry": false,
+        "raw": 6638,
+        "gzip": 2094
+      },
+      {
+        "name": "purify.es",
+        "entry": false,
+        "raw": 27950,
+        "gzip": 10571
+      },
+      {
+        "name": "GoalSection",
+        "entry": false,
+        "raw": 12136,
+        "gzip": 3789
+      },
+      {
+        "name": "goalPlanner",
+        "entry": false,
+        "raw": 3754,
+        "gzip": 1869
+      },
+      {
+        "name": "exerciseName",
+        "entry": false,
+        "raw": 300,
+        "gzip": 243
+      }
+    ]
+  },
+  "note": "Same installed Vite/dependencies, production defaults, write:false. Sequential local builds; duration is descriptive, not a statistically established speedup. Browser evidence separately measures actual cache reuse."
+}

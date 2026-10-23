@@ -1,0 +1,48 @@
+{
+  "browser": "Microsoft Edge",
+  "actualApp": true,
+  "mobile": {
+    "width": 390,
+    "height": 844
+  },
+  "reads": [
+    {
+      "domain": "home",
+      "owner": "A",
+      "time": 3464.5999999940395
+    },
+    {
+      "domain": "routines",
+      "owner": "A"
+    },
+    {
+      "domain": "home",
+      "owner": "A",
+      "time": 3864.2999999970198
+    },
+    {
+      "domain": "home",
+      "owner": "B",
+      "time": 3886.5
+    },
+    {
+      "domain": "home",
+      "owner": "B",
+      "time": 4009.2999999970198
+    }
+  ],
+  "privateCacheIsolated": true,
+  "localDraftPreserved": true,
+  "launches": [
+    {
+      "profile": "owned-profile",
+      "port": "52742",
+      "browserPath": "/devtools/browser/e68fb0ee-6b38-431f-88aa-e63fd6f9c7e4"
+    }
+  ],
+  "productionTouched": false,
+  "callbackCurrent": true,
+  "unilateralLabels": true,
+  "dialogKeyboard": true,
+  "offlineStatus": true
+}

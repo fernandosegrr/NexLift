@@ -1,3 +1,6 @@
+import { readSelectedExercise, writeSelectedExercise } from '../features/progress/preferences';
+import { useRemoteRead } from '../app/useRemoteRead';
+import { readProgress, readDatedCollection } from '../features/remoteViews';
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
@@ -75,25 +78,9 @@ function getRelativeTime(date) {
 // ==========================================
 
 function useProgressData() {
-    const [dataState, setDataState] = useState({
-        stats: null,
-        consistency: {},
-        prs: [],
-        exercises: [],
-        plateauedNames: new Set(),
-        loading: true,
-        loadError: false
-    });
-
-    useEffect(() => {
-        let isMounted = true;
-
-        async function fetchAllData() {
-            try {
-                // 1 request (antes 5 + history 120)
-                const bundle = await api.getProgressBundle();
-                if (!isMounted) return;
-
+    const remote = useRemoteRead('progress', ['bundle'], () => api.getProgressBundle(), readProgress);
+    return useMemo(() => {
+        const bundle = remote.data || {};
                 let consistencyMap = {};
                 if (bundle.consistencyCounts && typeof bundle.consistencyCounts === 'object') {
                     consistencyMap = { ...bundle.consistencyCounts };
@@ -108,30 +95,11 @@ function useProgressData() {
                     muscleGroup: toSpanishMuscleGroup(e.muscleGroup) || null
                 }));
 
-                setDataState({
-                    stats: bundle.stats || null,
-                    consistency: consistencyMap,
-                    prs: Array.isArray(bundle.prs) ? bundle.prs : [],
-                    exercises,
-                    plateauedNames: new Set(
-                        (bundle.plateaued || []).map(n => String(n).toLowerCase())
-                    ),
-                    loading: false,
-                    loadError: false
-                });
-            } catch (error) {
-                if (isMounted) {
-                    console.error('Error fetching progress:', error);
-                    setDataState(prev => ({ ...prev, loading: false, loadError: true }));
-                }
-            }
-        }
 
-        fetchAllData();
-        return () => { isMounted = false; };
-    }, []);
-
-    return dataState;
+        return { stats: bundle.stats || null, consistency: consistencyMap, prs: Array.isArray(bundle.prs) ? bundle.prs : [], exercises,
+            plateauedNames: new Set((bundle.plateaued || []).map(n => String(n).toLowerCase())),
+            loading: remote.isPending, loadError: remote.isError };
+    }, [remote.data, remote.isPending, remote.isError]);
 }
 
 /** Formatea peso numérico + unidad sin amontonar ("80 kg", no "80kg"). */
@@ -143,41 +111,11 @@ function formatKg(value) {
 }
 
 function useExerciseProgress(exerciseName) {
-    const [progress, setProgress] = useState([]);
-    const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        if (!exerciseName) return;
-
-        const abortController = new AbortController();
-        setLoading(true);
-
-        async function fetchProgress() {
-            try {
-                const data = await api.getExerciseProgress(exerciseName);
-                if (abortController.signal.aborted) return;
-
-                setProgress(data.map(d => ({
-                    ...d,
-                    displayDate: new Date(d.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', timeZone: 'America/Mexico_City' }),
-                    fullDate: new Date(d.date).toLocaleDateString('es-ES', { timeZone: 'America/Mexico_City' })
-                })));
-            } catch (error) {
-                if (error.name !== 'AbortError') {
-                    console.error('Error fetching progress:', error);
-                }
-            } finally {
-                if (!abortController.signal.aborted) {
-                    setLoading(false);
-                }
-            }
-        }
-
-        fetchProgress();
-        return () => abortController.abort();
-    }, [exerciseName]);
-
-    return { progress, loading };
+    const remote = useRemoteRead('progress', ['exercise', exerciseName], () => api.getExerciseProgress(exerciseName), readDatedCollection, !!exerciseName);
+    const progress = useMemo(() => (remote.data || []).map(d => ({ ...d,
+        displayDate: new Date(d.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', timeZone: 'America/Mexico_City' }),
+        fullDate: new Date(d.date).toLocaleDateString('es-ES', { timeZone: 'America/Mexico_City' }) })), [remote.data]);
+    return { progress, loading: remote.isFetching && !remote.data };
 }
 
 // ==========================================
@@ -327,6 +265,7 @@ function HeatmapCalendar({ days }) {
 }
 
 function ExerciseSelector({ exercises, selected, onSelect, loading }) {
+    const { user } = useAuth();
     const [showModal, setShowModal] = useState(false);
     const [search, setSearch] = useState('');
     const [expandedMuscle, setExpandedMuscle] = useState(null);
@@ -352,7 +291,7 @@ function ExerciseSelector({ exercises, selected, onSelect, loading }) {
     function handleSelect(name) {
         onSelect(name);
         // Save to localStorage
-        localStorage.setItem('nexlift_lastExercise', name);
+        writeSelectedExercise(user?.id, name);
         setShowModal(false);
         setSearch('');
         setExpandedMuscle(null);
@@ -555,7 +494,7 @@ export default function Progress() {
     });
 
     const [filtersState, setFiltersState] = useState({
-        selectedExercise: localStorage.getItem('nexlift_lastExercise') || '',
+        selectedExercise: readSelectedExercise(user?.id) || '',
         selectedYear: parseInt(mexicoCityDateStr().slice(0, 4), 10),
         prSearch: ''
     });
@@ -602,7 +541,7 @@ export default function Progress() {
                 selectedExercise: validExercise ? saved : exercises[0].name
             }));
         }
-    }, [exercises, filtersState.selectedExercise]);
+    }, [exercises, filtersState.selectedExercise, user?.id]);
 
     // Dynamic years
     const years = useMemo(() => {

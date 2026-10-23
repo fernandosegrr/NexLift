@@ -1,7 +1,14 @@
-import { enqueueWrite, getQueue, removeFromQueue } from './offlineQueue.js';
+import { decodeRoutineImportResponse } from '../generated/routineResponse.js';
+import { readSessionResponse } from '../generated/contracts.js';
+import { submitWorkoutWrite, replayQueue } from './offlineSync.js';
+import { getOperationRuntime, operationsEnabled } from './operationRuntime.js';
+import { conflictResolutionEnabled } from '../storage/runtime.js';
+import { changesFromEditor } from './sessionChanges.js';
 
 // En producción (Vercel), usa ruta relativa. En desarrollo, usa localhost
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
+let activeRestRequest;
+function storedOwner() { try { return JSON.parse(localStorage.getItem('nexlift_user') || 'null')?.id; } catch { return null; } }
 
 // Helper: Get auth headers from localStorage
 function getAuthHeaders() {
@@ -16,13 +23,22 @@ function getAuthHeaders() {
 // encolar en vez de fallar, y replayOfflineQueue() para saber si debe detenerse
 // a reintentar más tarde en vez de descartar el item.
 async function safeFetch(url, options = {}) {
+    const authorization = typeof options.headers?.get === 'function' ? options.headers.get('authorization')
+        : options.headers?.Authorization || options.headers?.authorization;
+    const startedToken = globalThis.localStorage?.getItem('nexlift_token');
+    const changed = () => Object.assign(new Error('La sesión cambió durante la solicitud.'), { code: 'SESSION_CHANGED' });
+    if (authorization && startedToken && authorization !== `Bearer ${startedToken}`) throw changed();
+    let response;
     try {
-        return await fetch(url, options);
+        response = await fetch(url, options);
     } catch (e) {
         const err = new Error('No se pudo conectar con el servidor. Revisa tu conexión.');
         err.isNetworkError = true;
         throw err;
     }
+    const currentToken = globalThis.localStorage?.getItem('nexlift_token');
+    if (authorization && (startedToken || currentToken) && authorization !== (currentToken ? `Bearer ${currentToken}` : undefined)) throw changed();
+    return response;
 }
 
 // Helper: Fetch with auth
@@ -31,10 +47,13 @@ async function authFetch(url, options = {}) {
         ...getAuthHeaders(),
         ...(options.headers || {})
     };
-    const res = await safeFetch(url, { ...options, headers });
+    const res = await safeFetch(url, { ...options, headers, cache: 'no-store' });
+    if (headers.Authorization && headers.Authorization !== getAuthHeaders().Authorization) {
+        throw Object.assign(new Error('La sesión cambió durante la solicitud.'), { code: 'SESSION_CHANGED' });
+    }
 
     // Token expirado/inválido: limpiar sesión y redirigir al login
-    if (res.status === 401) {
+    if (res.status === 401 && headers.Authorization === getAuthHeaders().Authorization) {
         const authPaths = ['/login', '/register', '/forgot-password'];
         if (!authPaths.includes(window.location.pathname)) {
             localStorage.removeItem('nexlift_token');
@@ -43,126 +62,21 @@ async function authFetch(url, options = {}) {
         }
     }
 
+    if (!res.ok && (!options.method || options.method === 'GET') && res.status !== 404) {
+        throw Object.assign(new Error(`HTTP ${res.status}: no se pudo consultar.`), { status: res.status, retryAfter: res.headers.get('Retry-After') });
+    }
+    if (res.ok && options.method && !['GET', 'HEAD'].includes(options.method) && headers.Authorization === getAuthHeaders().Authorization) {
+        globalThis.window?.dispatchEvent?.(new Event('nexlift-remote-commit'));
+    }
     return res;
 }
 
-// ==========================================
-// OFFLINE QUEUE (P3): escrituras "crudas" (sin cola) del registro de entreno.
-// Separadas de los métodos públicos de `api.*` porque tanto ellos COMO
-// replayOfflineQueue() necesitan la llamada de red real — si el replay llamara
-// a `api.logWorkout` de nuevo y siguiera sin conexión, reencolaría un duplicado
-// en vez de dejar intacto el item original para el siguiente intento.
-// ==========================================
-async function rawLogWorkout(exerciseId, sets, notes = null) {
-    const res = await authFetch(`${API_URL}/workouts/log`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ exerciseId, sets, notes }),
-    });
-    if (!res.ok) {
-        const err = new Error('Failed to log workout');
-        err.status = res.status;
-        throw err;
-    }
-    return res.json();
+// Queue replay never repeats ambiguous mutations on the current API.
+export function replayOfflineQueue(options) {
+    return operationsEnabled ? getOperationRuntime(API_URL).run(options) : replayQueue(API_URL, options);
 }
-
-async function rawUpdateWorkoutSession(logId, sets) {
-    const res = await authFetch(`${API_URL}/workouts/${logId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sets }),
-    });
-    if (!res.ok) {
-        const err = new Error('Failed to update session');
-        err.status = res.status;
-        throw err;
-    }
-    return res.json();
-}
-
-async function rawLogRestDay(note = null) {
-    const res = await authFetch(`${API_URL}/workouts/log-rest`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note }),
-    });
-    if (!res.ok) {
-        const err = new Error('Failed to log rest day');
-        err.status = res.status;
-        throw err;
-    }
-    return res.json();
-}
-
-// ¿Ya existe un log de HOY para este ejercicio? — regla anti-duplicados del
-// replay: el POST original pudo haber llegado al server aunque la RESPUESTA se
-// perdiera por red (el error de red no distingue esos dos casos), así que antes
-// de reintentar un logWorkout encolado hay que revisar esto primero. Mismo
-// criterio que ya usa Workout.jsx para las sesiones parciales del Atajo de iOS.
-// Usa GET /api/workouts/today-log (calcula "hoy" en CDMX server-side) en vez de
-// mandar una fecha calculada en este navegador — un `fecha` de cliente sufre el
-// mismo bug de zona horaria que este proyecto ya resolvió 3 veces en otros
-// endpoints (encontrado en vivo verificando este fix: sin esto, el replay
-// duplicaba el log en vez de actualizar el existente).
-async function rawFindTodayLog(exerciseId) {
-    const res = await authFetch(`${API_URL}/workouts/today-log?exerciseId=${encodeURIComponent(exerciseId)}`);
-    if (!res.ok) {
-        const err = new Error('Failed to check today log');
-        err.status = res.status;
-        throw err;
-    }
-    return res.json();
-}
-
-async function replayOne(item) {
-    const { op, payload } = item;
-    if (op === 'logRestDay') {
-        return rawLogRestDay(payload.note);
-    }
-    if (op === 'updateWorkoutSession') {
-        return rawUpdateWorkoutSession(payload.logId, payload.sets);
-    }
-    if (op === 'logWorkout') {
-        const existing = await rawFindTodayLog(payload.exerciseId);
-        return existing
-            ? rawUpdateWorkoutSession(existing.id, payload.sets)
-            : rawLogWorkout(payload.exerciseId, payload.sets, payload.notes);
-    }
-    throw new Error(`Operación de cola desconocida: ${op}`);
-}
-
-// Drena la cola offline en orden (FIFO). Se llama al recuperar conexión y al
-// abrir la app (ver wiring al final del archivo). Nunca corre 2 réplicas a la
-// vez (evento `online` y apertura casi simultáneos no deben procesar el mismo
-// item dos veces).
-let isReplaying = false;
-export async function replayOfflineQueue({ onItemSynced, onItemFailed } = {}) {
-    if (isReplaying) return;
-    if (!localStorage.getItem('nexlift_token')) return; // sin sesión: nada que sincronizar todavía
-    isReplaying = true;
-    try {
-        const queue = getQueue(); // ya poda expirados (>48h) internamente
-        for (const item of queue) {
-            try {
-                await replayOne(item);
-                removeFromQueue(item.id);
-                onItemSynced?.(item);
-            } catch (err) {
-                // Sin red, o sesión momentáneamente inválida (401 justo al volver
-                // online, antes de que el usuario reintente login): dejar el resto
-                // de la cola intacto y reintentar en el próximo evento `online`.
-                // Cualquier OTRO error (4xx real de validación, etc.) sí es
-                // permanente — sacar de la cola para no reintentar infinito.
-                if (err?.isNetworkError || err?.status === 401) break;
-                removeFromQueue(item.id);
-                onItemFailed?.(item, err);
-            }
-        }
-    } finally {
-        isReplaying = false;
-    }
-}
+export const operationRuntime = () => getOperationRuntime(API_URL);
+export { operationsEnabled };
 
 export const api = {
     // ==========================================
@@ -218,7 +132,7 @@ export const api = {
     // ==========================================
     async getRoutines() {
         const res = await authFetch(`${API_URL}/routines`);
-        if (!res.ok) throw new Error('Failed to fetch routines');
+        if (!res.ok) throw Object.assign(new Error('Failed to fetch routines'), { status: res.status });
         return res.json();
     },
 
@@ -263,7 +177,7 @@ export const api = {
             const err = await res.json().catch(() => ({}));
             throw new Error(err.error || 'Failed to import routine');
         }
-        return res.json();
+        return decodeRoutineImportResponse(res);
     },
 
     async updateRoutine(id, routine) {
@@ -370,27 +284,38 @@ export const api = {
     // ==========================================
     // WORKOUTS
     // ==========================================
-    async logWorkout(exerciseId, sets, notes = null) {
-        try {
-            return await rawLogWorkout(exerciseId, sets, notes);
-        } catch (err) {
-            if (!err?.isNetworkError) throw err;
-            // Sin red: encolar para sincronizar después (P3) en vez de perder el
-            // registro — nunca fingir que se guardó en el server (el caller debe
-            // chequear `queued` para avisarle al usuario, no mostrar "¡Guardado!").
-            enqueueWrite('logWorkout', { exerciseId, sets, notes });
-            return { queued: true };
-        }
+    async logWorkout(exerciseId, sets, notes = null, context) {
+        if (operationsEnabled) return operationRuntime().capture('workout.create', { exerciseId, sets, notes }, context);
+        return submitWorkoutWrite(API_URL, 'logWorkout', { exerciseId, sets, notes }, context);
     },
 
     async scheduleRestReminder(exerciseId, nextExerciseName = null) {
-        const res = await authFetch(`${API_URL}/workouts/rest-reminder`, {
+        const session = { token: localStorage.getItem('nexlift_token'), ownerId: storedOwner() };
+        const pending = authFetch(`${API_URL}/workouts/rest-reminder`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(session.token ? { Authorization: `Bearer ${session.token}` } : {}) },
             body: JSON.stringify({ exerciseId, nextExerciseName }),
+        }).then(res => {
+            if (!res.ok) throw Object.assign(new Error('Failed to schedule rest reminder'), { status: res.status });
+            return res.json();
         });
-        if (!res.ok) throw new Error('Failed to schedule rest reminder');
-        return res.json();
+        activeRestRequest = { ...session, pending };
+        return pending;
+    },
+
+    async cancelRestReminder() {
+        const active = activeRestRequest;
+        activeRestRequest = null;
+        const sameOwner = () => active && localStorage.getItem('nexlift_token') && (localStorage.getItem('nexlift_token') === active.token || (active.ownerId && storedOwner() === active.ownerId));
+        if (!active || !sameOwner()) return;
+        const scheduled = await active.pending;
+        if (!sameOwner()) return;
+        const reminder = scheduled?.reminder;
+        if (typeof reminder?.id !== 'string' || typeof reminder?.fireAt !== 'string') return;
+        const response = await authFetch(`${API_URL}/workouts/rest-reminder`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reminderId: reminder.id, fireAt: reminder.fireAt }) });
+        if (!response.ok) throw Object.assign(new Error('No se pudo cancelar el aviso remoto'), { status: response.status });
+        return response.json();
     },
 
     // Instrumentación de calibración del entrenador inteligente (P5) — llamar
@@ -406,14 +331,9 @@ export const api = {
         return res.json();
     },
 
-    async logRestDay(note = null) {
-        try {
-            return await rawLogRestDay(note);
-        } catch (err) {
-            if (!err?.isNetworkError) throw err;
-            enqueueWrite('logRestDay', { note });
-            return { queued: true };
-        }
+    async logRestDay(note = null, context) {
+        if (operationsEnabled) return operationRuntime().capture('rest.create', note === null ? {} : { note }, context);
+        return submitWorkoutWrite(API_URL, 'logRestDay', { note }, context);
     },
 
     async getWorkoutHistory(limit = 30, filters = {}) {
@@ -435,25 +355,30 @@ export const api = {
     },
 
     async getWorkoutSession(logId) {
+        if (operationsEnabled) {
+            const runtime = operationRuntime(), session = runtime.transport.snapshot();
+            const { body } = await runtime.transport.request(session, `/v1/workout-sessions/${encodeURIComponent(logId)}`);
+            readSessionResponse(body);
+            return { ...body.workoutLog, sessionVersion: body.sessionVersion };
+        }
         const res = await authFetch(`${API_URL}/workouts/${logId}`);
         if (!res.ok) throw new Error('Failed to fetch session');
         return res.json();
     },
 
-    // exerciseId es opcional: solo se usa para que el badge de "pendiente de
-    // sincronizar" (Workout.jsx, vía hasPendingWrite) sepa a qué ejercicio
-    // corresponde este log si termina encolado — el PUT en sí solo necesita logId.
-    async updateWorkoutSession(logId, sets, exerciseId = null) {
-        try {
-            return await rawUpdateWorkoutSession(logId, sets);
-        } catch (err) {
-            if (!err?.isNetworkError) throw err;
-            enqueueWrite('updateWorkoutSession', { logId, sets, exerciseId });
-            return { queued: true };
+    async updateWorkoutSession(logId, sets, exerciseId = null, context) {
+        if (conflictResolutionEnabled && context?.baseSnapshot) {
+            const changes = changesFromEditor(context.baseSnapshot.workoutLog, sets);
+            if (context.notes !== undefined && context.notes !== (context.baseSnapshot.workoutLog.notes ?? null)) changes.session = { notes: context.notes };
+            if (!Object.keys(changes).length) return { unchanged: true };
+            return operationRuntime().capture('workout.replaceSets', { logId, changes, expectedVersion: context.expectedVersion }, context);
         }
+        if (operationsEnabled) return operationRuntime().capture('workout.replaceSets', { logId, sets, expectedVersion: context?.expectedVersion }, context);
+        return submitWorkoutWrite(API_URL, 'updateWorkoutSession', { logId, sets, exerciseId }, context);
     },
 
-    async deleteWorkoutSession(logId) {
+    async deleteWorkoutSession(logId, context) {
+        if (operationsEnabled) return operationRuntime().capture('workout.delete', { logId, expectedVersion: context?.expectedVersion }, context);
         const res = await authFetch(`${API_URL}/workouts/${logId}`, {
             method: 'DELETE',
         });
@@ -550,8 +475,15 @@ export const api = {
         return result;
     },
 
-    async importBackup(backupData) {
-        const res = await authFetch(`${API_URL}/backup/import`, {
+    async exportBackup() {
+        const res = await authFetch(`${API_URL}/backup/export`);
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'Error exportando respaldo');
+        return result;
+    },
+
+    async importBackup(backupData, options = {}) {
+        const res = await authFetch(`${API_URL}/backup/import?${new URLSearchParams(options)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(backupData),
@@ -589,6 +521,7 @@ export const api = {
 
     async getProfile(token) {
         const res = await safeFetch(`${API_URL}/auth/me`, {
+            cache: 'no-store',
             headers: { 'Authorization': `Bearer ${token}` },
         });
         if (!res.ok) {
@@ -597,7 +530,9 @@ export const api = {
             err.status = res.status;
             throw err;
         }
-        return res.json();
+        const profile = await res.json();
+        if (operationsEnabled) await operationRuntime().transport.remember(profile, token);
+        return profile;
     },
 
     async updateProfile(token, data) {
@@ -732,26 +667,26 @@ export const api = {
     // PUSH NOTIFICATIONS
     // ==========================================
 
-    async getVapidPublicKey() {
-        const res = await authFetch(`${API_URL}/push/vapid-public-key`);
+    async getVapidPublicKey(token) {
+        const res = await authFetch(`${API_URL}/push/vapid-public-key`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
         if (!res.ok) throw new Error('Failed to fetch VAPID public key');
         return res.json();
     },
 
-    async subscribeToPush(subscription) {
+    async subscribeToPush(subscription, token) {
         const res = await authFetch(`${API_URL}/push/subscribe`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
             body: JSON.stringify(subscription),
         });
         if (!res.ok) throw new Error('Failed to subscribe to push');
         return res.json();
     },
 
-    async unsubscribeFromPush(endpoint) {
+    async unsubscribeFromPush(endpoint, token) {
         const res = await authFetch(`${API_URL}/push/subscribe`, {
             method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
             body: JSON.stringify({ endpoint }),
         });
         if (!res.ok) throw new Error('Failed to unsubscribe from push');
@@ -784,9 +719,10 @@ export const api = {
 // singleton), así que este código de nivel de módulo cubre ambos disparadores
 // del plan con un solo punto de entrada — no hace falta llamarlo desde App.jsx.
 if (typeof window !== 'undefined') {
-    window.addEventListener('online', () => { replayOfflineQueue(); });
+    if (operationsEnabled) operationRuntime().start();
+    window.addEventListener('online', () => { void replayOfflineQueue().catch(() => {}); });
     // No competir con el primer paint: drenar la cola cuando el browser esté idle
-    const kickReplay = () => { replayOfflineQueue(); };
+    const kickReplay = () => { void replayOfflineQueue().catch(() => {}); };
     if (typeof requestIdleCallback === 'function') {
         requestIdleCallback(kickReplay, { timeout: 2500 });
     } else {

@@ -1,3 +1,4 @@
+import { createControllerReloadGuard, warmInitialPublicAssets } from './app/serviceWorkerLifecycle';
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -13,6 +14,8 @@ createRoot(document.getElementById('root')).render(
 // (header logo, etc.). Al activar un SW nuevo, recarga la página una vez.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
+    const shouldReload = createControllerReloadGuard(Boolean(navigator.serviceWorker.controller))
+    let warmedFirstPage = false
     navigator.serviceWorker
       .register('/sw.js')
       .then((reg) => {
@@ -37,10 +40,18 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
       .catch(() => {})
 
     // Un solo reload cuando el SW nuevo toma el control
-    let refreshing = false
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) return
-      refreshing = true
+      const controller = navigator.serviceWorker.controller
+      if (!controller) return
+      if (!shouldReload(true)) {
+        // These initial resources loaded before the first worker could observe
+        // fetches. Warm only public assets without restarting a live form.
+        if (!warmedFirstPage) {
+          warmedFirstPage = true
+          warmInitialPublicAssets(controller, location.origin)
+        }
+        return
+      }
       window.location.reload()
     })
   })

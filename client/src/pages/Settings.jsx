@@ -229,6 +229,7 @@ export default function Settings() {
 
     // Export / Import state
     const [exporting, setExporting] = useState(false);
+    const [backupPreview, setBackupPreview] = useState(null);
     const [importing, setImporting] = useState(false);
     const backupFileInputRef = useRef(null);
 
@@ -431,79 +432,11 @@ export default function Settings() {
         }
     };
 
-    // Export handler - sanitized (no IDs)
+    // The server owns the versioned, consistent export used by every backup path.
     async function exportAllData() {
         setExporting(true);
         try {
-            const [routines, workouts, bodyLogs, prs] = await Promise.all([
-                api.getRoutines(),
-                api.getWorkoutHistory(9999),
-                api.getBodyLogs(9999),
-                api.getPersonalRecords()
-            ]);
-
-            // Sanitize: remove all IDs and internal fields
-            const sanitizeRoutines = routines.map(r => ({
-                name: r.name,
-                description: r.description,
-                isActive: r.isActive,
-                days: r.days?.map(d => ({
-                    dayName: d.dayName,
-                    isRestDay: d.isRestDay,
-                    exercises: d.exercises?.map(e => ({
-                        name: e.name,
-                        muscleGroup: e.muscleGroup,
-                        targetSets: e.targetSets,
-                        targetReps: e.targetReps,
-                        restSeconds: e.restSeconds,
-                        isUnilateral: e.isUnilateral || false,
-                        note: e.note
-                    }))
-                }))
-            }));
-
-            const sanitizeWorkouts = workouts.map(w => ({
-                date: w.date,
-                exerciseName: w.exercise?.name,
-                sets: w.sets?.map(s => ({
-                    weight: s.weight,
-                    reps: s.reps,
-                    rpe: s.rpe ?? null,
-                    weightRight: s.weightRight ?? null,
-                    repsRight: s.repsRight ?? null
-                }))
-            }));
-
-            const sanitizeBodyLogs = bodyLogs.map(b => ({
-                date: b.date,
-                weight: b.weight,
-                bmi: b.bmi,
-                bodyFat: b.bodyFat,
-                muscleMass: b.muscleMass,
-                note: b.note,
-                creatineTaken: Boolean(b.creatineTaken ?? false),
-                dietCompliant: Boolean(b.dietCompliant ?? false),
-                zeroLiquidCalories: Boolean(b.zeroLiquidCalories ?? false)
-            }));
-
-            const sanitizePRs = prs.map(p => ({
-                exerciseName: p.exerciseName,
-                weight: p.weight,
-                reps: p.reps,
-                estimated1RM: p.estimated1RM,
-                date: p.date
-            }));
-
-            const exportData = {
-                version: '2.7.0',
-                exportDate: new Date().toISOString(),
-                exportDateCdmx: mexicoCityDateStr(),
-                routines: sanitizeRoutines,
-                workouts: sanitizeWorkouts,
-                bodyLogs: sanitizeBodyLogs,
-                personalRecords: sanitizePRs
-            };
-
+            const exportData = await api.exportBackup();
             const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -532,29 +465,9 @@ export default function Settings() {
             if (!parsed || typeof parsed !== 'object') {
                 throw new Error('Archivo de backup inválido');
             }
-            const normalizedBodyLogs = Array.isArray(parsed.bodyLogs)
-                ? parsed.bodyLogs.map(b => ({
-                    ...b,
-                    creatineTaken: Boolean(b?.creatineTaken ?? false),
-                    dietCompliant: Boolean(b?.dietCompliant ?? false),
-                    zeroLiquidCalories: Boolean(b?.zeroLiquidCalories ?? false)
-                }))
-                : [];
-            const res = await api.importBackup({
-                ...parsed,
-                bodyLogs: normalizedBodyLogs
-            });
-            clearHomeCache();
-            fetchData();
-            const bodyCount = res?.bodyLogsImported ?? res?.importedBodyLogs ?? 0;
-            const workoutsCount = res?.workoutsImported ?? 0;
-            const routinesCount = res?.routinesImported ?? 0;
-            const prsCount = res?.prsImported ?? 0;
-            const summaryParts = [`${bodyCount} mediciones/hábitos`];
-            if (workoutsCount > 0) summaryParts.push(`${workoutsCount} sesiones`);
-            if (routinesCount > 0) summaryParts.push(`${routinesCount} rutinas`);
-            if (prsCount > 0) summaryParts.push(`${prsCount} PRs`);
-            toast.success(`Backup importado (${summaryParts.join(', ')})`);
+            const analysis = await api.importBackup(parsed, { dryRun: true });
+            setBackupPreview({ data: parsed, analysis, restoreProfile: false });
+            return;
         } catch (err) {
             console.error(err);
             toast.error(err.message || 'Error importando backup JSON');
@@ -562,6 +475,31 @@ export default function Settings() {
             setImporting(false);
             if (backupFileInputRef.current) backupFileInputRef.current.value = '';
         }
+    }
+
+    async function applyBackupPreview() {
+        if (!backupPreview || importing) return;
+        setImporting(true);
+        try {
+            const result = await api.importBackup(backupPreview.data, { allowIncomplete: backupPreview.analysis.complete === false, restoreProfile: backupPreview.restoreProfile });
+            clearHomeCache();
+            fetchData();
+            setBackupPreview(null);
+            if (result.complete) toast.success(`Backup restaurado: ${result.plannedCreates} registros nuevos.`);
+            else toast.info(`Restauración legacy parcial: ${result.plannedCreates} registros nuevos. Las omisiones se mostraron en el análisis.`);
+        } catch (err) {
+            toast.error(err.message || 'No se aplicó la restauración');
+        } finally { setImporting(false); }
+    }
+
+    async function analyzeProfileRestore(restoreProfile) {
+        if (!backupPreview || importing) return;
+        setImporting(true);
+        try {
+            const analysis = await api.importBackup(backupPreview.data, { dryRun: true, restoreProfile });
+            setBackupPreview({ ...backupPreview, analysis, restoreProfile });
+        } catch (err) { toast.error(err.message || 'Error analizando el perfil'); }
+        finally { setImporting(false); }
     }
 
     // Muscle update — siempre valor español canónico (piernas +5 kg en Smart Loading)
@@ -593,9 +531,13 @@ export default function Settings() {
         if (!deletingSession || deleting) return;
         setDeleting(true);
         try {
-            await api.deleteWorkoutSession(deletingSession.id);
-            toast.success('Sesión eliminada');
-            setWorkoutHistory(prev => prev.filter(s => s.id !== deletingSession.id));
+            const result = await api.deleteWorkoutSession(deletingSession.id, { ownerId: user.id, expectedVersion: deletingSession.sessionVersion,
+                ...(conflictResolutionEnabled && deletingSession.sessionVersion ? { baseSnapshot: { ownerId: user.id, workoutLog: deletingSession, sessionVersion: deletingSession.sessionVersion } } : {}) });
+            if (result?.queued) toast.info(result.reason || 'Solicitud de eliminación guardada en este dispositivo; pendiente de confirmar');
+            else {
+                toast.success('Sesión eliminada');
+                setWorkoutHistory(prev => prev.filter(s => s.id !== deletingSession.id));
+            }
             setDeletingSession(null);
         } catch (err) {
             toast.error('Error al eliminar');
@@ -913,6 +855,17 @@ export default function Settings() {
                                 {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                                 {exporting ? 'Exportando...' : 'Descargar Backup'}
                             </button>
+                            {backupPreview && (
+                                <div className="rounded-xl border border-white/15 p-4 space-y-3 text-sm sm:col-span-2" role="status">
+                                    <p>Análisis sin escrituras: {backupPreview.analysis.plannedCreates} registros por crear. La identidad y las credenciales actuales se conservan.</p>
+                                    {backupPreview.analysis.complete && <label className="flex gap-2 items-start"><input type="checkbox" checked={backupPreview.restoreProfile} disabled={importing} onChange={e => analyzeProfileRestore(e.target.checked)} />Reemplazar también nombre, datos del perfil y preferencias de creatina con los del respaldo.</label>}
+                                    <p>Las fotografías se respaldan como enlaces; sus archivos originales no están incluidos.</p>
+                                    {backupPreview.analysis.complete === false && <p className="text-amber-400">Archivo legacy incompleto: no puede recuperar información que el formato original omitió.</p>}
+                                    <details><summary>Conteos y advertencias</summary><pre className="whitespace-pre-wrap max-h-64 overflow-auto">{JSON.stringify({ entidades: backupPreview.analysis.stats, advertencias: backupPreview.analysis.warnings }, null, 2)}</pre></details>
+                                    <button type="button" disabled={importing} onClick={applyBackupPreview} className="btn-primary">{importing ? 'Restaurando...' : backupPreview.analysis.complete ? 'Aplicar restauración analizada' : 'Aplicar restauración parcial informada'}</button>
+                                    <button type="button" disabled={importing} onClick={() => setBackupPreview(null)} className="btn-secondary ml-2">Cancelar</button>
+                                </div>
+                            )}
                             <input
                                 ref={backupFileInputRef}
                                 type="file"
@@ -1319,7 +1272,10 @@ export default function Settings() {
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        onClick={() => setDeletingSession(session)}
+                                                        onClick={async () => {
+                                                            try { setDeletingSession(await api.getWorkoutSession(session.id)); }
+                                                            catch { toast.error('No se pudo verificar la sesión para eliminarla. Los datos se conservan.'); }
+                                                        }}
                                                         aria-label="Eliminar sesión"
                                                         className="w-11 h-11 rounded-xl bg-[var(--bg-dark)] hover:bg-red-500/20 text-[var(--text-secondary)] hover:text-red-500 transition-all flex items-center justify-center"
                                                     >
@@ -1399,3 +1355,4 @@ export default function Settings() {
         </div>
     );
 }
+import { conflictResolutionEnabled } from '../storage/runtime';

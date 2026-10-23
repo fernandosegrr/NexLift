@@ -1,3 +1,4 @@
+import { trainingSessionLoadSummary, shiftTrainingCivilDate } from '../generated/training.js';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
@@ -460,7 +461,7 @@ export default function ExportReport() {
             const todayStr = dailyKey; // día elegido en el date picker
             // Mismo día de la semana, 7 días antes (CDMX)
             const anchor = new Date(`${todayStr}T12:00:00Z`);
-            const lastWeekStr = mexicoCityDateStr(new Date(anchor.getTime() - 7 * 24 * 60 * 60 * 1000));
+            const lastWeekStr = shiftTrainingCivilDate(mexicoCityDateStr(anchor), -7);
 
             const todaySessions = data.history.filter(h =>
                 mexicoCityDateStr(new Date(h.date)) === todayStr
@@ -469,20 +470,7 @@ export default function ExportReport() {
                 mexicoCityDateStr(new Date(h.date)) === lastWeekStr
             );
 
-            const calculateVolume = (sessions) => {
-                let total = 0;
-                let sets = 0;
-                sessions.forEach(session => {
-                    (session.sets || []).forEach(s => {
-                        total += (s.weight || 0) * (s.reps || 0);
-                        if (s.repsRight != null || s.weightRight != null) {
-                            total += (s.weightRight ?? s.weight ?? 0) * (s.repsRight ?? s.reps ?? 0);
-                        }
-                        sets++;
-                    });
-                });
-                return { volume: total, sets };
-            };
+            const calculateVolume = (sessions) => trainingSessionLoadSummary(sessions);
 
             const todayStats = calculateVolume(todaySessions);
             const lastWeekStats = calculateVolume(lastWeekSessions);

@@ -1,4 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useRemoteRead } from '../app/useRemoteRead';
+import { readRoutine } from '../features/remoteViews';
+import RemoteStatus from '../components/ui/RemoteStatus';
+import { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Play, Calendar, Dumbbell, Clock, Pencil, Layers, ChevronRight } from 'lucide-react';
 import { api } from '../services/api';
@@ -15,25 +18,10 @@ const BLOCK_PHASE_LABELS = {
 export default function RoutineDetail() {
     const { id } = useParams();
     const toast = useToast();
-    const [routine, setRoutine] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const remote = useRemoteRead('routines', [id], () => api.getRoutine(id), readRoutine, !!id);
+    const routine = remote.data;
+    const loading = remote.isPending;
     const [startingBlock, setStartingBlock] = useState(false);
-
-    useEffect(() => {
-        async function fetchRoutine() {
-            try {
-                const data = await api.getRoutine(id);
-                setRoutine(data);
-            } catch (error) {
-                console.error('Error:', error);
-                toast.error('Error al cargar la rutina');
-            } finally {
-                setLoading(false);
-            }
-        }
-        fetchRoutine();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [id]);
 
     const todayDayId = useMemo(() => {
         if (!routine?.days || routine.source === 'ai') return null;
@@ -49,8 +37,7 @@ export default function RoutineDetail() {
         setStartingBlock(true);
         try {
             await api.startRoutineBlock(id, nextBlock.id);
-            const refreshed = await api.getRoutine(id);
-            setRoutine(refreshed);
+            await remote.refetch();
             toast.success(`Bloque "${nextBlock.name}" iniciado`);
         } catch (error) {
             console.error('Error starting block:', error);
@@ -81,6 +68,7 @@ export default function RoutineDetail() {
 
     return (
         <div className="space-y-6 animate-fade-in max-w-lg mx-auto">
+            <RemoteStatus fetching={remote.isFetching} stale={remote.isStale} error={remote.error} updatedAt={remote.dataUpdatedAt} retry={() => { void remote.refetch(); }} />
             {/* Header */}
             <div>
                 <Link

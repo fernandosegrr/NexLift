@@ -1,4 +1,5 @@
-import { lazy, Suspense } from 'react';
+import RemoteProvider from './app/RemoteProvider';
+import { Fragment, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/layout/Layout';
@@ -36,7 +37,7 @@ function PageLoader() {
 
 // Protected Route wrapper
 function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
     return <PageLoader />;
@@ -46,7 +47,7 @@ function ProtectedRoute({ children }) {
     return <Navigate to="/login" replace />;
   }
 
-  return children;
+  return <Fragment key={user?.id}>{children}</Fragment>;
 }
 
 // Public Route wrapper (redirect to home if already logged in)
@@ -102,9 +103,11 @@ function App() {
   return (
     <ToastProvider>
       <AuthProvider>
+        <RemoteProvider>
         <BrowserRouter>
           <AppRoutes />
         </BrowserRouter>
+        </RemoteProvider>
       </AuthProvider>
     </ToastProvider>
   );

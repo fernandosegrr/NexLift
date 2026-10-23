@@ -1,0 +1,108 @@
+{
+  "createdAt": "2026-10-22T19:23:37.728Z",
+  "productionTouched": false,
+  "databaseStatesIndependent": true,
+  "cases": [
+    "7 SQL/HTTP: all read endpoints return equivalent types, values and query contracts",
+    "7 SQL/HTTP: registration, login and profile have compatible account contracts",
+    "7 SQL/HTTP: password change revokes old tokens while returning a valid new token",
+    "7 SQL/HTTP: account recovery question, validation and token revocation remain compatible",
+    "7 SQL/HTTP: owner isolation rejects cross-account writes without state changes",
+    "7 SQL/HTTP: import and edit routines preserve names, weekdays, validation and ownership",
+    "7 SQL/HTTP: deleting planning and archiving exercises preserves immutable workout history",
+    "7 SQL/HTTP: create, replace and delete sessions update PR atomically",
+    "7 SQL/HTTP: shortcut appends one set, legacy RIR maps to RPE, CDMX and rest remain compatible",
+    "7 SQL/HTTP: operation commit, receipt and lost-response retry preserve hash and exact acknowledgement",
+    "7 SQL/HTTP: duplicate concurrent operations commit exactly once on each independent database",
+    "7 SQL/HTTP: operation hash mismatch is 409 and foreign receipt is isolated",
+    "7 SQL/HTTP: expectedVersion conflict and explicit resolution keep session and set identities",
+    "7 SQL/HTTP: failed PR write rolls back session, sets and receipt together",
+    "7 SQL/HTTP: mesocycle creation, edit, start and deletion retain domain rules",
+    "7 SQL/HTTP: body measurements, daily checkin and validation preserve nullable fields",
+    "7 SQL/HTTP: goals CRUD and completed-week updates remain compatible",
+    "7 SQL/HTTP: backup export validates checksums and dry-run/restore is idempotent",
+    "7 SQL/HTTP: push subscriptions, removal, preferences and external failure are isolated",
+    "7 SQL/HTTP: append-set and rest operations preserve versions and receipts",
+    "7 SQL/HTTP: capabilities and canonical sessionVersion have identical protocol semantics",
+    "7 SQL/HTTP: profile, security question and avatar URL preserve contracts and revoke tokens",
+    "7 SQL/HTTP: routine activation, muscle edits and observed history keep separate identities",
+    "7 SQL/HTTP: deterministic AI setup, today and reshuffle run without an external provider",
+    "7 SQL/HTTP: rest reminders, rest days, suggestion telemetry and correction route stay functional",
+    "7 SQL/HTTP: body log composition, habits and partial external photo failure preserve measurements",
+    "7 SQL/HTTP: corrected test push route uses configured provider and JSON payload",
+    "7 SQL/HTTP: operation deletion leaves its durable receipt after session removal",
+    "7 entrypoint: built Fastify command starts, checks schema, serves JWT and drains SIGTERM/SIGINT",
+    "7 compiled frontend: actual Vite build, SPA fallback and all referenced assets work on Fastify",
+    "7 benchmark: sequential/concurrent health and PostgreSQL profile latency are measured equally"
+  ],
+  "benchmark": {
+    "express": {
+      "startupMs": 18.64379999999983,
+      "/api/health": {
+        "samples": 100,
+        "medianMs": 1.0702000000019325,
+        "p95Ms": 1.5927000000010594,
+        "concurrent50Ms": 97.56219999999303
+      },
+      "/api/auth/me": {
+        "samples": 100,
+        "medianMs": 3.637300000002142,
+        "p95Ms": 4.501900000002934,
+        "concurrent50Ms": 68.82240000000456
+      }
+    },
+    "fastify": {
+      "startupMs": 294.71659999999974,
+      "/api/health": {
+        "samples": 100,
+        "medianMs": 0.9853000000002794,
+        "p95Ms": 1.2736999999979162,
+        "concurrent50Ms": 102.16969999999856
+      },
+      "/api/auth/me": {
+        "samples": 100,
+        "medianMs": 3.451099999998405,
+        "p95Ms": 4.528000000005704,
+        "concurrent50Ms": 72.0989000000045
+      }
+    },
+    "sharedProcessMemory": {
+      "rss": 173506560,
+      "heapTotal": 110616576,
+      "heapUsed": 64112664,
+      "external": 5298588,
+      "arrayBuffers": 648651
+    },
+    "memoryLimitation": "Both apps run in one process; framework memory is not isolated",
+    "independentProcesses": [
+      {
+        "framework": "express",
+        "scenario": "independent process, full route graph, mock database, 200 health warmups",
+        "node": "24.22.0",
+        "startupMs": 361.9292,
+        "memory": {
+          "rss": 108322816,
+          "heapTotal": 56434688,
+          "heapUsed": 19723488,
+          "external": 4697842,
+          "arrayBuffers": 332670
+        },
+        "closeMs": 1.5552999999999884
+      },
+      {
+        "framework": "fastify",
+        "scenario": "independent process, full route graph, mock database, 200 health warmups",
+        "node": "24.22.0",
+        "startupMs": 717.7335,
+        "memory": {
+          "rss": 119844864,
+          "heapTotal": 62844928,
+          "heapUsed": 25875120,
+          "external": 4701235,
+          "arrayBuffers": 383726
+        },
+        "closeMs": 2.1851999999998952
+      }
+    ]
+  }
+}

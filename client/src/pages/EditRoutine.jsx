@@ -7,6 +7,7 @@ import { EXERCISES } from '../data/exercises';
 import { MUSCLE_OPTIONS, toSpanishMuscleGroup } from '../utils/muscleGroup';
 import { duplicateWeekdays, firstFreeWeekday, weekdayLabel } from '../utils/routineDays';
 import WeekdayPicker from '../components/ui/WeekdayPicker';
+import { buildRoutineFormPayload } from '../utils/routinePayload';
 
 const BLOCK_PHASES = [
     { value: 'accumulation', label: 'Acumulación' },
@@ -199,40 +200,8 @@ export default function EditRoutine() {
             return;
         }
 
-        const invalidSets = routine.days.some(day =>
-            (day.exercises || []).some(ex => {
-                const n = parseInt(ex.targetSets, 10);
-                return !Number.isFinite(n) || n < 1;
-            })
-        );
-        if (invalidSets) {
-            toast.error('Hay ejercicios con series inválidas (mínimo 1)');
-            return;
-        }
-
         setSaving(true);
-        const payload = {
-            name: routine.name.trim(),
-            description: routine.description || '',
-            days: routine.days.map((day, order) => ({
-                ...day,
-                order,
-                dayName: day.dayName.trim(),
-                exercises: day.isRestDay
-                    ? []
-                    : (day.exercises || []).map((ex, exOrder) => ({
-                        ...ex,
-                        order: exOrder,
-                        name: ex.name.trim(),
-                        muscleGroup: toSpanishMuscleGroup(ex.muscleGroup) || null,
-                        targetSets: parseInt(ex.targetSets, 10) || 3,
-                        targetReps: String(ex.targetReps || '8-12').trim() || '8-12',
-                        restSeconds: parseInt(ex.restSeconds, 10) || 60,
-                        note: ex.note || '',
-                        isUnilateral: !!ex.isUnilateral
-                    }))
-            }))
-        };
+        const payload = buildRoutineFormPayload(routine);
         try {
             await api.updateRoutine(id, payload);
             toast.success('Rutina actualizada');

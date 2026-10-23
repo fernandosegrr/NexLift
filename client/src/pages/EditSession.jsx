@@ -1,17 +1,34 @@
+import SessionSetRow from '../features/workouts/SessionSetRow';
+import { formRirToStoredRpe, storedRpeToFormRir } from '../generated/training.js';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Trash2, Plus, FileDown, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Plus, FileDown, Loader2 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { useAuth } from '../context/AuthContext';
 import { mexicoCityDateStr } from '../utils/dates';
 import { downloadSessionPdf } from '../utils/sessionPdf';
+import { usePreparedDraft } from '../storage/usePreparedDraft';
+import DraftBoundary from '../components/layout/DraftBoundary';
+import { conflictResolutionEnabled } from '../storage/runtime';
 
 export default function EditSession() {
+    const { logId } = useParams();
+    const { user } = useAuth();
+    return <DraftBoundary key={`${user?.id}:${logId}`} kind="session" resourceId={logId} ownerId={user?.id}><EditSessionPage /></DraftBoundary>;
+}
+
+function EditSessionPage() {
     const { logId } = useParams();
     const navigate = useNavigate();
     const toast = useToast();
     const { user } = useAuth();
+    const draftStore = usePreparedDraft('session', logId, user?.id);
+    const [draft] = useState(() => {
+        try { return { data: draftStore.load(), error: null }; }
+        catch (error) { return { data: null, error: error.message }; }
+    });
+    const [draftError, setDraftError] = useState(draft.error);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -19,16 +36,35 @@ export default function EditSession() {
     const [session, setSession] = useState(null);
     const [sets, setSets] = useState([]);
     const [isUnilateral, setIsUnilateral] = useState(false);
+    const [notes, setNotes] = useState(draft.data && Object.hasOwn(draft.data, 'notes') ? draft.data.notes : draft.data?.session?.notes ?? null);
 
     useEffect(() => {
         fetchSession();
     }, [logId]);
 
+    useEffect(() => {
+        if (!session || loading || draft.error) return;
+        let current = true;
+        void Promise.resolve().then(() => draftStore.save({ session, sets, isUnilateral, notes }))
+            .then(() => { if (current) setDraftError(null); })
+            .catch(error => { if (current) setDraftError(`No se pudo guardar el borrador: ${error.message}. Copia tus datos antes de salir.`); });
+        return () => { current = false; };
+    }, [session, sets, isUnilateral, notes, loading, draftStore, draft.error]);
+
     async function fetchSession() {
+        const restoreDraft = () => {
+            setSession(draft.data.session);
+            setSets(draft.data.sets);
+            setIsUnilateral(draft.data.isUnilateral);
+        };
+        if (draft.data) restoreDraft();
         try {
             const found = await api.getWorkoutSession(logId);
 
+            if (draft.data) return; // preserve recovered edits, including a differing remote version
+
             setSession(found);
+            setNotes(found.notes ?? null);
             const hasUnilateralData = found.sets.some(s => s.repsRight != null);
             setIsUnilateral(hasUnilateralData || found.exercise?.isUnilateral || false);
             setSets(found.sets.map(s => ({
@@ -38,12 +74,15 @@ export default function EditSession() {
                 weightRight: s.weightRight?.toString() || '',
                 repsRight: s.repsRight?.toString() || '',
                 // DB guarda 10-RIR; UI edita RIR crudo
-                rir: s.rpe != null ? (10 - s.rpe) : null
+                rir: storedRpeToFormRir(s.rpe),
+                completed: s.completed
             })));
         } catch (error) {
             console.error('Error:', error);
-            toast.error('Sesión no encontrada');
-            navigate('/settings');
+            if (!draft.data) {
+                toast.error('No se pudo cargar la sesión; los borradores se conservan');
+                navigate('/settings');
+            }
         } finally {
             setLoading(false);
         }
@@ -56,7 +95,7 @@ export default function EditSession() {
     }
 
     function addSet() {
-        setSets([...sets, { weight: '', reps: '', weightRight: '', repsRight: '', rir: null }]);
+        setSets([...sets, { id: crypto.randomUUID(), weight: '', reps: '', weightRight: '', repsRight: '', rir: null }]);
     }
 
     function removeSet(index) {
@@ -72,10 +111,11 @@ export default function EditSession() {
             .filter(s => s.weight !== '' && s.reps !== '')
             .map(s => {
                 const setData = {
+                    ...(conflictResolutionEnabled ? { id: s.id } : {}),
                     weight: parseFloat(s.weight),
                     reps: parseInt(s.reps, 10),
-                    rpe: s.rir != null ? (10 - s.rir) : null,
-                    completed: true
+                    rpe: formRirToStoredRpe(s.rir),
+                    completed: s.completed ?? true
                 };
                 if (isUnilateral) {
                     setData.weightRight = s.weightRight ? parseFloat(s.weightRight) : null;
@@ -95,33 +135,21 @@ export default function EditSession() {
 
         setSaving(true);
         try {
-            const result = await api.updateWorkoutSession(logId, validSets);
-            clearWorkoutCache();
+            const result = await api.updateWorkoutSession(logId, validSets, session?.exerciseId, { ownerId: user.id, expectedVersion: session?.sessionVersion,
+                ...(conflictResolutionEnabled ? { baseSnapshot: { ownerId: user.id, workoutLog: session, sessionVersion: session?.sessionVersion }, notes } : {}) });
             // Sin red: se encoló para sincronizar después (P3) — avisar que
             // todavía no está en el server, no fingir un "Sesión actualizada".
             if (result?.queued) {
-                toast.info('Guardado local — se sincronizará cuando vuelva la conexión');
+                toast.info(result.reason || 'Guardado local — pendiente de confirmar en el servidor');
             } else {
-                toast.success('Sesión actualizada');
+                toast.success(result?.unchanged ? 'No hay cambios nuevos' : 'Sesión actualizada');
             }
             navigate('/settings');
         } catch (error) {
             console.error('Error:', error);
-            toast.error('Error al guardar');
+            toast.error(error.isStorageError ? error.message : 'Error al guardar; el borrador se conserva');
         } finally {
             setSaving(false);
-        }
-    }
-
-    // Invalida el cache local de Workout.jsx (localStorage `workout_${dayId}`, TTL 24h)
-    // para que si el usuario reabre el entreno de hoy no vea series desactualizadas.
-    // No sabemos el dayId aquí, así que limpiamos todas las entradas de workout_*.
-    function clearWorkoutCache() {
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('workout_')) {
-                localStorage.removeItem(key);
-            }
         }
     }
 
@@ -167,6 +195,8 @@ export default function EditSession() {
 
     return (
         <div className="min-h-screen bg-[var(--bg-dark)]">
+            {draftError && <p role="alert" className="p-3 text-sm text-red-400">{draftError}</p>}
+            {draft.data && <p role="status" className="p-3 text-sm text-amber-400">Borrador local recuperado. Puede diferir de la sesión remota; revisa los datos antes de guardar.</p>}
             {/* Header */}
             <div className="sticky top-0 z-10 bg-[var(--bg-dark)] border-b border-[var(--border)]">
                 <div className="flex items-center gap-2 p-4">
@@ -217,6 +247,10 @@ export default function EditSession() {
 
             {/* Session Info */}
             <div className="p-4">
+                {conflictResolutionEnabled && <label className="block mb-4 text-sm">Notas del entrenamiento
+                    <textarea aria-label="Notas del entrenamiento" value={notes ?? ''} onChange={e => setNotes(e.target.value)} maxLength={2000}
+                        className="block w-full p-3 rounded-lg bg-[var(--bg-card)] border border-[var(--border)]" />
+                </label>}
                 <div className="bg-[var(--bg-card)] rounded-xl p-4 mb-4 border border-[var(--border)]">
                     <h2 className="font-bold text-lg">{session?.exercise?.name}</h2>
                     <p className="text-sm text-[var(--text-secondary)] capitalize">
@@ -242,109 +276,7 @@ export default function EditSession() {
                         <span className="text-xs text-[var(--text-secondary)]">{sets.length} series</span>
                     </div>
 
-                    {sets.map((set, index) => (
-                        <div
-                            key={index}
-                            className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)]"
-                        >
-                            <div className="flex items-start gap-3">
-                                {/* Set Number */}
-                                <div className="w-8 h-8 rounded-full bg-[var(--primary)]/20 flex items-center justify-center mt-5">
-                                    <span className="text-sm font-bold text-[var(--primary)]">{index + 1}</span>
-                                </div>
-
-                                <div className="flex-1 space-y-2">
-                                    {/* Left / Bilateral row */}
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div>
-                                            <label className="text-[10px] text-[var(--text-secondary)] block mb-1">
-                                                {isUnilateral ? 'PESO IZQ (kg)' : 'PESO (kg)'}
-                                            </label>
-                                            <input
-                                                type="number"
-                                                inputMode="decimal"
-                                                step="0.5"
-                                                value={set.weight}
-                                                onChange={e => updateSet(index, 'weight', e.target.value)}
-                                                placeholder="0"
-                                                className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg py-3 px-3 text-center font-bold focus:border-[var(--primary)] focus:outline-none"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] text-[var(--text-secondary)] block mb-1">
-                                                {isUnilateral ? 'REPS IZQ' : 'REPS'}
-                                            </label>
-                                            <input
-                                                type="number"
-                                                inputMode="numeric"
-                                                value={set.reps}
-                                                onChange={e => updateSet(index, 'reps', e.target.value)}
-                                                placeholder="0"
-                                                className="w-full bg-[var(--bg-dark)] border border-[var(--border)] rounded-lg py-3 px-3 text-center font-bold focus:border-[var(--primary)] focus:outline-none"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Right side row (unilateral only) */}
-                                    {isUnilateral && (
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div>
-                                                <label className="text-[10px] text-orange-400 block mb-1">PESO DER (kg)</label>
-                                                <input
-                                                    type="number"
-                                                    inputMode="decimal"
-                                                    step="0.5"
-                                                    value={set.weightRight}
-                                                    onChange={e => updateSet(index, 'weightRight', e.target.value)}
-                                                    placeholder="0"
-                                                    className="w-full bg-[var(--bg-dark)] border border-orange-500/30 rounded-lg py-3 px-3 text-center font-bold focus:border-orange-500 focus:outline-none"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] text-orange-400 block mb-1">REPS DER</label>
-                                                <input
-                                                    type="number"
-                                                    inputMode="numeric"
-                                                    value={set.repsRight}
-                                                    onChange={e => updateSet(index, 'repsRight', e.target.value)}
-                                                    placeholder="0"
-                                                    className="w-full bg-[var(--bg-dark)] border border-orange-500/30 rounded-lg py-3 px-3 text-center font-bold focus:border-orange-500 focus:outline-none"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                    {/* RIR obligatorio */}
-                                    <div className="flex items-center gap-1 min-h-[44px]">
-                                        <span className="text-[10px] font-bold text-[var(--text-secondary)] w-8">RIR</span>
-                                        {[0, 1, 2, 3].map(rir => (
-                                            <button
-                                                key={rir}
-                                                type="button"
-                                                onClick={() => updateSet(index, 'rir', rir)}
-                                                aria-label={`RIR ${rir}`}
-                                                aria-pressed={set.rir === rir}
-                                                className={`flex-1 min-h-[40px] rounded-lg text-xs font-bold ${
-                                                    set.rir === rir
-                                                        ? 'bg-[var(--primary)] text-white'
-                                                        : 'bg-[var(--bg-dark)] text-[var(--text-secondary)] border border-[var(--border)]'
-                                                }`}
-                                            >
-                                                {rir === 3 ? '3+' : rir}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Delete Button */}
-                                <button
-                                    onClick={() => removeSet(index)}
-                                    className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg mt-4"
-                                >
-                                    <Trash2 size={18} />
-                                </button>
-                            </div>
-                        </div>
-                    ))}
+                    {sets.map((set, index) => <SessionSetRow key={set.id || index} set={set} index={index} isUnilateral={isUnilateral} onUpdate={updateSet} onRemove={removeSet} />)}
 
                     {/* Add Set Button */}
                     <button

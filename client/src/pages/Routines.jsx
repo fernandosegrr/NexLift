@@ -1,3 +1,7 @@
+import { useDialogFocus } from '../hooks/useDialogFocus';
+import { useRemoteRead } from '../app/useRemoteRead';
+import { readRoutines } from '../features/remoteViews';
+import RemoteStatus from '../components/ui/RemoteStatus';
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -24,9 +28,10 @@ function findTodayDay(routine) {
 }
 
 export default function Routines() {
-    const [routines, setRoutines] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [loadError, setLoadError] = useState(false);
+    const remote = useRemoteRead('routines', ['list'], () => api.getRoutines(), readRoutines);
+    const routines = useMemo(() => remote.data || [], [remote.data]);
+    const loading = remote.isPending;
+    const loadError = remote.isError;
     const [expandedRoutineId, setExpandedRoutineId] = useState(null);
     const [expandedDayId, setExpandedDayId] = useState(null);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -36,73 +41,31 @@ export default function Routines() {
     const otherRoutines = useMemo(() => routines.filter(r => !r.isActive), [routines]);
 
     useEffect(() => {
-        loadRoutines();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        const active = remote.data?.find(item => item.isActive);
+        if (active) setExpandedRoutineId(previous => previous ?? active.id);
+    }, [remote.data]);
+    const loadRoutines = () => remote.refetch();
 
-    const loadRoutines = async () => {
-        try {
-            setLoadError(false);
-            const data = await api.getRoutines();
-            setRoutines(data);
-            // Auto-expandir la activa para ver el próximo entreno rápido
-            const active = data.find(r => r.isActive);
-            if (active) setExpandedRoutineId(active.id);
-        } catch (error) {
-            console.error(error);
-            setLoadError(true);
-            toast.error('Error cargando rutinas');
-        } finally {
-            setLoading(false);
-        }
+    const [changing, setChanging] = useState(false);
+    const handleActivate = async id => {
+        if (changing) return;
+        setChanging(true);
+        try { await api.activateRoutine(id); await remote.refetch(); setExpandedRoutineId(id); toast.success('Rutina activada'); }
+        catch { toast.error('No se pudo activar la rutina'); }
+        finally { setChanging(false); }
     };
-
-    // Update optimista: UI al instante, rollback si falla la red
-    const handleActivate = async (id) => {
-        const previousRoutines = [...routines];
-
-        setRoutines(prev => prev.map(r => ({
-            ...r,
-            isActive: r.id === id
-        })));
-        setExpandedRoutineId(id);
-
-        try {
-            await api.activateRoutine(id);
-            toast.success('Rutina activada');
-        } catch (error) {
-            setRoutines(previousRoutines);
-            toast.error('Error de conexión, cambios revertidos');
-        }
-    };
-
     const handleDelete = async () => {
-        if (!deleteConfirm) return;
-
-        const previousRoutines = [...routines];
-        const deletedId = deleteConfirm.id;
-        setRoutines(prev => prev.filter(r => r.id !== deletedId));
-        if (expandedRoutineId === deletedId) setExpandedRoutineId(null);
-        setDeleteConfirm(null);
-
-        try {
-            await api.deleteRoutine(deletedId);
-            toast.success('Rutina eliminada');
-        } catch (error) {
-            setRoutines(previousRoutines);
-            toast.error('No se pudo eliminar la rutina');
-        }
+        if (!deleteConfirm || changing) return;
+        setChanging(true);
+        try { await api.deleteRoutine(deleteConfirm.id); setDeleteConfirm(null); await remote.refetch(); toast.success('Rutina eliminada'); }
+        catch { toast.error('No se pudo eliminar la rutina'); }
+        finally { setChanging(false); }
     };
 
-    const toggleRoutine = (id) => {
-        if (expandedRoutineId === id) {
-            setExpandedRoutineId(null);
-        } else {
-            setExpandedRoutineId(id);
-            setExpandedDayId(null);
-        }
+    const toggleRoutine = id => {
+        setExpandedRoutineId(previous => previous === id ? null : id);
+        setExpandedDayId(null);
     };
-
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
@@ -120,7 +83,7 @@ export default function Routines() {
                 <p className="text-sm text-[var(--text-secondary)]">Revisa tu conexión e intenta de nuevo</p>
                 <button
                     type="button"
-                    onClick={() => { setLoading(true); loadRoutines(); }}
+                    onClick={() => { void loadRoutines(); }}
                     className="mt-2 px-4 py-2 rounded-xl bg-[var(--primary)] text-white font-semibold text-sm active:scale-95"
                 >
                     Reintentar
@@ -131,6 +94,7 @@ export default function Routines() {
 
     return (
         <div className="pb-24 space-y-8 animate-fade-in max-w-lg mx-auto">
+            <RemoteStatus fetching={remote.isFetching} stale={remote.isStale} error={remote.error} updatedAt={remote.dataUpdatedAt} retry={() => { void remote.refetch(); }} />
             {/* Header */}
             <div className="flex items-center justify-between pt-2">
                 <div>
@@ -623,6 +587,7 @@ function EmptyState() {
 }
 
 function DeleteModal({ routineName, isActive, onCancel, onConfirm }) {
+    const focus = useDialogFocus(onCancel);
     return (
         <Portal>
             <div
@@ -632,6 +597,7 @@ function DeleteModal({ routineName, isActive, onCancel, onConfirm }) {
             >
                 <div
                     role="dialog"
+                    {...focus}
                     aria-modal="true"
                     aria-labelledby="delete-routine-title"
                     className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-scale-in"
