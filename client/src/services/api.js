@@ -4,6 +4,8 @@ import { submitWorkoutWrite, replayQueue } from './offlineSync.js';
 import { getOperationRuntime, operationsEnabled } from './operationRuntime.js';
 import { conflictResolutionEnabled } from '../storage/runtime.js';
 import { changesFromEditor } from './sessionChanges.js';
+import { startAvailabilityResume } from './availabilityResume.js';
+import { remoteClient } from '../app/remote';
 
 // En producción (Vercel), usa ruta relativa. En desarrollo, usa localhost
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
@@ -30,7 +32,9 @@ async function safeFetch(url, options = {}) {
     if (authorization && startedToken && authorization !== `Bearer ${startedToken}`) throw changed();
     let response;
     try {
-        response = await fetch(url, options);
+        const read = !options.method || ['GET', 'HEAD'].includes(options.method);
+        const signal = read ? (options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000)) : options.signal;
+        response = await fetch(url, { ...options, ...(signal ? { signal } : {}) });
     } catch (e) {
         const err = new Error('No se pudo conectar con el servidor. Revisa tu conexión.');
         err.isNetworkError = true;
@@ -720,7 +724,13 @@ export const api = {
 // del plan con un solo punto de entrada — no hace falta llamarlo desde App.jsx.
 if (typeof window !== 'undefined') {
     if (operationsEnabled) operationRuntime().start();
-    window.addEventListener('online', () => { void replayOfflineQueue().catch(() => {}); });
+    startAvailabilityResume({ resume: async () => {
+        window.dispatchEvent(new Event('nexlift-availability-resume'));
+        // Legacy replay only inspects pending writes; the experimental mutation
+        // protocol keeps its own lifecycle and remains disabled in production.
+        if (!operationsEnabled) await replayOfflineQueue();
+        await remoteClient.refetchQueries({ type: 'active', predicate: query => query.state.status === 'error' || query.isStale() });
+    } });
     // No competir con el primer paint: drenar la cola cuando el browser esté idle
     const kickReplay = () => { void replayOfflineQueue().catch(() => {}); };
     if (typeof requestIdleCallback === 'function') {

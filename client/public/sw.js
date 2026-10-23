@@ -5,35 +5,50 @@
 //  - API: solo red; nunca usar datos cacheados como evidencia de persistencia
 //  - Estáticos varios (iconos, manifest, logo): cache-first
 // Bump en cada release de UI crítica para no servir shell viejo (header logo, etc.)
-const VERSION = 'v4.0-phase9-private-cache';
+const VERSION = 'v4.0-availability-1';
 const STATIC_CACHE = `nexlift-static-${VERSION}`;
 const SHELL_URL = '/index.html';
 function isApiPath(pathname) {
     try { return /^\/api(?:\/|$)/i.test(decodeURIComponent(pathname)); } catch { return true; }
 }
 
-self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(STATIC_CACHE).then((cache) => cache.addAll(['/', SHELL_URL]).catch(() => {}))
-    );
-    self.skipWaiting();
+async function isShell(response) {
+    if (!response || response.status !== 200 || response.redirected
+        || !(response.headers.get('Content-Type') || '').toLowerCase().includes('text/html')) return false;
+    const html = await response.clone().text();
+    return html.includes('<meta name="nexlift-shell" content="v4"') && html.includes('<div id="root"');
+}
+async function cachedShell() {
+    // Use only our public shell caches. Never inspect private/IndexedDB data.
+    const keys = await caches.keys();
+    for (const key of [STATIC_CACHE, ...keys.filter(k => k.startsWith('nexlift-static-') && k !== STATIC_CACHE).reverse()]) {
+        const response = await (await caches.open(key)).match(SHELL_URL);
+        if (await isShell(response)) return response;
+    }
+}
+const fetchDocument = request => fetch(request, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+self.addEventListener('install', event => {
+    event.waitUntil((async () => {
+        // A failed update cannot replace a working worker with an empty cache.
+        const response = await fetchDocument(SHELL_URL);
+        if (!await isShell(response)) throw new Error('Public shell unavailable');
+        await (await caches.open(STATIC_CACHE)).put(SHELL_URL, response);
+        // No skipWaiting: the deployed v4 document reloads on controllerchange.
+        // Wait for old documents to close naturally, including active workouts.
+    })());
 });
 
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then((keys) =>
-            Promise.all(
-                keys.filter((k) => k.startsWith('nexlift-static-') && k !== STATIC_CACHE).map((k) => caches.delete(k))
-            )
-        ).then(() => self.clients.claim())
+        // Old documents can still import old hashed chunks during a workout.
+        // Retain public assets across this rollout; no private stores are cleared.
+        self.clients.claim()
     );
 });
 
-// El cliente puede pedir activación inmediata del SW nuevo
+// Legacy documents send SKIP_WAITING automatically. Ignore it: those same
+// documents reload on controllerchange and may contain an active workout.
 self.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'SKIP_WAITING') {
-        self.skipWaiting();
-    }
     if (event.data?.type === 'CACHE_PUBLIC_ASSETS' && Array.isArray(event.data.urls)) {
         // The first controlled page need not reload. Cache its already loaded
         // public JS/CSS/icons, but never accept API URLs, credentials or queries
@@ -70,18 +85,26 @@ self.addEventListener('fetch', (event) => {
     }
 
     // Navegación (apertura/recarga de la app): network-first, fallback al shell
-    if (request.mode === 'navigate') {
-        event.respondWith(
-            fetch(request)
-                .then((res) => {
-                    if (res.ok && !res.redirected && (res.headers.get('Content-Type') || '').toLowerCase().includes('text/html')) {
-                        const copy = res.clone();
-                        caches.open(STATIC_CACHE).then((c) => c.put(SHELL_URL, copy));
-                    }
-                    return res;
-                })
-                .catch(() => caches.match(SHELL_URL).then((r) => r || caches.match('/')))
-        );
+    if (sameOrigin && request.mode === 'navigate') {
+        const work = (async () => {
+            let response;
+            try { response = await fetchDocument(request); } catch { /* bounded offline fallback */ }
+            if (await isShell(response)) {
+                // A cache/storage failure must not hide a healthy network page.
+                try { await (await caches.open(STATIC_CACHE)).put(SHELL_URL, response.clone()); } catch { /* quota/private mode */ }
+                return response;
+            }
+            // Never substitute shell for auth failures/404s. Proxy 200 HTML is
+            // untrusted too: it must not poison our app-shell cache.
+            if (!response || response.status >= 500 || response.status === 408 || response.status === 200) {
+                try { const shell = await cachedShell(); if (shell) return shell; } catch { /* storage unavailable */ }
+            }
+            return response || new Response('NexLift no está disponible. Vuelve a intentarlo al recuperar conexión.', {
+                status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'Retry-After': '5' }
+            });
+        })();
+        event.respondWith(work);
+        event.waitUntil(work.then(() => {}, () => {}));
         return;
     }
 
@@ -180,9 +203,8 @@ self.addEventListener('notificationclick', (event) => {
             for (const client of clientList) {
                 if (new URL(client.url).origin !== self.location.origin) continue;
                 if ('focus' in client) {
-                    if ('navigate' in client && targetUrl) {
-                        return client.navigate(targetUrl).then((c) => (c ? c.focus() : client.focus())).catch(() => client.focus());
-                    }
+                    // A rest notification must not replace an active workout
+                    // with a navigation that may receive a proxy error page.
                     return client.focus();
                 }
             }

@@ -1,4 +1,3 @@
-import { createControllerReloadGuard } from '../src/app/serviceWorkerLifecycle';
 import { loadedPublicAssets, warmInitialPublicAssets } from '../src/app/serviceWorkerLifecycle';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
@@ -115,12 +114,13 @@ it('exercise selection is scoped per account and never assigns an unowned legacy
     expect(localStorage.getItem('nexlift_lastExercise')).toBe('Legacy private exercise');
 });
 
-it('first SW claim preserves the running page; an actual later update reloads exactly once', () => {
-    const first = createControllerReloadGuard(false);
-    expect(first(false)).toBe(false); expect(first(true)).toBe(false);
-    expect(first(true)).toBe(true); expect(first(true)).toBe(false);
-    const existing = createControllerReloadGuard(true);
-    expect(existing(false)).toBe(false); expect(existing(true)).toBe(true); expect(existing(true)).toBe(false);
+it('a legacy SKIP_WAITING message cannot activate an update over a live workout', async () => {
+    let message: (event: { data: { type: string } }) => void = () => {};
+    const skipWaiting = vi.fn();
+    vm.runInNewContext(await readFile(new URL('../public/sw.js', import.meta.url), 'utf8'), {
+        self: { skipWaiting, addEventListener: (name: string, handler: typeof message) => { if (name === 'message') message = handler; } }
+    });
+    message({ data: { type: 'SKIP_WAITING' } }); expect(skipWaiting).not.toHaveBeenCalled();
 });
 it('SW first-install warming only caches same-origin public assets with matching content types', async () => {
     const origin = 'https://pwa.test', stored = new Map<string, Response>(), pending: Promise<unknown>[] = [];

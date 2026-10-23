@@ -117,7 +117,7 @@ try {
         'test:workout:integration', 'test:workout:baseline', 'test:schema:audit', 'test:baseline', 'test:infra', 'test:infra:integration']) {
         await run(`server-${script.replaceAll(':', '-')}`, script === 'test' ? [npm, 'run', 'test:server'] : [npm, 'run', script, '--workspace', 'nexlift-server']);
     }
-    await run('client-historical-tests', [npm, 'run', 'test:client']);
+    await run('client-historical-tests', [npm, 'exec', '--workspace', 'client', '--', 'vitest', 'run', '--exclude', 'src/services/availabilityResume.test.js']);
     await run('default-workspace-build', [npm, 'run', 'build']);
     await run('client-bundle-boundaries', [npm, 'run', 'check:bundle']);
     await run('staging-unit', [npm, 'run', 'test:staging', '--workspace', 'nexlift-server']);
@@ -181,6 +181,10 @@ try {
     await run('phase10-postgres-migrate-recovery-transports', [npm, 'run', 'test:release:integration']);
     await run('phase10-edge-first-render', [npm, 'run', 'test:release:browser']);
     assert.equal(unique(), 1464 + upstreamAdditionalTests);
+    await run('availability-client-resume', [npm, 'exec', '--workspace', 'client', '--', 'vitest', 'run', 'src/services/availabilityResume.test.js']);
+    await run('availability-sw', ['--test', 'server/test/availability-sw.test.js']);
+    await run('availability-browser', ['--test', 'scripts/test/availability-browser.test.mjs']);
+    assert.equal(unique(), 1464 + upstreamAdditionalTests + 13);
     await run('phase10-reproducible-artifacts', [npm, 'run', 'verify:release']);
     await run('phase10-release-lint', [npm, 'run', 'lint:release']);
     await run('phase7-modular-runtime-lint', ['scripts/check-phase7.mjs']);
@@ -246,7 +250,7 @@ try {
     for (const file of ['integration-evidence.json', 'api-inventory.json', 'API-MATRIX.md', 'browser-cancellation-evidence.json']) await cp(path.join(root, 'server/audit/security', file), path.join(destination, 'phase9-' + file));
     await writeFile(path.join(destination, 'matrix-evidence.json'), JSON.stringify({ createdAt: new Date().toISOString(), node: process.versions.node,
         npm: JSON.parse(await readFile(path.join(path.dirname(npm), '../package.json'))).version, baseline: 'PROVISIONAL', productionTouched: false,
-        persistentDatabaseAccessed: false, dockerExecuted: false, isolatedDirectory: root, historicalTests: 1441 + upstreamAdditionalTests, upstreamAdditionalTests, newTests: 23, uniqueTests: unique(),
+        persistentDatabaseAccessed: false, dockerExecuted: false, isolatedDirectory: root, historicalTests: 1464 + upstreamAdditionalTests, upstreamAdditionalTests, newTests: 13, uniqueTests: unique(),
         repeatedTests: results.filter(r => r.repeat).reduce((n, r) => n + r.tests, 0), installStrategy: 'nested', results, artifacts }, null, 2) + '\n');
     console.log(`Approved: ${unique()} unique tests. Evidence: server/audit/release/matrix-evidence.json`);
 } finally {

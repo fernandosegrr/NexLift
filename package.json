@@ -63,7 +63,8 @@
     "lint:release": "node scripts/lint-release.mjs",
     "release:preflight": "node server/deploy/release-preflight.mjs",
     "release:start": "node server/deploy/release-http.mjs",
-    "release:migrate:disposable": "node server/deploy/release-migrate.mjs"
+    "release:migrate:disposable": "node server/deploy/release-migrate.mjs",
+    "test:availability": "npm run test:client -- src/services/availabilityResume.test.js && node --test server/test/availability-sw.test.js scripts/test/availability-browser.test.mjs"
   },
   "devDependencies": {
     "@nexlift/shared": "0.0.0",
