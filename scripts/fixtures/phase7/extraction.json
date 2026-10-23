@@ -1,0 +1,990 @@
+[
+  {
+    "file": "server/src/modules/backups/routes.js",
+    "start": 32349,
+    "end": 33087,
+    "key": {
+      "route": "/api/backup/run",
+      "method": "app.post"
+    },
+    "offset": 308
+  },
+  {
+    "file": "server/src/modules/backups/routes.js",
+    "start": 33091,
+    "end": 33176,
+    "key": {
+      "route": "/api/backup/export",
+      "method": "app.get"
+    },
+    "offset": 1048
+  },
+  {
+    "file": "server/src/modules/backups/routes.js",
+    "start": 33178,
+    "end": 33264,
+    "key": {
+      "route": "/api/backup/import",
+      "method": "app.post"
+    },
+    "offset": 1135
+  },
+  {
+    "file": "server/src/modules/backups/routes.js",
+    "start": 156936,
+    "end": 157568,
+    "key": {
+      "route": "/api/backup/status",
+      "method": "app.get"
+    },
+    "offset": 1223
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "start": 35032,
+    "end": 38643,
+    "key": {
+      "route": "/api/auth/register",
+      "method": "app.post"
+    },
+    "offset": 230
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "start": 38672,
+    "end": 40487,
+    "key": {
+      "route": "/api/auth/login",
+      "method": "app.post"
+    },
+    "offset": 3843
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "start": 40539,
+    "end": 41482,
+    "key": {
+      "route": "/api/auth/me",
+      "method": "app.get"
+    },
+    "offset": 5660
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "start": 41529,
+    "end": 43482,
+    "key": {
+      "route": "/api/auth/profile",
+      "method": "app.put"
+    },
+    "offset": 6605
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "start": 43531,
+    "end": 45142,
+    "key": {
+      "route": "/api/auth/password",
+      "method": "app.put"
+    },
+    "offset": 8560
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "start": 45206,
+    "end": 45992,
+    "key": {
+      "route": "/api/auth/recover/question",
+      "method": "app.post"
+    },
+    "offset": 10173
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "start": 46290,
+    "end": 47958,
+    "key": {
+      "route": "/api/auth/recover/verify",
+      "method": "app.post"
+    },
+    "offset": 10961
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "start": 48271,
+    "end": 49778,
+    "key": {
+      "route": "/api/auth/security-question",
+      "method": "app.put"
+    },
+    "offset": 12631
+  },
+  {
+    "file": "server/src/modules/auth/routes.js",
+    "start": 49834,
+    "end": 51038,
+    "key": {
+      "route": "/api/auth/avatar",
+      "method": "app.post"
+    },
+    "offset": 14140
+  },
+  {
+    "file": "server/src/modules/routines/routes.js",
+    "start": 51221,
+    "end": 51332,
+    "key": {
+      "route": "/api/routines/import",
+      "method": "app.post"
+    },
+    "offset": 851
+  },
+  {
+    "file": "server/src/modules/routines/routes.js",
+    "start": 52364,
+    "end": 54074,
+    "key": {
+      "route": "/api/routines",
+      "method": "app.get"
+    },
+    "offset": 964
+  },
+  {
+    "file": "server/src/modules/routines/routes.js",
+    "start": 54139,
+    "end": 54955,
+    "key": {
+      "route": "/api/routines/trash",
+      "method": "app.get"
+    },
+    "offset": 2676
+  },
+  {
+    "file": "server/src/modules/routines/routes.js",
+    "start": 55030,
+    "end": 56361,
+    "key": {
+      "route": "/api/routines/active",
+      "method": "app.get"
+    },
+    "offset": 3494
+  },
+  {
+    "file": "server/src/modules/routines/routes.js",
+    "start": 56412,
+    "end": 57795,
+    "key": {
+      "route": "/api/routines/:id",
+      "method": "app.get"
+    },
+    "offset": 4827
+  },
+  {
+    "file": "server/src/modules/routines/routes.js",
+    "start": 57845,
+    "end": 60552,
+    "key": {
+      "route": "/api/routines/:id",
+      "method": "app.delete"
+    },
+    "offset": 6212
+  },
+  {
+    "file": "server/src/modules/routines/routes.js",
+    "start": 60616,
+    "end": 60723,
+    "key": {
+      "route": "/api/routines/:id",
+      "method": "app.put"
+    },
+    "offset": 8921
+  },
+  {
+    "file": "server/src/modules/routines/routes.js",
+    "start": 68495,
+    "end": 69691,
+    "key": {
+      "route": "/api/routines/:id/activate",
+      "method": "app.put"
+    },
+    "offset": 9030
+  },
+  {
+    "file": "server/src/modules/mesocycles/routes.js",
+    "start": 11260,
+    "end": 11345,
+    "key": {
+      "variable": "ROUTINE_BLOCK_PHASES"
+    },
+    "offset": 68
+  },
+  {
+    "file": "server/src/modules/mesocycles/routes.js",
+    "start": 60929,
+    "end": 61598,
+    "key": {
+      "route": "/api/routines/:id/blocks",
+      "method": "app.get"
+    },
+    "offset": 155
+  },
+  {
+    "file": "server/src/modules/mesocycles/routes.js",
+    "start": 61660,
+    "end": 62862,
+    "key": {
+      "route": "/api/routines/:id/blocks",
+      "method": "app.post"
+    },
+    "offset": 826
+  },
+  {
+    "file": "server/src/modules/mesocycles/routes.js",
+    "start": 62927,
+    "end": 64350,
+    "key": {
+      "route": "/api/routines/:id/blocks/:blockId",
+      "method": "app.put"
+    },
+    "offset": 2030
+  },
+  {
+    "file": "server/src/modules/mesocycles/routes.js",
+    "start": 64418,
+    "end": 65287,
+    "key": {
+      "route": "/api/routines/:id/blocks/:blockId",
+      "method": "app.delete"
+    },
+    "offset": 3455
+  },
+  {
+    "file": "server/src/modules/mesocycles/routes.js",
+    "start": 65383,
+    "end": 66301,
+    "key": {
+      "route": "/api/routines/:id/blocks/:blockId/start",
+      "method": "app.post"
+    },
+    "offset": 4326
+  },
+  {
+    "file": "server/src/modules/exercises/routes.js",
+    "start": 66489,
+    "end": 67181,
+    "key": {
+      "route": "/api/exercises",
+      "method": "app.get"
+    },
+    "offset": 68
+  },
+  {
+    "file": "server/src/modules/exercises/routes.js",
+    "start": 67241,
+    "end": 68435,
+    "key": {
+      "route": "/api/exercises/:id/muscle",
+      "method": "app.put"
+    },
+    "offset": 762
+  },
+  {
+    "file": "server/src/modules/ai/routes.js",
+    "start": 73035,
+    "end": 74840,
+    "key": {
+      "route": "/api/ai-routine/setup",
+      "method": "app.post"
+    },
+    "offset": 809
+  },
+  {
+    "file": "server/src/modules/ai/routes.js",
+    "start": 74928,
+    "end": 75733,
+    "key": {
+      "route": "/api/ai-routine/today",
+      "method": "app.get"
+    },
+    "offset": 2616
+  },
+  {
+    "file": "server/src/modules/ai/routes.js",
+    "start": 75819,
+    "end": 80157,
+    "key": {
+      "route": "/api/ai-routine/reshuffle/:routineDayId",
+      "method": "app.post"
+    },
+    "offset": 3423
+  },
+  {
+    "file": "server/src/modules/training/routes.js",
+    "start": 80227,
+    "end": 82420,
+    "key": {
+      "route": "/api/stats/routine/:id",
+      "method": "app.get"
+    },
+    "offset": 678
+  },
+  {
+    "file": "server/src/modules/training/routes.js",
+    "start": 108484,
+    "end": 112471,
+    "key": {
+      "route": "/api/stats/overview",
+      "method": "app.get"
+    },
+    "offset": 2873
+  },
+  {
+    "file": "server/src/modules/training/routes.js",
+    "start": 112548,
+    "end": 114187,
+    "key": {
+      "route": "/api/stats/consistency",
+      "method": "app.get"
+    },
+    "offset": 6862
+  },
+  {
+    "file": "server/src/modules/training/routes.js",
+    "start": 114264,
+    "end": 115917,
+    "key": {
+      "route": "/api/stats/progress/:exerciseName",
+      "method": "app.get"
+    },
+    "offset": 8503
+  },
+  {
+    "file": "server/src/modules/training/routes.js",
+    "start": 115971,
+    "end": 116886,
+    "key": {
+      "route": "/api/stats/prs",
+      "method": "app.get"
+    },
+    "offset": 10158
+  },
+  {
+    "file": "server/src/modules/training/routes.js",
+    "start": 117121,
+    "end": 126827,
+    "key": {
+      "route": "/api/stats/home",
+      "method": "app.get"
+    },
+    "offset": 11075
+  },
+  {
+    "file": "server/src/modules/training/routes.js",
+    "start": 127064,
+    "end": 129303,
+    "key": {
+      "route": "/api/stats/plateaus",
+      "method": "app.get"
+    },
+    "offset": 20783
+  },
+  {
+    "file": "server/src/modules/training/routes.js",
+    "start": 129381,
+    "end": 136746,
+    "key": {
+      "route": "/api/stats/progress-page",
+      "method": "app.get"
+    },
+    "offset": 23024
+  },
+  {
+    "file": "server/src/modules/workouts/routes.js",
+    "start": 83763,
+    "end": 84683,
+    "key": {
+      "route": "/api/workouts/today-log",
+      "method": "app.get"
+    },
+    "offset": 453
+  },
+  {
+    "file": "server/src/modules/workouts/service.js",
+    "start": 84687,
+    "end": 84767,
+    "key": {
+      "variable": "workoutHandlers"
+    },
+    "offset": 1375
+  },
+  {
+    "file": "server/src/modules/workouts/routes.js",
+    "start": 84823,
+    "end": 84897,
+    "key": {
+      "route": "/api/workouts/log",
+      "method": "app.post"
+    },
+    "offset": 1457
+  },
+  {
+    "file": "server/src/modules/workouts/routes.js",
+    "start": 85332,
+    "end": 86214,
+    "key": {
+      "route": "/api/workouts/rest-reminder",
+      "method": "app.post"
+    },
+    "offset": 1533
+  },
+  {
+    "file": "server/src/modules/workouts/routes.js",
+    "start": 86267,
+    "end": 86798,
+    "key": {
+      "route": "/api/workouts/log-rest",
+      "method": "app.post"
+    },
+    "offset": 2417
+  },
+  {
+    "file": "server/src/modules/workouts/routes.js",
+    "start": 87031,
+    "end": 89845,
+    "key": {
+      "route": "/api/workouts/history",
+      "method": "app.get"
+    },
+    "offset": 2950
+  },
+  {
+    "file": "server/src/modules/workouts/routes.js",
+    "start": 89920,
+    "end": 90001,
+    "key": {
+      "route": "/api/workouts/fix-weights",
+      "method": "app.put"
+    },
+    "offset": 5766
+  },
+  {
+    "file": "server/src/modules/workouts/routes.js",
+    "start": 90180,
+    "end": 91796,
+    "key": {
+      "route": "/api/workouts/exercise/:exerciseId/history",
+      "method": "app.get"
+    },
+    "offset": 5849
+  },
+  {
+    "file": "server/src/modules/workouts/routes.js",
+    "start": 107281,
+    "end": 108014,
+    "key": {
+      "route": "/api/workouts/:logId",
+      "method": "app.get"
+    },
+    "offset": 7467
+  },
+  {
+    "file": "server/src/modules/workouts/routes.js",
+    "start": 108074,
+    "end": 108153,
+    "key": {
+      "route": "/api/workouts/:logId",
+      "method": "app.put"
+    },
+    "offset": 8202
+  },
+  {
+    "file": "server/src/modules/workouts/routes.js",
+    "start": 108216,
+    "end": 108298,
+    "key": {
+      "route": "/api/workouts/:logId",
+      "method": "app.delete"
+    },
+    "offset": 8283
+  },
+  {
+    "file": "server/src/modules/operations/routes.js",
+    "start": 84768,
+    "end": 84822,
+    "key": {
+      "route": "app",
+      "method": "mountOperationRoutes"
+    },
+    "offset": 134
+  },
+  {
+    "file": "server/src/modules/shortcuts/routes.js",
+    "start": 93039,
+    "end": 100933,
+    "key": {
+      "route": "/api/shortcuts/next-set",
+      "method": "app.get"
+    },
+    "offset": 828
+  },
+  {
+    "file": "server/src/modules/shortcuts/routes.js",
+    "start": 101239,
+    "end": 101322,
+    "key": {
+      "route": "/api/shortcuts/log-set",
+      "method": "app.post"
+    },
+    "offset": 8724
+  },
+  {
+    "file": "server/src/modules/shortcuts/routes.js",
+    "start": 101728,
+    "end": 102923,
+    "key": {
+      "route": "/api/suggestions/log",
+      "method": "app.post"
+    },
+    "offset": 8809
+  },
+  {
+    "file": "server/src/modules/notifications/routes.js",
+    "start": 103138,
+    "end": 103286,
+    "key": {
+      "route": "/api/push/vapid-public-key",
+      "method": "app.get"
+    },
+    "offset": 84
+  },
+  {
+    "file": "server/src/modules/notifications/routes.js",
+    "start": 103374,
+    "end": 104209,
+    "key": {
+      "route": "/api/push/subscribe",
+      "method": "app.post"
+    },
+    "offset": 234
+  },
+  {
+    "file": "server/src/modules/notifications/routes.js",
+    "start": 104290,
+    "end": 104846,
+    "key": {
+      "route": "/api/push/subscribe",
+      "method": "app.delete"
+    },
+    "offset": 1071
+  },
+  {
+    "file": "server/src/modules/notifications/routes.js",
+    "start": 104940,
+    "end": 106179,
+    "key": {
+      "route": "/api/push/creatine-reminder",
+      "method": "app.put"
+    },
+    "offset": 1629
+  },
+  {
+    "file": "server/src/modules/notifications/routes.js",
+    "start": 106272,
+    "end": 107217,
+    "key": {
+      "route": "/api/push/test-creatine",
+      "method": "app.post"
+    },
+    "offset": 2870
+  },
+  {
+    "file": "server/src/modules/bodyTracking/routes.js",
+    "start": 136940,
+    "end": 137857,
+    "key": {
+      "route": "/api/body/logs",
+      "method": "app.get"
+    },
+    "offset": 241
+  },
+  {
+    "file": "server/src/modules/bodyTracking/routes.js",
+    "start": 137963,
+    "end": 138910,
+    "key": {
+      "route": "/api/body/checkin",
+      "method": "app.get"
+    },
+    "offset": 1160
+  },
+  {
+    "file": "server/src/modules/bodyTracking/routes.js",
+    "start": 139015,
+    "end": 141474,
+    "key": {
+      "route": "/api/body/checkin",
+      "method": "app.put"
+    },
+    "offset": 2109
+  },
+  {
+    "file": "server/src/modules/bodyTracking/routes.js",
+    "start": 141527,
+    "end": 145619,
+    "key": {
+      "route": "/api/body/log",
+      "method": "app.post"
+    },
+    "offset": 4570
+  },
+  {
+    "file": "server/src/modules/bodyTracking/routes.js",
+    "start": 145674,
+    "end": 146623,
+    "key": {
+      "route": "/api/body",
+      "method": "app.get"
+    },
+    "offset": 8664
+  },
+  {
+    "file": "server/src/modules/bodyTracking/routes.js",
+    "start": 146709,
+    "end": 147836,
+    "key": {
+      "route": "/api/body/photos",
+      "method": "app.get"
+    },
+    "offset": 9615
+  },
+  {
+    "file": "server/src/modules/bodyTracking/routes.js",
+    "start": 147885,
+    "end": 149568,
+    "key": {
+      "route": "/api/body",
+      "method": "app.post"
+    },
+    "offset": 10744
+  },
+  {
+    "file": "server/src/modules/bodyTracking/routes.js",
+    "start": 149622,
+    "end": 150195,
+    "key": {
+      "route": "/api/body/latest",
+      "method": "app.get"
+    },
+    "offset": 12429
+  },
+  {
+    "file": "server/src/modules/goals/routes.js",
+    "start": 150902,
+    "end": 152776,
+    "key": {
+      "route": "/api/goals",
+      "method": "app.get"
+    },
+    "offset": 325
+  },
+  {
+    "file": "server/src/modules/goals/routes.js",
+    "start": 152814,
+    "end": 154974,
+    "key": {
+      "route": "/api/goals",
+      "method": "app.post"
+    },
+    "offset": 2201
+  },
+  {
+    "file": "server/src/modules/goals/routes.js",
+    "start": 155031,
+    "end": 156080,
+    "key": {
+      "route": "/api/goals/:id/weeks",
+      "method": "app.put"
+    },
+    "offset": 4363
+  },
+  {
+    "file": "server/src/modules/goals/routes.js",
+    "start": 156124,
+    "end": 156682,
+    "key": {
+      "route": "/api/goals/:id",
+      "method": "app.delete"
+    },
+    "offset": 5414
+  },
+  {
+    "file": "server/src/app/cache.js",
+    "start": 2744,
+    "end": 2854,
+    "key": {
+      "function": "setPrivateCache"
+    },
+    "offset": 2
+  },
+  {
+    "file": "server/src/modules/bodyTracking/validation.js",
+    "start": 33737,
+    "end": 33951,
+    "key": {
+      "variable": "BODY_METRIC_RANGES"
+    },
+    "offset": 2
+  },
+  {
+    "file": "server/src/modules/bodyTracking/validation.js",
+    "start": 33953,
+    "end": 34432,
+    "key": {
+      "function": "sanitizeBodyMetrics"
+    },
+    "offset": 225
+  },
+  {
+    "file": "server/src/modules/routines/service.js",
+    "start": 52142,
+    "end": 52360,
+    "key": {
+      "function": "daysIncludeFor"
+    },
+    "offset": 2
+  },
+  {
+    "file": "server/src/modules/shortcuts/service.js",
+    "start": 92397,
+    "end": 92958,
+    "key": {
+      "function": "baseShortcutResponse"
+    },
+    "offset": 2
+  },
+  {
+    "file": "server/src/modules/ai/service.js",
+    "start": 70222,
+    "end": 72942,
+    "key": {
+      "function": "resolveOrGenerateAiRoutineDay"
+    },
+    "offset": 388
+  },
+  {
+    "file": "server/src/modules/training/service.js",
+    "start": 26456,
+    "end": 26516,
+    "key": {
+      "variable": "ADAPTIVE_DELOAD_COOLDOWN_MS"
+    },
+    "offset": 282
+  },
+  {
+    "file": "server/src/modules/training/service.js",
+    "start": 26551,
+    "end": 26609,
+    "key": {
+      "variable": "ADAPTIVE_DELOAD_WINDOW_MS"
+    },
+    "offset": 344
+  },
+  {
+    "file": "server/src/modules/training/service.js",
+    "start": 26651,
+    "end": 26698,
+    "key": {
+      "variable": "ADAPTIVE_DELOAD_VOLUME_DROP_RATIO"
+    },
+    "offset": 404
+  },
+  {
+    "file": "server/src/modules/training/service.js",
+    "start": 26750,
+    "end": 26789,
+    "key": {
+      "variable": "ADAPTIVE_DELOAD_MIN_PLATEAUS"
+    },
+    "offset": 453
+  },
+  {
+    "file": "server/src/modules/training/service.js",
+    "start": 27049,
+    "end": 29752,
+    "key": {
+      "function": "maybeEvaluateAdaptiveDeload"
+    },
+    "offset": 494
+  },
+  {
+    "file": "server/src/modules/training/service.js",
+    "start": 29756,
+    "end": 30375,
+    "key": {
+      "function": "checkAdaptiveDeloadForAllUsers"
+    },
+    "offset": 3199
+  },
+  {
+    "file": "server/src/modules/notifications/service.js",
+    "start": 14060,
+    "end": 14835,
+    "key": {
+      "function": "sendPushToUser"
+    },
+    "offset": 303
+  },
+  {
+    "file": "server/src/modules/notifications/service.js",
+    "start": 15298,
+    "end": 15337,
+    "key": {
+      "variable": "pendingRestReminders"
+    },
+    "offset": 1080
+  },
+  {
+    "file": "server/src/modules/notifications/service.js",
+    "start": 15624,
+    "end": 16504,
+    "key": {
+      "function": "firePendingReminder"
+    },
+    "offset": 1121
+  },
+  {
+    "file": "server/src/modules/notifications/service.js",
+    "start": 16508,
+    "end": 18321,
+    "key": {
+      "function": "scheduleRestReminder"
+    },
+    "offset": 2003
+  },
+  {
+    "file": "server/src/modules/notifications/service.js",
+    "start": 18620,
+    "end": 20211,
+    "key": {
+      "function": "restorePendingReminders"
+    },
+    "offset": 3818
+  },
+  {
+    "file": "server/src/modules/notifications/service.js",
+    "start": 20693,
+    "end": 20730,
+    "key": {
+      "variable": "REENGAGEMENT_INACTIVE_DAYS"
+    },
+    "offset": 5411
+  },
+  {
+    "file": "server/src/modules/notifications/service.js",
+    "start": 20896,
+    "end": 21622,
+    "key": {
+      "function": "computeUsualGymHour"
+    },
+    "offset": 5450
+  },
+  {
+    "file": "server/src/modules/notifications/service.js",
+    "start": 21626,
+    "end": 23494,
+    "key": {
+      "function": "checkReengagementReminders"
+    },
+    "offset": 6178
+  },
+  {
+    "file": "server/src/modules/notifications/service.js",
+    "start": 23950,
+    "end": 25975,
+    "key": {
+      "function": "checkCreatineReminders"
+    },
+    "offset": 8048
+  },
+  {
+    "file": "server/src/modules/backups/service.js",
+    "start": 30779,
+    "end": 31195,
+    "key": {
+      "function": "runBackupForUser"
+    },
+    "offset": 269
+  },
+  {
+    "file": "server/src/modules/backups/service.js",
+    "start": 31199,
+    "end": 31965,
+    "key": {
+      "function": "runDailyBackup"
+    },
+    "offset": 687
+  },
+  {
+    "file": "server/src/modules/backups/service.js",
+    "start": 31969,
+    "end": 32001,
+    "key": {
+      "variable": "lastBackupRunDateStr"
+    },
+    "offset": 1455
+  },
+  {
+    "file": "server/src/modules/backups/service.js",
+    "start": 32003,
+    "end": 32291,
+    "key": {
+      "function": "maybeRunDailyBackup"
+    },
+    "offset": 1489
+  },
+  {
+    "file": "server/src/infrastructure/external/photos.js",
+    "start": 3859,
+    "end": 3912,
+    "key": {
+      "variable": "CATBOX_API"
+    },
+    "offset": 85
+  },
+  {
+    "file": "server/src/infrastructure/external/photos.js",
+    "start": 4776,
+    "end": 5295,
+    "key": {
+      "function": "looksLikeImage"
+    },
+    "offset": 140
+  },
+  {
+    "file": "server/src/infrastructure/external/photos.js",
+    "start": 5299,
+    "end": 5666,
+    "key": {
+      "function": "uploadToCloudinary"
+    },
+    "offset": 661
+  },
+  {
+    "file": "server/src/infrastructure/external/photos.js",
+    "start": 5670,
+    "end": 8104,
+    "key": {
+      "function": "uploadBase64ToCatbox"
+    },
+    "offset": 1030
+  },
+  {
+    "file": "server/src/infrastructure/external/photos.js",
+    "start": 8344,
+    "end": 8511,
+    "key": {
+      "function": "uploadPhoto"
+    },
+    "offset": 3466
+  }
+]

@@ -13,6 +13,7 @@
 // las apuestas son más altas (meses de historial de Smart Loading en juego),
 // así que se cierra el problema en el origen en vez de limpiarlo después.
 import OpenAI from 'openai';
+import { operationalLog } from '../operations/telemetry.js';
 
 const client = process.env.OPENAI_API_KEY
     ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 15000 })
@@ -109,8 +110,8 @@ export async function chooseExercisesForDay({ splitLabel, profile, equipmentCata
         const picks = validatePicks(raw, candidates);
         if (!picks) throw new Error('Invalid LLM response shape');
         return picks;
-    } catch (err) {
-        console.error('AI routine agent call failed, using deterministic fallback:', err.message);
+    } catch {
+        operationalLog({ event: 'routine_provider_failed', category: 'external' });
         return fallback();
     }
 }

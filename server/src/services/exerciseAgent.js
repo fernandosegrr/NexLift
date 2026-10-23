@@ -9,7 +9,8 @@
 // respuesta inválida del LLM, cae al matching determinista ya usado en el resto
 // del proyecto (canonicalExerciseKey).
 import OpenAI from 'openai';
-import { canonicalExerciseKey, normalizeExerciseName } from '../utils/exerciseName.js';
+import { operationalLog } from '../operations/telemetry.js';
+import { deterministicFallback } from '../modules/exercises/deduplicate.js';
 
 const client = process.env.OPENAI_API_KEY
     ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 15000 })
@@ -35,15 +36,7 @@ function buildPrompt(incomingExercises, canonicalExercises) {
 
 // Matching determinista por clave canónica — mismo criterio que usa el resto del
 // proyecto (Goals, historial). Es el fallback si no hay LLM disponible o falla.
-function deterministicFallback(incomingExercises, canonicalExercises) {
-    const byKey = new Map(canonicalExercises.map(ex => [canonicalExerciseKey(ex.name), ex]));
-    return incomingExercises.map((ex, index) => {
-        const match = byKey.get(canonicalExerciseKey(ex.name));
-        return match
-            ? { index, matchedId: match.id, cleanedName: null }
-            : { index, matchedId: null, cleanedName: normalizeExerciseName(ex.name) || ex.name };
-    });
-}
+
 
 // Valida la forma de la respuesta del LLM. Si faltan índices o vienen mal
 // tipados, rellena SOLO esos vía fallback determinista — un elemento malformado
@@ -94,8 +87,8 @@ export async function deduplicateExercises(incomingExercises, canonicalExercises
         const verdicts = validateVerdicts(raw, incomingExercises, canonicalExercises);
         if (!verdicts) throw new Error('Invalid LLM response shape');
         return verdicts;
-    } catch (err) {
-        console.error('Exercise dedup LLM call failed, using deterministic fallback:', err.message);
+    } catch {
+        operationalLog({ event: 'exercise_provider_failed', category: 'external' });
         return deterministicFallback(incomingExercises, canonicalExercises);
     }
 }
