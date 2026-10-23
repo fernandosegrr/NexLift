@@ -19,7 +19,10 @@ COPY server/prisma/ ./server/prisma/
 COPY server/tsconfig*.json ./server/
 # No .env or VITE_* build args. Production offline switches remain off.
 ENV NODE_ENV=production
-RUN npm run db:generate && npm run build:shared && npm run build:server && npm run build:client
+RUN npm run db:generate
+RUN npm run build:shared
+RUN npm run build:server
+RUN npm run build:client
 
 FROM base AS migration-job
 WORKDIR /app/server

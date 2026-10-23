@@ -62,6 +62,10 @@
 **/*backup*
 **/*Backup*
 # Runtime backup implementation is required (never bundle actual archives).
+# These are source modules, not user exports; broad backup-name exclusions hide them.
+!client/src/storage/localBackup.js
+!server/src/modules/backups/
+!server/src/modules/backups/*.js
 !server/src/services/backup*.js
 !server/src/services/postgresBackup.js
 !server/src/services/postgresSystemBackup.js

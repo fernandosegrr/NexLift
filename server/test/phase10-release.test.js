@@ -62,5 +62,6 @@ test('10 Docker context excludes secrets and includes current catalog, TS config
     const ignore = require('ignore')().add(await readFile(new URL('../../.dockerignore', import.meta.url), 'utf8'));
     for (const file of ['server/.env', 'client/.env.production', 'server/prisma/.env', 'server/deploy/password.key', 'server/audit/release/system.dump']) assert(ignore.ignores(file), file);
     for (const file of ['Dockerfile.release', 'client/tsconfig.build.json', 'server/audit/database/declared-catalog.json',
-        'server/deploy/operations-catalog.json', 'server/deploy/release-http.mjs', 'server/src/services/backupRestore.js']) assert(!ignore.ignores(file), file);
+        'server/deploy/operations-catalog.json', 'server/deploy/release-http.mjs', 'server/src/services/backupRestore.js',
+        'client/src/storage/localBackup.js', 'server/src/modules/backups/routes.js', 'server/src/modules/backups/service.js']) assert(!ignore.ignores(file), file);
 });
