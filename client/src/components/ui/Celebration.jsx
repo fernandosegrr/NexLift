@@ -1,25 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 
 // Componente para celebrar logros como nuevos PRs
 export default function Celebration({ show, message = '¡Nuevo PR!' }) {
-    const [particles, setParticles] = useState([]);
+    return show ? <CelebrationBurst message={message} /> : null;
+}
 
-    useEffect(() => {
-        if (show) {
-            // Generar partículas aleatorias
-            const newParticles = Array.from({ length: 12 }, (_, i) => ({
+function CelebrationBurst({ message }) {
+    // A new burst mounts for each celebration. Keep random values stable across renders.
+    const [particles] = useState(() => Array.from({ length: 12 }, (_, i) => ({
                 id: i,
+                rotation: Math.random() * 360,
                 x: Math.random() * 100,
                 delay: Math.random() * 0.3,
                 size: 8 + Math.random() * 8,
                 color: ['#fbbf24', '#f59e0b', '#8b5cf6', '#06b6d4'][Math.floor(Math.random() * 4)]
-            }));
-            setParticles(newParticles);
-        }
-    }, [show]);
-
-    if (!show) return null;
+    })));
 
     return (
         <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
@@ -36,7 +32,7 @@ export default function Celebration({ show, message = '¡Nuevo PR!' }) {
                         height: p.size,
                         backgroundColor: p.color,
                         borderRadius: '2px',
-                        transform: `rotate(${Math.random() * 360}deg)`
+                        transform: `rotate(${p.rotation}deg)`
                     }}
                 />
             ))}

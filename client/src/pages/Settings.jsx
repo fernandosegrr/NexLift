@@ -246,6 +246,8 @@ export default function Settings() {
 
     useEffect(() => {
         fetchData();
+        // Initial load only; changing toast identity must not replace edits or filtered history.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -519,7 +521,7 @@ export default function Settings() {
                 return ex;
             }));
             toast.success(`Clasificado como ${canonical}`);
-        } catch (err) {
+        } catch {
             toast.error('Error al guardar el grupo muscular');
         } finally {
             setSaving(null);
@@ -539,7 +541,7 @@ export default function Settings() {
                 setWorkoutHistory(prev => prev.filter(s => s.id !== deletingSession.id));
             }
             setDeletingSession(null);
-        } catch (err) {
+        } catch {
             toast.error('Error al eliminar');
         } finally {
             setDeleting(false);

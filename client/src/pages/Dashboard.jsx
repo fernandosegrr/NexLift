@@ -57,7 +57,6 @@ export default function Dashboard() {
     const stats = payload?.stats || null;
     const activeRoutine = payload?.activeRoutine || null;
     const consistency = useMemo(() => buildConsistencyMap(payload), [payload]);
-    const prs = Array.isArray(payload?.prs) ? payload.prs : [];
     const plateauCount = payload?.plateauCount || 0;
     const aiTodayDay = payload?.aiTodayDay || null;
     const aiTodayLoading = remote.isFetching && !payload;

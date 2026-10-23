@@ -18,6 +18,8 @@ function formatDayLabel(dayKey) {
     });
 }
 
+// Historical PDF characterization executes this compatibility helper directly.
+// eslint-disable-next-line no-unused-vars
 function epley(weight, reps) {
     const w = Number(weight) || 0;
     const r = Number(reps) || 0;

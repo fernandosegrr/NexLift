@@ -47,6 +47,8 @@ export function AuthProvider({ children }) {
                     // Solo cerrar sesión si el token es realmente inválido (401/auth).
                     // En errores de red (backend caído) mantener la sesión guardada.
                     if (err && err.status === 401 && localStorage.getItem(TOKEN_KEY) === savedToken) {
+                        // Function declaration is hoisted; this asynchronous rejection runs after initialization.
+                        // eslint-disable-next-line react-hooks/immutability
                         logout();
                     }
                     // Error de red/transitorio: conservar el usuario almacenado.
@@ -186,6 +188,8 @@ export function AuthProvider({ children }) {
     );
 }
 
+// Preserve the existing public import path; this mixed module uses full HMR invalidation.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
     const context = useContext(AuthContext);
     if (!context) {

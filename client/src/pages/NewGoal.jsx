@@ -52,7 +52,7 @@ export default function NewGoal() {
     const [currentOneRepMax, setCurrentOneRepMax] = useState('');
     const [currentEightRepMax, setCurrentEightRepMax] = useState('');
     const [experienceLevel, setExperienceLevel] = useState('');
-    const [frequencyPerWeek, setFrequencyPerWeek] = useState(2);
+    const [frequencyPerWeek] = useState(2);
 
     useEffect(() => {
         async function fetchData() {

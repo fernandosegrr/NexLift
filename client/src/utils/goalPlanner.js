@@ -11,7 +11,7 @@ import { bestOneRepMaxForTarget, best1RMRecent } from './exerciseName';
 
 // --- MOTOR DE PERIODIZACIÓN ---
 
-export function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetReps, frequency = 2) {
+export function generatePeriodizedPlan(current1RM, target1RM, weeklyIncrease, targetReps, _frequency = 2) {
     const sessions = [];
 
     // Incrementos de peso en pasos de 5kg (equipamiento del gym)

@@ -69,6 +69,8 @@ export default function MuscleIcon({
 /**
  * Obtener color de un grupo muscular
  */
+// Preserve the existing public import path; this mixed module uses full HMR invalidation.
+// eslint-disable-next-line react-refresh/only-export-components
 export function getMuscleColor(muscle) {
     return MUSCLE_DATA[resolveMuscleKey(muscle)]?.color || MUSCLE_DATA.default.color;
 }
@@ -76,6 +78,8 @@ export function getMuscleColor(muscle) {
 /**
  * Obtener nombre de un grupo muscular
  */
+// Preserve the existing public import path; this mixed module uses full HMR invalidation.
+// eslint-disable-next-line react-refresh/only-export-components
 export function getMuscleName(muscle) {
     return MUSCLE_DATA[resolveMuscleKey(muscle)]?.name || MUSCLE_DATA.default.name;
 }
@@ -83,6 +87,8 @@ export function getMuscleName(muscle) {
 /**
  * Obtener emoji de un grupo muscular
  */
+// Preserve the existing public import path; this mixed module uses full HMR invalidation.
+// eslint-disable-next-line react-refresh/only-export-components
 export function getMuscleEmoji(muscle) {
     return MUSCLE_DATA[resolveMuscleKey(muscle)]?.emoji || MUSCLE_DATA.default.emoji;
 }

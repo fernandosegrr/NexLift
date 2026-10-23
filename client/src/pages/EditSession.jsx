@@ -40,6 +40,8 @@ function EditSessionPage() {
 
     useEffect(() => {
         fetchSession();
+        // Capture the recovered draft once per keyed session; toast identity must not refetch over edits.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [logId]);
 
     useEffect(() => {

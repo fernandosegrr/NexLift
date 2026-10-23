@@ -154,6 +154,8 @@ function useExerciseHistory(exerciseId, targetReps, muscleGroup, phase, exercise
     const currentRequestRef = useRef(null);
 
     useEffect(() => {
+        // Reset derived remote history when the selected exercise changes, never the workout draft.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPreviousBest(null);
         setSuggestion(null);
         setGoalSessions([]);

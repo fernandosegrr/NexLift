@@ -15,6 +15,8 @@ import { cloudinaryThumb, cloudinaryDisplay } from '../utils/cloudinary';
 const MAX_PHOTO_BYTES = 12 * 1024 * 1024; // 12 MB pre-compresión
 
 // Convierte cualquier fecha/ISO a llave YYYY-MM-DD en zona horaria America/Mexico_City
+// Preserve the existing public import path; this mixed module uses full HMR invalidation.
+// eslint-disable-next-line react-refresh/only-export-components
 export function toLocalDateKey(dateInput = new Date()) {
     const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
     if (Number.isNaN(d.getTime())) return mexicoCityDateStr(new Date());

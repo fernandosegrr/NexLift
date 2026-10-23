@@ -8,6 +8,8 @@ const ToastContext = createContext(null);
 // varios toasts en el mismo milisegundo
 let toastCounter = 0;
 
+// Preserve the existing public import path; this mixed module uses full HMR invalidation.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useToast() {
     const context = useContext(ToastContext);
     if (!context) {

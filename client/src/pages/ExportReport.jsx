@@ -128,7 +128,7 @@ async function loadLogoBase64(retries = 2) {
                 reader.onerror = () => resolve(null);
                 reader.readAsDataURL(blob);
             });
-        } catch (error) {
+        } catch {
             if (i === retries - 1) return null;
             await new Promise(resolve => setTimeout(resolve, 500));
         }

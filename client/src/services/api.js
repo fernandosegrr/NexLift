@@ -35,7 +35,7 @@ async function safeFetch(url, options = {}) {
         const read = !options.method || ['GET', 'HEAD'].includes(options.method);
         const signal = read ? (options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000)) : options.signal;
         response = await fetch(url, { ...options, ...(signal ? { signal } : {}) });
-    } catch (e) {
+    } catch {
         const err = new Error('No se pudo conectar con el servidor. Revisa tu conexión.');
         err.isNetworkError = true;
         throw err;
@@ -431,7 +431,7 @@ export const api = {
         try {
             const res = await fetch(`${API_URL}/health`);
             return res.ok;
-        } catch (e) {
+        } catch {
             return false;
         }
     },
