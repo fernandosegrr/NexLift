@@ -1,14 +1,17 @@
 import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
+import { checkIn, exerciseConfig, measurement, civilDate, number } from '../modules/coach/validation.js';
 
 export const HAS_HISTORY_FIELDS = Prisma.dmmf.datamodel.models.find(m => m.name === 'WorkoutLog').fields.some(f => f.name === 'exerciseNameSnapshot');
-export const BACKUP_VERSION = HAS_HISTORY_FIELDS ? 5 : 4;
+export const HAS_COACH = Prisma.dmmf.datamodel.models.some(m => m.name === 'CoachCheckIn');
+export const BACKUP_VERSION = HAS_COACH ? 6 : HAS_HISTORY_FIELDS ? 5 : 4;
 export const HISTORY_FIELDS = {
     Exercise: ['userId', 'archivedAt'],
     WorkoutLog: ['userId', 'exerciseNameSnapshot', 'muscleGroupSnapshot', 'isUnilateralSnapshot', 'snapshotSource', 'contextCapturedAt', 'originRoutineId', 'originRoutineDayId'],
     PersonalRecord: ['sourceExerciseId']
 };
-export const ENTITY_NAMES = ['User', 'Routine', 'RoutineBlock', 'RoutineDay', 'Exercise', 'WorkoutLog', 'SetLog', 'PersonalRecord', 'BodyLog', 'Goal', 'RestLog', 'CardioSession', 'CardioSegment', 'TrainingProfile', 'SuggestionLog'];
+export const COACH_ENTITIES = ['CoachCheckIn', 'CoachExerciseConfig', 'CoachMeasurement', 'CoachSuggestion'];
+export const ENTITY_NAMES = ['User', 'Routine', 'RoutineBlock', 'RoutineDay', 'Exercise', 'WorkoutLog', 'SetLog', 'PersonalRecord', 'BodyLog', 'Goal', 'RestLog', 'CardioSession', 'CardioSegment', 'TrainingProfile', 'SuggestionLog', ...(HAS_COACH ? COACH_ENTITIES : [])];
 export const EXCLUDED_MODELS = { PushSubscription: 'Claves y endpoints de autenticación push: volver a suscribirse.', PendingReminder: 'Temporizadores efímeros: regenerar al entrenar; no reenviar avisos antiguos.' };
 export const USER_FIELDS = ['id', 'username', 'email', 'firstName', 'lastName', 'phone', 'birthDate', 'avatarUrl', 'createdAt', 'updatedAt', 'creatineReminderEnabled', 'creatineReminderTime'];
 export const PROFILE_FIELDS = ['firstName', 'lastName', 'phone', 'birthDate', 'avatarUrl', 'creatineReminderEnabled', 'creatineReminderTime'];
@@ -42,16 +45,17 @@ export function sealBackup(data, { generatedAt = new Date().toISOString(), ident
 
 export function validateBackup(input) {
     const b = jsonCopy(input);
-    if (![4, BACKUP_VERSION].includes(b?.backupSchemaVersion)) fail('Versión de respaldo no soportada.');
+    if (![4, 5, BACKUP_VERSION].includes(b?.backupSchemaVersion) || b?.backupSchemaVersion === 5 && !HAS_HISTORY_FIELDS) fail('Versión de respaldo no soportada.');
     if (!b.integrity || b.integrity.algorithm !== 'sha256') fail('Falta el checksum del respaldo.');
     const { integrity, ...content } = b;
     if (checksum(content) !== integrity.sha256) fail('Checksum global incorrecto: archivo modificado o incompleto.');
     if (typeof b.generatedAt !== 'string' || !Number.isFinite(Date.parse(b.generatedAt)) || new Date(b.generatedAt).toISOString() !== b.generatedAt) fail('Fecha de generación inválida.');
     if (typeof b.source?.identifier !== 'string' || !b.source.identifier || b.source.application !== 'NexLift' || b.source.timezone !== 'America/Mexico_City') fail('Origen/zona horaria inválidos.');
-    if (!b.data || Object.keys(b.data).sort().join() !== [...ENTITY_NAMES].sort().join()) fail('Manifiesto de entidades incompleto o desconocido.');
-    if (Object.keys(b.manifest || {}).sort().join() !== [...ENTITY_NAMES].sort().join()) fail('Manifiesto incompleto.');
+    const names = b.backupSchemaVersion < 6 ? ENTITY_NAMES.filter(n => !COACH_ENTITIES.includes(n)) : ENTITY_NAMES;
+    if (!b.data || Object.keys(b.data).sort().join() !== [...names].sort().join()) fail('Manifiesto de entidades incompleto o desconocido.');
+    if (Object.keys(b.manifest || {}).sort().join() !== [...names].sort().join()) fail('Manifiesto incompleto.');
     const ids = {};
-    for (const name of ENTITY_NAMES) {
+    for (const name of names) {
         const rows = b.data[name];
         if (!Array.isArray(rows) || b.manifest[name]?.count !== rows.length || b.manifest[name]?.sha256 !== checksum(rows)) fail(`Conteo/checksum incorrecto: ${name}.`);
         ids[name] = new Set();
@@ -71,7 +75,7 @@ export function validateBackup(input) {
                         : f.type === 'Int' ? Number.isInteger(val) && val >= -2147483648 && val <= 2147483647
                         : f.type === 'Float' ? typeof val === 'number' && Number.isFinite(val)
                         : f.type === 'DateTime' ? typeof val === 'string' && /^\d{4}-\d\d-\d\dT/.test(val) && Number.isFinite(Date.parse(val)) && new Date(val).toISOString() === val
-                        : false;
+                        : f.type === 'Json' ? val !== undefined && JSON.stringify(val).length <= 20000 : false;
                     if (!ok) fail(`Tipo/valor inválido: ${name}.${f.name}.`);
                 }
             }
@@ -80,7 +84,7 @@ export function validateBackup(input) {
         }
     }
     if (b.data.User.length !== 1 || b.source.userId !== b.data.User[0].id) fail('El respaldo debe pertenecer a un único usuario.');
-    for (const name of ENTITY_NAMES) {
+    for (const name of names) {
         for (const relation of MODELS[name].fields.filter(f => f.kind === 'object' && f.relationFromFields?.length)) {
             for (const row of b.data[name]) {
                 const field = relation.relationFromFields[0], value = row[field];
@@ -96,7 +100,7 @@ export function validateBackup(input) {
     for (const row of b.data.SuggestionLog) {
         if (row.userId !== b.source.userId) fail('Sugerencia de otra cuenta.');
     }
-    if (b.backupSchemaVersion === 5) {
+    if (b.backupSchemaVersion >= 5) {
         const owner = b.source.userId;
         const exercises = new Map(b.data.Exercise.map(e => [e.id, e]));
         for (const row of b.data.Exercise) if (row.userId !== owner) fail('Ejercicio de otra cuenta.');
@@ -105,6 +109,26 @@ export function validateBackup(input) {
             if (!['recorded', 'legacy-observed'].includes(row.snapshotSource)) fail('Procedencia histórica inválida.');
         }
         for (const row of b.data.PersonalRecord) if (row.sourceExerciseId != null && exercises.get(row.sourceExerciseId)?.userId !== owner) fail('PR de otra cuenta.');
+    }
+    if (b.backupSchemaVersion === 6) {
+        const owner = b.source.userId, sets = new Map(b.data.SetLog.map(s => [s.id, s]));
+        const logs = new Map(b.data.WorkoutLog.map(s => [s.id, s]));
+        for (const name of COACH_ENTITIES) for (const row of b.data[name]) {
+            if (row.userId !== owner) fail('Coach de otra cuenta.');
+            if (row.exerciseId && !b.data.Exercise.some(e => e.id === row.exerciseId && e.userId === owner)) fail('Ejercicio Coach ajeno.');
+            if (row.resultSetId && logs.get(sets.get(row.resultSetId)?.workoutLogId)?.exerciseId !== row.exerciseId) fail('Serie Coach ajena al ejercicio.');
+            try {
+                if (name === 'CoachCheckIn') { civilDate(row.date); checkIn(Object.fromEntries(['sleepHours', 'sleepQuality', 'energy', 'fatigue', 'stress', 'soreness'].map(k => [k, row[k]]))); }
+                if (name === 'CoachExerciseConfig') exerciseConfig(Object.fromEntries(['directMuscle', 'secondaryMuscles', 'indirectWeight', 'equipment', 'increment', 'availableLoads'].map(k => [k, row[k]])));
+                if (name === 'CoachMeasurement') measurement(Object.fromEntries(['date', 'zone', 'cm', 'quality'].map(k => [k, row[k]])));
+                if (name === 'CoachSuggestion') {
+                    if (!['presented', 'accepted', 'modified', 'ignored'].includes(row.outcome) || row.payload?.version !== 'coach-1' || !row.payload.reference || !Array.isArray(row.payload.limitations) || row.payload.limitations.some(t => typeof t !== 'string')) fail('Sugerencia Coach inválida.');
+                    number(row.payload.recommendation?.weight, 0, 1000); number(row.payload.recommendation?.reps, 1, 100, true);
+                    const reference = logs.get(row.payload.reference.sessionId);
+                    if (reference && reference.exerciseId !== row.exerciseId) fail('Referencia Coach ajena al ejercicio.');
+                }
+            } catch { fail('Datos Coach inválidos en el respaldo.'); }
+        }
     }
     return b;
 }

@@ -19,6 +19,7 @@ export function startServer({ schemaCheck, host } = {}) {
         const prisma = new PrismaClient();
         const config = { jwtSecret: process.env.JWT_SECRET || 'nexlift-secret-key-change-in-production',
             nodeEnv: process.env.NODE_ENV || 'development', corsOrigin: process.env.CORS_ORIGIN,
+            coachEnabled: process.env.NEXLIFT_COACH_ENABLED === 'true' && process.env.NODE_ENV !== 'production',
             trustedProxyCidrs: process.env.NEXLIFT_TRUSTED_PROXY_CIDRS,
             webSessionEnabled: process.env.NEXLIFT_INFRA_REHEARSAL === 'true' && process.env.NEXLIFT_WEB_SESSION_REHEARSAL === 'true',
             webOrigin: process.env.NEXLIFT_WEB_ORIGIN,

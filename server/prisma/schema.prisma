@@ -71,6 +71,10 @@ model User {
   cardioSessions    CardioSession[]
   exercises         Exercise[]
   workoutLogs       WorkoutLog[]
+  coachCheckIns     CoachCheckIn[]
+  coachConfigs      CoachExerciseConfig[]
+  coachMeasurements CoachMeasurement[]
+  coachSuggestions  CoachSuggestion[]
 
   @@index([email])
   @@index([username])
@@ -209,6 +213,8 @@ model Exercise {
   sourceRecords PersonalRecord[]
   pendingReminders PendingReminder[]
   suggestionLogs   SuggestionLog[]
+  coachConfig      CoachExerciseConfig?
+  coachSuggestions CoachSuggestion[]
 
   @@index([routineDayId])
   @@index([name])
@@ -256,6 +262,7 @@ model SetLog {
   repsRight    Int?
   workoutLogId String
   workoutLog   WorkoutLog @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
+  coachResults CoachSuggestion[]
 
   @@index([workoutLogId])
 }
@@ -427,4 +434,63 @@ model TrainingProfile {
   experienceLevel String   // 'beginner'|'intermediate'|'advanced' — mismo vocabulario que Goal.experienceLevel
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// Coach is development-only. Additive models; no historical rows are rewritten.
+model CoachCheckIn {
+  id           String @id @default(cuid())
+  userId       String
+  user         User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date         String @db.VarChar(10)
+  sleepHours   Float?
+  sleepQuality Int?
+  energy       Int?
+  fatigue      Int?
+  stress       Int?
+  soreness     Json
+  updatedAt    DateTime @updatedAt
+  @@unique([userId, date])
+}
+
+model CoachExerciseConfig {
+  id               String @id @default(cuid())
+  userId           String
+  user             User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId       String @unique
+  exercise         Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  directMuscle     String?
+  secondaryMuscles String[]
+  indirectWeight   Float @default(0.5)
+  equipment        String?
+  increment        Float?
+  availableLoads   Float[]
+  updatedAt        DateTime @updatedAt
+  @@index([userId])
+}
+
+model CoachMeasurement {
+  id        String @id @default(cuid())
+  userId    String
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String @db.VarChar(10)
+  zone      String
+  cm        Float
+  quality   String @default("unknown")
+  @@unique([userId, date, zone])
+}
+
+model CoachSuggestion {
+  id             String @id @default(cuid())
+  userId         String
+  user           User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId     String
+  exercise       Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  payload        Json
+  referenceHash  String
+  outcome        String @default("presented")
+  resultSetId    String? @unique
+  resultSet      SetLog? @relation(fields: [resultSetId], references: [id], onDelete: SetNull)
+  resultHash     String?
+  @@index([userId, createdAt])
 }

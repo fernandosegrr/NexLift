@@ -6,35 +6,35 @@
     "operations": {
       "commit": {
         "n": 20,
-        "p50": 9.996699999999691,
-        "p95": 13.021399999997811,
+        "p50": 10.536299999999756,
+        "p95": 13.932000000000698,
         "errors": 0
       },
       "replay": {
         "n": 20,
-        "p50": 2.4688999999998487,
-        "p95": 3.728499999997439,
+        "p50": 3.4395000000004075,
+        "p95": 4.396100000001752,
         "errors": 0
       },
       "note": "Direct service+Prisma; browser offline scheduling not included"
     },
     "express": {
-      "startupMs": 145.3093000000008,
+      "startupMs": 132.2031000000061,
       "n": 40,
       "concurrency": 8,
-      "p50": 28.425300000002608,
-      "p95": 51.03299999999581,
+      "p50": 27.128199999999197,
+      "p95": 49.146099999998114,
       "errors": 0,
-      "rssBytes": 133701632
+      "rssBytes": 131809280
     },
     "fastify": {
-      "startupMs": 149.01729999999952,
+      "startupMs": 149.00139999999374,
       "n": 40,
       "concurrency": 8,
-      "p50": 27.237699999997858,
-      "p95": 39.42529999999533,
+      "p50": 21.855500000005122,
+      "p95": 36.42380000000412,
       "errors": 0,
-      "rssBytes": 145719296
+      "rssBytes": 145952768
     }
   },
   "simulations": {
@@ -84,11 +84,11 @@
       "constraints": 39
     }
   },
-  "backupMs": 299.09969999999885,
-  "restoreMs": 560.0193999999974,
+  "backupMs": 275.33880000000136,
+  "restoreMs": 537.6025000000009,
   "recovery": {
     "exactAllModelRows": true,
-    "manifestSha256": "6c594c8927c23162780d97165cddfb1a3b443066bf896cbc1d62bda05679068b",
+    "manifestSha256": "89ac0940285bd58b2581bd2310a03b54b81675c62a650707fcc55148424e1955",
     "counts": {
       "BodyLog": 2,
       "CardioSegment": 1,

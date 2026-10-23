@@ -1,7 +1,7 @@
 {
   "realEdge": true,
   "firstClaimReloaded": false,
-  "initialAssetsCached": 6,
+  "initialAssetsCached": 5,
   "browserRestart": true,
   "networkAndApiUnavailable": true,
   "actualCompiledApp": true,

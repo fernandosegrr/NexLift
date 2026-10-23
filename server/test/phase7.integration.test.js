@@ -9,6 +9,7 @@ import { fork, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { comparableIssuedToken } from './fixtures/token-comparison.js';
 import { createApp } from '../build/app/createApp.js';
 import { createExpressApp } from '../src/app/createExpressApp.js';
 import { createRuntime } from '../src/app/runtime.js';
@@ -36,7 +37,7 @@ function normalizer() {
             if (key === 'sha256') return '<independently-validated-checksum>';
             if (key === 'requestHash' && hashes.has(value)) return hashes.get(value);
             if (['passwordHash', 'securityAnswerHash'].includes(key) && value.startsWith('$2')) return '<bcrypt-salted>';
-            if (key === 'token') return normalize(jwt.verify(value, secret));
+            if (key === 'token') return normalize(comparableIssuedToken(value, secret));
             if (/^\d{4}-\d\d-\d\dT/.test(value) && Date.parse(value) > Date.now() - 3600000) return '<generated-time>';
             return value;
         }

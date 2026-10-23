@@ -4,6 +4,7 @@ export interface RuntimeConfig {
     jwtSecret: string; nodeEnv: string; corsOrigin?: string; staticRoot?: string;
     offlineSyncEnabled?: boolean; resolutionEnabled?: boolean; vapidPublicKey?: string; backupPruneEnabled?: boolean;
     trustedProxyCidrs?: string; cspEnforce?: boolean; webSessionEnabled?: boolean; webOrigin?: string;
+    coachEnabled?: boolean;
 }
 export interface RuntimeServices {
     prisma: PrismaClient; JWT_SECRET: string; HISTORY_SESSIONS_WINDOW: number;

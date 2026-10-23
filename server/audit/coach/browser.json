@@ -1,0 +1,16 @@
+{
+  "browser": "Microsoft Edge",
+  "actualReactApp": true,
+  "widths": [
+    320,
+    390
+  ],
+  "sections": 6,
+  "checkInCRUD": true,
+  "exactSuggestionIdentity": true,
+  "offlineNoFalseConfirmation": true,
+  "privateCacheAndConversationReset": true,
+  "keyboardAccessibleNativeControls": true,
+  "screenReaderAuditoryTest": false,
+  "productionTouched": false
+}

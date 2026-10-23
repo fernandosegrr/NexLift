@@ -23,7 +23,10 @@ await mkdir(verificationHome, { recursive: true });
 const root = await mkdtemp(path.join(verificationHome, 'nexlift-phase10-verification-'));
 const migration = '202610180001_phase31_operations', syncTests = ['operationSync.test.js', 'operationApi.test.js'];
 const historyMigration = '202610220001_phase6_history';
-const currentSchema = await readFile(path.join(source, 'server/prisma/schema.prisma'));
+const coachMigration = '202610230001_coach';
+const coachSchema = await readFile(path.join(source, 'server/prisma/schema.prisma'));
+// Test the immutable v4 schema first, then the additive Coach expansion with its real client.
+const currentSchema = await readFile(path.join(source, 'scripts/fixtures/coach/v4-schema.prisma'));
 const legacySchema = await readFile(path.join(source, 'scripts/fixtures/phase6/legacy-schema.prisma'));
 const env = { ...cleanStageEnvironment(), CI: 'true', DATABASE_URL: '', NODE_ENV: 'test', PRISMA_SKIP_POSTINSTALL_GENERATE: 'true',
     PRISMA_HIDE_UPDATE_MESSAGE: '1', CHECKPOINT_DISABLE: '1', npm_config_registry: 'https://registry.npmjs.org' };
@@ -33,7 +36,7 @@ const runtimeRelativeToTemp = path.relative(tmpdir(), process.execPath);
 assert(runtimeRelativeToTemp.startsWith('..') || path.isAbsolute(runtimeRelativeToTemp), 'Use a stable Node/npm runtime outside Temp');
 assert(existsSync(npm), 'The matching stable npm CLI must exist before the matrix');
 const results = [], artifacts = {};
-const filter = file => !['node_modules', 'dist', 'build', '.git', migration, historyMigration, ...syncTests].includes(path.basename(file)) &&
+const filter = file => !['node_modules', 'dist', 'build', '.git', migration, historyMigration, coachMigration, ...syncTests].includes(path.basename(file)) &&
     !path.basename(file).startsWith('.env') && !/\.private(?:\.|$)|\.(dump|bak|zip|gz|pem|key|pgpass)$|credentials|secrets/i.test(path.basename(file));
 async function run(name, args, cwd = '.', { repeat = false } = {}) {
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -86,7 +89,7 @@ const unique = () => results.filter(result => !result.repeat).reduce((sum, resul
 async function hashSources(dir, prefix = '') {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
         const file = path.join(dir, entry.name), relative = prefix + entry.name;
-        if (['node_modules', 'dist', 'build', '.git'].includes(entry.name) || entry.name.startsWith('.env') || relative.startsWith('server/audit/typescript') || relative.startsWith('server/audit/contracts') || relative.startsWith('server/audit/training-engine') || relative.startsWith('server/audit/database') || relative.startsWith('server/audit/backend') || relative.startsWith('server/audit/frontend') || relative.startsWith('server/audit/security') || relative.startsWith('server/audit/release') ||
+        if (['node_modules', 'dist', 'build', '.git'].includes(entry.name) || entry.name.startsWith('.env') || relative.startsWith('server/audit/coach') || relative.startsWith('server/audit/typescript') || relative.startsWith('server/audit/contracts') || relative.startsWith('server/audit/training-engine') || relative.startsWith('server/audit/database') || relative.startsWith('server/audit/backend') || relative.startsWith('server/audit/frontend') || relative.startsWith('server/audit/security') || relative.startsWith('server/audit/release') ||
             /\.private(?:\.|$)|\.(dump|bak|zip|gz|pem|key|pgpass)$|credentials|secrets/i.test(entry.name)) continue;
         if (entry.isDirectory()) await hashSources(file, relative + '/');
         else if (entry.isFile() && !/\.(private|dump|bak|zip|gz)$/.test(entry.name)) artifacts[relative] = createHash('sha256').update(await readFile(file)).digest('hex');
@@ -232,6 +235,23 @@ try {
     await run('phase7-production-deps-fastify-smoke', ['--no-experimental-strip-types', '--input-type=module', '-e',
         "import {createApp} from './server/build/app/createApp.js';import {createRuntime} from './server/build/app/runtime.js';const unavailable=async()=>{throw Error('blocked')};const runtime=createRuntime({prisma:{},config:{jwtSecret:'synthetic-pruned-runtime',nodeEnv:'test'},providers:{fetch:unavailable,backupStore:{uploadBackup:unavailable,pruneOldBackups:unavailable}}});const app=await createApp({runtime});if((await app.inject('/api/health')).statusCode!==200)throw Error('Fastify runtime failed');await app.close();await runtime.stopBackground();"]);
     assert.deepEqual(await readFile(path.join(root, 'package-lock.json')), lockedBytes, 'Production pruning changed the root lock');
+    // Reinstall from the same unchanged lock after the production dependency smoke.
+    await run('coach-clean-development-install', [npm, 'ci', '--no-audit', '--no-fund']);
+    await writeFile(path.join(root, 'server/prisma/schema.prisma'), coachSchema);
+    await cp(path.join(source, 'server/prisma/migrations', coachMigration), path.join(root, 'server/prisma/migrations', coachMigration), { recursive: true });
+    await run('coach-current-prisma-generate', [npm, 'run', 'db:generate']);
+    await run('coach-strict-reproducible-typescript-build', [npm, 'run', 'build:typed']);
+    await run('coach-strict-types-generated-lint', [npm, 'run', 'check:typescript']);
+    await run('coach-domain-assistant-scenarios', [npm, 'run', 'test:coach']);
+    await run('coach-postgres-transports-backups', [npm, 'run', 'test:coach:integration']);
+    await run('coach-edge-react-mobile-privacy', [npm, 'run', 'test:coach:browser']);
+    await run('coach-final-production-build', [npm, 'run', 'build']);
+    await run('coach-final-bundle', [npm, 'run', 'check:bundle']);
+    await run('coach-final-module-lint', [npm, 'run', 'lint:backend']);
+    await run('coach-final-workspace-regression', [npm, 'run', 'test:unit'], '.', { repeat: true });
+    const coachNewTests = results.filter(r => r.name.startsWith('coach-') && !r.repeat).reduce((n, r) => n + r.tests, 0);
+    assert.equal(unique(), 1464 + upstreamAdditionalTests + coachNewTests);
+    assert.deepEqual(await readFile(path.join(root, 'package-lock.json')), lockedBytes, 'Coach installation changed the root lock');
     for (const [file, hash] of Object.entries(artifacts)) assert.equal(createHash('sha256').update(await readFile(path.join(source, file))).digest('hex'), hash, `Source changed during verification: ${file}`);
     const destination = path.join(source, 'server/audit/release'); await mkdir(destination, { recursive: true });
     for (const [directory, file] of [['offline', 'integration-evidence.json'], ['offline', 'lint-evidence.json'],
@@ -242,11 +262,13 @@ try {
     for (const file of ['phase7-evidence.json', 'fastify-offline-evidence.json', 'api-inventory.json', 'API-MATRIX.md']) await cp(path.join(root, 'server/audit/backend', file), path.join(destination, file));
     for (const file of ['browser-evidence.json', 'pwa-first-install.json']) await cp(path.join(root, 'server/audit/frontend', file), path.join(destination, file));
     for (const file of ['integration-evidence.json', 'browser-performance.json', 'artifacts.json']) await cp(path.join(root, 'server/audit/release', file), path.join(destination, file));
+    const coachDestination = path.join(source, 'server/audit/coach'); await mkdir(coachDestination, { recursive: true });
+    for (const file of ['integration.json', 'browser.json', 'performance.json', 'mobile.png']) await cp(path.join(root, 'server/audit/coach', file), path.join(coachDestination, file));
     // New security evidence is produced only in the isolated copy.
     for (const file of ['integration-evidence.json', 'api-inventory.json', 'API-MATRIX.md', 'browser-cancellation-evidence.json']) await cp(path.join(root, 'server/audit/security', file), path.join(destination, 'phase9-' + file));
     await writeFile(path.join(destination, 'matrix-evidence.json'), JSON.stringify({ createdAt: new Date().toISOString(), node: process.versions.node,
         npm: JSON.parse(await readFile(path.join(path.dirname(npm), '../package.json'))).version, baseline: 'PROVISIONAL', productionTouched: false,
-        persistentDatabaseAccessed: false, dockerExecuted: false, isolatedDirectory: root, historicalTests: 1441 + upstreamAdditionalTests, upstreamAdditionalTests, newTests: 23, uniqueTests: unique(),
+        persistentDatabaseAccessed: false, dockerExecuted: false, isolatedDirectory: root, historicalTests: 1464 + upstreamAdditionalTests, upstreamAdditionalTests, newTests: coachNewTests, uniqueTests: unique(),
         repeatedTests: results.filter(r => r.repeat).reduce((n, r) => n + r.tests, 0), installStrategy: 'nested', results, artifacts }, null, 2) + '\n');
     console.log(`Approved: ${unique()} unique tests. Evidence: server/audit/release/matrix-evidence.json`);
 } finally {

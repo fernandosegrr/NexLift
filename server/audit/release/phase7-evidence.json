@@ -1,5 +1,5 @@
 {
-  "createdAt": "2026-10-23T04:41:55.911Z",
+  "createdAt": "2026-10-23T17:27:34.892Z",
   "productionTouched": false,
   "databaseStatesIndependent": true,
   "cases": [
@@ -37,41 +37,41 @@
   ],
   "benchmark": {
     "express": {
-      "startupMs": 15.082800000000134,
+      "startupMs": 15.22230000000036,
       "/api/health": {
         "samples": 100,
-        "medianMs": 1.3358999999982188,
-        "p95Ms": 2.3165999999982887,
-        "concurrent50Ms": 105.92309999999998
+        "medianMs": 1.2777999999962049,
+        "p95Ms": 2.2304999999978463,
+        "concurrent50Ms": 104.57140000000072
       },
       "/api/auth/me": {
         "samples": 100,
-        "medianMs": 3.9751000000032946,
-        "p95Ms": 5.629699999997683,
-        "concurrent50Ms": 93.43160000000353
+        "medianMs": 3.7542000000030384,
+        "p95Ms": 5.180899999999383,
+        "concurrent50Ms": 86.3701000000001
       }
     },
     "fastify": {
-      "startupMs": 235.7497999999996,
+      "startupMs": 221.82589999999982,
       "/api/health": {
         "samples": 100,
-        "medianMs": 1.2079999999987194,
-        "p95Ms": 1.9118000000016764,
-        "concurrent50Ms": 124.01509999999689
+        "medianMs": 1.1935000000012224,
+        "p95Ms": 1.8185000000012224,
+        "concurrent50Ms": 123.50729999999749
       },
       "/api/auth/me": {
         "samples": 100,
-        "medianMs": 3.8110000000015134,
-        "p95Ms": 4.9909999999945285,
-        "concurrent50Ms": 85.47609999999986
+        "medianMs": 3.5782000000035623,
+        "p95Ms": 4.510999999998603,
+        "concurrent50Ms": 81.023199999996
       }
     },
     "sharedProcessMemory": {
-      "rss": 161562624,
-      "heapTotal": 80211968,
-      "heapUsed": 39013672,
-      "external": 5230327,
-      "arrayBuffers": 552141
+      "rss": 167796736,
+      "heapTotal": 84754432,
+      "heapUsed": 52201152,
+      "external": 5324614,
+      "arrayBuffers": 646428
     },
     "memoryLimitation": "Both apps run in one process; framework memory is not isolated",
     "independentProcesses": [
@@ -79,29 +79,29 @@
         "framework": "express",
         "scenario": "independent process, full route graph, mock database, 200 health warmups",
         "node": "24.22.1",
-        "startupMs": 379.0318,
+        "startupMs": 358.7404,
         "memory": {
-          "rss": 108572672,
-          "heapTotal": 56696832,
-          "heapUsed": 19967968,
+          "rss": 109379584,
+          "heapTotal": 57221120,
+          "heapUsed": 20605832,
           "external": 4714304,
           "arrayBuffers": 398558
         },
-        "closeMs": 1.227200000000039
+        "closeMs": 1.0777000000000498
       },
       {
         "framework": "fastify",
         "scenario": "independent process, full route graph, mock database, 200 health warmups",
         "node": "24.22.1",
-        "startupMs": 679.4311,
+        "startupMs": 672.7559,
         "memory": {
-          "rss": 120819712,
-          "heapTotal": 63107072,
-          "heapUsed": 26271072,
-          "external": 4882853,
-          "arrayBuffers": 449613
+          "rss": 122036224,
+          "heapTotal": 63750144,
+          "heapUsed": 27411264,
+          "external": 5387293,
+          "arrayBuffers": 644488
         },
-        "closeMs": 1.899499999999989
+        "closeMs": 1.5208999999999833
       }
     ]
   }

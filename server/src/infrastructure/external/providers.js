@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import webpush from 'web-push';
+import { coachProvider } from '../../modules/coach/provider.js';
 
 // Only process entrypoints configure production-capable SDKs. Tests inject
 // fakes into createRuntime and never import/call this factory.
@@ -12,7 +13,7 @@ export async function createProviders(env) {
         publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY } : undefined;
     const { deduplicateExercises } = await import('../../services/exerciseAgent.js');
     const { chooseExercisesForDay } = env.OPENAI_API_KEY ? await import('../../services/aiRoutineAgent.js') : {};
-    return { cloudinary, cloudinaryConfigured, vapidConfigured, fetch,
+    return { cloudinary, cloudinaryConfigured, vapidConfigured, fetch, coachProvider: coachProvider(env),
         webpush: { sendNotification: (subscription, payload, options = {}) => webpush.sendNotification(subscription, payload, { ...options, vapidDetails }) },
         deduplicateExercises, chooseExercisesForDay };
 }

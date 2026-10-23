@@ -7,6 +7,7 @@ import { createTrainingService } from '../modules/training/service.js';
 import { createWorkoutService } from '../modules/workouts/service.js';
 import { operationalLog } from '../operations/telemetry.js';
 import { createWebSessions } from '../modules/auth/webSessions.js';
+import { createCoachService } from '../modules/coach/service.js';
 const backgroundOwners = new WeakMap();
 
 // No environment files, new Prisma clients, provider configuration, jobs, signal
@@ -27,6 +28,7 @@ export function createRuntime({ prisma, config, providers }) {
     const ai = createAiService({ ...common, chooseExercisesForDay: providers.chooseExercisesForDay });
     const training = createTrainingService(common);
     const webSessions = createWebSessions(config);
+    const coach = createCoachService({ prisma, provider: providers.coachProvider });
     let started = false, stopped = false, closing = false, startPromise;
     const owner = {};
     const intervals = [], active = new Set();
@@ -41,7 +43,7 @@ export function createRuntime({ prisma, config, providers }) {
         timer.unref?.(); intervals.push(timer);
     };
     return {
-        services: { ...common, webSessions, ...photos, ...notifications, ...backups, ...ai, ...training, ...createWorkoutService({ ...common, ...notifications }),
+        services: { ...common, coach, webSessions, ...photos, ...notifications, ...backups, ...ai, ...training, ...createWorkoutService({ ...common, ...notifications }),
             deduplicateExercises: providers.deduplicateExercises },
         prisma, config,
         isClosing: () => closing,
@@ -59,6 +61,7 @@ export function createRuntime({ prisma, config, providers }) {
                 every(notifications.checkCreatineReminders, 15 * 60 * 1000);
                 every(training.checkAdaptiveDeloadForAllUsers, 24 * 60 * 60 * 1000);
                 every(backups.maybeRunDailyBackup, 30 * 60 * 1000);
+                if (config.coachEnabled && config.nodeEnv !== 'production') every(coach.purgeExpired, 24 * 60 * 60 * 1000);
             })();
             return startPromise;
         },

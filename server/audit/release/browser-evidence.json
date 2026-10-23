@@ -9,7 +9,7 @@
     {
       "domain": "home",
       "owner": "A",
-      "time": 1801.6000000089407
+      "time": 1498.5
     },
     {
       "domain": "routines",
@@ -18,17 +18,17 @@
     {
       "domain": "home",
       "owner": "A",
-      "time": 2054.4000000059605
+      "time": 1795.800000011921
     },
     {
       "domain": "home",
       "owner": "B",
-      "time": 2074.1000000089407
+      "time": 1810.300000011921
     },
     {
       "domain": "home",
       "owner": "B",
-      "time": 2198.300000011921
+      "time": 1928.5
     }
   ],
   "privateCacheIsolated": true,
@@ -36,8 +36,8 @@
   "launches": [
     {
       "profile": "owned-profile",
-      "port": "60956",
-      "browserPath": "/devtools/browser/82702592-3fbf-4d98-a418-63c07a7a7301"
+      "port": "64705",
+      "browserPath": "/devtools/browser/973b36fb-ab43-411b-8e91-ebaf912ef54a"
     }
   ],
   "productionTouched": false,

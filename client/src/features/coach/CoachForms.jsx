@@ -1,0 +1,34 @@
+import { useState } from 'react';
+import { api } from '../../services/api';
+import { MUSCLES } from './labels';
+export function ConfirmDelete({ onDelete, disabled = false }) {
+    const [confirm, setConfirm] = useState(false);
+    return confirm ? <div className="coach-row"><button type="button" disabled={disabled} onClick={() => { void onDelete(); setConfirm(false); }}>Confirmar eliminación</button><button type="button" onClick={() => setConfirm(false)}>Cancelar</button></div> : <button type="button" disabled={disabled} onClick={() => setConfirm(true)}>Eliminar</button>;
+}
+export function CheckInForm({ initial, date, onSave, busy }) {
+    const [values, setValues] = useState(initial || {}), [soreness, setSoreness] = useState(initial?.soreness || {});
+    const fields = { sleepHours: 'Horas de sueño (0–24)', sleepQuality: 'Calidad del sueño', energy: 'Energía', fatigue: 'Fatiga', stress: 'Estrés' };
+    const submit = e => { e.preventDefault(); const body = Object.fromEntries(Object.keys(fields).map(k => [k, values[k] === '' || values[k] == null ? null : Number(values[k])])); void onSave({ ...body, soreness }); };
+    return <form onSubmit={submit} className="coach-form"><p>Registro del {date}. Todos los campos son opcionales.</p><div className="coach-grid">
+        {Object.entries(fields).map(([key, label]) => <label key={key}>{label}{key === 'sleepHours' ? <input type="number" inputMode="decimal" min="0" max="24" step="0.25" value={values[key] ?? ''} onChange={e => setValues({ ...values, [key]: e.target.value })} /> : <select value={values[key] ?? ''} onChange={e => setValues({ ...values, [key]: e.target.value })}><option value="">Sin dato</option>{[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} · {n === 1 ? key === 'sleepQuality' ? 'Muy mala' : 'Muy baja' : n === 5 ? key === 'sleepQuality' ? 'Muy buena' : 'Muy alta' : 'Intermedia'}</option>)}</select>}</label>)}
+    </div><details><summary>Molestias por zona (0 ninguna · 4 muy altas)</summary><div className="coach-grid">{Object.entries(MUSCLES).map(([key, label]) => <label key={key}>{label}<select value={soreness[key] ?? ''} onChange={e => setSoreness(prev => { const next = { ...prev }; if (e.target.value === '') delete next[key]; else next[key] = Number(e.target.value); return next; })}><option value="">Sin dato</option>{[0, 1, 2, 3, 4].map(n => <option key={n}>{n}</option>)}</select></label>)}</div></details><button className="coach-primary" disabled={busy}>Confirmar y guardar check-in</button></form>;
+}
+export function ConfigForm({ exerciseId, initial, onDone, run, busy }) {
+    const [direct, setDirect] = useState(initial?.directMuscle || ''), [secondary, setSecondary] = useState(initial?.secondaryMuscles || []);
+    const [equipment, setEquipment] = useState(initial?.equipment || ''), [increment, setIncrement] = useState(initial?.increment ?? ''), [loads, setLoads] = useState(initial?.availableLoads?.join(', ') || ''), [factor, setFactor] = useState(initial?.indirectWeight ?? 0.5);
+    return <form className="coach-form" onSubmit={e => { e.preventDefault(); void run(async () => { await api.coach(`/exercises/${exerciseId}/config`, { directMuscle: direct || null, secondaryMuscles: direct ? secondary.filter(s => s !== direct) : [], indirectWeight: Number(factor), equipment: equipment || null, increment: increment === '' ? null : Number(increment), availableLoads: loads.trim() ? loads.split(',').map(s => Number(s.trim())) : [] }, 'PUT'); onDone(); }); }}>
+        <p className="coach-muted">Clasificación voluntaria aplicada al análisis actual del historial. No cambia sesiones ni la receta de la rutina.</p>
+        <label>Músculo directo<select value={direct} onChange={e => { setDirect(e.target.value); setSecondary([]); }}><option value="">Usar grupo observado / sin clasificar</option>{Object.entries(MUSCLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+        <fieldset><legend>Participación secundaria estimada</legend><div className="coach-row">{Object.entries(MUSCLES).filter(([k]) => k !== direct).map(([k, v]) => <label className="coach-check" key={k}><input type="checkbox" disabled={!direct} checked={secondary.includes(k)} onChange={e => setSecondary(e.target.checked ? [...secondary, k] : secondary.filter(s => s !== k))} />{v}</label>)}</div></fieldset>
+        <label>Peso heurístico indirecto (0–1)<input type="number" min="0" max="1" step="0.1" value={factor} onChange={e => setFactor(e.target.value)} /></label>
+        <label>Equipo<select value={equipment} onChange={e => setEquipment(e.target.value)}><option value="">Sin confirmar</option>{Object.entries({ barbell: 'Barra', dumbbell: 'Mancuernas (kg por mancuerna)', machine: 'Máquina', cable: 'Polea', bodyweight: 'Peso corporal' }).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+        <div className="coach-grid"><label>Incremento disponible (kg)<input type="number" min="0.01" max="50" step="0.01" value={increment} onChange={e => setIncrement(e.target.value)} /></label><label>O cargas disponibles (kg, separadas por comas)<input inputMode="decimal" placeholder="10, 12.5, 15" value={loads} onChange={e => setLoads(e.target.value)} /></label></div>
+        <button className="coach-primary" disabled={busy}>Confirmar configuración</button>{initial && <ConfirmDelete disabled={busy} onDelete={() => run(async () => { await api.coach(`/exercises/${exerciseId}/config`, undefined, 'DELETE'); onDone(); })} />}
+    </form>;
+}
+export function MeasurementForm({ today, run, refresh, busy }) {
+    const [date, setDate] = useState(today), [zone, setZone] = useState('biceps'), [cm, setCm] = useState(''), [quality, setQuality] = useState('unknown');
+    return <form className="coach-form" onSubmit={e => { e.preventDefault(); void run(async () => { await api.coach('/measurements', { date, zone, cm: Number(cm), quality }, 'PUT'); setCm(''); refresh(); }); }}>
+        <p>Medida voluntaria con cinta, sin estimar masa muscular. Guardar la misma zona y fecha corrige el registro.</p><div className="coach-grid"><label>Fecha<input required type="date" max={today} value={date} onChange={e => setDate(e.target.value)} /></label><label>Zona<select value={zone} onChange={e => setZone(e.target.value)}>{Object.entries(MUSCLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label><label>Perímetro (cm)<input required inputMode="decimal" type="number" min="0.1" max="300" step="0.1" value={cm} onChange={e => setCm(e.target.value)} /></label><label>Condiciones de medición<select value={quality} onChange={e => setQuality(e.target.value)}><option value="unknown">No documentadas</option><option value="consistent">Mismo lugar, horario y técnica</option><option value="variable">Condiciones distintas</option></select></label></div><button disabled={busy}>Confirmar medida</button>
+    </form>;
+}
