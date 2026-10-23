@@ -1,0 +1,49 @@
+{
+  "productionTouched": false,
+  "providersCalled": false,
+  "transports": {
+    "express": {
+      "jwt": true,
+      "isolation": true,
+      "rateLimit": true,
+      "structuredFallback": true
+    },
+    "fastify": {
+      "jwt": true,
+      "isolation": true,
+      "rateLimit": true,
+      "structuredFallback": true
+    }
+  },
+  "performance": {
+    "reportMilliseconds": [
+      8.75669999999991,
+      7.303600000001097,
+      9.883499999999913,
+      8.174800000000687,
+      7.546299999999974
+    ],
+    "sqlQueriesForFiveReports": 55,
+    "note": "Local disposable PostgreSQL, synthetic history, not production latency"
+  },
+  "migrations": {
+    "oldRowsPreserved": true,
+    "applied": 4,
+    "PostgreSQL": "PostgreSQL 18.4 on x86_64-windows, compiled by msvc-19.44.35227, 64-bit"
+  },
+  "portable": {
+    "version": 6,
+    "restored": true,
+    "originalCredentialsExcluded": true
+  },
+  "fullBackup": {
+    "restored": true,
+    "archiveHash": "30739729a3eacd8508004b86b61c16abd276f2ce7dc6e6e748810a5f6d43f2a4",
+    "coachEntities": [
+      "CoachCheckIn",
+      "CoachExerciseConfig",
+      "CoachMeasurement",
+      "CoachSuggestion"
+    ]
+  }
+}

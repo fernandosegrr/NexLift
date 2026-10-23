@@ -1,18 +1,3 @@
-// The first claim already controls the freshly loaded UI. Reloading it can
-// destroy an in-flight bootstrap/lease. Only subsequent worker changes need
-// the existing one-time reload for a new frontend version.
-export function createControllerReloadGuard(initiallyControlled: boolean): (hasController: boolean) => boolean {
-    let controlled = initiallyControlled;
-    let refreshing = false;
-    return (hasController: boolean): boolean => {
-        if (!hasController) return false;
-        if (!controlled) { controlled = true; return false; }
-        if (refreshing) return false;
-        refreshing = true;
-        return true;
-    };
-}
-
 export function loadedPublicAssets(names: readonly string[], origin: string): string[] {
     const urls = new Set<string>();
     for (const name of names) {

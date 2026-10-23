@@ -1,0 +1,49 @@
+{
+  "at": "2026-10-23T18:13:40.771Z",
+  "baseline": "5c8615e",
+  "newFindings": 0,
+  "files": [
+    {
+      "file": "src/main.jsx",
+      "baselineFindings": 0,
+      "currentFindings": 0,
+      "added": []
+    },
+    {
+      "file": "src/pages/Workout.jsx",
+      "baselineFindings": 1,
+      "currentFindings": 1,
+      "added": []
+    },
+    {
+      "file": "src/services/api.js",
+      "baselineFindings": 2,
+      "currentFindings": 2,
+      "added": []
+    },
+    {
+      "file": "src/services/availabilityResume.js",
+      "baselineFindings": 0,
+      "currentFindings": 0,
+      "added": []
+    },
+    {
+      "file": "src/services/availabilityResume.test.js",
+      "baselineFindings": 0,
+      "currentFindings": 0,
+      "added": []
+    },
+    {
+      "file": "src/services/serviceWorker.test.js",
+      "baselineFindings": 0,
+      "currentFindings": 0,
+      "added": []
+    },
+    {
+      "file": "public/sw.js",
+      "baselineFindings": 0,
+      "currentFindings": 0,
+      "added": []
+    }
+  ]
+}

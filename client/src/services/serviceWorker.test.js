@@ -39,11 +39,11 @@ describe('service worker: API sin caché compartida', () => {
         await expect(w.get('https://other.invalid/workouts/today-log', { Authorization: 'Bearer test' })).rejects.toThrow('offline');
         expect(w.caches.match).not.toHaveBeenCalled();
     });
-    it('activar solo retira shells viejos, preserva cachés existentes de datos', async () => {
+    it('activar preserva assets del documento abierto y todos los datos privados', async () => {
         const w = worker();
         let done;
         w.activate({ waitUntil: promise => { done = promise; } });
         await done;
-        expect(w.caches.delete.mock.calls).toEqual([['nexlift-static-old']]);
+        expect(w.caches.delete).not.toHaveBeenCalled();
     });
 });

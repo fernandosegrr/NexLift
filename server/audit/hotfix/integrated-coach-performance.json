@@ -1,0 +1,13 @@
+{
+  "exercises": 500,
+  "sessions": 5000,
+  "sets": 15000,
+  "samples": [
+    344.3609000000001,
+    339.6907,
+    328.79139999999995,
+    322.3941,
+    336.8420000000001
+  ],
+  "mode": "synthetic in-process Node, no universal physiological or production latency claim"
+}

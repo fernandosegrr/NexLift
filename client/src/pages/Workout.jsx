@@ -389,6 +389,8 @@ function WorkoutPage() {
     const [todayLogId, setTodayLogId] = useState(null);
     const [todaySessionVersion, setTodaySessionVersion] = useState(null);
     const currentExerciseIdRef = useRef(null);
+    const retryUnavailableDay = useRef(false);
+    const dayRequestActive = useRef(false);
     // Resultados de ESTA sesión (para el resumen): { [exId]: { name, sets, volume, skipped } }
     const sessionResultsRef = useRef({});
     // Historial por ejercicio precargado en fetchDay (evita N+1 + refetch de
@@ -483,7 +485,20 @@ function WorkoutPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dayId]);
 
+    // Retry only a day that never loaded due to an outage. A loaded workout
+    // owns its form state: resume must not rehydrate or overwrite its sets.
+    useEffect(() => {
+        const resume = () => {
+            if (retryUnavailableDay.current && workoutState.exercises.length === 0) void fetchDay();
+        };
+        window.addEventListener('nexlift-availability-resume', resume);
+        return () => window.removeEventListener('nexlift-availability-resume', resume);
+    });
+
     async function fetchDay() {
+        if (dayRequestActive.current) return;
+        dayRequestActive.current = true;
+        retryUnavailableDay.current = false;
         setHistoriesLoaded(false);
         async function display(context, offline = false) {
             const { exercises, historyByExerciseId: map } = context;
@@ -540,11 +555,13 @@ function WorkoutPage() {
                 && dayContext.dayId === dayId && dayContext.originalDay === originalDay && Array.isArray(dayContext.exercises)) {
                 await display(dayContext, true);
             } else {
+                retryUnavailableDay.current = error.isNetworkError || [502, 503, 504].includes(error.status);
                 console.error('Error:', error);
                 toast.error(error?.message || 'Error al cargar rutina');
                 setWorkoutState(prev => ({ ...prev, exercises: [] }));
             }
         } finally {
+            dayRequestActive.current = false;
             setWorkoutState(prev => ({ ...prev, loading: false }));
         }
     }

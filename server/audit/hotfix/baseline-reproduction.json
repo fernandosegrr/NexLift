@@ -1,0 +1,21 @@
+{
+  "baseline": "5c8615e",
+  "workerSha256": "95e85a0a32d14c4af285822823f10196aec49dafbf7797b06a9ae8f71c433288",
+  "environment": "Node VM; synthetic responses, no production access",
+  "results": [
+    {
+      "at": "2026-10-23T18:02:06.967Z",
+      "upstreamStatus": 502,
+      "deliveredStatus": 502,
+      "cachedShellAvailable": true,
+      "proxyPageDelivered": true
+    },
+    {
+      "at": "2026-10-23T18:02:06.970Z",
+      "upstreamStatus": 503,
+      "deliveredStatus": 503,
+      "cachedShellAvailable": true,
+      "proxyPageDelivered": true
+    }
+  ]
+}
