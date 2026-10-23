@@ -10,6 +10,8 @@ function makeFakeLocalStorage() {
         getItem: (k) => (k in store ? store[k] : null),
         setItem: (k, v) => { store[k] = String(v); },
         removeItem: (k) => { delete store[k]; },
+        key: (i) => Object.keys(store)[i] ?? null,
+        get length() { return Object.keys(store).length; },
         clear: () => { store = {}; }
     };
 }
@@ -47,7 +49,7 @@ describe('offlineQueue', () => {
         expect(queue[0].id).toBe(b.id);
     });
 
-    it('getQueue poda items de más de 48h', async () => {
+    it('getQueue conserva items de más de 48h (retención fase 1.2)', async () => {
         const { getQueue } = await import('./offlineQueue.js');
         const old = Date.now() - 49 * 60 * 60 * 1000;
         localStorage.setItem('nexlift_offline_queue', JSON.stringify([
@@ -55,8 +57,8 @@ describe('offlineQueue', () => {
             { id: 'fresh', op: 'logWorkout', payload: { exerciseId: 'ex2' }, timestamp: Date.now() }
         ]));
         const queue = getQueue();
-        expect(queue.length).toBe(1);
-        expect(queue[0].id).toBe('fresh');
+        expect(queue.length).toBe(2);
+        expect(queue.map(item => item.id)).toEqual(['stale', 'fresh']);
     });
 
     it('REGRESIÓN: un listener que llama hasPendingWrite no causa recursión infinita', async () => {

@@ -1,0 +1,66 @@
+{
+  "createdAt": "2026-10-19T01:23:33.585Z",
+  "source": "SYNTHETIC_ONLY_NOT_PRODUCTION",
+  "productionTouched": false,
+  "fullMatrix": "phase32-evidence.json",
+  "fullMatrixSha256": "51ed3666a2008299df211568933557c8d31fcefbdde2dbf79d0e61d331e72541",
+  "uniqueTests": 870,
+  "unchangedApplicationCodeSinceFullMatrix": true,
+  "finalTestFixtureChanges": "Explicit Monday 2026-10-19 to Tuesday CDMX boundary; same test cases, dynamic receipt-day fixture",
+  "changedTests": [
+    "client/src/services/operationSync.test.js",
+    "server/test/sync.integration.test.js"
+  ],
+  "focusedRetests": [
+    {
+      "command": "vitest run src/services/operationSync.test.js src/services/operationApi.test.js",
+      "tests": 51,
+      "exit": 0
+    },
+    {
+      "command": "node test/run-sync-integration.mjs",
+      "tests": 19,
+      "exit": 0
+    },
+    {
+      "command": "node test/check-sync.mjs",
+      "exit": 0
+    }
+  ],
+  "repeatedFocusedTestsNotAddedToUniqueTotal": 70,
+  "artifacts": {
+    "Dockerfile": "814193623c2a013d93299c6efa547ac0a634b124c7f335385afdb53c75d9398d",
+    "server/prisma/schema.prisma": "b5e18768602b0dc7abaa714276a970d6a1164fb41be62b862ef116fc7f777d6f",
+    "server/prisma/migrations/0_init/migration.sql": "47c9542787e5cb64c36b2b8c079e05995ac5f98fe9c7b86b9b8c87747688ea2b",
+    "server/prisma/migrations/202610180001_phase31_operations/migration.sql": "61b62984e5597c6d1e229e3d58e99a9e03df02bc92a6847527b1c9da3254631c",
+    "server/src/routes/operations.js": "6f132d845d1a9969e4b4b65a71703f6831a09773eee10166d0eaa7b23dd2a615",
+    "server/src/services/workoutOperations.js": "2b8be6d7375e9534cbafdebd7883fd6fa41fd43260d8ff316e01d8d70667b6b8",
+    "server/src/services/operationContract.js": "d6b4210dd22748c9eabb37e5eba49dc8c77f9c5160c2ca24f60053e7d078c181",
+    "server/src/services/workoutTransaction.js": "7f91f365a3cbaacd0024449ce3057dcdb175d85b1855732132e18e9873b96135",
+    "server/src/services/personalRecords.js": "99dad207be1e03417023ebcf2097d809311951d938287c074d96ee7876d0a3ab",
+    "server/src/services/postgresSystemBackup.js": "64fd31c4e46956e84ec9692d3e29ee3d547cb6a593448191a01f3d1d0ca322b9",
+    "client/src/services/offlineQueue.js": "ad8bdc2bb5c7c38a43415c2aa2ca814d2f7ac03adf10f24acdb1c41fb7b14ce7",
+    "client/src/services/offlineSync.js": "f29a80ef3721ff5b561cfd9e33013021c890369e7f6866f2f677613d1fe504f5",
+    "client/public/sw.js": "a473cc189ac9e0913647f491e2b6e745799f8260688c8f5e76557713005dc20a",
+    "client/src/services/api.js": "bd9f0720dfddaf7f51c93129581c36c68acada14fc115c383780b8f791fa0c94",
+    "client/src/services/operationProtocol.js": "64cc93e27ea6766736f2e178263184c1cf3af08c7626f2933597ab81777dbb30",
+    "client/src/services/operationStore.js": "cfc5fb0b28ca4d30984638c190f7ec87a0f631eeabd2eb04857023ff9750def0",
+    "client/src/services/operationTransport.js": "b331281662c825879cf242c3026e05c97958d214d3a22190c701c5270a0005bf",
+    "client/src/services/operationSync.js": "4b582eeafffcf000ff581adfaed7aad652d90bbd3ba6296ac1ad812f9b793fcb",
+    "client/src/services/operationRuntime.js": "11f804e1d1fd76336dd3d9fc3336098a98c2c06f3111e25acef63feb8c15ebce",
+    "client/src/components/layout/OperationStatus.jsx": "da6626c5d9ace040330bcc220baa7da02848c31c1b72f0870bd1f3cadee024f1",
+    "client/src/components/layout/SyncStatus.jsx": "6469307515d38648c1a40f2a59b9a125fdd3f3b4705cb05b576f5260ec799b50",
+    "client/src/pages/Workout.jsx": "74a838a8d0a03d55be9bfe25474cef47c92edc7d0797ed5c9dea576151af1c4d",
+    "client/src/pages/EditSession.jsx": "e3a20830b3d93856dadda383dfdab80321b34910304c26e55b9d362a3bafb113",
+    "client/src/pages/Settings.jsx": "456ffc1165446b149dfff8c3f137b49da34dc25cbdc388967e70957f559232e0",
+    "client/src/context/AuthContext.jsx": "c2d6e8ec6722c1e35bd0e24d4564efa7ff7f374147bbb1cd98195a122c464a09",
+    "client/src/services/operationSync.test.js": "814931a0489ee3c6264eab2969a5098a1b564df792c87afdb154a808cbd68df4",
+    "client/src/services/operationApi.test.js": "a66ea856522fa5cc6a79c23d8a140065abf99aa1baf3f3f7ddcbff63894283a5",
+    "server/test/sync.integration.test.js": "41a54a4812965bdefb282463f0379d2bfcbd419933b490dd0e03d510dd877059",
+    "server/test/run-sync-integration.mjs": "8b9e192b65a3da188cebc7c0bc6294e0ef21b9859bfcae1abc881d541d7201da",
+    "server/test/fixtures/sync-http.mjs": "1936a79b2c1594b6fd38f722d4fc094f9a7ec9c83c73ebaba2ac96e133886803",
+    "server/test/fixtures/sync-browser.mjs": "fb87a4bbdd6c11f50bb27576e335dc0a22fae6f1df21034ba6d8ddebcb507719",
+    "server/test/check-sync.mjs": "9d4b4c2ff19f7710a64ebe6b04d5a209092b978799de9b1db0bdfd1e401bdc10",
+    "server/test/verify-sync.mjs": "ba540a5d9345bd4f0a9580731de9aaeaaaf74a02abccfc4db2ca77449be19a5d"
+  }
+}

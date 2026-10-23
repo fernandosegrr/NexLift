@@ -1,0 +1,292 @@
+{
+  "createdAt": "2026-10-19T03:07:42.166Z",
+  "node": "24.22.0",
+  "postgres": "18",
+  "baseline": "PROVISIONAL",
+  "productionTouched": false,
+  "source": "SYNTHETIC_ONLY_NOT_PRODUCTION",
+  "historicalFixture": "730 unchanged tests on 0_init; then original 70 tests on actual provisional SQL migration; current application sources throughout",
+  "results": [
+    {
+      "name": "server-ci",
+      "exit": 0,
+      "milliseconds": 22562,
+      "tests": 0
+    },
+    {
+      "name": "client-ci",
+      "exit": 0,
+      "milliseconds": 44173,
+      "tests": 0
+    },
+    {
+      "name": "prisma-generate",
+      "exit": 0,
+      "milliseconds": 6204,
+      "tests": 0
+    },
+    {
+      "name": "server-test",
+      "exit": 0,
+      "milliseconds": 575,
+      "tests": 104
+    },
+    {
+      "name": "server-test-integration",
+      "exit": 0,
+      "milliseconds": 8635,
+      "tests": 48
+    },
+    {
+      "name": "server-test-backup",
+      "exit": 0,
+      "milliseconds": 942,
+      "tests": 17
+    },
+    {
+      "name": "server-test-backup-integration",
+      "exit": 0,
+      "milliseconds": 29586,
+      "tests": 41
+    },
+    {
+      "name": "server-test-import",
+      "exit": 0,
+      "milliseconds": 799,
+      "tests": 22
+    },
+    {
+      "name": "server-test-import-integration",
+      "exit": 0,
+      "milliseconds": 9170,
+      "tests": 39
+    },
+    {
+      "name": "server-test-workout-integration",
+      "exit": 0,
+      "milliseconds": 17634,
+      "tests": 84
+    },
+    {
+      "name": "server-test-workout-baseline",
+      "exit": 0,
+      "milliseconds": 7581,
+      "tests": 13
+    },
+    {
+      "name": "server-test-schema-audit",
+      "exit": 0,
+      "milliseconds": 25240,
+      "tests": 54
+    },
+    {
+      "name": "server-test-baseline",
+      "exit": 0,
+      "milliseconds": 61791,
+      "tests": 46
+    },
+    {
+      "name": "server-test-infra",
+      "exit": 0,
+      "milliseconds": 3718,
+      "tests": 37
+    },
+    {
+      "name": "server-test-infra-integration",
+      "exit": 0,
+      "milliseconds": 21121,
+      "tests": 14
+    },
+    {
+      "name": "client-historical-tests",
+      "exit": 0,
+      "milliseconds": 2503,
+      "tests": 176
+    },
+    {
+      "name": "client-production-default-build",
+      "exit": 0,
+      "milliseconds": 9660,
+      "tests": 0
+    },
+    {
+      "name": "staging-unit",
+      "exit": 0,
+      "milliseconds": 492,
+      "tests": 12
+    },
+    {
+      "name": "staging-integration",
+      "exit": 0,
+      "milliseconds": 108699,
+      "tests": 23
+    },
+    {
+      "name": "infra-static",
+      "exit": 0,
+      "milliseconds": 2032,
+      "tests": 0
+    },
+    {
+      "name": "staging-static",
+      "exit": 0,
+      "milliseconds": 2036,
+      "tests": 0
+    },
+    {
+      "name": "operations-unit",
+      "exit": 0,
+      "milliseconds": 262,
+      "tests": 30
+    },
+    {
+      "name": "operations-integration",
+      "exit": 0,
+      "milliseconds": 22394,
+      "tests": 40
+    },
+    {
+      "name": "operations-static",
+      "exit": 0,
+      "milliseconds": 1889,
+      "tests": 0
+    },
+    {
+      "name": "sync-client",
+      "exit": 0,
+      "milliseconds": 1673,
+      "tests": 51
+    },
+    {
+      "name": "sync-postgres-browser",
+      "exit": 0,
+      "milliseconds": 26289,
+      "tests": 19
+    },
+    {
+      "name": "sync-static",
+      "exit": 0,
+      "milliseconds": 8949,
+      "tests": 0
+    },
+    {
+      "name": "storage-postgres-browser",
+      "exit": 0,
+      "milliseconds": 25515,
+      "tests": 47
+    },
+    {
+      "name": "storage-static",
+      "exit": 0,
+      "milliseconds": 2569,
+      "tests": 0
+    },
+    {
+      "name": "conflicts-postgres-browser",
+      "exit": 0,
+      "milliseconds": 26532,
+      "tests": 56
+    },
+    {
+      "name": "conflicts-static",
+      "exit": 0,
+      "milliseconds": 7080,
+      "tests": 0
+    },
+    {
+      "name": "client-authorized-rehearsal-build",
+      "exit": 0,
+      "milliseconds": 8698,
+      "tests": 0
+    },
+    {
+      "name": "production-prune",
+      "exit": 0,
+      "milliseconds": 1040,
+      "tests": 0
+    },
+    {
+      "name": "production-deps-smoke",
+      "exit": 0,
+      "milliseconds": 8176,
+      "tests": 48
+    }
+  ],
+  "historicalTests": 917,
+  "uniqueTests": 973,
+  "repeatedSmokeTests": 48,
+  "globalClientLint": {
+    "errors": 27,
+    "warnings": 3,
+    "newErrors": 0,
+    "newWarnings": 0
+  },
+  "artifacts": {
+    "Dockerfile": "814193623c2a013d93299c6efa547ac0a634b124c7f335385afdb53c75d9398d",
+    "server/prisma/schema.prisma": "b5e18768602b0dc7abaa714276a970d6a1164fb41be62b862ef116fc7f777d6f",
+    "server/prisma/migrations/0_init/migration.sql": "47c9542787e5cb64c36b2b8c079e05995ac5f98fe9c7b86b9b8c87747688ea2b",
+    "server/prisma/migrations/202610180001_phase31_operations/migration.sql": "61b62984e5597c6d1e229e3d58e99a9e03df02bc92a6847527b1c9da3254631c",
+    "server/src/routes/operations.js": "cfb462be165166dc982a8564d3bac074663e494a1d016edad27a6a5ae82af046",
+    "server/src/services/workoutOperations.js": "11deb17a8a5a2329e5206342583fab7514bcf3445f1745945cc9047e0c2ae3a0",
+    "server/src/services/operationContract.js": "f87f9e4f4789479326e4f6830e95299d696329722e027de9ffe4518320e9552f",
+    "server/src/services/workoutTransaction.js": "7f91f365a3cbaacd0024449ce3057dcdb175d85b1855732132e18e9873b96135",
+    "server/src/services/personalRecords.js": "99dad207be1e03417023ebcf2097d809311951d938287c074d96ee7876d0a3ab",
+    "server/src/services/postgresSystemBackup.js": "64fd31c4e46956e84ec9692d3e29ee3d547cb6a593448191a01f3d1d0ca322b9",
+    "client/src/services/offlineQueue.js": "ad8bdc2bb5c7c38a43415c2aa2ca814d2f7ac03adf10f24acdb1c41fb7b14ce7",
+    "client/src/services/offlineSync.js": "f29a80ef3721ff5b561cfd9e33013021c890369e7f6866f2f677613d1fe504f5",
+    "client/public/sw.js": "a473cc189ac9e0913647f491e2b6e745799f8260688c8f5e76557713005dc20a",
+    "client/src/services/api.js": "3fc85bafb8b09648098b521c54a3d055a587059ec313cff66729f21cba74a5cd",
+    "client/src/services/operationProtocol.js": "5f0b23efae7b3fc66ab213349b23b536fd8c8eaf7b465f36f1ecab5b2ee50f1c",
+    "client/src/services/operationStore.js": "cfc5fb0b28ca4d30984638c190f7ec87a0f631eeabd2eb04857023ff9750def0",
+    "client/src/services/operationTransport.js": "b331281662c825879cf242c3026e05c97958d214d3a22190c701c5270a0005bf",
+    "client/src/services/operationSync.js": "c148db58bb1004ac37b93361c7d526b9ee1a7fccc5d612c56c94dea35e054dd6",
+    "client/src/services/operationRuntime.js": "42f1821110b33d7529ab5eb04b9fc5398c1e08b096bc6584999679c87389533e",
+    "client/src/components/layout/OperationStatus.jsx": "1f1358482a912f0b5ec0fac88ae69b0f4f371b2aa23ddc867ac7286ed98683a5",
+    "client/src/components/layout/SyncStatus.jsx": "8dfee32de72d2368a9d9ad340fd663593aa24e8df77aa3711310030366ab158f",
+    "client/src/pages/Workout.jsx": "f4cdd41d42771b9c5a9a607f61ce33429944d49ad1f0f169912dba0956aeacbb",
+    "client/src/pages/EditSession.jsx": "0a83fe94ce0727d68ce735466d98d4cda4153877d5b9c675b94e2d391e8c8322",
+    "client/src/pages/Settings.jsx": "53676f5fc3bea50aab5ec4fb4c86fb439a40469781b247c3c6578170655d32a0",
+    "client/src/context/AuthContext.jsx": "c2d6e8ec6722c1e35bd0e24d4564efa7ff7f374147bbb1cd98195a122c464a09",
+    "client/src/services/operationSync.test.js": "814931a0489ee3c6264eab2969a5098a1b564df792c87afdb154a808cbd68df4",
+    "client/src/services/operationApi.test.js": "a66ea856522fa5cc6a79c23d8a140065abf99aa1baf3f3f7ddcbff63894283a5",
+    "server/test/sync.integration.test.js": "41a54a4812965bdefb282463f0379d2bfcbd419933b490dd0e03d510dd877059",
+    "server/test/run-sync-integration.mjs": "8b9e192b65a3da188cebc7c0bc6294e0ef21b9859bfcae1abc881d541d7201da",
+    "server/test/fixtures/sync-http.mjs": "1936a79b2c1594b6fd38f722d4fc094f9a7ec9c83c73ebaba2ac96e133886803",
+    "server/test/fixtures/sync-browser.mjs": "621221155ea551b063753657e5629ef9623443539f413ada76ea6fd43d017b10",
+    "server/test/check-sync.mjs": "9d4b4c2ff19f7710a64ebe6b04d5a209092b978799de9b1db0bdfd1e401bdc10",
+    "server/test/verify-sync.mjs": "ba540a5d9345bd4f0a9580731de9aaeaaaf74a02abccfc4db2ca77449be19a5d",
+    "client/package.json": "055b2661b76558f8b4309a964cab9804cf7e9575de288f907c589008962146e0",
+    "client/package-lock.json": "b770c11942083c40df97b1cf20eb377cfa7ba473b8df71f0abf0fe17af91a401",
+    "client/.env.example": "e6d804c4e1be8227b2eae4810439519377c08d76e60499d72a99649162d7edce",
+    "client/test/storage-cases.js": "3e508a97973d7235e4f67a246471ce51e53c1f075ebf9ebc154a8e231ae39672",
+    "client/test/storage-harness.html": "129dc5ecc7a575471a79a4146a365cd151fa4fca9fed1e1232956e7a85a8ec5b",
+    "client/src/components/layout/DraftBoundary.jsx": "f1483c173aab4b8b5b0328266c86ce737362f0c90f7cefb4ffa55eb115f06b7f",
+    "client/src/components/layout/OfflineStorageStatus.jsx": "35f5685814e498b6b2f6ec87662fda851dc7f7300167f3b01891d5bdcbdefddc",
+    "server/test/run-storage-integration.mjs": "b11540943379c6f1d7498cc05247a2f71e2cb7df295dddb355996179726766a4",
+    "server/test/storage.integration.test.js": "dffc1a8c092cd8ca908659fa5670943fbda47875b10ced4c25301328e17cd83d",
+    "server/test/fixtures/storage-browser.mjs": "0b806df4cff503c31faacb22e9a289056bfbea44e429bb08db8df76e568a74ef",
+    "server/test/check-storage.mjs": "b59748e94761b148dfcaf51944ad3746a49afed3133103c009c415a4b61f38b7",
+    "server/test/verify-storage.mjs": "c6e139c1552c21d40c88930ad66e6d27141693fcbb8e467acced3775b7a67e14",
+    "server/test/run-conflict-integration.mjs": "e16cc003f3becf0fb5a163c77244b7fc1f45b055342977d293cc4e32620ed78d",
+    "server/test/conflict.integration.test.js": "8c0e2d3ebdfcdcaf8a64ea8d4bd23d77320b6835710fd6c5b3a13c324bd2a228",
+    "server/test/fixtures/conflict-http.mjs": "bc5f8c20b14483967278bd725e7d8dc4b6b49d7d8498fa70b138dffa46827351",
+    "server/test/fixtures/conflict-browser.mjs": "826c7a5e6cc4de7cdce102924aa1a9023f27673d583405d3a460dc9f09f4dbbf",
+    "server/test/check-conflicts.mjs": "809dcecee848847802d79f940c8b333da94ae8e980c426654b9c47f948ed1d58",
+    "server/test/verify-conflicts.mjs": "61c7a86a4a4fe983a380c3cb2ab78d95aca329860386f163a45466e4d5962a99",
+    "server/src/services/sessionPatch.js": "5b0e7da8cb90c6ca638d47ad2063a8448c18fe3a49651829e7cb974f77758af8",
+    "client/src/services/sessionChanges.js": "28b92cd6b207f044fb2d68c97caa3b2dc43dd1c46cd55b63ff850a2f013a4ded",
+    "client/src/services/conflictResolution.js": "1a72de677ad141b2246f0f639de932870112088c8e2c4ccda186cbb1f5be8d1a",
+    "client/src/components/layout/ConflictStatus.jsx": "30b6d1c87149088c5dd5d50436021c4c04962125566efb8ac7c780ec52e56e33",
+    "client/test/conflict-cases.js": "81641655e3a4685b867f939cc7fe02c605e7dd5363440c11fe9bd11c791341b3",
+    "client/test/conflict-harness.html": "81d7d538fab09ef22d312da6d0fda8c1ba39d9e2d3274aa66724d875bf60f89b",
+    "client/src/storage/conflictRepository.js": "58f4c0b029427ba1cf11bcd36fa8024bb04d156a90d0819fd70a48e867877925",
+    "client/src/storage/coordination.js": "1b38f957875077987023e05929b81b783a31dded1dc6c7ed7ecc6cc88f9ce4cd",
+    "client/src/storage/database.js": "180c3c688204964ad32344da4ac8637780ff03621d85801031a269b2e109e462",
+    "client/src/storage/draftRepository.js": "3c7cc7071d130b90bfb7b73d7da145d4c0297a036b62f916d6720ede60914f6b",
+    "client/src/storage/migrationService.js": "c91ecbeb1eaf7fe26f9466263da445928c336b92f5cbd122dcfe58f96ef69cff",
+    "client/src/storage/operationRepository.js": "f45955f93d445430c71fbe3c07ab49fdf798f61fc3322cd11c248ba166960bcf",
+    "client/src/storage/runtime.js": "1928e0e37e5ad33d5d6c03659f965f7e357ef6d6d5d9ba75a8dfc7256700a16f",
+    "client/src/storage/storageHealth.js": "f709cc5c528ab31da5bc14b992e05344196db9993ae0dd65dd935fa793367e7c",
+    "client/src/storage/usePreparedDraft.js": "1eec8830f4a4c1d757c27292dc2298b7b94d9c84c2d50383a1c1371101e11898"
+  }
+}

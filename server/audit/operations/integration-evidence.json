@@ -1,0 +1,13 @@
+{
+  "source": "SYNTHETIC_ONLY_NOT_PRODUCTION",
+  "counts": {
+    "logs": 21,
+    "sets": 21,
+    "receipts": 22
+  },
+  "realPostgres": true,
+  "realNodeRestart": true,
+  "realDatabaseOutage": true,
+  "productionTouched": false,
+  "migrationClassification": "PROVISIONAL"
+}

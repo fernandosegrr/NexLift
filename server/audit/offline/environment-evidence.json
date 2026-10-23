@@ -1,0 +1,43 @@
+{
+  "createdAt": "2026-10-19T19:27:01.450401+00:00",
+  "platform": "Windows native",
+  "edge": "155.0.4283.62",
+  "postgres": "18.4 native",
+  "node": "24.22.0 pinned, global installation unchanged",
+  "firefoxAvailable": false,
+  "automatedWebKitAvailable": false,
+  "physicalSafariIOSAvailable": false,
+  "dockerAvailable": false,
+  "persistentStagingStateLastWriteUtc": "2026-10-18T21:46:32.5512450Z",
+  "stagingDatabaseAccessed": false,
+  "productionTouched": false,
+  "oldDiagnosticsPreserved": [
+    true,
+    true
+  ],
+  "finalMatrixCompletedAt": "2026-10-19T19:25:46.477Z",
+  "retainedDiagnostics": [
+    {
+      "directory": "nexlift-phase33-verification-D7hT86",
+      "exists": true
+    },
+    {
+      "directory": "nexlift-phase34-verification-hvjbGl",
+      "exists": true
+    },
+    {
+      "directory": "nexlift-phase35-verification-qMVOXT",
+      "exists": true
+    },
+    {
+      "directory": "nexlift-operation-tests-UbbkH8",
+      "exists": true
+    },
+    {
+      "directory": "nexlift-phase35-verification-Uz534e",
+      "exists": true
+    }
+  ],
+  "finalDisposableRootsRemoved": true,
+  "remainingProcessesForFinalDisposableRoots": 0
+}
