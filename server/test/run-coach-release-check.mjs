@@ -16,7 +16,8 @@ const parent = path.join(homedir(), '.codex/artifacts/nexlift-phase6-trials'); a
 const directory = await mkdtemp(path.join(parent, 'coach-release-')), data = path.join(directory, 'data');
 const port = String(await freePort()), marker = `NEXLIFT_PHASE31_DISPOSABLE:${randomUUID()}`;
 const env = { ...cleanStageEnvironment(), DATABASE_URL: '', NODE_ENV: 'test', NEXLIFT_PHASE6_ROOT: directory, NEXLIFT_PHASE6_PORT: port,
-    NEXLIFT_PHASE6_MARKER: marker, NEXLIFT_COACH_SOURCE: source, PRISMA_HIDE_UPDATE_MESSAGE: '1', CHECKPOINT_DISABLE: '1' };
+    NEXLIFT_PHASE6_MARKER: marker, NEXLIFT_COACH_SOURCE: source,
+    ...(process.env.NEXLIFT_V4_SOURCE ? { NEXLIFT_V4_SOURCE: await realpath(process.env.NEXLIFT_V4_SOURCE) } : {}), PRISMA_HIDE_UPDATE_MESSAGE: '1', CHECKPOINT_DISABLE: '1' };
 const run = (name, args) => { const r = spawnSync(pgExecutable(name), args, { env, encoding: 'utf8', windowsHide: true, stdio: 'ignore', timeout: 30000 }); assert.equal(r.status, 0, `${name} failed`); };
 let started = false;
 try {

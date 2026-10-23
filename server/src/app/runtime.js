@@ -61,7 +61,7 @@ export function createRuntime({ prisma, config, providers }) {
                 every(notifications.checkCreatineReminders, 15 * 60 * 1000);
                 every(training.checkAdaptiveDeloadForAllUsers, 24 * 60 * 60 * 1000);
                 every(backups.maybeRunDailyBackup, 30 * 60 * 1000);
-                if (config.coachEnabled && config.nodeEnv !== 'production') every(coach.purgeExpired, 24 * 60 * 60 * 1000);
+                if (config.coachEnabled) every(coach.purgeExpired, 24 * 60 * 60 * 1000);
             })();
             return startPromise;
         },

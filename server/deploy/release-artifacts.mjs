@@ -8,7 +8,7 @@ export async function artifactManifest(root = releaseRoot) {
     const paths = ['server/build/app/createApp.js', 'server/src/generated/http.cjs', 'server/src/generated/training.cjs',
         'server/src/generated/contracts.cjs', 'client/dist/index.html', 'client/dist/sw.js', 'client/dist/manifest.json',
         'server/prisma/schema.prisma', 'server/audit/database/declared-catalog.json', 'server/audit/postgresql/catalog.sql',
-        'server/deploy/operations-catalog.json'];
+        'server/deploy/operations-catalog.json', 'server/deploy/coach-catalog.json'];
     const assets = await readdir(path.join(root, 'client/dist/assets'));
     if (!assets.some(file => file.endsWith('.js')) || !assets.some(file => file.endsWith('.css'))) throw new Error('Release assets missing');
     paths.push(...assets.sort().map(file => `client/dist/assets/${file}`));

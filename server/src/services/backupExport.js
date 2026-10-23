@@ -1,3 +1,4 @@
+import { coachTablesAvailable } from '../modules/coach/availability.js';
 import { ENTITY_NAMES, COACH_ENTITIES, USER_FIELDS, fieldsFor, delegate, sealBackup, validateBackup, jsonCopy, BackupError, HAS_HISTORY_FIELDS } from './backupFormat.js';
 
 export function ownerWhere(name, userId) {
@@ -20,7 +21,9 @@ export async function exportBackup(prisma, userId, { pageSize = 500 } = {}) {
     if (!Number.isInteger(pageSize) || pageSize < 1) throw new BackupError('Paginación inválida.');
     return prisma.$transaction(async tx => {
         const data = {};
+        const coachReady = !ENTITY_NAMES.some(name => COACH_ENTITIES.includes(name)) || await coachTablesAvailable(tx);
         for (const name of ENTITY_NAMES) {
+            if (!coachReady && COACH_ENTITIES.includes(name)) { data[name] = []; continue; }
             const where = ownerWhere(name, userId);
             const select = Object.fromEntries((name === 'User' ? USER_FIELDS : fieldsFor(name).map(f => f.name)).map(f => [f, true]));
             const expected = await tx[delegate(name)].count({ where });

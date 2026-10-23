@@ -7,9 +7,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 const root = fileURLToPath(new URL('../../', import.meta.url)), source = process.env.NEXLIFT_COACH_SOURCE;
 assert(source && path.isAbsolute(source));
+const apiSource = process.env.NEXLIFT_V4_SOURCE || root;
 const from = relative => import(pathToFileURL(path.join(source, relative)).href);
 
-test('release: actual v4 API client reads/writes Coach backend, lost-response replay stays read-only, production gate remains closed', async () => {
+test('release: actual v4 API client reads/writes Coach backend, lost-response replay stays read-only, release gate validates Coach expansion', async () => {
     const fixture = await from('server/test/fixtures/phase6-environment.js');
     const { target, migrations, baseline, operations, history, seed, close } = fixture;
     const { createRuntime } = await from('server/src/app/runtime.js'), { createExpressApp } = await from('server/src/app/createExpressApp.js');
@@ -29,7 +30,7 @@ test('release: actual v4 API client reads/writes Coach backend, lost-response re
         const session = id => { storage.setItem('nexlift_token', jwt.sign({ userId: id, tokenVersion: 0 }, secret)); storage.setItem('nexlift_user', JSON.stringify({ id })); };
         session('A');
         const { createServer } = createRequire(new URL('../../client/package.json', import.meta.url))('vite');
-        vite = await createServer({ root: path.join(root, 'client'), configFile: false, envFile: false, logLevel: 'error', server: { middlewareMode: true },
+        vite = await createServer({ root: path.join(apiSource, 'client'), configFile: false, envFile: false, logLevel: 'error', server: { middlewareMode: true },
             define: { 'import.meta.env.VITE_API_URL': JSON.stringify(base + '/api'), 'import.meta.env.PROD': 'true',
                 'import.meta.env.VITE_WORKOUT_OPERATIONS_ENABLED': '"false"', 'import.meta.env.VITE_INDEXEDDB_ENABLED': '"false"' } });
         const client = await vite.ssrLoadModule('/src/services/api.js'), { api } = client;
@@ -52,13 +53,13 @@ test('release: actual v4 API client reads/writes Coach backend, lost-response re
         await client.replayOfflineQueue(); await client.replayOfflineQueue(); assert.equal(mutationCount, 1); assert.equal(await db.raw.workoutLog.count(), before + 1);
         const answer = await runtime.services.coach.ask('A', { message: '¿Cómo va mi volumen semanal?', days: 56 }); assert.equal(answer.mode, 'deterministic'); assert(answer.text.length); assert.equal(await db.raw.coachCheckIn.count(), beforeCoach);
         session('B'); assert.deepEqual(await api.getExerciseHistory('ea'), []); assert.equal(mutationCount, 1);
-        await assert.rejects(releasePreflight(db.raw), /incompatible|migraci|Schema/i);
+        assert.equal((await releasePreflight(db.raw, { phase: 'coach' })).coachReady, true);
         for (const name of [baseline, operations, history]) assert.deepEqual(await readFile(path.join(source, 'server/prisma/migrations', name, 'migration.sql')), await readFile(path.join(root, 'server/prisma/migrations', name, 'migration.sql')));
         await mkdir(path.join(root, 'server/audit/hotfix'), { recursive: true });
         await writeFile(path.join(root, 'server/audit/hotfix/coach-compatibility.json'), JSON.stringify({ at: new Date().toISOString(), coachCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim(),
-            actualV4ApiModule: true, fullOldPhysicalPWA: false, postgres: db.version, migrationsApplied: 4, historicalMigrationsUnchanged: true,
+            actualV4ApiModule: !!process.env.NEXLIFT_V4_SOURCE, fullOldPhysicalPWA: false, postgres: db.version, migrationsApplied: 4, historicalMigrationsUnchanged: true,
             lostResponseMutationAttempts: mutationCount, retainedNewWorkoutRows: 1, offlineOperationsEnabled: false, assistantWithoutProvider: true, assistantCheckInWrites: 0,
-            crossAccountReadRejected: true, releasePreflightRejectedExpansion: true, productionAccessed: false }, null, 2) + '\n');
+            crossAccountReadRejected: true, releasePreflightAcceptedExactExpansion: true, productionAccessed: false }, null, 2) + '\n');
     } finally {
         globalThis.fetch = originalFetch; Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: previousStorage });
         await vite?.close(); if (server) await new Promise(resolve => server.close(resolve)); await close();

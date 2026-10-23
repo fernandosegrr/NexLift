@@ -1,10 +1,13 @@
 import { CoachError } from './validation.js';
 export function registerRoutes(app, { coach, config, authMiddleware, rateLimit }) {
-    if (!config.coachEnabled || config.nodeEnv === 'production') return;
+    if (!config.coachEnabled) return;
     const add = (method, path, handler, max = 60) => {
         app[method](path, authMiddleware, rateLimit({ max, keyFn: req => `coach:${method}:${path}:user:${req.userId}` }), rateLimit({ max: max * 3, keyFn: req => `coach:${method}:${path}:ip:${req.ip}` }), async (req, res) => {
             res.set('Cache-Control', 'private, no-store');
-            try { return res.json(await handler(req)); } catch (error) {
+            try {
+                if (!await coach.available()) return res.status(503).json({ error: 'Coach se está preparando. Tus entrenamientos siguen disponibles. Vuelve a consultar en unos instantes.' });
+                return res.json(await handler(req));
+            } catch (error) {
                 const expected = error instanceof CoachError || error.code === 'COACH_INPUT' && [404, 409, 422].includes(error.status), conflict = ['P2002', 'P2034'].includes(error.code);
                 return res.status(expected ? error.status : conflict ? 409 : 503).json({ error: expected ? error.message : conflict ? 'Conflicto concurrente. Vuelve a consultar antes de confirmar.' : 'Coach no está disponible. No se confirmó ningún guardado.' });
             }

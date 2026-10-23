@@ -44,6 +44,7 @@
 !server/deploy/*.js
 !server/deploy/*.mjs
 !server/deploy/operations-catalog.json
+!server/deploy/coach-catalog.json
 !server/staging/
 !server/staging/container.mjs
 !server/staging/egress.mjs

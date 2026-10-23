@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 export function coachProvider(env) {
-    if (env.NODE_ENV === 'production' || env.NEXLIFT_COACH_ENABLED !== 'true' || !env.OPENAI_API_KEY) return undefined;
+    if (env.NEXLIFT_COACH_ENABLED === 'false' || !env.OPENAI_API_KEY) return undefined;
     const client = new OpenAI({ apiKey: env.OPENAI_API_KEY, timeout: 8000, maxRetries: 0 });
     return async (context, signal) => {
         const result = await client.chat.completions.create({ model: env.NEXLIFT_COACH_MODEL || 'gpt-4.1-mini', max_completion_tokens: 300, temperature: 0, response_format: { type: 'json_object' },

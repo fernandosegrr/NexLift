@@ -121,9 +121,9 @@ function Workspace({ report, refresh, days }) {
     </>;
 }
 export default function Coach() {
-    const [days, setDays] = useState(56), enabled = import.meta.env.DEV;
+    const [days, setDays] = useState(56), enabled = true;
     const query = useRemoteRead('coach-report', [days], () => api.coach(`/report?days=${days}`), readCoachReport, enabled);
-    return <div className="coach-page"><header className="coach-header"><Link to="/progress">← Progreso</Link><span className="coach-badge">Vista de desarrollo</span><h1>NexLift <em>Coach</em></h1><p>Entiende tu entrenamiento.<br />Decide tu siguiente paso.</p></header>
+    return <div className="coach-page"><header className="coach-header"><Link to="/progress">← Progreso</Link><span className="coach-badge">Análisis de entrenamiento</span><h1>NexLift <em>Coach</em></h1><p>Entiende tu entrenamiento.<br />Decide tu siguiente paso.</p></header>
         {!enabled ? <p>Coach aún no está activado en esta versión. Tus entrenamientos siguen disponibles.</p> : <><div className="coach-between"><label>Período de análisis<select value={days} onChange={e => setDays(e.target.value === 'month' ? 'month' : Number(e.target.value))}><option value="month">Este mes (CDMX)</option>{[28, 56, 90, 180, 365].map(n => <option key={n} value={n}>{n} días</option>)}</select></label><button onClick={() => query.refetch()} disabled={query.isFetching}>Actualizar datos</button></div>
             <p className="coach-muted">Coach requiere conexión para consultar y guardar. Los cambios solo se confirman con respuesta del servidor.</p>
             {query.isPending ? <p role="status">Preparando tus análisis…</p> : query.error ? <div role="alert"><p>{query.error.message}</p><p>Si no hay conexión, no se confirmó ningún guardado.</p><button onClick={() => query.refetch()}>Reintentar</button></div> : <>{query.data.truncated && <p role="alert">Historial limitado: resultados parciales. Reduce el período.</p>}<Workspace report={query.data} refresh={() => { void query.refetch(); }} days={days} /></>}

@@ -164,7 +164,7 @@ export function recommendCoachLoading(exerciseId: string, input: CoachInput, rec
     const phase = activeBlock?.phase || sessions[0]?.phase || null;
     const v1 = exercise ? computeWorkoutSuggestion(sessions, exercise.targetReps, resolveWeightIncrement(exercise.muscleGroup, exercise.name), phase) : null;
     const result: CoachLoading = { exerciseId, recommendation: null, reference: null, rule: 'insufficient', increment: config?.increment ?? null, delta: null, equipment: config?.equipment ?? null,
-        adjustment: 'Sin ajuste; falta una configuración verificable.', evidence: 'insufficient', limitations: ['Sugerencia voluntaria de desarrollo; no sustituye el peso introducido. V1 permanece como referencia funcional.', 'Sin calibración longitudinal; la evidencia cuenta observaciones y no es una probabilidad.'], v1 };
+        adjustment: 'Sin ajuste; falta una configuración verificable.', evidence: 'insufficient', limitations: ['Sugerencia voluntaria; no sustituye el peso introducido. V1 permanece como referencia funcional.', 'Sin calibración longitudinal; la evidencia cuenta observaciones y no es una probabilidad.'], v1 };
     if (!exercise || sessions.length < 2) return result;
     const reference = sessions[0]!;
     if (activeBlock && activeBlock.id !== reference.blockId) { result.rule = 'mesocycle-context-changed'; result.limitations.push('Inició otro mesociclo después de la referencia; registra rendimiento comparable antes de recomendar una carga.'); return result; }

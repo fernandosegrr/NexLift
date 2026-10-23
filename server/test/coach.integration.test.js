@@ -117,8 +117,75 @@ for (const transport of ['express', 'fastify']) {
         } finally { if (server) await new Promise(resolve => server.close(resolve)); else await app.close(); await runtime.stopBackground(); }
     });
 }
-test('11 Coach endpoints remain absent under production config even with explicit feature flag', async () => {
+test('11 production Coach authenticates and serves reports', async () => {
     const runtime = createRuntime({ prisma: db.client, config: { jwtSecret: secret, nodeEnv: 'production', coachEnabled: true }, providers: fakeProviders() });
-    const app = await createApp({ runtime }); try { assert.equal((await app.inject('/api/coach/report')).statusCode, 404); } finally { await app.close(); await runtime.stopBackground(); }
+    const app = await createApp({ runtime }); try {
+        assert.equal((await app.inject('/api/coach/report')).statusCode, 401);
+        const response = await app.inject({ url: '/api/coach/report', headers: { authorization: `Bearer ${jwt.sign({ userId: 'A', tokenVersion: 0 }, secret)}` } });
+        assert.equal(response.statusCode, 200); assert.equal(response.json().version, 'coach-1');
+    } finally { await app.close(); await runtime.stopBackground(); }
 });
 test('11 bounded SQL query count and real report latency are recorded without N+1', async () => { const count = db.queryCount(), samples = []; for (let n = 0; n < 5; n++) { const start = performance.now(); await service.report('A', 56); samples.push(performance.now() - start); } const queries = db.queryCount() - count; assert(queries < 100); evidence.performance = { reportMilliseconds: samples, sqlQueriesForFiveReports: queries, note: 'Local disposable PostgreSQL, synthetic history, not production latency' }; });
+
+// Production activation is certified against real PostgreSQL, with the v4
+// schema still serving core routes before its additive expansion.
+let bridge;
+test('release bridge serves authenticated v4 routes and backups while Coach waits for its schema', async () => {
+    const { releasePreflight } = await import('../deploy/release-preflight.mjs');
+    bridge = await target('c114'); assert.equal((await migrations(bridge, [baseline, operations, history])).status, 0); seed(bridge);
+    const before = await rows(bridge), preflight = await releasePreflight(bridge.raw);
+    assert(preflight.ready); assert.equal(preflight.coachReady, false); assert.equal(preflight.appliedMigrations, 3);
+    await assert.rejects(releasePreflight(bridge.raw, { phase: 'coach' }));
+    const backup = await exportBackup(bridge.raw, 'A');
+    for (const name of COACH_ENTITIES) assert.deepEqual(backup.data[name], []);
+    const runtime = createRuntime({ prisma: bridge.client, config: { jwtSecret: secret, nodeEnv: 'production', coachEnabled: true }, providers: fakeProviders() });
+    const app = await createApp({ runtime });
+    try {
+        const headers = { authorization: `Bearer ${jwt.sign({ userId: 'A', tokenVersion: 0 }, secret)}` };
+        assert.equal((await app.inject('/api/coach/report')).statusCode, 401);
+        assert.equal((await app.inject({ url: '/api/coach/report', headers })).statusCode, 503);
+        assert.equal((await app.inject({ url: '/api/auth/me', headers })).statusCode, 200);
+        assert.equal((await app.inject({ url: '/api/routines', headers })).statusCode, 200);
+        assert.deepEqual(await runtime.services.coach.purgeExpired(), { skipped: true });
+    } finally { await app.close(); await runtime.stopBackground(); }
+    assert.deepEqual(await rows(bridge), before);
+});
+test('release expansion rolls back a post-DDL failure, preserves original rows and is repeatable', async () => {
+    const { expandCoach } = await import('../deploy/coach-upgrade.mjs');
+    const { releasePreflight } = await import('../deploy/release-preflight.mjs');
+    const before = await rows(bridge), options = { expectedDatabase: bridge.name, expectedServerMajor: 18 };
+    await assert.rejects(expandCoach(bridge.raw, { ...options, expectedDatabase: 'wrong' }), /identity/);
+    await assert.rejects(expandCoach(bridge.raw, { ...options, abortAfterDDL: true }), /Deliberate/);
+    assert.equal((await bridge.raw.$queryRaw`SELECT to_regclass('public."CoachCheckIn"') IS NULL AS absent`)[0].absent, true);
+    assert.equal((await releasePreflight(bridge.raw)).appliedMigrations, 3);
+    assert.deepEqual(await rows(bridge), before);
+    const applied = await expandCoach(bridge.raw, options); assert(applied.migrated); assert(applied.originalTablesPreserved); assert(applied.operationJournalPreserved);
+    assert.equal((await releasePreflight(bridge.raw, { phase: 'coach' })).coachReady, true);
+    assert.equal((await expandCoach(bridge.raw, options)).alreadyApplied, true);
+    assert.deepEqual(await rows(bridge), before);
+});
+test('release expansion rejects unknown catalog objects and modified history without repairing them', async () => {
+    const { expandCoach } = await import('../deploy/coach-upgrade.mjs');
+    const bad = await target('c115'); assert.equal((await migrations(bad, [baseline, operations, history])).status, 0); seed(bad);
+    sql(bad, 'CREATE TABLE public."UnreviewedReleaseObject"(id text);');
+    const options = { expectedDatabase: bad.name, expectedServerMajor: 18 };
+    await assert.rejects(expandCoach(bad.raw, options), /Schema/);
+    assert.equal((await bad.raw.$queryRaw`SELECT to_regclass('public."CoachCheckIn"') IS NULL AS absent`)[0].absent, true);
+    const tampered = await target('c116'); assert.equal((await migrations(tampered, [baseline, operations, history])).status, 0);
+    sql(tampered, "UPDATE public._prisma_migrations SET checksum=repeat('0',64) WHERE migration_name='0_init';");
+    await assert.rejects(expandCoach(tampered.raw, { expectedDatabase: tampered.name, expectedServerMajor: 18 }), /incompatible|inconsistente/);
+});
+test('production Coach recovers on the next request after expansion and keeps private check-ins isolated', async () => {
+    const runtime = createRuntime({ prisma: bridge.client, config: { jwtSecret: secret, nodeEnv: 'production', coachEnabled: true }, providers: fakeProviders() });
+    const app = await createApp({ runtime });
+    const headers = userId => ({ authorization: `Bearer ${jwt.sign({ userId, tokenVersion: 0 }, secret)}` });
+    try {
+        const report = await app.inject({ url: '/api/coach/report', headers: headers('A') });
+        assert.equal(report.statusCode, 200); assert.equal(report.json().version, 'coach-1'); assert.match(report.headers['cache-control'], /private.*no-store/);
+        const ask = await app.inject({ url: '/api/coach/ask', method: 'POST', headers: headers('A'), payload: { message: 'volumen', useProvider: true } });
+        assert.equal(ask.statusCode, 200); assert.equal(ask.json().mode, 'deterministic');
+        assert.equal(await bridge.raw.coachCheckIn.count(), 0);
+        assert.equal((await app.inject({ url: '/api/coach/check-ins/' + date(), method: 'PUT', headers: headers('A'), payload: { energy: 3 } })).statusCode, 200);
+        assert.deepEqual((await app.inject({ url: '/api/coach/check-ins', headers: headers('B') })).json(), []);
+    } finally { await app.close(); await runtime.stopBackground(); }
+});

@@ -730,7 +730,7 @@ export default function Progress() {
             <div className="space-y-3">
                 <div>
                     <h1 className="text-2xl font-bold leading-tight">Progreso</h1>
-                    {import.meta.env.DEV && <Link to="/coach" className="inline-flex items-center min-h-[44px] text-[var(--primary)] font-semibold">NexLift Coach →</Link>}
+                    {<Link to="/coach" className="inline-flex items-center min-h-[44px] text-[var(--primary)] font-semibold">NexLift Coach →</Link>}
                     <p className="text-[var(--text-secondary)] text-sm mt-0.5">Tu evolución fitness</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2">

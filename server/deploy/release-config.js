@@ -16,6 +16,7 @@ export function releaseConfig(env) {
     for (const key of ['NEXLIFT_OFFLINE_SYNC_ENABLED', 'NEXLIFT_CONFLICT_RESOLUTION_ENABLED', 'NEXLIFT_WEB_SESSION_REHEARSAL', 'NEXLIFT_BACKUP_PRUNE_ENABLED']) {
         if (env[key] !== undefined && env[key] !== 'false') fail(key);
     }
+    if (env.NEXLIFT_COACH_ENABLED !== undefined && !['true', 'false'].includes(env.NEXLIFT_COACH_ENABLED)) fail('NEXLIFT_COACH_ENABLED');
     const port = env.PORT === undefined ? 3001 : Number(env.PORT);
     if (!Number.isInteger(port) || port < 1024 || port > 65535) fail('PORT');
     const host = env.NEXLIFT_BIND_HOST || '0.0.0.0';
@@ -30,6 +31,6 @@ export function releaseConfig(env) {
     }
     target.searchParams.set('connect_timeout', '3'); target.searchParams.set('pool_timeout', '3');
     return { url: target.href, port, host, transport: env.NEXLIFT_HTTP_TRANSPORT, rehearsal: env.NEXLIFT_RELEASE_MODE === 'rehearsal',
-        jwtSecret: env.JWT_SECRET, nodeEnv: 'production', corsOrigin: env.CORS_ORIGIN, trustedProxyCidrs: env.NEXLIFT_TRUSTED_PROXY_CIDRS,
+        jwtSecret: env.JWT_SECRET, nodeEnv: 'production', coachEnabled: env.NEXLIFT_COACH_ENABLED !== 'false', corsOrigin: env.CORS_ORIGIN, trustedProxyCidrs: env.NEXLIFT_TRUSTED_PROXY_CIDRS,
         vapidPublicKey: env.NEXLIFT_RELEASE_MODE === 'release' ? env.VAPID_PUBLIC_KEY : undefined };
 }

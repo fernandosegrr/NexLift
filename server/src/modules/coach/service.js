@@ -3,6 +3,7 @@ import { buildCoachReport, recommendCoachLoading } from '../../generated/coach.c
 import { trainingCivilDate, trainingCivilDayBounds, shiftTrainingCivilDate } from '../../generated/training.cjs';
 import { CoachError, period, id, number, checkIn, civilDate, exerciseConfig, measurement, object } from './validation.js';
 import { createCoachAssistant } from './assistant.js';
+import { coachTablesAvailable } from './availability.js';
 export const coachHash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const iso = date => date instanceof Date ? date.toISOString() : date;
 const resultFingerprint = set => coachHash([set.id, set.workoutLogId, set.setNumber, set.weight, set.reps, set.rpe, set.completed, set.weightRight, set.repsRight]);
@@ -33,8 +34,9 @@ export function createCoachService({ prisma, provider, now = () => new Date(), t
         }, { isolationLevel: 'RepeatableRead', timeout: 30000 });
     };
     return {
-        snapshot, usage: assistant.usage,
+        snapshot, usage: assistant.usage, available: () => coachTablesAvailable(prisma),
         async purgeExpired() {
+            if (!await coachTablesAvailable(prisma)) return { skipped: true };
             return serial(async tx => ({ checkIns: await tx.coachCheckIn.deleteMany({ where: { date: { lt: shiftTrainingCivilDate(trainingCivilDate(now()), -364) } } }), suggestions: await tx.coachSuggestion.deleteMany({ where: { createdAt: { lt: new Date(now().getTime() - 90 * 86400000) } } }) }));
         },
         async evaluate(userId, exerciseId, body) {

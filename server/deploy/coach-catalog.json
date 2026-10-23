@@ -1,0 +1,3952 @@
+{
+  "catalog": {
+    "extras": [
+      {
+        "kind": "routine",
+        "name": "nexlift_coach_owner()",
+        "table": null,
+        "detail": {
+          "kind": "f",
+          "definitionHash": "21383debca2abf4c9481ff8007b45b0e"
+        }
+      },
+      {
+        "kind": "routine",
+        "name": "nexlift_exercise_owner()",
+        "table": null,
+        "detail": {
+          "kind": "f",
+          "definitionHash": "bdfea2c5741efea88c3075e178bba103"
+        }
+      },
+      {
+        "kind": "routine",
+        "name": "nexlift_plan_owner()",
+        "table": null,
+        "detail": {
+          "kind": "f",
+          "definitionHash": "1ef0fc5f13486455977b4bf7a9965bbc"
+        }
+      },
+      {
+        "kind": "routine",
+        "name": "nexlift_related_owner()",
+        "table": null,
+        "detail": {
+          "kind": "f",
+          "definitionHash": "56d5ea60bfc78ba8a71e50e41d413c83"
+        }
+      },
+      {
+        "kind": "routine",
+        "name": "nexlift_set_identity()",
+        "table": null,
+        "detail": {
+          "kind": "f",
+          "definitionHash": "992a55b8d351c1ad6bbd3a2d3756ced2"
+        }
+      },
+      {
+        "kind": "routine",
+        "name": "nexlift_workout_history()",
+        "table": null,
+        "detail": {
+          "kind": "f",
+          "definitionHash": "2197646c0752104a81fcf46bdd9105a4"
+        }
+      },
+      {
+        "kind": "trigger",
+        "name": "coach_config_owner",
+        "table": "CoachExerciseConfig",
+        "detail": {
+          "enabled": "O",
+          "internal": false,
+          "definitionHash": "9849b88e96017e80b0c5ad25fcde2e65"
+        }
+      },
+      {
+        "kind": "trigger",
+        "name": "coach_suggestion_owner",
+        "table": "CoachSuggestion",
+        "detail": {
+          "enabled": "O",
+          "internal": false,
+          "definitionHash": "1f0e615561843282f97eeffdaa0c19a8"
+        }
+      },
+      {
+        "kind": "trigger",
+        "name": "nexlift_exercise_owner",
+        "table": "Exercise",
+        "detail": {
+          "enabled": "O",
+          "internal": false,
+          "definitionHash": "082e1c2282af0946537209aed1b9ba8b"
+        }
+      },
+      {
+        "kind": "trigger",
+        "name": "nexlift_reminder_owner",
+        "table": "PendingReminder",
+        "detail": {
+          "enabled": "O",
+          "internal": false,
+          "definitionHash": "90092fb70349ebfc248345a1bcaeb7e5"
+        }
+      },
+      {
+        "kind": "trigger",
+        "name": "nexlift_pr_owner",
+        "table": "PersonalRecord",
+        "detail": {
+          "enabled": "O",
+          "internal": false,
+          "definitionHash": "5fb4ba43ffda921d40ecc2abb2f078c0"
+        }
+      },
+      {
+        "kind": "trigger",
+        "name": "nexlift_routine_owner",
+        "table": "Routine",
+        "detail": {
+          "enabled": "O",
+          "internal": false,
+          "definitionHash": "85f0a36097095bb9850df51c6d765ace"
+        }
+      },
+      {
+        "kind": "trigger",
+        "name": "nexlift_day_owner",
+        "table": "RoutineDay",
+        "detail": {
+          "enabled": "O",
+          "internal": false,
+          "definitionHash": "959e8fcec88e931e3ad0606a2ca31a74"
+        }
+      },
+      {
+        "kind": "trigger",
+        "name": "nexlift_set_identity",
+        "table": "SetLog",
+        "detail": {
+          "enabled": "O",
+          "internal": false,
+          "definitionHash": "74df82daf4ba80b3c8fa8b8566c0e994"
+        }
+      },
+      {
+        "kind": "trigger",
+        "name": "nexlift_suggestion_owner",
+        "table": "SuggestionLog",
+        "detail": {
+          "enabled": "O",
+          "internal": false,
+          "definitionHash": "54598ba6daf9a631cafa382b679f6bf9"
+        }
+      },
+      {
+        "kind": "trigger",
+        "name": "nexlift_workout_history",
+        "table": "WorkoutLog",
+        "detail": {
+          "enabled": "O",
+          "internal": false,
+          "definitionHash": "e87739a8e462fc2555233950b18da2df"
+        }
+      }
+    ],
+    "tables": [
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "BodyLog"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "CardioSegment"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "CardioSession"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "CoachCheckIn"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "CoachExerciseConfig"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "CoachMeasurement"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "CoachSuggestion"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "Exercise"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "Goal"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "PendingReminder"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "PersonalRecord"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "PushSubscription"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "RestLog"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "Routine"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "RoutineBlock"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "RoutineDay"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "SetLog"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "SuggestionLog"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "TrainingProfile"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "User"
+      },
+      {
+        "rls": false,
+        "kind": "r",
+        "name": "WorkoutLog"
+      }
+    ],
+    "columns": [
+      {
+        "name": "bmi",
+        "type": "double precision",
+        "table": "BodyLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "bmr",
+        "type": "double precision",
+        "table": "BodyLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "bodyFat",
+        "type": "double precision",
+        "table": "BodyLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "bodyWater",
+        "type": "double precision",
+        "table": "BodyLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "boneMass",
+        "type": "double precision",
+        "table": "BodyLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "createdAt",
+        "type": "timestamp(3) without time zone",
+        "table": "BodyLog",
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "creatineTaken",
+        "type": "boolean",
+        "table": "BodyLog",
+        "default": "false",
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "date",
+        "type": "timestamp(3) without time zone",
+        "table": "BodyLog",
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "dietCompliant",
+        "type": "boolean",
+        "table": "BodyLog",
+        "default": "false",
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "BodyLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "muscleMass",
+        "type": "double precision",
+        "table": "BodyLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "table": "BodyLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "photoUrl",
+        "type": "text",
+        "table": "BodyLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "protein",
+        "type": "double precision",
+        "table": "BodyLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "BodyLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "visceralFat",
+        "type": "double precision",
+        "table": "BodyLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "weight",
+        "type": "double precision",
+        "table": "BodyLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "zeroLiquidCalories",
+        "type": "boolean",
+        "table": "BodyLog",
+        "default": "false",
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "durationMin",
+        "type": "double precision",
+        "table": "CardioSegment",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "CardioSegment",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "incline",
+        "type": "double precision",
+        "table": "CardioSegment",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "table": "CardioSegment",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "order",
+        "type": "integer",
+        "table": "CardioSegment",
+        "default": "0",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "sessionId",
+        "type": "text",
+        "table": "CardioSegment",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "speed",
+        "type": "double precision",
+        "table": "CardioSegment",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "activity",
+        "type": "text",
+        "table": "CardioSession",
+        "default": "'caminadora'::text",
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "calories",
+        "type": "integer",
+        "table": "CardioSession",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "createdAt",
+        "type": "timestamp(3) without time zone",
+        "table": "CardioSession",
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "date",
+        "type": "timestamp(3) without time zone",
+        "table": "CardioSession",
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "CardioSession",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "table": "CardioSession",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "updatedAt",
+        "type": "timestamp(3) without time zone",
+        "table": "CardioSession",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "CardioSession",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "date",
+        "type": "character varying(10)",
+        "table": "CoachCheckIn",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "energy",
+        "type": "integer",
+        "table": "CoachCheckIn",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "fatigue",
+        "type": "integer",
+        "table": "CoachCheckIn",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "CoachCheckIn",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "sleepHours",
+        "type": "double precision",
+        "table": "CoachCheckIn",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "sleepQuality",
+        "type": "integer",
+        "table": "CoachCheckIn",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "soreness",
+        "type": "jsonb",
+        "table": "CoachCheckIn",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "stress",
+        "type": "integer",
+        "table": "CoachCheckIn",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "updatedAt",
+        "type": "timestamp(3) without time zone",
+        "table": "CoachCheckIn",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "CoachCheckIn",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "availableLoads",
+        "type": "double precision[]",
+        "table": "CoachExerciseConfig",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "directMuscle",
+        "type": "text",
+        "table": "CoachExerciseConfig",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "equipment",
+        "type": "text",
+        "table": "CoachExerciseConfig",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "exerciseId",
+        "type": "text",
+        "table": "CoachExerciseConfig",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "CoachExerciseConfig",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "increment",
+        "type": "double precision",
+        "table": "CoachExerciseConfig",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "indirectWeight",
+        "type": "double precision",
+        "table": "CoachExerciseConfig",
+        "default": "0.5",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "secondaryMuscles",
+        "type": "text[]",
+        "table": "CoachExerciseConfig",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "updatedAt",
+        "type": "timestamp(3) without time zone",
+        "table": "CoachExerciseConfig",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "CoachExerciseConfig",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "cm",
+        "type": "double precision",
+        "table": "CoachMeasurement",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "date",
+        "type": "character varying(10)",
+        "table": "CoachMeasurement",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "CoachMeasurement",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "quality",
+        "type": "text",
+        "table": "CoachMeasurement",
+        "default": "'unknown'::text",
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "CoachMeasurement",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "zone",
+        "type": "text",
+        "table": "CoachMeasurement",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "createdAt",
+        "type": "timestamp(3) without time zone",
+        "table": "CoachSuggestion",
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "exerciseId",
+        "type": "text",
+        "table": "CoachSuggestion",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "CoachSuggestion",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "outcome",
+        "type": "text",
+        "table": "CoachSuggestion",
+        "default": "'presented'::text",
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "payload",
+        "type": "jsonb",
+        "table": "CoachSuggestion",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "referenceHash",
+        "type": "text",
+        "table": "CoachSuggestion",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "resultHash",
+        "type": "text",
+        "table": "CoachSuggestion",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "resultSetId",
+        "type": "text",
+        "table": "CoachSuggestion",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "CoachSuggestion",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "archivedAt",
+        "type": "timestamp(3) without time zone",
+        "table": "Exercise",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "Exercise",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "isUnilateral",
+        "type": "boolean",
+        "table": "Exercise",
+        "default": "false",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "muscleGroup",
+        "type": "text",
+        "table": "Exercise",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "table": "Exercise",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "table": "Exercise",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "order",
+        "type": "integer",
+        "table": "Exercise",
+        "default": "0",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "restSeconds",
+        "type": "integer",
+        "table": "Exercise",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "routineDayId",
+        "type": "text",
+        "table": "Exercise",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "targetReps",
+        "type": "text",
+        "table": "Exercise",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "targetSets",
+        "type": "integer",
+        "table": "Exercise",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "Exercise",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "achievedAt",
+        "type": "timestamp(3) without time zone",
+        "table": "Goal",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "completedWeeks",
+        "type": "integer[]",
+        "table": "Goal",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "createdAt",
+        "type": "timestamp(3) without time zone",
+        "table": "Goal",
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "currentEightRepMax",
+        "type": "double precision",
+        "table": "Goal",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "currentOneRepMax",
+        "type": "double precision",
+        "table": "Goal",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "exerciseName",
+        "type": "text",
+        "table": "Goal",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "experienceLevel",
+        "type": "text",
+        "table": "Goal",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "frequencyPerWeek",
+        "type": "integer",
+        "table": "Goal",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "Goal",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "muscleGroup",
+        "type": "text",
+        "table": "Goal",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "targetReps",
+        "type": "integer",
+        "table": "Goal",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "targetWeight",
+        "type": "double precision",
+        "table": "Goal",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "Goal",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "createdAt",
+        "type": "timestamp(3) without time zone",
+        "table": "PendingReminder",
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "exerciseId",
+        "type": "text",
+        "table": "PendingReminder",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "fireAt",
+        "type": "timestamp(3) without time zone",
+        "table": "PendingReminder",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "PendingReminder",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "nextExerciseName",
+        "type": "text",
+        "table": "PendingReminder",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "PendingReminder",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "date",
+        "type": "timestamp(3) without time zone",
+        "table": "PersonalRecord",
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "estimated1RM",
+        "type": "double precision",
+        "table": "PersonalRecord",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "exerciseName",
+        "type": "text",
+        "table": "PersonalRecord",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "PersonalRecord",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "reps",
+        "type": "integer",
+        "table": "PersonalRecord",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "sourceExerciseId",
+        "type": "text",
+        "table": "PersonalRecord",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "PersonalRecord",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "weight",
+        "type": "double precision",
+        "table": "PersonalRecord",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "auth",
+        "type": "text",
+        "table": "PushSubscription",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "createdAt",
+        "type": "timestamp(3) without time zone",
+        "table": "PushSubscription",
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "endpoint",
+        "type": "text",
+        "table": "PushSubscription",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "PushSubscription",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "p256dh",
+        "type": "text",
+        "table": "PushSubscription",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "PushSubscription",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "date",
+        "type": "timestamp(3) without time zone",
+        "table": "RestLog",
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "RestLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "table": "RestLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "RestLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "adaptiveDeloadUntil",
+        "type": "timestamp(3) without time zone",
+        "table": "Routine",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "createdAt",
+        "type": "timestamp(3) without time zone",
+        "table": "Routine",
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "table": "Routine",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "Routine",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "isActive",
+        "type": "boolean",
+        "table": "Routine",
+        "default": "false",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "lastAdaptiveCheckAt",
+        "type": "timestamp(3) without time zone",
+        "table": "Routine",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "table": "Routine",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "source",
+        "type": "text",
+        "table": "Routine",
+        "default": "'manual'::text",
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "updatedAt",
+        "type": "timestamp(3) without time zone",
+        "table": "Routine",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "Routine",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "durationWeeks",
+        "type": "integer",
+        "table": "RoutineBlock",
+        "default": "4",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "RoutineBlock",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "table": "RoutineBlock",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "order",
+        "type": "integer",
+        "table": "RoutineBlock",
+        "default": "0",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "phase",
+        "type": "text",
+        "table": "RoutineBlock",
+        "default": "'custom'::text",
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "routineId",
+        "type": "text",
+        "table": "RoutineBlock",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "startedAt",
+        "type": "timestamp(3) without time zone",
+        "table": "RoutineBlock",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "dayName",
+        "type": "text",
+        "table": "RoutineDay",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "RoutineDay",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "isRestDay",
+        "type": "boolean",
+        "table": "RoutineDay",
+        "default": "false",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "order",
+        "type": "integer",
+        "table": "RoutineDay",
+        "default": "0",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "routineId",
+        "type": "text",
+        "table": "RoutineDay",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "splitLabel",
+        "type": "text",
+        "table": "RoutineDay",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "weekday",
+        "type": "integer",
+        "table": "RoutineDay",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "completed",
+        "type": "boolean",
+        "table": "SetLog",
+        "default": "true",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "SetLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "reps",
+        "type": "integer",
+        "table": "SetLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "repsRight",
+        "type": "integer",
+        "table": "SetLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "rpe",
+        "type": "integer",
+        "table": "SetLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "setNumber",
+        "type": "integer",
+        "table": "SetLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "weight",
+        "type": "double precision",
+        "table": "SetLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "weightRight",
+        "type": "double precision",
+        "table": "SetLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "workoutLogId",
+        "type": "text",
+        "table": "SetLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "date",
+        "type": "timestamp(3) without time zone",
+        "table": "SuggestionLog",
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "exerciseId",
+        "type": "text",
+        "table": "SuggestionLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "SuggestionLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "phase",
+        "type": "text",
+        "table": "SuggestionLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "source",
+        "type": "text",
+        "table": "SuggestionLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "suggestedReps",
+        "type": "integer",
+        "table": "SuggestionLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "suggestedWeight",
+        "type": "double precision",
+        "table": "SuggestionLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "SuggestionLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "createdAt",
+        "type": "timestamp(3) without time zone",
+        "table": "TrainingProfile",
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "daysPerWeek",
+        "type": "integer",
+        "table": "TrainingProfile",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "equipment",
+        "type": "text[]",
+        "table": "TrainingProfile",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "experienceLevel",
+        "type": "text",
+        "table": "TrainingProfile",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "goal",
+        "type": "text",
+        "table": "TrainingProfile",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "TrainingProfile",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "updatedAt",
+        "type": "timestamp(3) without time zone",
+        "table": "TrainingProfile",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "TrainingProfile",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "avatarUrl",
+        "type": "text",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "birthDate",
+        "type": "timestamp(3) without time zone",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "createdAt",
+        "type": "timestamp(3) without time zone",
+        "table": "User",
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "creatineReminderEnabled",
+        "type": "boolean",
+        "table": "User",
+        "default": "false",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "creatineReminderTime",
+        "type": "text",
+        "table": "User",
+        "default": "'16:00'::text",
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "firstName",
+        "type": "text",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "isActive",
+        "type": "boolean",
+        "table": "User",
+        "default": "true",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "lastBackupAt",
+        "type": "timestamp(3) without time zone",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "lastBackupError",
+        "type": "text",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "lastCreatineReminderDate",
+        "type": "text",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "lastCreatineReminderStage",
+        "type": "integer",
+        "table": "User",
+        "default": "0",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "lastLogin",
+        "type": "timestamp(3) without time zone",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "lastName",
+        "type": "text",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "lastReengagementNotifiedAt",
+        "type": "timestamp(3) without time zone",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "passwordHash",
+        "type": "text",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "phone",
+        "type": "text",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "securityAnswerHash",
+        "type": "text",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "securityQuestion",
+        "type": "text",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "tokenVersion",
+        "type": "integer",
+        "table": "User",
+        "default": "0",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "updatedAt",
+        "type": "timestamp(3) without time zone",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "username",
+        "type": "text",
+        "table": "User",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "contextCapturedAt",
+        "type": "timestamp(3) without time zone",
+        "table": "WorkoutLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "date",
+        "type": "timestamp(3) without time zone",
+        "table": "WorkoutLog",
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "nullable": false,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "exerciseId",
+        "type": "text",
+        "table": "WorkoutLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "exerciseNameSnapshot",
+        "type": "text",
+        "table": "WorkoutLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "id",
+        "type": "text",
+        "table": "WorkoutLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "isUnilateralSnapshot",
+        "type": "boolean",
+        "table": "WorkoutLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": null,
+        "generated": ""
+      },
+      {
+        "name": "muscleGroupSnapshot",
+        "type": "text",
+        "table": "WorkoutLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "table": "WorkoutLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "originRoutineDayId",
+        "type": "text",
+        "table": "WorkoutLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "originRoutineId",
+        "type": "text",
+        "table": "WorkoutLog",
+        "default": null,
+        "identity": "",
+        "nullable": true,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "snapshotSource",
+        "type": "text",
+        "table": "WorkoutLog",
+        "default": "'recorded'::text",
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      },
+      {
+        "name": "userId",
+        "type": "text",
+        "table": "WorkoutLog",
+        "default": null,
+        "identity": "",
+        "nullable": false,
+        "collation": "default",
+        "generated": ""
+      }
+    ],
+    "indexes": [
+      {
+        "name": "BodyLog_date_idx",
+        "ready": true,
+        "table": "BodyLog",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"BodyLog_date_idx\" ON public.\"BodyLog\" USING btree (date)"
+      },
+      {
+        "name": "BodyLog_pkey",
+        "ready": true,
+        "table": "BodyLog",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"BodyLog_pkey\" ON public.\"BodyLog\" USING btree (id)"
+      },
+      {
+        "name": "BodyLog_userId_idx",
+        "ready": true,
+        "table": "BodyLog",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"BodyLog_userId_idx\" ON public.\"BodyLog\" USING btree (\"userId\")"
+      },
+      {
+        "name": "CardioSegment_pkey",
+        "ready": true,
+        "table": "CardioSegment",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"CardioSegment_pkey\" ON public.\"CardioSegment\" USING btree (id)"
+      },
+      {
+        "name": "CardioSegment_sessionId_idx",
+        "ready": true,
+        "table": "CardioSegment",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"CardioSegment_sessionId_idx\" ON public.\"CardioSegment\" USING btree (\"sessionId\")"
+      },
+      {
+        "name": "CardioSession_pkey",
+        "ready": true,
+        "table": "CardioSession",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"CardioSession_pkey\" ON public.\"CardioSession\" USING btree (id)"
+      },
+      {
+        "name": "CardioSession_userId_date_idx",
+        "ready": true,
+        "table": "CardioSession",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"CardioSession_userId_date_idx\" ON public.\"CardioSession\" USING btree (\"userId\", date)"
+      },
+      {
+        "name": "CardioSession_userId_idx",
+        "ready": true,
+        "table": "CardioSession",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"CardioSession_userId_idx\" ON public.\"CardioSession\" USING btree (\"userId\")"
+      },
+      {
+        "name": "CoachCheckIn_pkey",
+        "ready": true,
+        "table": "CoachCheckIn",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"CoachCheckIn_pkey\" ON public.\"CoachCheckIn\" USING btree (id)"
+      },
+      {
+        "name": "CoachCheckIn_userId_date_key",
+        "ready": true,
+        "table": "CoachCheckIn",
+        "valid": true,
+        "unique": true,
+        "primary": false,
+        "definition": "CREATE UNIQUE INDEX \"CoachCheckIn_userId_date_key\" ON public.\"CoachCheckIn\" USING btree (\"userId\", date)"
+      },
+      {
+        "name": "CoachExerciseConfig_exerciseId_key",
+        "ready": true,
+        "table": "CoachExerciseConfig",
+        "valid": true,
+        "unique": true,
+        "primary": false,
+        "definition": "CREATE UNIQUE INDEX \"CoachExerciseConfig_exerciseId_key\" ON public.\"CoachExerciseConfig\" USING btree (\"exerciseId\")"
+      },
+      {
+        "name": "CoachExerciseConfig_pkey",
+        "ready": true,
+        "table": "CoachExerciseConfig",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"CoachExerciseConfig_pkey\" ON public.\"CoachExerciseConfig\" USING btree (id)"
+      },
+      {
+        "name": "CoachExerciseConfig_userId_idx",
+        "ready": true,
+        "table": "CoachExerciseConfig",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"CoachExerciseConfig_userId_idx\" ON public.\"CoachExerciseConfig\" USING btree (\"userId\")"
+      },
+      {
+        "name": "CoachMeasurement_pkey",
+        "ready": true,
+        "table": "CoachMeasurement",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"CoachMeasurement_pkey\" ON public.\"CoachMeasurement\" USING btree (id)"
+      },
+      {
+        "name": "CoachMeasurement_userId_date_zone_key",
+        "ready": true,
+        "table": "CoachMeasurement",
+        "valid": true,
+        "unique": true,
+        "primary": false,
+        "definition": "CREATE UNIQUE INDEX \"CoachMeasurement_userId_date_zone_key\" ON public.\"CoachMeasurement\" USING btree (\"userId\", date, zone)"
+      },
+      {
+        "name": "CoachSuggestion_pkey",
+        "ready": true,
+        "table": "CoachSuggestion",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"CoachSuggestion_pkey\" ON public.\"CoachSuggestion\" USING btree (id)"
+      },
+      {
+        "name": "CoachSuggestion_resultSetId_key",
+        "ready": true,
+        "table": "CoachSuggestion",
+        "valid": true,
+        "unique": true,
+        "primary": false,
+        "definition": "CREATE UNIQUE INDEX \"CoachSuggestion_resultSetId_key\" ON public.\"CoachSuggestion\" USING btree (\"resultSetId\")"
+      },
+      {
+        "name": "CoachSuggestion_userId_createdAt_idx",
+        "ready": true,
+        "table": "CoachSuggestion",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"CoachSuggestion_userId_createdAt_idx\" ON public.\"CoachSuggestion\" USING btree (\"userId\", \"createdAt\")"
+      },
+      {
+        "name": "Exercise_name_idx",
+        "ready": true,
+        "table": "Exercise",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"Exercise_name_idx\" ON public.\"Exercise\" USING btree (name)"
+      },
+      {
+        "name": "Exercise_pkey",
+        "ready": true,
+        "table": "Exercise",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"Exercise_pkey\" ON public.\"Exercise\" USING btree (id)"
+      },
+      {
+        "name": "Exercise_routineDayId_idx",
+        "ready": true,
+        "table": "Exercise",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"Exercise_routineDayId_idx\" ON public.\"Exercise\" USING btree (\"routineDayId\")"
+      },
+      {
+        "name": "Exercise_routineDayId_name_idx",
+        "ready": true,
+        "table": "Exercise",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"Exercise_routineDayId_name_idx\" ON public.\"Exercise\" USING btree (\"routineDayId\", name)"
+      },
+      {
+        "name": "Exercise_userId_archivedAt_idx",
+        "ready": true,
+        "table": "Exercise",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"Exercise_userId_archivedAt_idx\" ON public.\"Exercise\" USING btree (\"userId\", \"archivedAt\")"
+      },
+      {
+        "name": "Goal_pkey",
+        "ready": true,
+        "table": "Goal",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"Goal_pkey\" ON public.\"Goal\" USING btree (id)"
+      },
+      {
+        "name": "Goal_userId_idx",
+        "ready": true,
+        "table": "Goal",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"Goal_userId_idx\" ON public.\"Goal\" USING btree (\"userId\")"
+      },
+      {
+        "name": "PendingReminder_pkey",
+        "ready": true,
+        "table": "PendingReminder",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"PendingReminder_pkey\" ON public.\"PendingReminder\" USING btree (id)"
+      },
+      {
+        "name": "PendingReminder_userId_exerciseId_key",
+        "ready": true,
+        "table": "PendingReminder",
+        "valid": true,
+        "unique": true,
+        "primary": false,
+        "definition": "CREATE UNIQUE INDEX \"PendingReminder_userId_exerciseId_key\" ON public.\"PendingReminder\" USING btree (\"userId\", \"exerciseId\")"
+      },
+      {
+        "name": "PersonalRecord_exerciseName_idx",
+        "ready": true,
+        "table": "PersonalRecord",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"PersonalRecord_exerciseName_idx\" ON public.\"PersonalRecord\" USING btree (\"exerciseName\")"
+      },
+      {
+        "name": "PersonalRecord_pkey",
+        "ready": true,
+        "table": "PersonalRecord",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"PersonalRecord_pkey\" ON public.\"PersonalRecord\" USING btree (id)"
+      },
+      {
+        "name": "PersonalRecord_userId_idx",
+        "ready": true,
+        "table": "PersonalRecord",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"PersonalRecord_userId_idx\" ON public.\"PersonalRecord\" USING btree (\"userId\")"
+      },
+      {
+        "name": "PushSubscription_endpoint_key",
+        "ready": true,
+        "table": "PushSubscription",
+        "valid": true,
+        "unique": true,
+        "primary": false,
+        "definition": "CREATE UNIQUE INDEX \"PushSubscription_endpoint_key\" ON public.\"PushSubscription\" USING btree (endpoint)"
+      },
+      {
+        "name": "PushSubscription_pkey",
+        "ready": true,
+        "table": "PushSubscription",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"PushSubscription_pkey\" ON public.\"PushSubscription\" USING btree (id)"
+      },
+      {
+        "name": "PushSubscription_userId_idx",
+        "ready": true,
+        "table": "PushSubscription",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"PushSubscription_userId_idx\" ON public.\"PushSubscription\" USING btree (\"userId\")"
+      },
+      {
+        "name": "RestLog_pkey",
+        "ready": true,
+        "table": "RestLog",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"RestLog_pkey\" ON public.\"RestLog\" USING btree (id)"
+      },
+      {
+        "name": "RestLog_userId_idx",
+        "ready": true,
+        "table": "RestLog",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"RestLog_userId_idx\" ON public.\"RestLog\" USING btree (\"userId\")"
+      },
+      {
+        "name": "Routine_pkey",
+        "ready": true,
+        "table": "Routine",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"Routine_pkey\" ON public.\"Routine\" USING btree (id)"
+      },
+      {
+        "name": "Routine_userId_idx",
+        "ready": true,
+        "table": "Routine",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"Routine_userId_idx\" ON public.\"Routine\" USING btree (\"userId\")"
+      },
+      {
+        "name": "Routine_userId_isActive_idx",
+        "ready": true,
+        "table": "Routine",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"Routine_userId_isActive_idx\" ON public.\"Routine\" USING btree (\"userId\", \"isActive\")"
+      },
+      {
+        "name": "RoutineBlock_pkey",
+        "ready": true,
+        "table": "RoutineBlock",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"RoutineBlock_pkey\" ON public.\"RoutineBlock\" USING btree (id)"
+      },
+      {
+        "name": "RoutineBlock_routineId_idx",
+        "ready": true,
+        "table": "RoutineBlock",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"RoutineBlock_routineId_idx\" ON public.\"RoutineBlock\" USING btree (\"routineId\")"
+      },
+      {
+        "name": "RoutineDay_pkey",
+        "ready": true,
+        "table": "RoutineDay",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"RoutineDay_pkey\" ON public.\"RoutineDay\" USING btree (id)"
+      },
+      {
+        "name": "RoutineDay_routineId_idx",
+        "ready": true,
+        "table": "RoutineDay",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"RoutineDay_routineId_idx\" ON public.\"RoutineDay\" USING btree (\"routineId\")"
+      },
+      {
+        "name": "SetLog_pkey",
+        "ready": true,
+        "table": "SetLog",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"SetLog_pkey\" ON public.\"SetLog\" USING btree (id)"
+      },
+      {
+        "name": "SetLog_workoutLogId_idx",
+        "ready": true,
+        "table": "SetLog",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"SetLog_workoutLogId_idx\" ON public.\"SetLog\" USING btree (\"workoutLogId\")"
+      },
+      {
+        "name": "SuggestionLog_exerciseId_idx",
+        "ready": true,
+        "table": "SuggestionLog",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"SuggestionLog_exerciseId_idx\" ON public.\"SuggestionLog\" USING btree (\"exerciseId\")"
+      },
+      {
+        "name": "SuggestionLog_pkey",
+        "ready": true,
+        "table": "SuggestionLog",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"SuggestionLog_pkey\" ON public.\"SuggestionLog\" USING btree (id)"
+      },
+      {
+        "name": "SuggestionLog_userId_date_idx",
+        "ready": true,
+        "table": "SuggestionLog",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"SuggestionLog_userId_date_idx\" ON public.\"SuggestionLog\" USING btree (\"userId\", date)"
+      },
+      {
+        "name": "SuggestionLog_userId_idx",
+        "ready": true,
+        "table": "SuggestionLog",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"SuggestionLog_userId_idx\" ON public.\"SuggestionLog\" USING btree (\"userId\")"
+      },
+      {
+        "name": "TrainingProfile_pkey",
+        "ready": true,
+        "table": "TrainingProfile",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"TrainingProfile_pkey\" ON public.\"TrainingProfile\" USING btree (id)"
+      },
+      {
+        "name": "TrainingProfile_userId_key",
+        "ready": true,
+        "table": "TrainingProfile",
+        "valid": true,
+        "unique": true,
+        "primary": false,
+        "definition": "CREATE UNIQUE INDEX \"TrainingProfile_userId_key\" ON public.\"TrainingProfile\" USING btree (\"userId\")"
+      },
+      {
+        "name": "User_email_idx",
+        "ready": true,
+        "table": "User",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"User_email_idx\" ON public.\"User\" USING btree (email)"
+      },
+      {
+        "name": "User_email_key",
+        "ready": true,
+        "table": "User",
+        "valid": true,
+        "unique": true,
+        "primary": false,
+        "definition": "CREATE UNIQUE INDEX \"User_email_key\" ON public.\"User\" USING btree (email)"
+      },
+      {
+        "name": "User_pkey",
+        "ready": true,
+        "table": "User",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"User_pkey\" ON public.\"User\" USING btree (id)"
+      },
+      {
+        "name": "User_username_idx",
+        "ready": true,
+        "table": "User",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"User_username_idx\" ON public.\"User\" USING btree (username)"
+      },
+      {
+        "name": "User_username_key",
+        "ready": true,
+        "table": "User",
+        "valid": true,
+        "unique": true,
+        "primary": false,
+        "definition": "CREATE UNIQUE INDEX \"User_username_key\" ON public.\"User\" USING btree (username)"
+      },
+      {
+        "name": "WorkoutLog_date_idx",
+        "ready": true,
+        "table": "WorkoutLog",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"WorkoutLog_date_idx\" ON public.\"WorkoutLog\" USING btree (date)"
+      },
+      {
+        "name": "WorkoutLog_exerciseId_date_idx",
+        "ready": true,
+        "table": "WorkoutLog",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"WorkoutLog_exerciseId_date_idx\" ON public.\"WorkoutLog\" USING btree (\"exerciseId\", date)"
+      },
+      {
+        "name": "WorkoutLog_exerciseId_idx",
+        "ready": true,
+        "table": "WorkoutLog",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"WorkoutLog_exerciseId_idx\" ON public.\"WorkoutLog\" USING btree (\"exerciseId\")"
+      },
+      {
+        "name": "WorkoutLog_pkey",
+        "ready": true,
+        "table": "WorkoutLog",
+        "valid": true,
+        "unique": true,
+        "primary": true,
+        "definition": "CREATE UNIQUE INDEX \"WorkoutLog_pkey\" ON public.\"WorkoutLog\" USING btree (id)"
+      },
+      {
+        "name": "WorkoutLog_userId_date_idx",
+        "ready": true,
+        "table": "WorkoutLog",
+        "valid": true,
+        "unique": false,
+        "primary": false,
+        "definition": "CREATE INDEX \"WorkoutLog_userId_date_idx\" ON public.\"WorkoutLog\" USING btree (\"userId\", date)"
+      }
+    ],
+    "constraints": [
+      {
+        "name": "BodyLog_pkey",
+        "type": "p",
+        "table": "BodyLog",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "BodyLog_userId_fkey",
+        "type": "f",
+        "table": "BodyLog",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CardioSegment_pkey",
+        "type": "p",
+        "table": "CardioSegment",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CardioSegment_sessionId_fkey",
+        "type": "f",
+        "table": "CardioSegment",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"sessionId\") REFERENCES public.\"CardioSession\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CardioSession_pkey",
+        "type": "p",
+        "table": "CardioSession",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CardioSession_userId_fkey",
+        "type": "f",
+        "table": "CardioSession",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachCheckIn_date_check",
+        "type": "c",
+        "table": "CoachCheckIn",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (date::text ~ '^\\d{4}-\\d{2}-\\d{2}$'::text)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachCheckIn_energy_check",
+        "type": "c",
+        "table": "CoachCheckIn",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (energy >= 1 AND energy <= 5)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachCheckIn_fatigue_check",
+        "type": "c",
+        "table": "CoachCheckIn",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (fatigue >= 1 AND fatigue <= 5)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachCheckIn_pkey",
+        "type": "p",
+        "table": "CoachCheckIn",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachCheckIn_sleepHours_check",
+        "type": "c",
+        "table": "CoachCheckIn",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (\"sleepHours\" >= 0::double precision AND \"sleepHours\" <= 24::double precision)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachCheckIn_sleepQuality_check",
+        "type": "c",
+        "table": "CoachCheckIn",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (\"sleepQuality\" >= 1 AND \"sleepQuality\" <= 5)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachCheckIn_soreness_check",
+        "type": "c",
+        "table": "CoachCheckIn",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (jsonb_typeof(soreness) = 'object'::text)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachCheckIn_stress_check",
+        "type": "c",
+        "table": "CoachCheckIn",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (stress >= 1 AND stress <= 5)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachCheckIn_userId_fkey",
+        "type": "f",
+        "table": "CoachCheckIn",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachExerciseConfig_exerciseId_fkey",
+        "type": "f",
+        "table": "CoachExerciseConfig",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"exerciseId\") REFERENCES public.\"Exercise\"(id) ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachExerciseConfig_increment_check",
+        "type": "c",
+        "table": "CoachExerciseConfig",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (increment > 0::double precision AND increment <= 50::double precision)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachExerciseConfig_indirectWeight_check",
+        "type": "c",
+        "table": "CoachExerciseConfig",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (\"indirectWeight\" >= 0::double precision AND \"indirectWeight\" <= 1::double precision)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachExerciseConfig_pkey",
+        "type": "p",
+        "table": "CoachExerciseConfig",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachExerciseConfig_userId_fkey",
+        "type": "f",
+        "table": "CoachExerciseConfig",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachMeasurement_cm_check",
+        "type": "c",
+        "table": "CoachMeasurement",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (cm > 0::double precision AND cm <= 300::double precision)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachMeasurement_date_check",
+        "type": "c",
+        "table": "CoachMeasurement",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (date::text ~ '^\\d{4}-\\d{2}-\\d{2}$'::text)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachMeasurement_pkey",
+        "type": "p",
+        "table": "CoachMeasurement",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachMeasurement_quality_check",
+        "type": "c",
+        "table": "CoachMeasurement",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (quality = ANY (ARRAY['consistent'::text, 'variable'::text, 'unknown'::text]))",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachMeasurement_userId_fkey",
+        "type": "f",
+        "table": "CoachMeasurement",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachSuggestion_exerciseId_fkey",
+        "type": "f",
+        "table": "CoachSuggestion",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"exerciseId\") REFERENCES public.\"Exercise\"(id) ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachSuggestion_outcome_check",
+        "type": "c",
+        "table": "CoachSuggestion",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (outcome = ANY (ARRAY['presented'::text, 'accepted'::text, 'modified'::text, 'ignored'::text]))",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachSuggestion_pkey",
+        "type": "p",
+        "table": "CoachSuggestion",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachSuggestion_resultSetId_fkey",
+        "type": "f",
+        "table": "CoachSuggestion",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"resultSetId\") REFERENCES public.\"SetLog\"(id) ON DELETE SET NULL",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "CoachSuggestion_userId_fkey",
+        "type": "f",
+        "table": "CoachSuggestion",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "Exercise_pkey",
+        "type": "p",
+        "table": "Exercise",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "Exercise_routineDayId_fkey",
+        "type": "f",
+        "table": "Exercise",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"routineDayId\") REFERENCES public.\"RoutineDay\"(id) ON UPDATE CASCADE ON DELETE SET NULL",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "Exercise_userId_fkey",
+        "type": "f",
+        "table": "Exercise",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON UPDATE CASCADE ON DELETE RESTRICT",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "Goal_pkey",
+        "type": "p",
+        "table": "Goal",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "Goal_userId_fkey",
+        "type": "f",
+        "table": "Goal",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "PendingReminder_exerciseId_fkey",
+        "type": "f",
+        "table": "PendingReminder",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"exerciseId\") REFERENCES public.\"Exercise\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "PendingReminder_pkey",
+        "type": "p",
+        "table": "PendingReminder",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "PendingReminder_userId_fkey",
+        "type": "f",
+        "table": "PendingReminder",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "PersonalRecord_pkey",
+        "type": "p",
+        "table": "PersonalRecord",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "PersonalRecord_sourceExerciseId_fkey",
+        "type": "f",
+        "table": "PersonalRecord",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"sourceExerciseId\") REFERENCES public.\"Exercise\"(id) ON UPDATE CASCADE ON DELETE RESTRICT",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "PersonalRecord_userId_fkey",
+        "type": "f",
+        "table": "PersonalRecord",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "PushSubscription_pkey",
+        "type": "p",
+        "table": "PushSubscription",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "PushSubscription_userId_fkey",
+        "type": "f",
+        "table": "PushSubscription",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "RestLog_pkey",
+        "type": "p",
+        "table": "RestLog",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "RestLog_userId_fkey",
+        "type": "f",
+        "table": "RestLog",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "Routine_pkey",
+        "type": "p",
+        "table": "Routine",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "Routine_userId_fkey",
+        "type": "f",
+        "table": "Routine",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "RoutineBlock_pkey",
+        "type": "p",
+        "table": "RoutineBlock",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "RoutineBlock_routineId_fkey",
+        "type": "f",
+        "table": "RoutineBlock",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"routineId\") REFERENCES public.\"Routine\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "RoutineDay_pkey",
+        "type": "p",
+        "table": "RoutineDay",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "RoutineDay_routineId_fkey",
+        "type": "f",
+        "table": "RoutineDay",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"routineId\") REFERENCES public.\"Routine\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "SetLog_pkey",
+        "type": "p",
+        "table": "SetLog",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "SetLog_workoutLogId_fkey",
+        "type": "f",
+        "table": "SetLog",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"workoutLogId\") REFERENCES public.\"WorkoutLog\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "SuggestionLog_exerciseId_fkey",
+        "type": "f",
+        "table": "SuggestionLog",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"exerciseId\") REFERENCES public.\"Exercise\"(id) ON UPDATE CASCADE ON DELETE RESTRICT",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "SuggestionLog_pkey",
+        "type": "p",
+        "table": "SuggestionLog",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "SuggestionLog_userId_fkey",
+        "type": "f",
+        "table": "SuggestionLog",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "TrainingProfile_pkey",
+        "type": "p",
+        "table": "TrainingProfile",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "TrainingProfile_userId_fkey",
+        "type": "f",
+        "table": "TrainingProfile",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON UPDATE CASCADE ON DELETE CASCADE",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "User_pkey",
+        "type": "p",
+        "table": "User",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "WorkoutLog_exerciseId_fkey",
+        "type": "f",
+        "table": "WorkoutLog",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"exerciseId\") REFERENCES public.\"Exercise\"(id) ON UPDATE CASCADE ON DELETE RESTRICT",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "WorkoutLog_pkey",
+        "type": "p",
+        "table": "WorkoutLog",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "WorkoutLog_snapshotSource_check",
+        "type": "c",
+        "table": "WorkoutLog",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (\"snapshotSource\" = ANY (ARRAY['recorded'::text, 'legacy-observed'::text]))",
+        "initiallyDeferred": false
+      },
+      {
+        "name": "WorkoutLog_userId_fkey",
+        "type": "f",
+        "table": "WorkoutLog",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (\"userId\") REFERENCES public.\"User\"(id) ON UPDATE CASCADE ON DELETE RESTRICT",
+        "initiallyDeferred": false
+      }
+    ],
+    "foreignKeys": [
+      {
+        "name": "BodyLog_userId_fkey",
+        "table": "BodyLog",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "CardioSegment_sessionId_fkey",
+        "table": "CardioSegment",
+        "columns": [
+          "sessionId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "CardioSession",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "CardioSession_userId_fkey",
+        "table": "CardioSession",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "CoachCheckIn_userId_fkey",
+        "table": "CoachCheckIn",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "NO ACTION",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "CoachExerciseConfig_exerciseId_fkey",
+        "table": "CoachExerciseConfig",
+        "columns": [
+          "exerciseId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "NO ACTION",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "Exercise",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "CoachExerciseConfig_userId_fkey",
+        "table": "CoachExerciseConfig",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "NO ACTION",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "CoachMeasurement_userId_fkey",
+        "table": "CoachMeasurement",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "NO ACTION",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "CoachSuggestion_exerciseId_fkey",
+        "table": "CoachSuggestion",
+        "columns": [
+          "exerciseId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "NO ACTION",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "Exercise",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "CoachSuggestion_resultSetId_fkey",
+        "table": "CoachSuggestion",
+        "columns": [
+          "resultSetId"
+        ],
+        "onDelete": "SET NULL",
+        "onUpdate": "NO ACTION",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "SetLog",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "CoachSuggestion_userId_fkey",
+        "table": "CoachSuggestion",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "NO ACTION",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "Exercise_routineDayId_fkey",
+        "table": "Exercise",
+        "columns": [
+          "routineDayId"
+        ],
+        "onDelete": "SET NULL",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "RoutineDay",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "Exercise_userId_fkey",
+        "table": "Exercise",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "RESTRICT",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "Goal_userId_fkey",
+        "table": "Goal",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "PendingReminder_exerciseId_fkey",
+        "table": "PendingReminder",
+        "columns": [
+          "exerciseId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "Exercise",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "PendingReminder_userId_fkey",
+        "table": "PendingReminder",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "PersonalRecord_sourceExerciseId_fkey",
+        "table": "PersonalRecord",
+        "columns": [
+          "sourceExerciseId"
+        ],
+        "onDelete": "RESTRICT",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "Exercise",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "PersonalRecord_userId_fkey",
+        "table": "PersonalRecord",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "PushSubscription_userId_fkey",
+        "table": "PushSubscription",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "RestLog_userId_fkey",
+        "table": "RestLog",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "Routine_userId_fkey",
+        "table": "Routine",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "RoutineBlock_routineId_fkey",
+        "table": "RoutineBlock",
+        "columns": [
+          "routineId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "Routine",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "RoutineDay_routineId_fkey",
+        "table": "RoutineDay",
+        "columns": [
+          "routineId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "Routine",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "SetLog_workoutLogId_fkey",
+        "table": "SetLog",
+        "columns": [
+          "workoutLogId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "WorkoutLog",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "SuggestionLog_exerciseId_fkey",
+        "table": "SuggestionLog",
+        "columns": [
+          "exerciseId"
+        ],
+        "onDelete": "RESTRICT",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "Exercise",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "SuggestionLog_userId_fkey",
+        "table": "SuggestionLog",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "TrainingProfile_userId_fkey",
+        "table": "TrainingProfile",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "CASCADE",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "WorkoutLog_exerciseId_fkey",
+        "table": "WorkoutLog",
+        "columns": [
+          "exerciseId"
+        ],
+        "onDelete": "RESTRICT",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "Exercise",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      },
+      {
+        "name": "WorkoutLog_userId_fkey",
+        "table": "WorkoutLog",
+        "columns": [
+          "userId"
+        ],
+        "onDelete": "RESTRICT",
+        "onUpdate": "CASCADE",
+        "validated": true,
+        "deferrable": false,
+        "triggerModes": [
+          "O"
+        ],
+        "referencedTable": "User",
+        "referencedSchema": "public",
+        "initiallyDeferred": false,
+        "referencedColumns": [
+          "id"
+        ]
+      }
+    ]
+  }
+}
