@@ -2,15 +2,28 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { releaseConfig } from '../deploy/release-config.js';
 import { migrateDisposable } from '../deploy/release-migrate.mjs';
 import { assertRecoveryCapacity } from '../deploy/release-recovery.mjs';
+import { diagnoseStartup, logStartupFailure } from '../deploy/release-diagnostics.mjs';
 const valid = { NODE_ENV: 'production', NEXLIFT_HTTP_TRANSPORT: 'express', NEXLIFT_RELEASE_MODE: 'release',
     NEXLIFT_RELEASE_DATABASE_URL: 'postgresql://test@127.0.0.1/test', JWT_SECRET: 'a'.repeat(64), NEXLIFT_REPLICAS: '1' };
 
 test('10 release requires explicit transport, mode, URL, secret, environment and one replica', () => {
-    for (const key of Object.keys(valid)) assert.throws(() => releaseConfig({ ...valid, [key]: undefined }));
+    for (const key of Object.keys(valid)) assert.throws(() => releaseConfig({ ...valid, [key]: undefined }), error => {
+        assert.equal(diagnoseStartup(error).field, key); return true;
+    });
     assert.equal(releaseConfig(valid).transport, 'express');
+    const child = spawnSync(process.execPath, [fileURLToPath(new URL('../deploy/release-http.mjs', import.meta.url))], {
+        env: { SYSTEMROOT: process.env.SYSTEMROOT || process.env.SystemRoot, NODE_ENV: 'production' },
+        encoding: 'utf8', windowsHide: true, timeout: 10000
+    });
+    assert.equal(child.status, 1);
+    const diagnostic = JSON.parse(child.stderr.trim());
+    assert.equal(diagnostic.field, 'NEXLIFT_HTTP_TRANSPORT');
+    assert.equal(diagnostic.event, 'startup_failed');
 });
 test('10 transport cannot change through invalid values or a Fastify flag alone', () => {
     for (const value of ['', 'FASTIFY', ' fastify', 'unknown']) assert.throws(() => releaseConfig({ ...valid, NEXLIFT_HTTP_TRANSPORT: value }));
@@ -31,6 +44,19 @@ test('10 invalid runtime values fail safely without printing supplied secrets', 
         { NEXLIFT_BIND_HOST: 'external.invalid' }, { NEXLIFT_TRUSTED_PROXY_CIDRS: 'true' }]) {
         assert.throws(() => releaseConfig({ ...valid, ...change }), error => !/sensitive|password|external.invalid/i.test(error.message));
     }
+    const hidden = 'SENSITIVE-secret postgresql://private:password@example.invalid/db';
+    for (const error of [new Error(hidden), Object.assign(new Error(hidden), { code: 'P1001' }),
+        Object.assign(new Error(hidden), { errorCode: 'P1000' }),
+        new Error('Release configuration rejected: SENSITIVE_SECRET'),
+        { message: hidden, code: hidden, stack: hidden }]) {
+        let output = ''; logStartupFailure(error, line => { output += line; });
+        assert(!/SENSITIVE|password|postgresql|stack/i.test(output));
+        assert.equal(JSON.parse(output).event, 'startup_failed');
+    }
+    assert.equal(diagnoseStartup({ errorCode: 'P1000' }).code, 'DATABASE_AUTHENTICATION_FAILED');
+    assert.equal(diagnoseStartup(new Error('Falta registrar el historial de migraciones.')).code, 'MIGRATION_HISTORY_MISSING');
+    assert.equal(diagnoseStartup(new Error('Hay migraciones requeridas pendientes.')).code, 'MIGRATIONS_PENDING');
+    assert.equal(diagnoseStartup(new Error('Esquema incompatible: readiness rechazada.')).code, 'SCHEMA_MISMATCH');
 });
 test('10 disposable release requires local database name and identity; ordinary URL cannot opt in', () => {
     assert.throws(() => releaseConfig({ ...valid, NEXLIFT_RELEASE_MODE: 'rehearsal' }));

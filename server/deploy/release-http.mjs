@@ -4,6 +4,7 @@ import { releaseConfig } from './release-config.js';
 import { artifactManifest } from './release-artifacts.mjs';
 import { assertReleaseSchema } from './release-preflight.mjs';
 import { operationalLog } from '../src/operations/telemetry.js';
+import { logStartupFailure } from './release-diagnostics.mjs';
 
 export async function startRelease({ env = process.env, providers, signals, exit } = {}) {
     const config = releaseConfig(env);
@@ -58,5 +59,5 @@ export async function startRelease({ env = process.env, providers, signals, exit
     }
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-    startRelease().catch(() => { operationalLog({ event: 'startup_failed', category: 'configuration_or_dependency' }); process.exitCode = 1; });
+    startRelease().catch(error => { logStartupFailure(error); process.exitCode = 1; });
 }
