@@ -35,7 +35,9 @@ USER node
 ENTRYPOINT ["node", "deploy/release-migrate.mjs"]
 
 FROM builder AS production-deps
-RUN npm --prefix server prune --omit=dev --ignore-scripts --workspaces=false --no-audit --no-fund
+# Prisma CLI is also an optional peer of @prisma/client (devOptional in npm).
+# Omit both paths after client generation; the runtime uses the generated engine.
+RUN npm --prefix server prune --omit=dev --omit=optional --ignore-scripts --workspaces=false --no-audit --no-fund
 
 FROM base AS runtime
 WORKDIR /app/server

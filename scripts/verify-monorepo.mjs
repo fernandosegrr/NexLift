@@ -226,7 +226,7 @@ try {
         console.log(`Standalone dependency copy retained: ${standalone}`);
     }
     // Isolated/server-only compatibility uses its retained lock; root deps stay out.
-    await run('production-prune', [npm, '--prefix', 'server', 'prune', '--omit=dev', '--ignore-scripts', '--workspaces=false', '--no-audit', '--no-fund']);
+    await run('production-prune', [npm, '--prefix', 'server', 'prune', '--omit=dev', '--omit=optional', '--ignore-scripts', '--workspaces=false', '--no-audit', '--no-fund']);
     const currentClient = path.join(root, 'phase6-clients/current');
     await cp(path.join(root, 'server/node_modules/.prisma/client'), currentClient, { recursive: true });
     await cp(legacyClient, path.join(root, 'server/node_modules/.prisma/client'), { recursive: true });
