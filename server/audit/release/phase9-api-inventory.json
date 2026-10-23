@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-23T17:34:53.675Z",
+  "generatedAt": "2026-10-23T19:58:20.912Z",
   "declaredEndpoints": 79,
   "receivedEndpoints": 75,
   "coverage": "100% received routes preserved + 3 disabled web-session rehearsal routes + generation-scoped reminder cancellation",

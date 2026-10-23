@@ -3,7 +3,7 @@
   "baseline": "PROVISIONAL",
   "trials": [],
   "postgres": "PostgreSQL 18.4 on x86_64-windows, compiled by msvc-19.44.35227, 64-bit",
-  "root": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-phase6-trials\\trial-NdFfqU",
+  "root": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-phase6-trials\\trial-LK4S0Y",
   "catalog": {
     "tables": 17,
     "columns": 166,
@@ -16,8 +16,8 @@
     "sets": 12005,
     "returned": 2000,
     "queryCount": 3,
-    "readMs": 204.776300000005,
-    "rebuildMs": 199.88969999999972,
+    "readMs": 216.8251999999993,
+    "rebuildMs": 202.05280000000494,
     "plan": [
       {
         "QUERY PLAN": [
@@ -30,8 +30,8 @@
               "Total Cost": 8.29,
               "Plan Rows": 1,
               "Plan Width": 17,
-              "Actual Startup Time": 0.018,
-              "Actual Total Time": 0.019,
+              "Actual Startup Time": 0.023,
+              "Actual Total Time": 0.024,
               "Actual Rows": 1,
               "Actual Loops": 1,
               "Disabled": false,
@@ -59,8 +59,8 @@
                   "Total Cost": 8.29,
                   "Plan Rows": 1,
                   "Plan Width": 17,
-                  "Actual Startup Time": 0.017,
-                  "Actual Total Time": 0.018,
+                  "Actual Startup Time": 0.022,
+                  "Actual Total Time": 0.023,
                   "Actual Rows": 1,
                   "Actual Loops": 1,
                   "Disabled": false,
@@ -92,9 +92,9 @@
               "Temp Read Blocks": 0,
               "Temp Written Blocks": 0
             },
-            "Planning Time": 0.128,
+            "Planning Time": 0.129,
             "Triggers": [],
-            "Execution Time": 0.029
+            "Execution Time": 0.035
           }
         ]
       }
@@ -104,8 +104,8 @@
       "customExercises": 100,
       "historicalLogs": 100,
       "historicalSets": 600,
-      "editMs": 472.7811999999976,
-      "deleteMs": 12.101699999999255,
+      "editMs": 380.74519999999757,
+      "deleteMs": 12.867400000002817,
       "preserved": {
         "logs": 2104,
         "sets": 12605,

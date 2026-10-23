@@ -4,20 +4,20 @@
   "frontendByteReproducible": true,
   "diskMatchesProduction": true,
   "first": {
-    "milliseconds": 8079.692299999999,
+    "milliseconds": 8275.5254,
     "outputs": [
       {
-        "file": "assets/AiRoutineSetup-CRFuxGa5.js",
-        "sha256": "84c0d9f68d1bb2e1210cc8985e972afb4e09e0c66d3bf7b1be8982148c40713f",
+        "file": "assets/AiRoutineSetup-IfpYUyNO.js",
+        "sha256": "1adaf7472683d01fcd9a1885ec0a69eccd137fe706a2f9023b3c741897952f53",
         "bytes": 6638,
         "gzip": 2097,
         "entry": false
       },
       {
-        "file": "assets/BodyTracking-BBxpENYQ.js",
-        "sha256": "3609fe980502bd46ee967a35603cbb1028186317ba703305cf1f1576879ac4d1",
+        "file": "assets/BodyTracking-e9khy3cb.js",
+        "sha256": "eceb7d52c2abb91cef2a009eba7522e900cc068b2a009d93622346012f3c415a",
         "bytes": 23657,
-        "gzip": 6285,
+        "gzip": 6287,
         "entry": false
       },
       {
@@ -28,10 +28,10 @@
         "entry": false
       },
       {
-        "file": "assets/Coach-DyOPixRI.js",
-        "sha256": "cb9cd8899fb2f2330e0e9601cefb0126e9f021be47b52fea9c47acca6bbf9537",
-        "bytes": 1635,
-        "gzip": 807,
+        "file": "assets/Coach-Cm2FDe_G.js",
+        "sha256": "c9613d84f28aa72378e266d3738ed9dbbfd6287131dcf400e300f7b7b02b5e7d",
+        "bytes": 35608,
+        "gzip": 11017,
         "entry": false
       },
       {
@@ -42,66 +42,66 @@
         "entry": false
       },
       {
-        "file": "assets/Dashboard-CE21JSui.js",
-        "sha256": "c26fd9f070f7e829ecbb21f936c58e0f7635fef1e5a159e1bc820f01592c9251",
+        "file": "assets/Dashboard-DftWg5hC.js",
+        "sha256": "c51d6bf962a84fbda5e87bdb19a74887ef616784e26f8a640d4a2641346ac845",
         "bytes": 17377,
-        "gzip": 5639,
+        "gzip": 5638,
         "entry": false
       },
       {
-        "file": "assets/DraftBoundary-DiAxxA2m.js",
-        "sha256": "8ea3f32d9b2f5258c8aa8af44c6739f9931a17f1f2add2969a4e36a278aae6cd",
+        "file": "assets/DraftBoundary-K_fytdul.js",
+        "sha256": "9ab5831a76942ebf8431e58c05d991a42f6b51a5baeeebca1eea65363256532d",
         "bytes": 258,
-        "gzip": 205,
+        "gzip": 203,
         "entry": false
       },
       {
-        "file": "assets/EditRoutine-tp08in3z.js",
-        "sha256": "fb5bcd72c3a0d595abc4c3144d2f59633056201f9bcaaa7ea7b5db731fb98667",
+        "file": "assets/EditRoutine-4SRhK-eC.js",
+        "sha256": "064aa49331e332aebcc61d606a761886b2bba8309afd56db86be48357fb41e1f",
         "bytes": 20094,
-        "gzip": 5239,
+        "gzip": 5241,
         "entry": false
       },
       {
-        "file": "assets/EditSession-CE0vSmHm.js",
-        "sha256": "20d60e917ebc855565c2e1a004e4b13bf757d1337fc6fc37e7c9abb6f67ac03f",
+        "file": "assets/EditSession-D16Oqay-.js",
+        "sha256": "f481c57f744be7a3f0f928cec32a6e41212edd644ffe404c6a620ce0f44990db",
         "bytes": 10090,
         "gzip": 3325,
         "entry": false
       },
       {
-        "file": "assets/exerciseName-BYfSxTiB.js",
-        "sha256": "3fcd642e554e86f2d6a6091584f502a255bf27054aa7e32cf7c9d9c574ebb780",
+        "file": "assets/exerciseName-CI-kdVTM.js",
+        "sha256": "df475f9c97c51a1ca015a8434bb91883e04653d6a2dbd933fd79df6e9952b499",
         "bytes": 300,
         "gzip": 243,
         "entry": false
       },
       {
-        "file": "assets/ExportReport-DDtTAYZd.js",
-        "sha256": "31c1d3a38c401b6945a91dd01d54e35ba6acd7973b47da5375e9404a143f731b",
+        "file": "assets/ExportReport-DnqREjFJ.js",
+        "sha256": "3d3f93011ed2634f05a9951f468dbac9c9aa9efd7382f4da0676ca88ca0be173",
         "bytes": 33020,
         "gzip": 10672,
         "entry": false
       },
       {
-        "file": "assets/ForgotPassword-BTAgWTHA.js",
-        "sha256": "e741db3fd2bf0008dac1727fbeb02079649c1dcadd97ffb944d64b447a457859",
+        "file": "assets/ForgotPassword-DkrL5dMq.js",
+        "sha256": "ac5e05934ab88c6ff289fe0c7eade49f8b2a26cf4d8da6d54c544311ca29a599",
         "bytes": 9019,
-        "gzip": 2275,
+        "gzip": 2276,
         "entry": false
       },
       {
-        "file": "assets/goalPlanner-DjFDmFq5.js",
-        "sha256": "bf43a5fba4c25125b95d1efe5ce92c15c56615b1f12ae0b821cdcf76e7787efd",
+        "file": "assets/goalPlanner-Bha6J-Um.js",
+        "sha256": "5357355b48bc739301dd93825f84cef8f4d67931aefb1735d0a626ccfb2c1c1f",
         "bytes": 3754,
         "gzip": 1869,
         "entry": false
       },
       {
-        "file": "assets/GoalSection-ITlr_SZe.js",
-        "sha256": "9d3ee87dd03b35203119666b5cbe08fb18eb48b14d5f40f2b6009b7462eb9fe5",
+        "file": "assets/GoalSection-DOlCkbZR.js",
+        "sha256": "41917ac1181169278937153a658e8222053769840dacec76ffeec0c3e538649c",
         "bytes": 12177,
-        "gzip": 3814,
+        "gzip": 3813,
         "entry": false
       },
       {
@@ -112,10 +112,10 @@
         "entry": false
       },
       {
-        "file": "assets/Import-CNmHKax5.js",
-        "sha256": "2cd33100b19a9525df5bcfa3e6d5ca11e78787356b11d656aa60a359691e1e6f",
+        "file": "assets/Import-Dbr7B0Rx.js",
+        "sha256": "3d36d31fd0174ce4d83f8adddc2900f776ece2ace3ba5a9efc19ba77a1c7d6fb",
         "bytes": 28977,
-        "gzip": 7798,
+        "gzip": 7799,
         "entry": false
       },
       {
@@ -126,10 +126,10 @@
         "entry": false
       },
       {
-        "file": "assets/index-PYfpM0UF.js",
-        "sha256": "d432fb0d72c6a2ae874e3abbd0123fcc9dbaab18af14ca68ebfd17f34b3146f2",
-        "bytes": 248281,
-        "gzip": 79371,
+        "file": "assets/index-CVefCXJM.js",
+        "sha256": "98dfd0590bed6d1e9f3c68a8349febe55a9480a1e9fe9a7014ab777d59d07aaf",
+        "bytes": 248807,
+        "gzip": 79533,
         "entry": true
       },
       {
@@ -140,8 +140,8 @@
         "entry": false
       },
       {
-        "file": "assets/NewGoal-1vLNKio2.js",
-        "sha256": "22de0e7bf0b666c9223effa262acb455723219ee6fdfd87734409c2155d70b62",
+        "file": "assets/NewGoal-KSREDtPJ.js",
+        "sha256": "8307d50e88c6e0dbb15767759377af7755b7828fe13b4b730c1806d42852d930",
         "bytes": 10743,
         "gzip": 3663,
         "entry": false
@@ -161,17 +161,17 @@
         "entry": false
       },
       {
-        "file": "assets/Profile-Ckz_A2DU.js",
-        "sha256": "4826a0c7c26bf47ebe36fddb87ebaa0f276709d902a3764eeb04b7dd1d78ea94",
+        "file": "assets/Profile-BOaH2fQN.js",
+        "sha256": "e54111032242494c0813707cc94be6ded4019894f71c38f0d6131cf0e42e5697",
         "bytes": 9379,
-        "gzip": 2998,
+        "gzip": 2997,
         "entry": false
       },
       {
-        "file": "assets/Progress-DNUNz_xn.js",
-        "sha256": "5d649b320b3a44f1763e43d455c8298e7c4ddaba19cda66e6cd9f8e73b07eef0",
-        "bytes": 41790,
-        "gzip": 11826,
+        "file": "assets/Progress-BEQdmebj.js",
+        "sha256": "e8876b7f1fa0e4539b0e8f90e86ad6e3980e71aad3d9fd42cca12349ab538309",
+        "bytes": 41925,
+        "gzip": 11857,
         "entry": false
       },
       {
@@ -196,8 +196,8 @@
         "entry": false
       },
       {
-        "file": "assets/Register-tz_tR6VT.js",
-        "sha256": "6b45fe7c7d6e6054c1956f809dec8c81da099c13e437f2c7fde43afc6e8b88e2",
+        "file": "assets/Register-B7nw0fr2.js",
+        "sha256": "c48b11075e191408cd7276d23f042d5949b61bbdee129fad618d71be0817950f",
         "bytes": 10895,
         "gzip": 2627,
         "entry": false
@@ -210,38 +210,38 @@
         "entry": false
       },
       {
-        "file": "assets/remoteViews-Ca-K1YG4.js",
-        "sha256": "971fffd415636482047084e04acc6c1a9dd088b5a2cc4eaf610db4792b6175c1",
+        "file": "assets/remoteViews-BkuAHX0Y.js",
+        "sha256": "8985a4220ae5d71a17225ae30fb4c0a717d2e35aba149c7d45199580c0bd3a2f",
         "bytes": 1710,
         "gzip": 666,
         "entry": false
       },
       {
-        "file": "assets/routineDays-B0zHyS9w.js",
-        "sha256": "83e537880a05b1338a4bba7b6eaca6820947670488169001c70d3b97fbdaec66",
+        "file": "assets/routineDays-IqUz4UTh.js",
+        "sha256": "3f41e2afe5287287ab49a89193d5f0ef618f5d269c335670e5af8f810bf66641",
         "bytes": 897,
-        "gzip": 447,
+        "gzip": 444,
         "entry": false
       },
       {
-        "file": "assets/RoutineDetail-CdiziWDe.js",
-        "sha256": "5cd951d919369ed3d003a569e7dff524e04ac44d3167d49a786003cb36fa646c",
+        "file": "assets/RoutineDetail-DJXIw9cs.js",
+        "sha256": "b4466593d8a519342bc1284b6af2dbb97a12eeaea2af5be339e76b4fd277bd18",
         "bytes": 6524,
-        "gzip": 2289,
+        "gzip": 2288,
         "entry": false
       },
       {
-        "file": "assets/routinePayload-Dsg_rjdW.js",
-        "sha256": "a12e762cfc2fb6ccdbd65c6aeef4772f6ea62cb0b319f2609ba9b136a3bc981d",
+        "file": "assets/routinePayload-TRasAIWk.js",
+        "sha256": "b4475e93f171dbcca599de47886cb48bf848cdd107365be10606e4443369ec42",
         "bytes": 8177,
         "gzip": 2581,
         "entry": false
       },
       {
-        "file": "assets/Routines-DBI0d7mo.js",
-        "sha256": "2907af98deae2d7b9444f6d4ab14cdc6de27c39886abce5df6ee90db344db388",
+        "file": "assets/Routines-iEiwO8Ia.js",
+        "sha256": "31132024434f4c87b72a086e52e8bf1487744bded7dc2fb81678b7443cf2a24b",
         "bytes": 17575,
-        "gzip": 4996,
+        "gzip": 4994,
         "entry": false
       },
       {
@@ -252,17 +252,17 @@
         "entry": false
       },
       {
-        "file": "assets/sessionPdf-DQrCmj78.js",
-        "sha256": "52a3c93993b9f5731f6aae16f297988d46dbad6821378387536ffa59b1b8170f",
+        "file": "assets/sessionPdf-Dhh_Xy_e.js",
+        "sha256": "d51cb70bc84503c5193cd5d491cae85f04e2e5244cb1aa68cca696d212e39a46",
         "bytes": 4135,
-        "gzip": 1867,
+        "gzip": 1866,
         "entry": false
       },
       {
-        "file": "assets/Settings-DcXWMDNR.js",
-        "sha256": "84db986d4b8f285685e66653a790cbfc160cd92bbff3c3dd91cf599edf3d020e",
+        "file": "assets/Settings-DkSuqSXe.js",
+        "sha256": "8419a80db44979b2391629f3b4f9999484918282237a7124cfcb2c38317786e0",
         "bytes": 39552,
-        "gzip": 10205,
+        "gzip": 10204,
         "entry": false
       },
       {
@@ -273,43 +273,43 @@
         "entry": false
       },
       {
-        "file": "assets/useRemoteRead-CpaOy67Q.js",
-        "sha256": "31335fd02b92ef61e8e1ef18f9ef0b9383cd8e5495b86131c9244fabb6e17cd2",
+        "file": "assets/useRemoteRead-CxBV0NyL.js",
+        "sha256": "54f749ff19f986434efc64de3f7989d53c4c1bf18dac628ac44dde4d9a29dd14",
         "bytes": 8279,
-        "gzip": 3077,
+        "gzip": 3076,
         "entry": false
       },
       {
-        "file": "assets/Workout-0-SrK7NR.js",
-        "sha256": "68c4f1f4326dcb723f262e9d55712bc84157bac8171c6b6f4e7db4e1991f8f0d",
-        "bytes": 51655,
-        "gzip": 14335,
+        "file": "assets/Workout-D7wUc03j.js",
+        "sha256": "3b448f467ce1ea5688b2f80a83b750125f7952ba1dd62a3309065343b7d95386",
+        "bytes": 52016,
+        "gzip": 14455,
         "entry": false
       },
       {
         "file": "index.html",
-        "sha256": "b94cef005a5a2c8482107a3c3aa5a7da031769b9b1e9dcbd71ffaeeb2404c02e",
-        "bytes": 1070,
-        "gzip": 502,
+        "sha256": "c8f17a1daf11d44ea34ed9bd575243796cf4798b9701b23beca3e8f8a75e3077",
+        "bytes": 1139,
+        "gzip": 525,
         "entry": false
       }
     ]
   },
   "second": {
-    "milliseconds": 6815.111499999999,
+    "milliseconds": 7129.7835,
     "outputs": [
       {
-        "file": "assets/AiRoutineSetup-CRFuxGa5.js",
-        "sha256": "84c0d9f68d1bb2e1210cc8985e972afb4e09e0c66d3bf7b1be8982148c40713f",
+        "file": "assets/AiRoutineSetup-IfpYUyNO.js",
+        "sha256": "1adaf7472683d01fcd9a1885ec0a69eccd137fe706a2f9023b3c741897952f53",
         "bytes": 6638,
         "gzip": 2097,
         "entry": false
       },
       {
-        "file": "assets/BodyTracking-BBxpENYQ.js",
-        "sha256": "3609fe980502bd46ee967a35603cbb1028186317ba703305cf1f1576879ac4d1",
+        "file": "assets/BodyTracking-e9khy3cb.js",
+        "sha256": "eceb7d52c2abb91cef2a009eba7522e900cc068b2a009d93622346012f3c415a",
         "bytes": 23657,
-        "gzip": 6285,
+        "gzip": 6287,
         "entry": false
       },
       {
@@ -320,10 +320,10 @@
         "entry": false
       },
       {
-        "file": "assets/Coach-DyOPixRI.js",
-        "sha256": "cb9cd8899fb2f2330e0e9601cefb0126e9f021be47b52fea9c47acca6bbf9537",
-        "bytes": 1635,
-        "gzip": 807,
+        "file": "assets/Coach-Cm2FDe_G.js",
+        "sha256": "c9613d84f28aa72378e266d3738ed9dbbfd6287131dcf400e300f7b7b02b5e7d",
+        "bytes": 35608,
+        "gzip": 11017,
         "entry": false
       },
       {
@@ -334,66 +334,66 @@
         "entry": false
       },
       {
-        "file": "assets/Dashboard-CE21JSui.js",
-        "sha256": "c26fd9f070f7e829ecbb21f936c58e0f7635fef1e5a159e1bc820f01592c9251",
+        "file": "assets/Dashboard-DftWg5hC.js",
+        "sha256": "c51d6bf962a84fbda5e87bdb19a74887ef616784e26f8a640d4a2641346ac845",
         "bytes": 17377,
-        "gzip": 5639,
+        "gzip": 5638,
         "entry": false
       },
       {
-        "file": "assets/DraftBoundary-DiAxxA2m.js",
-        "sha256": "8ea3f32d9b2f5258c8aa8af44c6739f9931a17f1f2add2969a4e36a278aae6cd",
+        "file": "assets/DraftBoundary-K_fytdul.js",
+        "sha256": "9ab5831a76942ebf8431e58c05d991a42f6b51a5baeeebca1eea65363256532d",
         "bytes": 258,
-        "gzip": 205,
+        "gzip": 203,
         "entry": false
       },
       {
-        "file": "assets/EditRoutine-tp08in3z.js",
-        "sha256": "fb5bcd72c3a0d595abc4c3144d2f59633056201f9bcaaa7ea7b5db731fb98667",
+        "file": "assets/EditRoutine-4SRhK-eC.js",
+        "sha256": "064aa49331e332aebcc61d606a761886b2bba8309afd56db86be48357fb41e1f",
         "bytes": 20094,
-        "gzip": 5239,
+        "gzip": 5241,
         "entry": false
       },
       {
-        "file": "assets/EditSession-CE0vSmHm.js",
-        "sha256": "20d60e917ebc855565c2e1a004e4b13bf757d1337fc6fc37e7c9abb6f67ac03f",
+        "file": "assets/EditSession-D16Oqay-.js",
+        "sha256": "f481c57f744be7a3f0f928cec32a6e41212edd644ffe404c6a620ce0f44990db",
         "bytes": 10090,
         "gzip": 3325,
         "entry": false
       },
       {
-        "file": "assets/exerciseName-BYfSxTiB.js",
-        "sha256": "3fcd642e554e86f2d6a6091584f502a255bf27054aa7e32cf7c9d9c574ebb780",
+        "file": "assets/exerciseName-CI-kdVTM.js",
+        "sha256": "df475f9c97c51a1ca015a8434bb91883e04653d6a2dbd933fd79df6e9952b499",
         "bytes": 300,
         "gzip": 243,
         "entry": false
       },
       {
-        "file": "assets/ExportReport-DDtTAYZd.js",
-        "sha256": "31c1d3a38c401b6945a91dd01d54e35ba6acd7973b47da5375e9404a143f731b",
+        "file": "assets/ExportReport-DnqREjFJ.js",
+        "sha256": "3d3f93011ed2634f05a9951f468dbac9c9aa9efd7382f4da0676ca88ca0be173",
         "bytes": 33020,
         "gzip": 10672,
         "entry": false
       },
       {
-        "file": "assets/ForgotPassword-BTAgWTHA.js",
-        "sha256": "e741db3fd2bf0008dac1727fbeb02079649c1dcadd97ffb944d64b447a457859",
+        "file": "assets/ForgotPassword-DkrL5dMq.js",
+        "sha256": "ac5e05934ab88c6ff289fe0c7eade49f8b2a26cf4d8da6d54c544311ca29a599",
         "bytes": 9019,
-        "gzip": 2275,
+        "gzip": 2276,
         "entry": false
       },
       {
-        "file": "assets/goalPlanner-DjFDmFq5.js",
-        "sha256": "bf43a5fba4c25125b95d1efe5ce92c15c56615b1f12ae0b821cdcf76e7787efd",
+        "file": "assets/goalPlanner-Bha6J-Um.js",
+        "sha256": "5357355b48bc739301dd93825f84cef8f4d67931aefb1735d0a626ccfb2c1c1f",
         "bytes": 3754,
         "gzip": 1869,
         "entry": false
       },
       {
-        "file": "assets/GoalSection-ITlr_SZe.js",
-        "sha256": "9d3ee87dd03b35203119666b5cbe08fb18eb48b14d5f40f2b6009b7462eb9fe5",
+        "file": "assets/GoalSection-DOlCkbZR.js",
+        "sha256": "41917ac1181169278937153a658e8222053769840dacec76ffeec0c3e538649c",
         "bytes": 12177,
-        "gzip": 3814,
+        "gzip": 3813,
         "entry": false
       },
       {
@@ -404,10 +404,10 @@
         "entry": false
       },
       {
-        "file": "assets/Import-CNmHKax5.js",
-        "sha256": "2cd33100b19a9525df5bcfa3e6d5ca11e78787356b11d656aa60a359691e1e6f",
+        "file": "assets/Import-Dbr7B0Rx.js",
+        "sha256": "3d36d31fd0174ce4d83f8adddc2900f776ece2ace3ba5a9efc19ba77a1c7d6fb",
         "bytes": 28977,
-        "gzip": 7798,
+        "gzip": 7799,
         "entry": false
       },
       {
@@ -418,10 +418,10 @@
         "entry": false
       },
       {
-        "file": "assets/index-PYfpM0UF.js",
-        "sha256": "d432fb0d72c6a2ae874e3abbd0123fcc9dbaab18af14ca68ebfd17f34b3146f2",
-        "bytes": 248281,
-        "gzip": 79371,
+        "file": "assets/index-CVefCXJM.js",
+        "sha256": "98dfd0590bed6d1e9f3c68a8349febe55a9480a1e9fe9a7014ab777d59d07aaf",
+        "bytes": 248807,
+        "gzip": 79533,
         "entry": true
       },
       {
@@ -432,8 +432,8 @@
         "entry": false
       },
       {
-        "file": "assets/NewGoal-1vLNKio2.js",
-        "sha256": "22de0e7bf0b666c9223effa262acb455723219ee6fdfd87734409c2155d70b62",
+        "file": "assets/NewGoal-KSREDtPJ.js",
+        "sha256": "8307d50e88c6e0dbb15767759377af7755b7828fe13b4b730c1806d42852d930",
         "bytes": 10743,
         "gzip": 3663,
         "entry": false
@@ -453,17 +453,17 @@
         "entry": false
       },
       {
-        "file": "assets/Profile-Ckz_A2DU.js",
-        "sha256": "4826a0c7c26bf47ebe36fddb87ebaa0f276709d902a3764eeb04b7dd1d78ea94",
+        "file": "assets/Profile-BOaH2fQN.js",
+        "sha256": "e54111032242494c0813707cc94be6ded4019894f71c38f0d6131cf0e42e5697",
         "bytes": 9379,
-        "gzip": 2998,
+        "gzip": 2997,
         "entry": false
       },
       {
-        "file": "assets/Progress-DNUNz_xn.js",
-        "sha256": "5d649b320b3a44f1763e43d455c8298e7c4ddaba19cda66e6cd9f8e73b07eef0",
-        "bytes": 41790,
-        "gzip": 11826,
+        "file": "assets/Progress-BEQdmebj.js",
+        "sha256": "e8876b7f1fa0e4539b0e8f90e86ad6e3980e71aad3d9fd42cca12349ab538309",
+        "bytes": 41925,
+        "gzip": 11857,
         "entry": false
       },
       {
@@ -488,8 +488,8 @@
         "entry": false
       },
       {
-        "file": "assets/Register-tz_tR6VT.js",
-        "sha256": "6b45fe7c7d6e6054c1956f809dec8c81da099c13e437f2c7fde43afc6e8b88e2",
+        "file": "assets/Register-B7nw0fr2.js",
+        "sha256": "c48b11075e191408cd7276d23f042d5949b61bbdee129fad618d71be0817950f",
         "bytes": 10895,
         "gzip": 2627,
         "entry": false
@@ -502,38 +502,38 @@
         "entry": false
       },
       {
-        "file": "assets/remoteViews-Ca-K1YG4.js",
-        "sha256": "971fffd415636482047084e04acc6c1a9dd088b5a2cc4eaf610db4792b6175c1",
+        "file": "assets/remoteViews-BkuAHX0Y.js",
+        "sha256": "8985a4220ae5d71a17225ae30fb4c0a717d2e35aba149c7d45199580c0bd3a2f",
         "bytes": 1710,
         "gzip": 666,
         "entry": false
       },
       {
-        "file": "assets/routineDays-B0zHyS9w.js",
-        "sha256": "83e537880a05b1338a4bba7b6eaca6820947670488169001c70d3b97fbdaec66",
+        "file": "assets/routineDays-IqUz4UTh.js",
+        "sha256": "3f41e2afe5287287ab49a89193d5f0ef618f5d269c335670e5af8f810bf66641",
         "bytes": 897,
-        "gzip": 447,
+        "gzip": 444,
         "entry": false
       },
       {
-        "file": "assets/RoutineDetail-CdiziWDe.js",
-        "sha256": "5cd951d919369ed3d003a569e7dff524e04ac44d3167d49a786003cb36fa646c",
+        "file": "assets/RoutineDetail-DJXIw9cs.js",
+        "sha256": "b4466593d8a519342bc1284b6af2dbb97a12eeaea2af5be339e76b4fd277bd18",
         "bytes": 6524,
-        "gzip": 2289,
+        "gzip": 2288,
         "entry": false
       },
       {
-        "file": "assets/routinePayload-Dsg_rjdW.js",
-        "sha256": "a12e762cfc2fb6ccdbd65c6aeef4772f6ea62cb0b319f2609ba9b136a3bc981d",
+        "file": "assets/routinePayload-TRasAIWk.js",
+        "sha256": "b4475e93f171dbcca599de47886cb48bf848cdd107365be10606e4443369ec42",
         "bytes": 8177,
         "gzip": 2581,
         "entry": false
       },
       {
-        "file": "assets/Routines-DBI0d7mo.js",
-        "sha256": "2907af98deae2d7b9444f6d4ab14cdc6de27c39886abce5df6ee90db344db388",
+        "file": "assets/Routines-iEiwO8Ia.js",
+        "sha256": "31132024434f4c87b72a086e52e8bf1487744bded7dc2fb81678b7443cf2a24b",
         "bytes": 17575,
-        "gzip": 4996,
+        "gzip": 4994,
         "entry": false
       },
       {
@@ -544,17 +544,17 @@
         "entry": false
       },
       {
-        "file": "assets/sessionPdf-DQrCmj78.js",
-        "sha256": "52a3c93993b9f5731f6aae16f297988d46dbad6821378387536ffa59b1b8170f",
+        "file": "assets/sessionPdf-Dhh_Xy_e.js",
+        "sha256": "d51cb70bc84503c5193cd5d491cae85f04e2e5244cb1aa68cca696d212e39a46",
         "bytes": 4135,
-        "gzip": 1867,
+        "gzip": 1866,
         "entry": false
       },
       {
-        "file": "assets/Settings-DcXWMDNR.js",
-        "sha256": "84db986d4b8f285685e66653a790cbfc160cd92bbff3c3dd91cf599edf3d020e",
+        "file": "assets/Settings-DkSuqSXe.js",
+        "sha256": "8419a80db44979b2391629f3b4f9999484918282237a7124cfcb2c38317786e0",
         "bytes": 39552,
-        "gzip": 10205,
+        "gzip": 10204,
         "entry": false
       },
       {
@@ -565,24 +565,24 @@
         "entry": false
       },
       {
-        "file": "assets/useRemoteRead-CpaOy67Q.js",
-        "sha256": "31335fd02b92ef61e8e1ef18f9ef0b9383cd8e5495b86131c9244fabb6e17cd2",
+        "file": "assets/useRemoteRead-CxBV0NyL.js",
+        "sha256": "54f749ff19f986434efc64de3f7989d53c4c1bf18dac628ac44dde4d9a29dd14",
         "bytes": 8279,
-        "gzip": 3077,
+        "gzip": 3076,
         "entry": false
       },
       {
-        "file": "assets/Workout-0-SrK7NR.js",
-        "sha256": "68c4f1f4326dcb723f262e9d55712bc84157bac8171c6b6f4e7db4e1991f8f0d",
-        "bytes": 51655,
-        "gzip": 14335,
+        "file": "assets/Workout-D7wUc03j.js",
+        "sha256": "3b448f467ce1ea5688b2f80a83b750125f7952ba1dd62a3309065343b7d95386",
+        "bytes": 52016,
+        "gzip": 14455,
         "entry": false
       },
       {
         "file": "index.html",
-        "sha256": "b94cef005a5a2c8482107a3c3aa5a7da031769b9b1e9dcbd71ffaeeb2404c02e",
-        "bytes": 1070,
-        "gzip": 502,
+        "sha256": "c8f17a1daf11d44ea34ed9bd575243796cf4798b9701b23beca3e8f8a75e3077",
+        "bytes": 1139,
+        "gzip": 525,
         "entry": false
       }
     ]
@@ -592,53 +592,54 @@
     "server/src/generated/http.cjs": "92b9e78b6796ade0c71ffe40ef24fca1942d57fb0ebff1fd42d542b615663a03",
     "server/src/generated/training.cjs": "0e2b19ba899acc74b2fa8a3bd443debaf806a7e9a8cd856185986eee50f628de",
     "server/src/generated/contracts.cjs": "d42a807f97bd76f2fc03cf6dad4c28aa903963097474516ffa592a9a3706961e",
-    "client/dist/index.html": "b94cef005a5a2c8482107a3c3aa5a7da031769b9b1e9dcbd71ffaeeb2404c02e",
-    "client/dist/sw.js": "95e85a0a32d14c4af285822823f10196aec49dafbf7797b06a9ae8f71c433288",
+    "client/dist/index.html": "c8f17a1daf11d44ea34ed9bd575243796cf4798b9701b23beca3e8f8a75e3077",
+    "client/dist/sw.js": "4fbf178bed991bcf0d155499ad6e2342c99ae1748e07231852a8632e02cf0b65",
     "client/dist/manifest.json": "2179c06b544ce0b7b21c91e9a99c011c97563f14db06a0101227c3db58827b90",
     "server/prisma/schema.prisma": "cce13656ec68a9de66cc17285d0587d363f9df8adfe142c8da580c14e90cd5ca",
     "server/audit/database/declared-catalog.json": "dc330f026236c9258ee92cd4ab65075b425f249348e75da065df65cd817e499b",
     "server/audit/postgresql/catalog.sql": "a00e0441e713f5e9cc930b8b4661b8d83cc7d2da7fd8e85cedac17aecb1436b8",
     "server/deploy/operations-catalog.json": "6a467d8dd2d72d15ac205143a934b5f583a778a60a0acad900935ba59f099f1e",
-    "client/dist/assets/AiRoutineSetup-CRFuxGa5.js": "84c0d9f68d1bb2e1210cc8985e972afb4e09e0c66d3bf7b1be8982148c40713f",
-    "client/dist/assets/BodyTracking-BBxpENYQ.js": "3609fe980502bd46ee967a35603cbb1028186317ba703305cf1f1576879ac4d1",
-    "client/dist/assets/Coach-DyOPixRI.js": "cb9cd8899fb2f2330e0e9601cefb0126e9f021be47b52fea9c47acca6bbf9537",
+    "server/deploy/coach-catalog.json": "9bff4c334a20f1754bee36974f3325b07cdc519cb743ee1036de99ece40acd44",
+    "client/dist/assets/AiRoutineSetup-IfpYUyNO.js": "1adaf7472683d01fcd9a1885ec0a69eccd137fe706a2f9023b3c741897952f53",
+    "client/dist/assets/BodyTracking-e9khy3cb.js": "eceb7d52c2abb91cef2a009eba7522e900cc068b2a009d93622346012f3c415a",
+    "client/dist/assets/Coach-Cm2FDe_G.js": "c9613d84f28aa72378e266d3738ed9dbbfd6287131dcf400e300f7b7b02b5e7d",
     "client/dist/assets/Coach-XH5-yVq5.css": "aaa4150a625038d59dbcaf942192e620cb3f380d647d0656dfcb59daf1a5443a",
-    "client/dist/assets/Dashboard-CE21JSui.js": "c26fd9f070f7e829ecbb21f936c58e0f7635fef1e5a159e1bc820f01592c9251",
-    "client/dist/assets/DraftBoundary-DiAxxA2m.js": "8ea3f32d9b2f5258c8aa8af44c6739f9931a17f1f2add2969a4e36a278aae6cd",
-    "client/dist/assets/EditRoutine-tp08in3z.js": "fb5bcd72c3a0d595abc4c3144d2f59633056201f9bcaaa7ea7b5db731fb98667",
-    "client/dist/assets/EditSession-CE0vSmHm.js": "20d60e917ebc855565c2e1a004e4b13bf757d1337fc6fc37e7c9abb6f67ac03f",
-    "client/dist/assets/ExportReport-DDtTAYZd.js": "31c1d3a38c401b6945a91dd01d54e35ba6acd7973b47da5375e9404a143f731b",
-    "client/dist/assets/ForgotPassword-BTAgWTHA.js": "e741db3fd2bf0008dac1727fbeb02079649c1dcadd97ffb944d64b447a457859",
-    "client/dist/assets/GoalSection-ITlr_SZe.js": "9d3ee87dd03b35203119666b5cbe08fb18eb48b14d5f40f2b6009b7462eb9fe5",
-    "client/dist/assets/Import-CNmHKax5.js": "2cd33100b19a9525df5bcfa3e6d5ca11e78787356b11d656aa60a359691e1e6f",
-    "client/dist/assets/NewGoal-1vLNKio2.js": "22de0e7bf0b666c9223effa262acb455723219ee6fdfd87734409c2155d70b62",
+    "client/dist/assets/Dashboard-DftWg5hC.js": "c51d6bf962a84fbda5e87bdb19a74887ef616784e26f8a640d4a2641346ac845",
+    "client/dist/assets/DraftBoundary-K_fytdul.js": "9ab5831a76942ebf8431e58c05d991a42f6b51a5baeeebca1eea65363256532d",
+    "client/dist/assets/EditRoutine-4SRhK-eC.js": "064aa49331e332aebcc61d606a761886b2bba8309afd56db86be48357fb41e1f",
+    "client/dist/assets/EditSession-D16Oqay-.js": "f481c57f744be7a3f0f928cec32a6e41212edd644ffe404c6a620ce0f44990db",
+    "client/dist/assets/ExportReport-DnqREjFJ.js": "3d3f93011ed2634f05a9951f468dbac9c9aa9efd7382f4da0676ca88ca0be173",
+    "client/dist/assets/ForgotPassword-DkrL5dMq.js": "ac5e05934ab88c6ff289fe0c7eade49f8b2a26cf4d8da6d54c544311ca29a599",
+    "client/dist/assets/GoalSection-DOlCkbZR.js": "41917ac1181169278937153a658e8222053769840dacec76ffeec0c3e538649c",
+    "client/dist/assets/Import-Dbr7B0Rx.js": "3d36d31fd0174ce4d83f8adddc2900f776ece2ace3ba5a9efc19ba77a1c7d6fb",
+    "client/dist/assets/NewGoal-KSREDtPJ.js": "8307d50e88c6e0dbb15767759377af7755b7828fe13b4b730c1806d42852d930",
     "client/dist/assets/Portal-PzwN2pKY.js": "64a22fd70b709c241f153b738521315f4d163a4a86330b0bcff57907e6dc9a64",
-    "client/dist/assets/Profile-Ckz_A2DU.js": "4826a0c7c26bf47ebe36fddb87ebaa0f276709d902a3764eeb04b7dd1d78ea94",
-    "client/dist/assets/Progress-DNUNz_xn.js": "5d649b320b3a44f1763e43d455c8298e7c4ddaba19cda66e6cd9f8e73b07eef0",
-    "client/dist/assets/Register-tz_tR6VT.js": "6b45fe7c7d6e6054c1956f809dec8c81da099c13e437f2c7fde43afc6e8b88e2",
+    "client/dist/assets/Profile-BOaH2fQN.js": "e54111032242494c0813707cc94be6ded4019894f71c38f0d6131cf0e42e5697",
+    "client/dist/assets/Progress-BEQdmebj.js": "e8876b7f1fa0e4539b0e8f90e86ad6e3980e71aad3d9fd42cca12349ab538309",
+    "client/dist/assets/Register-B7nw0fr2.js": "c48b11075e191408cd7276d23f042d5949b61bbdee129fad618d71be0817950f",
     "client/dist/assets/RemoteStatus-Cf1m5GsC.js": "5f894f7005c2be3a7633fb22d23960ab82ec307da9336350cdedc5764bf2d560",
-    "client/dist/assets/RoutineDetail-CdiziWDe.js": "5cd951d919369ed3d003a569e7dff524e04ac44d3167d49a786003cb36fa646c",
-    "client/dist/assets/Routines-DBI0d7mo.js": "2907af98deae2d7b9444f6d4ab14cdc6de27c39886abce5df6ee90db344db388",
-    "client/dist/assets/Settings-DcXWMDNR.js": "84db986d4b8f285685e66653a790cbfc160cd92bbff3c3dd91cf599edf3d020e",
-    "client/dist/assets/Workout-0-SrK7NR.js": "68c4f1f4326dcb723f262e9d55712bc84157bac8171c6b6f4e7db4e1991f8f0d",
+    "client/dist/assets/RoutineDetail-DJXIw9cs.js": "b4466593d8a519342bc1284b6af2dbb97a12eeaea2af5be339e76b4fd277bd18",
+    "client/dist/assets/Routines-iEiwO8Ia.js": "31132024434f4c87b72a086e52e8bf1487744bded7dc2fb81678b7443cf2a24b",
+    "client/dist/assets/Settings-DkSuqSXe.js": "8419a80db44979b2391629f3b4f9999484918282237a7124cfcb2c38317786e0",
+    "client/dist/assets/Workout-D7wUc03j.js": "3b448f467ce1ea5688b2f80a83b750125f7952ba1dd62a3309065343b7d95386",
     "client/dist/assets/cloudinary-DrB_IrZC.js": "ea82b911a051b8b6c615d88c1e337618edcf97ce4287a5f1bbe2fb8019acf9c5",
-    "client/dist/assets/exerciseName-BYfSxTiB.js": "3fcd642e554e86f2d6a6091584f502a255bf27054aa7e32cf7c9d9c574ebb780",
-    "client/dist/assets/goalPlanner-DjFDmFq5.js": "bf43a5fba4c25125b95d1efe5ce92c15c56615b1f12ae0b821cdcf76e7787efd",
+    "client/dist/assets/exerciseName-CI-kdVTM.js": "df475f9c97c51a1ca015a8434bb91883e04653d6a2dbd933fd79df6e9952b499",
+    "client/dist/assets/goalPlanner-Bha6J-Um.js": "5357355b48bc739301dd93825f84cef8f4d67931aefb1735d0a626ccfb2c1c1f",
     "client/dist/assets/icons-DgoCbdYe.js": "bedaf400ca75345f7cf33ec21ba595e043a4fd3c2c68e5fff4a9a5cc84eced03",
+    "client/dist/assets/index-CVefCXJM.js": "98dfd0590bed6d1e9f3c68a8349febe55a9480a1e9fe9a7014ab777d59d07aaf",
     "client/dist/assets/index-CdzwxoyA.css": "536c2849670cdf669e95ffdc3961a43672596909a924f3ab462b933d22f78a53",
-    "client/dist/assets/index-PYfpM0UF.js": "d432fb0d72c6a2ae874e3abbd0123fcc9dbaab18af14ca68ebfd17f34b3146f2",
     "client/dist/assets/muscleGroup-D_Ke2ibU.js": "cb3b11939a92f03e8c69efb014e21d527c7e7ae64f66bed734fe445798e58b5e",
     "client/dist/assets/pdf-CMZUiWi9.js": "4b713ffd63d8cbfa8a1097aa6bcbe17921c0f053f15d63fb7d524ca8ce24f77e",
     "client/dist/assets/purify.es-18JuyMri.js": "d20e7581818a4ef09a7a0e1bc84597c51fa253aea2b5b55935d5d7809793a28d",
     "client/dist/assets/react-vendor-BA0AXjrg.js": "d0a1ed469add93aee495a067706443ae9dba40c1be5213c0ac3a97d9e7f6a8bc",
     "client/dist/assets/recharts-BRexIfcP.js": "d56983cd892b07af3009201a660a250a5e5c5ff765b73fa61139f0adf4401336",
-    "client/dist/assets/remoteViews-Ca-K1YG4.js": "971fffd415636482047084e04acc6c1a9dd088b5a2cc4eaf610db4792b6175c1",
-    "client/dist/assets/routineDays-B0zHyS9w.js": "83e537880a05b1338a4bba7b6eaca6820947670488169001c70d3b97fbdaec66",
-    "client/dist/assets/routinePayload-Dsg_rjdW.js": "a12e762cfc2fb6ccdbd65c6aeef4772f6ea62cb0b319f2609ba9b136a3bc981d",
+    "client/dist/assets/remoteViews-BkuAHX0Y.js": "8985a4220ae5d71a17225ae30fb4c0a717d2e35aba149c7d45199580c0bd3a2f",
+    "client/dist/assets/routineDays-IqUz4UTh.js": "3f41e2afe5287287ab49a89193d5f0ef618f5d269c335670e5af8f810bf66641",
+    "client/dist/assets/routinePayload-TRasAIWk.js": "b4475e93f171dbcca599de47886cb48bf848cdd107365be10606e4443369ec42",
     "client/dist/assets/securityQuestions-ML2fpS12.js": "279bfc979bd460d5b14fa20023a9c5f8eb000be986a9fd3e117efe6cf4434763",
-    "client/dist/assets/sessionPdf-DQrCmj78.js": "52a3c93993b9f5731f6aae16f297988d46dbad6821378387536ffa59b1b8170f",
+    "client/dist/assets/sessionPdf-Dhh_Xy_e.js": "d51cb70bc84503c5193cd5d491cae85f04e2e5244cb1aa68cca696d212e39a46",
     "client/dist/assets/useDialogFocus-BPaC53og.js": "429772e3f763a4d1b5d937750fe5f69ddba3dea2cf11296849a409b2a867bfcf",
-    "client/dist/assets/useRemoteRead-CpaOy67Q.js": "31335fd02b92ef61e8e1ef18f9ef0b9383cd8e5495b86131c9244fabb6e17cd2"
+    "client/dist/assets/useRemoteRead-CxBV0NyL.js": "54f749ff19f986434efc64de3f7989d53c4c1bf18dac628ac44dde4d9a29dd14"
   },
   "dockerExecuted": false,
   "note": "Local frontend bytes only; apt/base layers are not a bit-for-bit image certification."

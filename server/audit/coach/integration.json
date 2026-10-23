@@ -17,11 +17,11 @@
   },
   "performance": {
     "reportMilliseconds": [
-      7.307700000001205,
-      7.573699999999008,
-      7.712299999999232,
-      7.29700000000048,
-      7.0695999999989
+      7.491700000000492,
+      7.78650000000016,
+      7.068200000001525,
+      6.737999999999374,
+      8.65860000000066
     ],
     "sqlQueriesForFiveReports": 55,
     "note": "Local disposable PostgreSQL, synthetic history, not production latency"
@@ -38,7 +38,7 @@
   },
   "fullBackup": {
     "restored": true,
-    "archiveHash": "6b1d847c86f7b285c88347b3089e9c2f7767ddb699bfad15cba65814a6695394",
+    "archiveHash": "ebbdce304b05ee4c09028d966fd3d48b0b708ffd814a476a6a0f9c95aa350f44",
     "coachEntities": [
       "CoachCheckIn",
       "CoachExerciseConfig",

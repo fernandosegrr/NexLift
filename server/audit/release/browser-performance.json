@@ -3,26 +3,26 @@
   "mode": "Vite development, synthetic HTTP harness, disabled browser cache, warm compiler",
   "measurements": [
     {
-      "dashboardVisibleMs": 3859.600000023842,
+      "dashboardVisibleMs": 4318,
       "firstContentfulPaintMs": null,
-      "resources": 70,
+      "resources": 71,
       "homeRequests": 1
     },
     {
-      "dashboardVisibleMs": 397.5,
-      "firstContentfulPaintMs": null,
-      "resources": 68,
+      "dashboardVisibleMs": 468.7000000178814,
+      "firstContentfulPaintMs": 384,
+      "resources": 69,
       "homeRequests": 1
     },
     {
-      "dashboardVisibleMs": 369,
-      "firstContentfulPaintMs": null,
-      "resources": 68,
+      "dashboardVisibleMs": 379.30000001192093,
+      "firstContentfulPaintMs": 356,
+      "resources": 69,
       "homeRequests": 1
     }
   ],
-  "p50": 397.5,
-  "p95": 3859.600000023842,
+  "p50": 468.7000000178814,
+  "p95": 4318,
   "n": 3,
   "note": "Small descriptive sample, polled upper bound to visible dashboard; not Lighthouse, production load or physical iPhone."
 }

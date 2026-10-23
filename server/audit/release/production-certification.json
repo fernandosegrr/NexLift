@@ -1,0 +1,236 @@
+{
+  "at": "2026-10-23T19:12:48.118Z",
+  "candidateCommit": "70d95e5fb8b1b60f7f39e38b8023e894018dc29e",
+  "published": false,
+  "productionChanged": false,
+  "runningCommitVerified": false,
+  "easypanelAuthenticated": false,
+  "physicalIOSExecuted": false,
+  "dockerExecuted": false,
+  "backup": {
+    "createdAt": "2026-10-23T18:54:25.052Z",
+    "archiveSha256": "595332ab7b382dea415674620549dafde392a216e23dc9afcb890f7349d10b2f",
+    "encryptedSha256": "491cec9b7ed9bd859ba05a4d53b187d12954b003cfc984f8bdedbe4b152670e3",
+    "archiveBytes": 94886,
+    "snapshotConsistent": true,
+    "tableDataEntries": 19,
+    "sourceVersion": "17.11",
+    "transportTLS": false,
+    "encryption": "AES-256-GCM; key protected by Windows CurrentUser DPAPI"
+  },
+  "restore": {
+    "createdAt": "2026-10-23T18:55:56.634Z",
+    "productionDDL": false,
+    "sourceArchiveSha256": "595332ab7b382dea415674620549dafde392a216e23dc9afcb890f7349d10b2f",
+    "restoreMilliseconds": 384,
+    "restoredExact": true,
+    "tablesVerified": 19,
+    "originalTablesPreserved": true,
+    "coachTables": 4,
+    "coachDDLRehearsed": true,
+    "archiveRestoredUsing": "PostgreSQL 18.4 (source 17.11)"
+  },
+  "upgrade": {
+    "at": "2026-10-23T19:05:59.364Z",
+    "productionChanged": false,
+    "realBackupRestored": true,
+    "archiveSha256": "595332ab7b382dea415674620549dafde392a216e23dc9afcb890f7349d10b2f",
+    "postgresSource": "17.11",
+    "postgresRehearsal": "18.4",
+    "rollbackAfterDDLVerified": true,
+    "originalDataAndOperationJournalPreserved": true,
+    "oldMigrationChecksumsUnchanged": true,
+    "bridgeReady": true,
+    "coachInitiallyReady": false,
+    "coachFinallyReady": true,
+    "repeatable": true,
+    "migration": {
+      "migrated": true,
+      "appliedMigrations": 4,
+      "originalTablesPreserved": true,
+      "operationJournalPreserved": true,
+      "coachTables": 4
+    },
+    "afterCounts": {
+      "BodyLog": 15,
+      "CardioSegment": 7,
+      "CardioSession": 1,
+      "CoachCheckIn": 0,
+      "CoachExerciseConfig": 0,
+      "CoachMeasurement": 0,
+      "CoachSuggestion": 0,
+      "Exercise": 128,
+      "Goal": 1,
+      "PendingReminder": 0,
+      "PersonalRecord": 47,
+      "PushSubscription": 2,
+      "RestLog": 20,
+      "Routine": 5,
+      "RoutineBlock": 0,
+      "RoutineDay": 21,
+      "SetLog": 879,
+      "SuggestionLog": 15,
+      "TrainingProfile": 1,
+      "User": 3,
+      "WorkoutLog": 318
+    }
+  },
+  "preflight": {
+    "startedAt": "2026-10-23T20:07:24.036Z",
+    "finishedAt": "2026-10-23T20:07:28.001Z",
+    "readOnly": true,
+    "productionChanged": false,
+    "ready": true,
+    "coachReady": false,
+    "phase": "current",
+    "baseline": "PROVISIONAL",
+    "counts": {
+      "BodyLog": 15,
+      "CardioSegment": 7,
+      "CardioSession": 1,
+      "Exercise": 128,
+      "Goal": 1,
+      "PendingReminder": 0,
+      "PersonalRecord": 47,
+      "PushSubscription": 2,
+      "RestLog": 20,
+      "Routine": 5,
+      "RoutineBlock": 0,
+      "RoutineDay": 21,
+      "SetLog": 879,
+      "SuggestionLog": 15,
+      "TrainingProfile": 1,
+      "User": 3,
+      "WorkoutLog": 318
+    },
+    "diagnostics": {
+      "unownedHistory": 0,
+      "crossAccountSuggestions": 0,
+      "crossAccountReminders": 0,
+      "orphanSets": 0,
+      "setNumberCollisions": 0,
+      "invalidWeekdays": 0
+    },
+    "appliedMigrations": 3,
+    "pending": [
+      "202610230001_coach"
+    ],
+    "catalog": {
+      "tables": 17,
+      "columns": 166,
+      "indexes": 50,
+      "foreignKeys": 21,
+      "constraints": 39
+    }
+  },
+  "http": [
+    {
+      "at": "2026-10-23T20:07:22.302Z",
+      "path": "/login",
+      "status": 200,
+      "contentType": "text/html; charset=UTF-8",
+      "cacheControl": "no-cache",
+      "sha256": "6adb45360a1825c90159485fdbcfe1ecdb03466e68f6bdb2e69556ea5f4d0f9a"
+    },
+    {
+      "at": "2026-10-23T20:07:22.829Z",
+      "path": "/api/health",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "cacheControl": "no-store",
+      "sha256": "4fd9c9a3adb46d70d4ae9d4af99dbd33ab3ac59dd85cd4eb61d044ab2baba81e"
+    },
+    {
+      "at": "2026-10-23T20:07:22.892Z",
+      "path": "/api/ready",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "cacheControl": "no-store",
+      "sha256": "31bf75f4c0a97cc1f7b60df824fa390b3be9ba014f29b63c87c698ba63d9a9fd"
+    },
+    {
+      "at": "2026-10-23T20:07:23.132Z",
+      "path": "/api/coach/report",
+      "status": 404,
+      "contentType": "application/json; charset=utf-8",
+      "cacheControl": "no-store",
+      "sha256": "c8d3eae160a892e32837db3dcae515e843e5383fef52b8141940c8bcf8b6d59f"
+    },
+    {
+      "at": "2026-10-23T20:07:23.194Z",
+      "path": "/sw.js",
+      "status": 200,
+      "contentType": "application/javascript; charset=UTF-8",
+      "cacheControl": "no-cache",
+      "sha256": "95e85a0a32d14c4af285822823f10196aec49dafbf7797b06a9ae8f71c433288",
+      "availabilityHotfixMarker": false
+    },
+    {
+      "at": "2026-10-23T20:07:23.261Z",
+      "path": "/manifest.json",
+      "status": 200,
+      "contentType": "application/json; charset=UTF-8",
+      "cacheControl": "public, max-age=31536000",
+      "sha256": "c3fdb9d77b9f17c1a8d28b79649a7c1b71b48cf25d1073dfd6727afe8b96186e"
+    }
+  ],
+  "applicationCommit": "ffa8c08f029ac6c550d1c3d3241f9918f3477714",
+  "applicationChangesAfterThatCommit": [
+    "scripts/test/training-performance.test.mjs",
+    "scripts/verify-monorepo.mjs",
+    "server/test/fixtures/stabilization-browser.mjs",
+    "server/test/phase9-security.test.js"
+  ],
+  "matrix": {
+    "uniqueTests": 1578,
+    "newTests": 111,
+    "repeatedTests": 1024,
+    "continuations": [
+      {
+        "checkpoint": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-verification\\nexlift-phase10-verification-EBhHDK",
+        "failedStage": "phase52-performance-domain",
+        "changedTest": "scripts/test/training-performance.test.mjs",
+        "previousSha256": "da24f76f199a40bdb1863a89467b00953afd0d49c31f9e7a6f5bf3f5cce4d9f3",
+        "currentSha256": "f1b386247c7100444c3f5fb42a44545165723ef7273eb1ce5e92b29f092f2078",
+        "applicationSourceChanged": false,
+        "singleNpmTestExitZero": false
+      },
+      {
+        "checkpoint": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-verification\\nexlift-phase10-verification-EBhHDK",
+        "failedStage": "phase9-security-http-sw",
+        "changedTest": "server/test/phase9-security.test.js",
+        "previousSha256": "c4258cf731a97ba852211f4c93731d63a379f66b8f17928e4eac29098697f7be",
+        "currentSha256": "db6e499c0c4cd43f9026f612dcaa1d48face898cf1994c1f2d97794677762852",
+        "applicationSourceChanged": false,
+        "singleNpmTestExitZero": false
+      },
+      {
+        "checkpoint": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-verification\\nexlift-phase10-verification-EBhHDK",
+        "failedStage": "availability-browser",
+        "changedTool": "scripts/verify-monorepo.mjs",
+        "previousSha256": "0c74ca211ad9c2f3d10e75a9fba4c058d023191a74c01476b8ec05beb2dd2e52",
+        "currentSha256": "8cf260b3e732a56ddcb897e34733bae1dcacd8e453e3e4663018793a6fcaf8d0",
+        "applicationSourceChanged": false,
+        "correction": "Final production build explicitly uses NODE_ENV=production; successful browser reproduction retained",
+        "singleNpmTestExitZero": false
+      }
+    ],
+    "singleNpmTestExitZero": false,
+    "globalFrontendLintPassed": false,
+    "globalFrontendLintErrors": 19,
+    "globalFrontendLintWarnings": 2
+  },
+  "realDataCoachContracts": {
+    "at": "2026-10-23T19:57:45.081Z",
+    "source": "restored production backup on owned local PostgreSQL 18.4",
+    "productionAccessed": false,
+    "readOnlyEnforced": true,
+    "frontendContractsValidated": true,
+    "usersChecked": 3,
+    "reportsValid": 3,
+    "assistantFallbacks": 3,
+    "externalProviderConfigured": false,
+    "coachRecordsCreated": 0,
+    "originalRowsUnchanged": true
+  }
+}

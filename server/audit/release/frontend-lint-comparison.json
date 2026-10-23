@@ -1,0 +1,157 @@
+{
+  "at": "2026-10-23T19:14:39.179Z",
+  "baselineCommit": "12365e0369330293b1cb61f6cbf66076a0d15f17",
+  "candidateCommit": "ffa8c08f029ac6c550d1c3d3241f9918f3477714",
+  "originalFindings": 21,
+  "currentFindings": 21,
+  "added": [],
+  "findings": [
+    {
+      "file": "src\\components\\ui\\Celebration.jsx",
+      "rule": "react-hooks/purity",
+      "severity": 2,
+      "line": 39,
+      "message": "Error: Cannot call impure function during render"
+    },
+    {
+      "file": "src\\components\\ui\\MuscleIcon.jsx",
+      "rule": "react-refresh/only-export-components",
+      "severity": 2,
+      "line": 72,
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src\\components\\ui\\MuscleIcon.jsx",
+      "rule": "react-refresh/only-export-components",
+      "severity": 2,
+      "line": 79,
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src\\components\\ui\\MuscleIcon.jsx",
+      "rule": "react-refresh/only-export-components",
+      "severity": 2,
+      "line": 86,
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src\\components\\ui\\Toast.jsx",
+      "rule": "react-refresh/only-export-components",
+      "severity": 2,
+      "line": 11,
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src\\context\\AuthContext.jsx",
+      "rule": "react-hooks/immutability",
+      "severity": 2,
+      "line": 50,
+      "message": "Error: Cannot access variable before it is declared"
+    },
+    {
+      "file": "src\\context\\AuthContext.jsx",
+      "rule": "react-refresh/only-export-components",
+      "severity": 2,
+      "line": 189,
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src\\pages\\BodyTracking.jsx",
+      "rule": "react-refresh/only-export-components",
+      "severity": 2,
+      "line": 18,
+      "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+    },
+    {
+      "file": "src\\pages\\Dashboard.jsx",
+      "rule": "no-unused-vars",
+      "severity": 2,
+      "line": 60,
+      "message": "'prs' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u."
+    },
+    {
+      "file": "src\\pages\\Dashboard.jsx",
+      "rule": "no-unused-vars",
+      "severity": 2,
+      "line": 404,
+      "message": "'Icon' is defined but never used."
+    },
+    {
+      "file": "src\\pages\\EditSession.jsx",
+      "rule": "react-hooks/exhaustive-deps",
+      "severity": 1,
+      "line": 43,
+      "message": "React Hook useEffect has a missing dependency: 'fetchSession'. Either include it or remove the dependency array."
+    },
+    {
+      "file": "src\\pages\\ExportReport.jsx",
+      "rule": "no-unused-vars",
+      "severity": 2,
+      "line": 131,
+      "message": "'error' is defined but never used."
+    },
+    {
+      "file": "src\\pages\\NewGoal.jsx",
+      "rule": "no-unused-vars",
+      "severity": 2,
+      "line": 55,
+      "message": "'setFrequencyPerWeek' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u."
+    },
+    {
+      "file": "src\\pages\\Settings.jsx",
+      "rule": "react-hooks/exhaustive-deps",
+      "severity": 1,
+      "line": 249,
+      "message": "React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array."
+    },
+    {
+      "file": "src\\pages\\Settings.jsx",
+      "rule": "no-unused-vars",
+      "severity": 2,
+      "line": 522,
+      "message": "'err' is defined but never used."
+    },
+    {
+      "file": "src\\pages\\Settings.jsx",
+      "rule": "no-unused-vars",
+      "severity": 2,
+      "line": 542,
+      "message": "'err' is defined but never used."
+    },
+    {
+      "file": "src\\pages\\Workout.jsx",
+      "rule": "react-hooks/set-state-in-effect",
+      "severity": 2,
+      "line": 157,
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders"
+    },
+    {
+      "file": "src\\services\\api.js",
+      "rule": "no-unused-vars",
+      "severity": 2,
+      "line": 38,
+      "message": "'e' is defined but never used."
+    },
+    {
+      "file": "src\\services\\api.js",
+      "rule": "no-unused-vars",
+      "severity": 2,
+      "line": 434,
+      "message": "'e' is defined but never used."
+    },
+    {
+      "file": "src\\utils\\dayPdf.js",
+      "rule": "no-unused-vars",
+      "severity": 2,
+      "line": 21,
+      "message": "'epley' is defined but never used. Allowed unused vars must match /^[A-Z_]/u."
+    },
+    {
+      "file": "src\\utils\\goalPlanner.js",
+      "rule": "no-unused-vars",
+      "severity": 2,
+      "line": 14,
+      "message": "'frequency' is assigned a value but never used."
+    }
+  ]
+}

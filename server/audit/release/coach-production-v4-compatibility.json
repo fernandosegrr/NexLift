@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-23T19:06:21.976Z",
+  "coachCommit": "18452e0b9fe2040a5ae01679bcd186e640398467",
+  "actualV4ApiModule": true,
+  "fullOldPhysicalPWA": false,
+  "postgres": "PostgreSQL 18.4 on x86_64-windows, compiled by msvc-19.44.35227, 64-bit",
+  "migrationsApplied": 4,
+  "historicalMigrationsUnchanged": true,
+  "lostResponseMutationAttempts": 1,
+  "retainedNewWorkoutRows": 1,
+  "offlineOperationsEnabled": false,
+  "assistantWithoutProvider": true,
+  "assistantCheckInWrites": 0,
+  "crossAccountReadRejected": true,
+  "releasePreflightAcceptedExactExpansion": true,
+  "productionAccessed": false
+}

@@ -1,0 +1,30 @@
+[
+  {
+    "checkpoint": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-verification\\nexlift-phase10-verification-EBhHDK",
+    "failedStage": "phase52-performance-domain",
+    "changedTest": "scripts/test/training-performance.test.mjs",
+    "previousSha256": "da24f76f199a40bdb1863a89467b00953afd0d49c31f9e7a6f5bf3f5cce4d9f3",
+    "currentSha256": "f1b386247c7100444c3f5fb42a44545165723ef7273eb1ce5e92b29f092f2078",
+    "applicationSourceChanged": false,
+    "singleNpmTestExitZero": false
+  },
+  {
+    "checkpoint": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-verification\\nexlift-phase10-verification-EBhHDK",
+    "failedStage": "phase9-security-http-sw",
+    "changedTest": "server/test/phase9-security.test.js",
+    "previousSha256": "c4258cf731a97ba852211f4c93731d63a379f66b8f17928e4eac29098697f7be",
+    "currentSha256": "db6e499c0c4cd43f9026f612dcaa1d48face898cf1994c1f2d97794677762852",
+    "applicationSourceChanged": false,
+    "singleNpmTestExitZero": false
+  },
+  {
+    "checkpoint": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-verification\\nexlift-phase10-verification-EBhHDK",
+    "failedStage": "availability-browser",
+    "changedTool": "scripts/verify-monorepo.mjs",
+    "previousSha256": "0c74ca211ad9c2f3d10e75a9fba4c058d023191a74c01476b8ec05beb2dd2e52",
+    "currentSha256": "8cf260b3e732a56ddcb897e34733bae1dcacd8e453e3e4663018793a6fcaf8d0",
+    "applicationSourceChanged": false,
+    "correction": "Final production build explicitly uses NODE_ENV=production; successful browser reproduction retained",
+    "singleNpmTestExitZero": false
+  }
+]
