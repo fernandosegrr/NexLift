@@ -79,6 +79,15 @@ export const operationRuntime = () => getOperationRuntime(API_URL);
 export { operationsEnabled };
 
 export const api = {
+    async coach(path = '/report', body, method = 'GET') {
+        const startedAuthorization = getAuthHeaders().Authorization;
+        if (globalThis.navigator?.onLine === false) throw new Error('Sin conexión: Coach necesita conexión. No se confirmó ni se encoló ningún guardado.');
+        const res = await authFetch(`${API_URL}/coach${path}`, { method, ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) });
+        const result = await res.json();
+        if (startedAuthorization !== getAuthHeaders().Authorization) throw new Error('La sesión cambió durante la consulta de Coach.');
+        if (!res.ok) throw new Error(result.error || 'Coach no disponible. No se confirmó ningún guardado.');
+        return result;
+    },
     // ==========================================
     // STATS
     // ==========================================

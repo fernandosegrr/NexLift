@@ -41,7 +41,9 @@ const entries = [
     ['server', 'server/src/services/operationContract.ts', 'server/src/generated/operationContract.cjs'],
     ['server', 'server/src/services/routineImportContract.ts', 'server/src/generated/routineImportContract.cjs'],
     ['client', 'client/src/domain/training.ts', 'client/src/generated/training.js'],
-    ['server', 'server/src/domain/training.ts', 'server/src/generated/training.cjs']
+    ['server', 'server/src/domain/training.ts', 'server/src/generated/training.cjs'],
+    ['server', 'server/src/domain/coach.ts', 'server/src/generated/coach.cjs'],
+    ['client', 'client/src/domain/coach.ts', 'client/src/generated/coach.js']
 ];
 const pendingWrites = [];
 for (const [target, entry, output] of entries.filter(([target]) => mode === 'all' || mode === 'check' || mode === target)) {

@@ -1,0 +1,430 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USUARIO ====================
+
+model User {
+  id            String    @id @default(cuid())
+  
+  // Credenciales
+  username      String    @unique
+  email         String    @unique
+  passwordHash  String
+  
+  // Perfil
+  firstName     String
+  lastName      String
+  phone         String?
+  birthDate     DateTime?
+  avatarUrl     String?   // Foto de perfil en Catbox
+  
+  // Recuperación (pregunta de seguridad)
+  securityQuestion  String?
+  securityAnswerHash String?
+
+  // Estado
+  isActive      Boolean   @default(true)
+
+  // Revocación de sesión: cambiar contraseña o pregunta de seguridad la incrementa,
+  // invalidando todos los JWT emitidos antes de ese momento (authMiddleware la
+  // compara contra la que trae el token). Los tokens duran 365 días y no hay otro
+  // mecanismo para revocar uno filtrado.
+  tokenVersion  Int       @default(0)
+
+  // Recordatorio de re-enganche: último día (CDMX) en que se le mandó el push de
+  // "¿no vas a entrenar hoy?" — evita mandarlo más de una vez por día.
+  lastReengagementNotifiedAt DateTime?
+
+  // Backup automático diario a Cloudinary (ver runDailyBackup en server/src/index.js).
+  // Persistido en DB (no solo en memoria) para que /api/health siga reportando la
+  // fecha real del último backup exitoso incluso después de un redeploy/reinicio.
+  lastBackupAt    DateTime?
+  lastBackupError String?
+
+  // Recordatorios escalonados de creatina (Web Push en zona America/Mexico_City)
+  creatineReminderEnabled   Boolean   @default(false)
+  creatineReminderTime      String    @default("16:00")
+  lastCreatineReminderDate  String?
+  lastCreatineReminderStage Int       @default(0)
+
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLogin     DateTime?
+  
+  // Relaciones
+  routines          Routine[]
+  bodyLogs          BodyLog[]
+  restLogs          RestLog[]
+  personalRecords   PersonalRecord[]
+  goals             Goal[]
+  pushSubscriptions PushSubscription[]
+  pendingReminders  PendingReminder[]
+  suggestionLogs    SuggestionLog[]
+  trainingProfile   TrainingProfile?
+  cardioSessions    CardioSession[]
+  exercises         Exercise[]
+  workoutLogs       WorkoutLog[]
+
+  @@index([email])
+  @@index([username])
+}
+
+// ==================== CARDIO (sesiones por tramos, no series de fuerza) ====================
+// Independiente de Exercise/WorkoutLog. Un tramo = minutos + inclinación (+ velocidad opcional).
+// Cuenta para racha/consistencia; NO entra en Smart Loading / 1RM / volumen kg×reps.
+
+model CardioSession {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // 'caminadora' | 'bici' | 'eliptica' | 'otro'
+  activity String   @default("caminadora")
+  date     DateTime @default(now())
+  note     String?
+  // kcal de la sesión: manual (máquina/reloj) o estimación del cliente al guardar. Opcional.
+  calories Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  segments CardioSegment[]
+
+  @@index([userId])
+  @@index([userId, date])
+}
+
+model CardioSegment {
+  id            String        @id @default(cuid())
+  sessionId     String
+  session       CardioSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  order         Int           @default(0)
+  durationMin   Float         // permite 2.5 min si hace falta
+  incline       Float?        // inclinación caminadora (0–30 típico)
+  speed         Float?        // km/h u opcional
+  note          String?
+
+  @@index([sessionId])
+}
+
+// ==================== RUTINAS ====================
+
+model Routine {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean      @default(false)
+  // 'manual' (default, todas las rutinas existentes) | 'ai' (generada/gestionada
+  // por el entrenador de rutina diaria con IA — ver server/src/services/aiRoutineService.js).
+  source      String       @default("manual")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  days        RoutineDay[]
+  blocks      RoutineBlock[]
+
+  // Descarga adaptativa (solo se usa si la rutina NO tiene bloques con
+  // phase='deload' configurados — ver getRoutinePhaseStatus en index.js).
+  // adaptiveDeloadUntil: mientras esté en el futuro, las sugerencias de peso
+  // se reducen. lastAdaptiveCheckAt: cooldown de 7 días entre evaluaciones del
+  // trigger (volumen a la baja + varios ejercicios en plateau), mismo patrón
+  // que User.lastReengagementNotifiedAt.
+  adaptiveDeloadUntil DateTime?
+  lastAdaptiveCheckAt DateTime?
+
+  // Relación con usuario (opcional para migración)
+  userId      String?
+  user        User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  // Dashboard / active routine: WHERE userId AND isActive
+  @@index([userId, isActive])
+}
+
+// Mesociclo/bloque de periodización (opcional — una rutina sin bloques se
+// comporta exactamente igual que antes). El bloque "activo" es el de `startedAt`
+// no-nulo más reciente, calculado en lectura (ver getActiveBlock en index.js) —
+// evita mantener a mano la invariante "a lo más un bloque activo" en cada escritura.
+// `durationWeeks` es informativo (para mostrar "semana N de M"), nunca un corte
+// duro: reordenar bloques o que uno se extienda más de lo planeado no afecta el
+// tiempo transcurrido de un bloque ya arrancado.
+model RoutineBlock {
+  id            String    @id @default(cuid())
+  name          String
+  phase         String    @default("custom") // 'accumulation' | 'intensification' | 'deload' | 'custom'
+  order         Int       @default(0)
+  durationWeeks Int       @default(4)
+  startedAt     DateTime?
+  routineId     String
+  routine       Routine   @relation(fields: [routineId], references: [id], onDelete: Cascade)
+
+  @@index([routineId])
+}
+
+model RoutineDay {
+  id          String     @id @default(cuid())
+  dayName     String
+  isRestDay   Boolean    @default(false)
+  order       Int        @default(0)
+  // Solo poblado en días generados por IA (ej. "Push") — permite saber qué
+  // split se entrenó recientemente sin parsear `dayName` (que para estos días
+  // es la fecha ISO del día, no un nombre de día de la semana). Null en
+  // cualquier RoutineDay manual.
+  splitLabel  String?
+  // Día de la semana explícito (0=Domingo..6=Sábado, igual que
+  // dayOfWeekFromDateStr/DAY_NAMES_ES) para rutinas manuales — `dayName` es
+  // decorativo y NUNCA se usa para resolver "qué toca hoy" (ver logic.js:
+  // findRoutineDayForWeekday/scheduledRestWeekdays). null = sin programar;
+  // siempre null en días de rutinas IA (dayName ahí es una fecha ISO) y en el
+  // día "Bin" de la papelera del sistema.
+  weekday     Int?
+  routineId   String
+  routine     Routine    @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  exercises   Exercise[]
+
+  @@index([routineId])
+}
+
+model Exercise {
+  id           String       @id @default(cuid())
+  name         String
+  muscleGroup  String?
+  targetSets   Int
+  targetReps   String
+  restSeconds  Int?
+  note         String?
+  order        Int          @default(0)
+  isUnilateral Boolean      @default(false)
+  // Stable private identity. The legacy prescription columns remain API adapters.
+  // NULL owner is retained only for unowned legacy plans; it cannot record work.
+  userId       String?
+  user         User?        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  archivedAt   DateTime?
+  routineDayId String?
+  routineDay   RoutineDay?  @relation(fields: [routineDayId], references: [id], onDelete: SetNull)
+  workoutLogs  WorkoutLog[]
+  sourceRecords PersonalRecord[]
+  pendingReminders PendingReminder[]
+  suggestionLogs   SuggestionLog[]
+
+  @@index([routineDayId])
+  @@index([name])
+  // Historial por nombre (insensitive) + join a RoutineDay
+  @@index([routineDayId, name])
+  @@index([userId, archivedAt])
+}
+
+// ==================== WORKOUTS ====================
+
+model WorkoutLog {
+  id          String    @id @default(cuid())
+  date        DateTime  @default(now())
+  exerciseId  String
+  exercise    Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  // dbgenerated(): filled by the versioned SQL trigger, including old writers.
+  userId      String    @default(dbgenerated())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  exerciseNameSnapshot String @default(dbgenerated())
+  muscleGroupSnapshot String?
+  isUnilateralSnapshot Boolean?
+  snapshotSource String @default("recorded") // recorded | legacy-observed
+  contextCapturedAt DateTime? // Observation time, distinct from performed date/offline time.
+  // Provenance, deliberately not FKs to mutable/deletable planning.
+  originRoutineId String?
+  originRoutineDayId String?
+  sets        SetLog[]
+  notes       String?
+
+  @@index([exerciseId])
+  @@index([date])
+  // Camino caliente: historial de un ejercicio ordenado por fecha DESC
+  @@index([exerciseId, date])
+  @@index([userId, date])
+}
+
+model SetLog {
+  id           String     @id @default(cuid())
+  setNumber    Int
+  weight       Float
+  reps         Int
+  rpe          Int?
+  completed    Boolean    @default(true)
+  weightRight  Float?
+  repsRight    Int?
+  workoutLogId String
+  workoutLog   WorkoutLog @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
+
+  @@index([workoutLogId])
+}
+
+// ==================== PERSONAL RECORDS ====================
+
+model PersonalRecord {
+  id           String   @id @default(cuid())
+  exerciseName String
+  weight       Float
+  reps         Int
+  estimated1RM Float?
+  date         DateTime @default(now())
+  // Winning identity, NULL for legacy records without provable provenance.
+  sourceExerciseId String?
+  sourceExercise Exercise? @relation(fields: [sourceExerciseId], references: [id], onDelete: Restrict)
+  
+  // Relación con usuario (opcional para migración)
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([exerciseName])
+  @@index([userId])
+}
+
+// ==================== DESCANSO ====================
+
+model RestLog {
+  id        String   @id @default(cuid())
+  date      DateTime @default(now())
+  note      String?
+  
+  // Relación con usuario (opcional para migración)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+}
+
+// ==================== BODY TRACKING ====================
+
+model BodyLog {
+  id        String   @id @default(cuid())
+  date      DateTime @default(now())
+  weight    Float?
+  photoUrl  String?  // URL de Catbox (antes era base64)
+  note      String?
+  
+  // Composición corporal (báscula inteligente)
+  bmi         Float?
+  bodyFat     Float?
+  muscleMass  Float?
+  bmr         Float?
+  bodyWater   Float?
+  visceralFat Float?
+  boneMass    Float?
+  protein     Float?
+
+  // Hábitos diarios (Daily Check-in / Adherencia en déficit)
+  creatineTaken      Boolean? @default(false)
+  dietCompliant      Boolean? @default(false)
+  zeroLiquidCalories Boolean? @default(false)
+  
+  createdAt DateTime @default(now())
+  
+  // Relación con usuario (opcional para migración)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([date])
+  @@index([userId])
+}
+
+// ==================== GOALS ====================
+
+model Goal {
+  id           String    @id @default(cuid())
+  exerciseName String
+  muscleGroup  String?
+  targetWeight Float
+  targetReps   Int
+  createdAt    DateTime  @default(now())
+  achievedAt   DateTime?
+  
+  // Manual data (fallback when no workout history)
+  // Manual data (fallback when no workout history)
+  currentOneRepMax   Float?   // Max weight for 1 rep
+  currentEightRepMax Float?   // Max weight for 8 reps
+  experienceLevel    String?  // 'beginner', 'intermediate', 'advanced'
+  frequencyPerWeek   Int?     // How many times per week training this exercise
+  completedWeeks     Int[]    // Array of completed week numbers (1-indexed)
+  
+  // Relación con usuario
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ==================== PUSH NOTIFICATIONS ====================
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Recordatorio de descanso pendiente, persistido además del `setTimeout` en
+// memoria (ver scheduleRestReminder en server/src/index.js) — un redeploy o
+// reinicio del contenedor a mitad de un descanso perdía el push en silencio
+// antes de v2.5.1. El `@@unique` cumple el mismo rol que la clave
+// `${userId}:${exerciseId}` del Map en memoria: como mucho una fila pendiente
+// por usuario+ejercicio (agendar una nueva reemplaza a la anterior).
+model PendingReminder {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId       String
+  exercise         Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  fireAt           DateTime
+  nextExerciseName String?
+  createdAt        DateTime @default(now())
+
+  @@unique([userId, exerciseId])
+}
+
+// Instrumentación de calibración del entrenador inteligente (P5 del plan de
+// mejoras, v2.6.2) — una fila por cada sugerencia MOSTRADA/aplicada, para poder
+// comparar después (server/analyze-suggestions.mjs, solo lectura) sugerido vs.
+// realizado. Deliberadamente NO cambia ninguna constante de los algoritmos —
+// solo recolecta datos para decidir eso más adelante, con semanas de uso real.
+model SuggestionLog {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId      String
+  exercise        Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  date            DateTime @default(now())
+  suggestedWeight Float
+  suggestedReps   Int
+  phase           String? // fase activa al momento de sugerir (ver getRoutinePhaseStatus), null si ninguna
+  source          String  // 'client' | 'shortcut' | 'intra' (autorregulación por serie dentro de la sesión)
+
+  @@index([userId])
+  @@index([exerciseId])
+  @@index([userId, date])
+}
+
+// ==================== RUTINA DIARIA CON IA ====================
+
+// Cuestionario de la Rutina diaria con IA (1:1 por usuario) — objetivo, días
+// disponibles, equipo y experiencia. Alimenta tanto el camino con LLM
+// (server/src/services/aiRoutineAgent.js) como el fallback 100% determinista
+// (server/src/data/splitTemplates.js) cuando no hay OPENAI_API_KEY.
+model TrainingProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal            String   // 'hypertrophy' | 'strength' | 'general' — mismo vocabulario
+                            // que client/src/data/routineTemplates.js
+  daysPerWeek     Int
+  equipment       String[] // subconjunto de ['barbell','dumbbell','machine','cable','bodyweight']
+  experienceLevel String   // 'beginner'|'intermediate'|'advanced' — mismo vocabulario que Goal.experienceLevel
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}

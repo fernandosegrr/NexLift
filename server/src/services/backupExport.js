@@ -1,6 +1,7 @@
-import { ENTITY_NAMES, USER_FIELDS, fieldsFor, delegate, sealBackup, validateBackup, jsonCopy, BackupError, HAS_HISTORY_FIELDS } from './backupFormat.js';
+import { ENTITY_NAMES, COACH_ENTITIES, USER_FIELDS, fieldsFor, delegate, sealBackup, validateBackup, jsonCopy, BackupError, HAS_HISTORY_FIELDS } from './backupFormat.js';
 
 export function ownerWhere(name, userId) {
+    if (COACH_ENTITIES.includes(name)) return { userId };
     if (HAS_HISTORY_FIELDS) {
         if (['Exercise', 'WorkoutLog'].includes(name)) return { userId };
         if (name === 'SetLog') return { workoutLog: { userId } };

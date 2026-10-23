@@ -27,3 +27,5 @@ export * from './domain/training/volume.js';
 export * from './domain/training/mesocycles.js';
 export * from './domain/training/exerciseIdentity.js';
 export * from './domain/training/progress.js';
+export * from './domain/coach/types.js';
+export * from './domain/coach/engine.js';

@@ -1,4 +1,4 @@
-import { ENTITY_NAMES, fieldsFor, sealBackup, validateBackup, checksum, BackupError, jsonCopy, USER_FIELDS, HAS_HISTORY_FIELDS } from './backupFormat.js';
+import { ENTITY_NAMES, COACH_ENTITIES, HAS_COACH, fieldsFor, sealBackup, validateBackup, checksum, BackupError, jsonCopy, USER_FIELDS, HAS_HISTORY_FIELDS } from './backupFormat.js';
 
 function upgradeVersion4(input) {
     const original = validateBackup(input); // Check ORIGINAL checksum before transformation.
@@ -13,13 +13,27 @@ function upgradeVersion4(input) {
         exerciseNameSnapshot: exercises.get(log.exerciseId).name, muscleGroupSnapshot: null,
         isUnilateralSnapshot: null, snapshotSource: 'legacy-observed', contextCapturedAt: original.generatedAt, originRoutineId: null, originRoutineDayId: null });
     for (const pr of data.PersonalRecord) pr.sourceExerciseId = null;
+    if (HAS_COACH) for (const name of COACH_ENTITIES) data[name] = [];
     return validateBackup(sealBackup(data, { generatedAt: original.generatedAt, identifier: original.source.identifier,
         compatibility: { format: 4, historicalContext: 'Observed label only; original attributes and plan unknown.' } }));
 }
 
 // Only the two formats emitted by this repository are recognized. Never edit the input.
 export function readBackup(input) {
-    if (input?.backupSchemaVersion != null) return { backup: upgradeVersion4(input), warnings: [], incomplete: false, omitted: {} };
+    if (input?.backupSchemaVersion != null) {
+        // Verify the original seal before adding empty Coach collections to older backups.
+        let original = validateBackup(input);
+        if (HAS_COACH && original.backupSchemaVersion < 6) {
+            for (const name of COACH_ENTITIES) original.data[name] = [];
+            if (original.backupSchemaVersion === 4) {
+                const legacy = upgradeVersion4(input);
+                for (const name of COACH_ENTITIES) legacy.data[name] = [];
+                original = legacy;
+            }
+            original = validateBackup(sealBackup(original.data, { generatedAt: original.generatedAt, identifier: original.source.identifier, compatibility: original.compatibility }));
+        } else original = upgradeVersion4(input);
+        return { backup: original, warnings: [], incomplete: false, omitted: {} };
+    }
     const raw = jsonCopy(input);
     const daily = raw?.version === 1 && raw.user?.id && Array.isArray(raw.workoutLogs);
     const manual = typeof raw?.version === 'string' && /^2\./.test(raw.version) && Array.isArray(raw.workouts);

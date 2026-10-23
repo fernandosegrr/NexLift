@@ -11,13 +11,14 @@ import { registerRoutes as training } from '../modules/training/routes.js';
 import { registerRoutes as bodyTracking } from '../modules/bodyTracking/routes.js';
 import { registerRoutes as goals } from '../modules/goals/routes.js';
 import { registerRoutes as backups } from '../modules/backups/routes.js';
+import { registerRoutes as coach } from '../modules/coach/routes.js';
 import { createHash } from 'node:crypto';
 import { authInputError } from '../modules/auth/validation.js';
 
 export function buildRoutes(services) {
     const routes = [];
     for (const [domain, register] of Object.entries({ auth, routines, mesocycles, exercises, ai, workouts, operations,
-        shortcuts, notifications, training, bodyTracking, goals, backups })) {
+        shortcuts, notifications, training, bodyTracking, goals, backups, coach })) {
         const app = Object.fromEntries(['get', 'post', 'put', 'delete'].map(method => [method, (path, ...handlers) => {
             const handler = handlers.pop();
             if (typeof handler !== 'function' || handlers.some(guard => !['auth', 'rate'].includes(guard?.kind))) throw new Error('Invalid route definition');

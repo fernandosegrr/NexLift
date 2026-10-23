@@ -26,6 +26,7 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const Profile = lazy(() => import('./pages/Profile'));
 const NewGoal = lazy(() => import('./pages/NewGoal'));
 const AiRoutineSetup = lazy(() => import('./pages/AiRoutineSetup'));
+const Coach = lazy(() => import('./pages/Coach'));
 
 function PageLoader() {
   return (
@@ -83,6 +84,7 @@ function AppRoutes() {
         <Route path="workout/:dayId" element={<Workout />} />
         <Route path="import" element={<Import />} />
         <Route path="progress" element={<Progress />} />
+        <Route path="coach" element={<Coach />} />
         <Route path="settings" element={<Settings />} />
         <Route path="session/:logId/edit" element={<EditSession />} />
         <Route path="body" element={<BodyTracking />} />

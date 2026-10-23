@@ -21,6 +21,7 @@ export async function startFastify({ env = process.env, providers, schemaCheck =
     const unavailable = async () => { throw new Error('External providers disabled in rehearsal'); };
     const runtime = createRuntime({ prisma, config: { jwtSecret: env.JWT_SECRET, nodeEnv: env.NODE_ENV || 'test', corsOrigin: env.CORS_ORIGIN,
         trustedProxyCidrs: env.NEXLIFT_TRUSTED_PROXY_CIDRS,
+        coachEnabled: env.NEXLIFT_COACH_ENABLED === 'true',
         webSessionEnabled: env.NEXLIFT_WEB_SESSION_REHEARSAL === 'true', webOrigin: env.NEXLIFT_WEB_ORIGIN,
         offlineSyncEnabled: env.NEXLIFT_OFFLINE_SYNC_ENABLED === 'true', resolutionEnabled: env.NEXLIFT_CONFLICT_RESOLUTION_ENABLED === 'true' },
         providers: providers ?? { cloudinaryConfigured: false, vapidConfigured: false, fetch: unavailable, cloudinary: { uploader: { upload: unavailable } },
