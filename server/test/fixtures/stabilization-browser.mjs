@@ -159,6 +159,10 @@ export async function runStabilizationBrowser({ root, backend, tokenA, tokenB, e
             assert.deepEqual(await counts(),after);
         });
         await check('B: COMMIT real sin respuesta, reinicio backend y navegador recuperan el mismo acuse',async()=>{
+            // This case interrupts a response, not the browser's network link.
+            // A reopened Edge profile can retain an offline network state.
+            await app.command('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
+            await until(()=>app.evaluate('navigator.onLine === true'),'network link online before response fault');
             const before=await counts();await fault('after');
             const result=await app.evaluate(`phase35.lostReply(${JSON.stringify(settings)})`);
             assert.equal(result.syncStatus,'retry_scheduled');const id=result.operationId;
@@ -172,6 +176,8 @@ export async function runStabilizationBrowser({ root, backend, tokenA, tokenB, e
             assert.equal(requests.filter(x=>x.operationId===id&&x.method==='POST').length,posts);
         });
         await check('E: parada real PostgreSQL conserva operacion y autenticacion; no comunica exito',async()=>{
+            await app.command('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
+            await until(()=>app.evaluate('navigator.onLine === true'),'network link online before database fault');
             const before=await counts();await postgres(false);
             try{
                 const saved=await app.evaluate(`phase35.api.logRestDay('PostgreSQL caido 3.5',{ownerId:'A'})`);
@@ -183,6 +189,8 @@ export async function runStabilizationBrowser({ root, backend, tokenA, tokenB, e
             const after=await counts();assert.equal(after.rest,before.rest+1);
         });
         await check('envio HTTP interrumpido antes del COMMIT revierte SQL; mismo UUID puede completar despues',async()=>{
+            await app.command('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
+            await until(()=>app.evaluate('navigator.onLine === true'),'network link online before transaction fault');
             const before=await counts();await fault('before');
             const saved=await app.evaluate(`phase35.lostReply(${JSON.stringify(settings)})`);
             assert.equal(saved.syncStatus,'retry_scheduled');assert.deepEqual(await counts(),before);await fault(null);
