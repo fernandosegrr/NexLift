@@ -1,0 +1,654 @@
+{
+  "createdAt": "2026-10-21T21:31:50.437Z",
+  "scope": "Static actual sources and call sites; functions include helpers/closures and are not counted as distinct algorithms",
+  "files": [
+    {
+      "file": "packages/shared/src/domain/training/smartLoading.ts",
+      "sha256": "beece1843fd603f7c2ac5f55e21252a9a113b0219762497fea97ecdfad88315a",
+      "functions": [
+        {
+          "name": "abstain",
+          "line": 43,
+          "sha256": "c992cc0b0753e2850c9afcd7c14a69ba8cc9723e1d8fb00fdd6236ca5349d084"
+        },
+        {
+          "name": "allHaveKnownRir",
+          "line": 46,
+          "sha256": "71e72cbde117ce943ea0ad59d871085f15c03516e0e27615eb4f58bcc4c5013e"
+        },
+        {
+          "name": "weightGrid",
+          "line": 49,
+          "sha256": "fdc6e88bcc7db730d00437fdf15e9d7186f2a497aedb4df91425b8b6467a282b"
+        },
+        {
+          "name": "legacyArithmeticNumber",
+          "line": 55,
+          "sha256": "97d9ba8b94c6ccc4ba440b2501a7292fd8566fa45e51e345d8cf91319d5c8b3a"
+        },
+        {
+          "name": "adjustRepRangeForPhase",
+          "line": 80,
+          "sha256": "55bf7047006c680c6408ff1e94315a0945dbfaea67ee3d5bfa48b87e97a35491"
+        },
+        {
+          "name": "parseRepRange",
+          "line": 91,
+          "sha256": "500ff83fc0a37a9c2e05d86d3206c8e6d3cacd403be5e10ba77b5c7ae56a732c"
+        },
+        {
+          "name": "resolveWeightIncrement",
+          "line": 102,
+          "sha256": "c794a78413daa83789ec9eb66a6a5aa7f9ee245c5ac93d4d07e80274daa8d061"
+        },
+        {
+          "name": "effectiveWorkoutSet",
+          "line": 110,
+          "sha256": "9999f71935c2a0bc63ed9fc348494aa76e7ff561054260f391c769869b0babcd"
+        },
+        {
+          "name": "roundWorkoutWeight",
+          "line": 124,
+          "sha256": "9c19deddd9bbfed38db1e88a05d04770041d24cb886562fca2ed17a4217410d5"
+        },
+        {
+          "name": "pickWorkReference",
+          "line": 134,
+          "sha256": "2f03ea46e2502e083d3a75ca9081654c96b28932c7ebd1ef73d97825cf9dfccd"
+        },
+        {
+          "name": "evaluateWorkoutSuggestion",
+          "line": 178,
+          "sha256": "d9b97dee3c71c8e737328de37c0b685357bdcc36e3f6ad802023cda98ebfb627"
+        },
+        {
+          "name": "evaluateNextSetFromToday",
+          "line": 251,
+          "sha256": "859ade98132d7d639b261492e4bacd7c3d9ef72d5ca5a5ab42e207e90fa7fe69"
+        },
+        {
+          "name": "computeWorkoutSuggestion",
+          "line": 370,
+          "sha256": "0b06b357cd81eebe1e36add3b4a20ca0075074cfb70f63af8d9fd35c9209e59a"
+        },
+        {
+          "name": "suggestNextSetFromToday",
+          "line": 373,
+          "sha256": "8cb460d4f843d153d44850828b97062a62e5399191bbdce2a2ae0c83f2bd435b"
+        }
+      ],
+      "calls": [
+        {
+          "callee": "parseRepRange",
+          "line": 181
+        },
+        {
+          "callee": "adjustRepRangeForPhase",
+          "line": 182
+        },
+        {
+          "callee": "(sessions[0].sets || [])\n        .map(effectiveWorkoutSet)\n        .filter",
+          "line": 184
+        },
+        {
+          "callee": "pickWorkReference",
+          "line": 189
+        },
+        {
+          "callee": "roundWorkoutWeight",
+          "line": 201
+        },
+        {
+          "callee": "parseRepRange",
+          "line": 257
+        },
+        {
+          "callee": "adjustRepRangeForPhase",
+          "line": 282
+        },
+        {
+          "callee": "roundWorkoutWeight",
+          "line": 306
+        },
+        {
+          "callee": "roundWorkoutWeight",
+          "line": 309
+        },
+        {
+          "callee": "roundWorkoutWeight",
+          "line": 319
+        },
+        {
+          "callee": "roundWorkoutWeight",
+          "line": 326
+        },
+        {
+          "callee": "roundWorkoutWeight",
+          "line": 363
+        },
+        {
+          "callee": "roundWorkoutWeight",
+          "line": 364
+        }
+      ]
+    },
+    {
+      "file": "client/src/utils/smartLoading.js",
+      "sha256": "26f8bb4c444a91307a0df653f9c5c2c8ea1a4d92d61a585631ac80e581c066ec",
+      "functions": [],
+      "calls": []
+    },
+    {
+      "file": "server/src/logic.js",
+      "sha256": "17c819b704b09bfc37145bf8d840250f1a83a9e53b75ebf78ca8b649d9191095",
+      "functions": [
+        {
+          "name": "mexicoCityDateStr",
+          "line": 22,
+          "sha256": "ee9ca813781cd9ec9cd9fa45cdaedfc8684b4af1bb2acabc22f52add66c37466"
+        },
+        {
+          "name": "mexicoCityUtcOffsetMinutes",
+          "line": 32,
+          "sha256": "3a0234425d9c9e03ee6aa44796c9813bc24110152026cb117d4e9136aba7602a"
+        },
+        {
+          "name": "mexicoCityDayBounds",
+          "line": 43,
+          "sha256": "ef392f2056f79b34634311bb52dea127dd1fd48ef8a916e63ae7d890fef42bca"
+        },
+        {
+          "name": "dayOfWeekFromDateStr",
+          "line": 55,
+          "sha256": "a30a1507eea8d07d824e81ce945bf395739c3dd1e9dbaee4ecc1183112303ca7"
+        },
+        {
+          "name": "resolveTargetDate",
+          "line": 63,
+          "sha256": "d1ae6cb7f53e4bc2b6ec7f8b7ef65036c69c281330d598f9677553ad5953c140"
+        },
+        {
+          "name": "mexicoCityHour",
+          "line": 74,
+          "sha256": "f63275df8ec14c482aa4ef73b8d7deaec2eeb78a5b635b5679c60cf2d0c2fe5c"
+        },
+        {
+          "name": "mexicoCityDayOfWeek",
+          "line": 91,
+          "sha256": "38a05e652d4294b7766504379aa872492fa0dae5c69841000b8166d6b7e29858"
+        },
+        {
+          "name": "getTodayName",
+          "line": 95,
+          "sha256": "914c09bc97dc1d8be59190fa82f1d9a7c01bddd96650d5001380514bd991f36b"
+        },
+        {
+          "name": "parseCdmxDateRangeQuery",
+          "line": 102,
+          "sha256": "51988c454c3ae71a80d94ec757c639d69a456f8cf7031e2c7b5c3b9936bd3776"
+        },
+        {
+          "name": "sanitizeSets",
+          "line": 130,
+          "sha256": "4ff977dec9e1525b4c25f1ffdc08e908eca6d1f2fd7fd43278bb599b62730d9d"
+        },
+        {
+          "name": "sanitizeShortcutLogSet",
+          "line": 203,
+          "sha256": "4f16eac5d688d7fe3370613e054b6b0a0330d09cfc90c6d349e1df7ea7e6b461"
+        },
+        {
+          "name": "sanitizeWorkoutLogBody",
+          "line": 237,
+          "sha256": "1ed95ee8fd5770d23ec1b70c85a1941ede37dbda250012c37d4a3414e151da52"
+        },
+        {
+          "name": "normalizeDay",
+          "line": 254,
+          "sha256": "3552232338520454421362b3dfa5f87e398bfdfef10e3363f5a40ecc283fd885"
+        },
+        {
+          "name": "inferWeekdayFromName",
+          "line": 281,
+          "sha256": "4a305a376ae3689cbd894279b968978bb1fdef373c47d14b494e368b58d7e8ba"
+        },
+        {
+          "name": "findRoutineDayForWeekday",
+          "line": 302,
+          "sha256": "200536738f01e0db79f8c903b73a4bf3c6cce0a968702767f8897ebca5e0d43d"
+        },
+        {
+          "name": "scheduledRestWeekdays",
+          "line": 318,
+          "sha256": "7c06fd2d1a06546f559780ea88e8ae639a32dfefc5cd3675f901930eb1f22e3a"
+        },
+        {
+          "name": "normalizeIncomingWeekday",
+          "line": 330,
+          "sha256": "59694e6a7656fb6b7160b7cce67b391b26e414cf65250b4ba85031cef5b04656"
+        },
+        {
+          "name": "resolveIncomingWeekday",
+          "line": 342,
+          "sha256": "716ac4794b2c0268710f22c4e8292a460f8d6070d852b24b813d4b0dc4c6f82a"
+        },
+        {
+          "name": "validateRoutineDayWeekdays",
+          "line": 352,
+          "sha256": "ef291d90ba5473bf7165c4244326547f5ea7d2322487656a03d30fe674fc5bf6"
+        },
+        {
+          "name": "getActiveBlock",
+          "line": 377,
+          "sha256": "4ca0d344697642fa7b0b620cc8092109585e0967f056690bcee1a67fd3cbf5b6"
+        },
+        {
+          "name": "currentWeekInBlock",
+          "line": 384,
+          "sha256": "4e0bd49ab3f76a6e4910e418b35f47396f483be1ed23d48b19b067d03ecac615"
+        },
+        {
+          "name": "getRoutinePhaseStatus",
+          "line": 396,
+          "sha256": "f1c5c9bf09e3ce917ab8ab60196d10c1c495ffaa656f40b21d1c0e28c9356c46"
+        },
+        {
+          "name": "pickNextSplitDay",
+          "line": 417,
+          "sha256": "10db6a74281ebc64cc39a89b33bbef887c56bda0f60ee4a21eea155e647cce6f"
+        },
+        {
+          "name": "detectPlateauForExercise",
+          "line": 435,
+          "sha256": "ff9900dfb6fee1c494304783a5967510874dbb1491f270c0490d1d15fe7c4dc3"
+        },
+        {
+          "name": "convertShortcutRir",
+          "line": 467,
+          "sha256": "82a52bddaf07520203c125b1faba48e5e548dc9e124044fe43d536fc20cf97b0"
+        },
+        {
+          "name": "mexicoCityMinutesOfDay",
+          "line": 474,
+          "sha256": "f6f476944c7ba73fbd2d6659eebf9256dae03a66fd381c88f2e007d336c8b205"
+        },
+        {
+          "name": "evaluateCreatineReminderStage",
+          "line": 496,
+          "sha256": "474850b6911cfcfc467f90602a04f4dee2292ae04a70fad2e877912bccb7722a"
+        },
+        {
+          "name": "normalizeBackupBodyLog",
+          "line": 562,
+          "sha256": "b4df6c403b2c7884210ebf480488c44c63f3f562979256e3d5c8993ad6be001f"
+        },
+        {
+          "name": "normalizeBackupBodyLogs",
+          "line": 583,
+          "sha256": "fa2ea7541724e909f7bbf0a69321062efcf0defda6352ecde286df9879082f6a"
+        }
+      ],
+      "calls": [
+        {
+          "callee": "effectiveWorkoutSet",
+          "line": 441
+        }
+      ]
+    },
+    {
+      "file": "client/src/pages/Workout.jsx",
+      "sha256": "22d25ab503c4dbd4529453d653784669107e048bf8b11aca65e3d3d0e125ec47",
+      "functions": [
+        {
+          "name": "makeEmptySet",
+          "line": 31,
+          "sha256": "194617dd61375d1dad91fc1187eba74b9d84f50c53713eef662466ffc12ca29c"
+        },
+        {
+          "name": "useWorkoutPersistence",
+          "line": 39,
+          "sha256": "72daec3325637da28cf17b36f1709f0bb85f489f63fc8b09e658d2a32c32d266"
+        },
+        {
+          "name": "estimate1RM",
+          "line": 75,
+          "sha256": "53d92bfeefc45aef08de8f37ef0424f7be0ff035eea118995abf8a7234864863"
+        },
+        {
+          "name": "deriveHistoryDerived",
+          "line": 83,
+          "sha256": "48f41219dc342830d60fac33297b55c3288e07dfb3dd797311c1c3d1c830f225"
+        },
+        {
+          "name": "useExerciseHistory",
+          "line": 145,
+          "sha256": "1efbf305cbe1aab6cca16b47c5b44419d473ea6ddcb0ec632ba29df9581ad32d"
+        },
+        {
+          "name": "apply",
+          "line": 163,
+          "sha256": "74d61c06cea17fc6cfd5e7b1b59456404aeb158908ff34341bf28b669b3d6661"
+        },
+        {
+          "name": "sessionVolumeFromSets",
+          "line": 200,
+          "sha256": "a6c6689922a0b55f9bb970babb94ef78b67648314c3c6bf4478d15e157da820b"
+        },
+        {
+          "name": "findTodayLog",
+          "line": 221,
+          "sha256": "c53d578a7471c2d8f5bc5974f0ad7e6efb34269db762aaa983ceaafb7039de82"
+        },
+        {
+          "name": "setDeltaLabel",
+          "line": 228,
+          "sha256": "def15971a3cb17f440f81687b5bf6bdfc8552c9d7a7713caedd129ebe7b9e65c"
+        },
+        {
+          "name": "useGoalChip",
+          "line": 255,
+          "sha256": "f4f2274d3d0510e4d751681cbd76351883dea64482b063bc5a65d4972c2fbf18"
+        },
+        {
+          "name": "useRestTimer",
+          "line": 268,
+          "sha256": "871a7edef7029c2e3e9c91c66f4d43f7922492f295c9ba20f96f4bbd9039e365"
+        },
+        {
+          "name": "handleResume",
+          "line": 322,
+          "sha256": "6cd284522417edcfdafc67f78d8d4e0e68850bc5d864ebf3cf71247369deab27"
+        },
+        {
+          "name": "WarmupCalculator",
+          "line": 662,
+          "sha256": "7a1ab8a6a3baf3e4d02defdf043847978b083c950a23b207c36e5ee732a164e1"
+        },
+        {
+          "name": "Workout",
+          "line": 712,
+          "sha256": "73e5a324f9134233a4903b6b0945a0f98ab75c0fba4869c9b0ef96d5e2d9f58c"
+        },
+        {
+          "name": "WorkoutPage",
+          "line": 718,
+          "sha256": "3c7e64d37d7df8056140fd52eb7993495f5548faf79ea9cf3b103b9ffcb41fc0"
+        },
+        {
+          "name": "fetchDay",
+          "line": 844,
+          "sha256": "e9f11a5383101b43795aac1ba6893e3c3aa87d2a4b7a2eb96414fb22011632ad"
+        },
+        {
+          "name": "display",
+          "line": 846,
+          "sha256": "a5c2342193a8415919bd9aa0dbaf543fc16730db6ef869a243937ca20961db55"
+        },
+        {
+          "name": "applyCompletedFromHistories",
+          "line": 912,
+          "sha256": "305bee9e7a16340419e53573d807ed210fa5eb886c51287745db10c596c7f9d6"
+        },
+        {
+          "name": "loadExerciseData",
+          "line": 937,
+          "sha256": "bbc40d3da942e08a1c2abf56d9d3f22d391480bbafbe0cfd08bf90fbe6afc165"
+        },
+        {
+          "name": "goToExercise",
+          "line": 1303,
+          "sha256": "838d735f1c266ce805afbc7a3871c2b46edd099270993555baebd24f1a233f21"
+        },
+        {
+          "name": "loadHistoryModal",
+          "line": 1317,
+          "sha256": "a09342133deb23accbc29f16bd0e94001c4367e3a5ce8444e66d5a9e5ec2a52b"
+        },
+        {
+          "name": "handlePrimaryAction",
+          "line": 1334,
+          "sha256": "ef5b3cf74f6198e3663fe361fcca846c04808c8326664c8b342636f3290c0481"
+        },
+        {
+          "name": "buildSessionSummary",
+          "line": 1455,
+          "sha256": "f3d784753060a4e29606307d25448ac5e40ce9a0e87e358b7a0d0f2a1042dda7"
+        },
+        {
+          "name": "finishWorkout",
+          "line": 1516,
+          "sha256": "29af3502e9a9ca07c2bb5f5ddffa25e1053b67c22eb2a4af0472636e3e2a2f70"
+        },
+        {
+          "name": "skipExercise",
+          "line": 1526,
+          "sha256": "5d8fa3cdca92134660a4d899d7043a8c0096653b3fd480e93ea3d275f932f8d9"
+        }
+      ],
+      "calls": [
+        {
+          "callee": "effectiveSet",
+          "line": 76
+        },
+        {
+          "callee": "resolveWeightIncrement",
+          "line": 115
+        },
+        {
+          "callee": "computeWorkoutSuggestion",
+          "line": 117
+        },
+        {
+          "callee": "roundWeight",
+          "line": 119
+        },
+        {
+          "callee": "s.sets.map(effectiveSet).filter",
+          "line": 124
+        },
+        {
+          "callee": "roundWeight",
+          "line": 669
+        },
+        {
+          "callee": "roundWeight",
+          "line": 684
+        },
+        {
+          "callee": "parseRepRange",
+          "line": 1151
+        },
+        {
+          "callee": "resolveWeightIncrement",
+          "line": 1155
+        },
+        {
+          "callee": "effectiveSet",
+          "line": 1172
+        },
+        {
+          "callee": "suggestNextSetFromToday",
+          "line": 1202
+        },
+        {
+          "callee": "resolveWeightIncrement",
+          "line": 1943
+        }
+      ]
+    },
+    {
+      "file": "server/src/index.js",
+      "sha256": "7c62a1be38cac22e07f0c31020e4a9aacbefb0d432d4ac8b8fb401b428c8fd64",
+      "functions": [
+        {
+          "name": "setPrivateCache",
+          "line": 45,
+          "sha256": "bbbfd3fdd415c280eb57f4bbd074e79a8e8464ca8d1818ff43c336252e5aebb4"
+        },
+        {
+          "name": "looksLikeImage",
+          "line": 86,
+          "sha256": "781eac049b732231ddd8f7dbaaeddcdb92900ee6dd5d3e1188ca1b0c57f71e47"
+        },
+        {
+          "name": "uploadToCloudinary",
+          "line": 95,
+          "sha256": "b20d246291cf9830eb739be18d08039edf2016a7cff08939ae149cfe477cd95f"
+        },
+        {
+          "name": "uploadBase64ToCatbox",
+          "line": 108,
+          "sha256": "9ee453cb6c96fa39369b49725d7734a542d9afd76c827f4d8e5f3fa882d8cb14"
+        },
+        {
+          "name": "uploadPhoto",
+          "line": 160,
+          "sha256": "c600021f39bd80bf659939fcdc9ffe8f30b6ac16622e583461ef3754968bfbed"
+        },
+        {
+          "name": "rateLimit",
+          "line": 233,
+          "sha256": "d2123982b26659b2676e8330abcf04511d93a6bb9ef7235026ad987e10d3023c"
+        },
+        {
+          "name": "sendPushToUser",
+          "line": 280,
+          "sha256": "5383742fc5175ba05ef42e550410f79a56dd49a3f8a7a3ec56b5117176a411ab"
+        },
+        {
+          "name": "firePendingReminder",
+          "line": 311,
+          "sha256": "64dd041e7924a94ca3bab622e64fe43b32229d164638129918eb07a8075e1c2a"
+        },
+        {
+          "name": "scheduleRestReminder",
+          "line": 332,
+          "sha256": "056a2f0b757698afb91f6804042cb8de93f0ad2d770d95a60c498b3a1f6f6ddb"
+        },
+        {
+          "name": "restorePendingReminders",
+          "line": 372,
+          "sha256": "c73e6ca9899f057b13f78ccc693119565d587b91a349ae4b4680e0e884328f88"
+        },
+        {
+          "name": "computeUsualGymHour",
+          "line": 418,
+          "sha256": "96f04e52e49d842340ad8711cee664f49ae06593113cd8aa606e18a78127c7b4"
+        },
+        {
+          "name": "checkReengagementReminders",
+          "line": 439,
+          "sha256": "8d5179e8db47ed11088679189fbd3ea0664cecfab8709d81f272a14a967cc94b"
+        },
+        {
+          "name": "checkCreatineReminders",
+          "line": 490,
+          "sha256": "1d61ff061f8677fdbde437f9c894e4b0692e386edca43328bde32fe43b349fb8"
+        },
+        {
+          "name": "maybeEvaluateAdaptiveDeload",
+          "line": 564,
+          "sha256": "c8524ccb72a9ebdbb88196dc31a870e271ea32c2fb1dd1bb27c008345e23190a"
+        },
+        {
+          "name": "checkAdaptiveDeloadForAllUsers",
+          "line": 615,
+          "sha256": "249a4ece8323c629b53758a70b8ba658b1efffa26649b68f0fc55c886d4122a3"
+        },
+        {
+          "name": "runBackupForUser",
+          "line": 638,
+          "sha256": "0e5f12f87e8ebb6ec90a3eeffe2bcd6b7bd263ccf4b8cd71e27e1362a6709713"
+        },
+        {
+          "name": "runDailyBackup",
+          "line": 646,
+          "sha256": "c25a3aa70a815a50c25c753cc987238fcf33e722d55b957e58f9ddc3dbf3a961"
+        },
+        {
+          "name": "maybeRunDailyBackup",
+          "line": 664,
+          "sha256": "d1bbc57dbc1dabe04f5c3d954d6041bfb9470e8deca9a3b05ff75498bf47989f"
+        },
+        {
+          "name": "sanitizeBodyMetrics",
+          "line": 702,
+          "sha256": "2bffcc23e1a189f293942c0e75f719eacac7e7c7abce0ea5e7499561cd9c10c3"
+        },
+        {
+          "name": "daysIncludeFor",
+          "line": 1087,
+          "sha256": "3759a08100db4eb649cddb302d51a6ab23b2460be417b6cc0ff0348db172b185"
+        },
+        {
+          "name": "resolveOrGenerateAiRoutineDay",
+          "line": 1519,
+          "sha256": "e273f378794d30ac03d95c3c5ec3ea494a344a438efdb3f98f2b5d4e962510a4"
+        },
+        {
+          "name": "baseShortcutResponse",
+          "line": 2010,
+          "sha256": "500075f432369b3ceafd6f5bb826fd8399a6362c24844bd4b78b850bc8ddb3c2"
+        },
+        {
+          "name": "startServer",
+          "line": 3649,
+          "sha256": "95789ed9a4661c44683c1156d8016fdc08ab739940ff08ba15d29195cf2d5260"
+        }
+      ],
+      "calls": [
+        {
+          "callee": "resolveWeightIncrement",
+          "line": 2131
+        },
+        {
+          "callee": "parseRepRange",
+          "line": 2132
+        },
+        {
+          "callee": "todayLogForExercise.sets\r\n                .map(effectiveWorkoutSet)\r\n                .filter",
+          "line": 2138
+        },
+        {
+          "callee": "suggestNextSetFromToday",
+          "line": 2141
+        },
+        {
+          "callee": "computeWorkoutSuggestion",
+          "line": 2165
+        },
+        {
+          "callee": "roundWorkoutWeight",
+          "line": 2180
+        }
+      ]
+    }
+  ],
+  "inter": {
+    "callerContext": [
+      "Workout.deriveHistoryDerived",
+      "GET /api/shortcuts/next-set"
+    ],
+    "source": "packages/shared/src/domain/training/smartLoading.ts",
+    "onlyFirstSession": true
+  },
+  "intra": {
+    "callerContext": [
+      "Workout.suggestionByIndex",
+      "GET /api/shortcuts/next-set"
+    ],
+    "source": "packages/shared/src/domain/training/smartLoading.ts",
+    "callerOrder": true,
+    "callerCompletionFilter": true
+  },
+  "unchangedPolicies": [
+    "PR5.2",
+    "effort5.2",
+    "plateau",
+    "deload trigger",
+    "CDMX",
+    "idempotency",
+    "offline engine"
+  ],
+  "productionTouched": false
+}

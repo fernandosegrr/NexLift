@@ -1,0 +1,44 @@
+{
+  "edits": [
+    {
+      "file": "client/src/utils/exerciseName.js",
+      "beforeSha": "1f7a0ddc95a24dee45fd3fca38e12c3ab98d79181e178252ec0682eea96c2a88",
+      "afterSha": "b0cac63229cb0c16d0abc073334573aa7a6aebd920968978868ef5abb800cdc6"
+    },
+    {
+      "file": "server/src/utils/exerciseName.js",
+      "beforeSha": "6d5981da6d27be5426500a10fae41fce0d090b820cf1f1a646d92ce3b578dab1",
+      "afterSha": "abeedfef8d9481cd01e0a4060642e99e6c669ee03ee9d5f006e6dded5cfd5670"
+    },
+    {
+      "file": "client/src/domain/training.ts",
+      "beforeSha": "2540d773fd8809bf4d29a17e17a3ab945a4ab94d2a68a09b4a7d35b774ee128a",
+      "afterSha": "7e3c73837e1361019fdfe9a54bc8d537cd4390eacb0d554076e88f80ea15fc34"
+    },
+    {
+      "file": "server/src/domain/training.ts",
+      "beforeSha": "f36b3ec5242049e05ec87584d31cb8c5725f47abe21f6082c47836978417ad5e",
+      "afterSha": "a59bbf769960e9a23093344c03631796ff1c5db86df0c612d39099b38878c9bb"
+    },
+    {
+      "file": "packages/shared/src/index.ts",
+      "beforeSha": "2f9df1baa712963be21d2ed808453b10b2d420533a027e07d65216f35ce2a3fb",
+      "afterSha": "e87602e0c40f9f33ef4df0a69331924ebf7d0ee26542fe300207fee608242137"
+    },
+    {
+      "file": "server/src/logic.js",
+      "beforeSha": "17c819b704b09bfc37145bf8d840250f1a83a9e53b75ebf78ca8b649d9191095",
+      "afterSha": "40245c58f8afd5c42b5dea4c3e3122f60314c76691503e1152665c6b906f5e86"
+    },
+    {
+      "file": "client/src/utils/dates.js",
+      "beforeSha": "1ca7967ae633ccbc8f76883415c5fef0560454c257e885557f0283772fe63f3a",
+      "afterSha": "10371ca458708792385d33ef92b9d17a564e6107cfd5d88d6fb0978d3b158016"
+    },
+    {
+      "file": "client/src/utils/goalPlanner.js",
+      "beforeSha": "14f021f6b414edf9549c810427b7ad2988a882741e2dd584dd6d15a1177da90c",
+      "afterSha": "71a993854432639cb341447369d2efe0b9eaa1d38efac656c9c683511ca2fb7b"
+    }
+  ]
+}

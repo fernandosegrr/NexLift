@@ -1,3 +1,5 @@
+import { linearRegression } from '../generated/training.js';
+export { linearRegression };
 // goalPlanner.js — lógica pura de predicción/periodización de Objetivos, extraída
 // de GoalCard.jsx (P6 del plan de mejoras de funcionalidades) para poder reusarla
 // también en Workout.jsx (chip de "objetivo visible") sin duplicarla. GoalCard.jsx
@@ -5,23 +7,7 @@
 import { bestOneRepMaxForTarget, best1RMRecent } from './exerciseName';
 
 // Regresión Lineal para detectar tendencias en el historial
-export function linearRegression(dataPoints) {
-    if (!dataPoints || dataPoints.length < 2) return { slope: 0, r2: 0 };
-    const n = dataPoints.length;
-    const sumX = dataPoints.reduce((sum, p) => sum + p.x, 0);
-    const sumY = dataPoints.reduce((sum, p) => sum + p.y, 0);
-    const sumXY = dataPoints.reduce((sum, p) => sum + p.x * p.y, 0);
-    const sumX2 = dataPoints.reduce((sum, p) => sum + p.x * p.x, 0);
-    const denominator = n * sumX2 - sumX * sumX;
-    if (denominator === 0) return { slope: 0, r2: 0 };
-    const slope = (n * sumXY - sumX * sumY) / denominator;
-    const intercept = (sumY - slope * sumX) / n;
-    const yMean = sumY / n;
-    const ssTotal = dataPoints.reduce((sum, p) => sum + Math.pow(p.y - yMean, 2), 0);
-    const ssResidual = dataPoints.reduce((sum, p) => sum + Math.pow(p.y - (slope * p.x + intercept), 2), 0);
-    const r2 = ssTotal > 0 ? 1 - (ssResidual / ssTotal) : 0;
-    return { slope, r2 };
-}
+
 
 // --- MOTOR DE PERIODIZACIÓN ---
 

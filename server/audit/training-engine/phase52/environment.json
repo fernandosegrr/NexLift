@@ -1,0 +1,18 @@
+{
+  "node": "v24.22.0",
+  "nodeExecutable": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-phase44-runtime-0938c5306f904b8796b159e4fc5a540d\\node-v24.22.0-win-x64\\node.exe",
+  "nodeHash": "ba93f9a70bd86fce3ebbb39ec758501458453467aa92a34a0a3602d1e3fc2b9c",
+  "npmVersion": "11.19.1",
+  "npmCliHash": "3ce7cba6f5128dd5f54c98b6a5036b0f850496878cc2e21044b675fe3c594e3e",
+  "platform": "win32",
+  "arch": "x64",
+  "postgres": "postgres (PostgreSQL) 18.4",
+  "locks": {
+    "package-lock.json": "e42d94124c996fbd2f3382708c699c2204772f3cffc3b8abf416a6dffce8e87d",
+    "client/package-lock.json": "7c7bab32947a12e118b5e6229fb45c613f0aa1885048beccf7ce4811090daf97",
+    "server/package-lock.json": "e811077ed547b5969c3c08088567d088c4c5e68604c989abd1bcb13a8f57684d"
+  },
+  "productionTouched": false,
+  "persistentDatabaseAccessed": false,
+  "baseline": "PROVISIONAL"
+}

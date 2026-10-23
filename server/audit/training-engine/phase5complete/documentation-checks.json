@@ -1,0 +1,47 @@
+{
+  "exit": 0,
+  "sourceAndArchiveHashes": 501,
+  "reportLinks": [
+    "phase5complete/final-checks.json",
+    "../../../docs/TRAINING-ANALYSIS.md",
+    "phase5complete/phase5complete-evidence.json",
+    "phase5complete/matrix-progress.json",
+    "phase5complete/edge-pdf-evidence.json",
+    "phase5complete/lint-comparison.json",
+    "phase5complete/production-build.json",
+    "phase5complete/development-checks.json"
+  ],
+  "jsonFiles": 14,
+  "uniqueTests": 1236,
+  "newTests": 34,
+  "repeatedTests": 551,
+  "commands": 64,
+  "allFinalCommandsExitZero": true,
+  "typescriptLint": {
+    "files": 33,
+    "errors": 0,
+    "warnings": 0
+  },
+  "toolingLint": {
+    "files": 57,
+    "errors": 0,
+    "warnings": 0
+  },
+  "globalLint": {
+    "errors": 27,
+    "warnings": 3,
+    "regression": false
+  },
+  "generated": {
+    "count": 11,
+    "changedBytes": 4,
+    "changedExecutable": 2
+  },
+  "exportedFunctions": 22,
+  "internalHelpers": 4,
+  "gitDiffCheckExit": 0,
+  "staged": false,
+  "productionTouched": false,
+  "persistentDatabaseAccessed": false,
+  "phase6Started": false
+}

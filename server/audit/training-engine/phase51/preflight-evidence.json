@@ -1,0 +1,46 @@
+{
+  "createdAt": "2026-10-21T03:38:19.749Z",
+  "fixture": "packages/shared/test/fixtures/training.ts",
+  "strictProjectIncludesFixture": true,
+  "historicalCompilerTestsUnchanged": true,
+  "expectedHistoricalDiagnostics": 3,
+  "expectedNewDiagnostics": 4,
+  "allResultsAreRepeatedNotUniqueAdditions": true,
+  "results": [
+    {
+      "file": "C:/Users/guerr/.codex/artifacts/phase51-typescript-fixture-fixed.private.log",
+      "sha256": "7b8de122964dec1cc68bdf4136a6c44fed7d6997fbc5ea7899bd1228c7eb29d3",
+      "tests": 12,
+      "exitObserved": 0,
+      "repeat": true
+    },
+    {
+      "file": "C:/Users/guerr/.codex/artifacts/phase51-training-fixture-fixed.private.log",
+      "sha256": "6d677297e5d5238d655103dc2183d1236d6286db05b6c158286c588217503e66",
+      "tests": 37,
+      "exitObserved": 0,
+      "repeat": true
+    },
+    {
+      "file": "C:/Users/guerr/.codex/artifacts/phase51-contracts-preflight.private.log",
+      "sha256": "418b6778a155547ae75c6aab541446f0667c14d9cda121d44f3244f834142dda",
+      "tests": 56,
+      "exitObserved": 0,
+      "repeat": true
+    },
+    {
+      "file": "C:/Users/guerr/.codex/artifacts/phase51-phase44-preflight.private.log",
+      "sha256": "143a3c1dd61c04e4b904fd705ff65542023b467586eec5a9b88a3b301fd2f37c",
+      "tests": 13,
+      "exitObserved": 0,
+      "repeat": true
+    },
+    {
+      "file": "C:/Users/guerr/.codex/artifacts/phase51-workspaces-preflight.private.log",
+      "sha256": "407ed2f6168927e02dee14d98548245fc5e50ec70fc191f4e7bc37d0dfaf9fd8",
+      "tests": 365,
+      "exitObserved": 0,
+      "repeat": true
+    }
+  ]
+}

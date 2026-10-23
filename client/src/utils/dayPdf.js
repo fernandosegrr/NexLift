@@ -1,6 +1,7 @@
 // PDF de un DÍA completo de entrenamiento (todos los WorkoutLog del día CDMX).
 // Distinto de sessionPdf.js (un solo ejercicio). Lazy-importa jsPDF.
 import { mexicoCityDateStr } from './dates';
+import { trainingLoadVolume } from '../generated/training.js';
 
 function rirFromRpe(rpe) {
     return rpe != null && Number.isFinite(Number(rpe)) ? 10 - Number(rpe) : null;
@@ -25,15 +26,8 @@ function epley(weight, reps) {
 }
 
 function sessionVolume(session) {
-    let total = 0;
-    (session.sets || []).forEach(s => {
-        total += (Number(s.weight) || 0) * (Number(s.reps) || 0);
-        if (s.weightRight != null || s.repsRight != null) {
-            total += (Number(s.weightRight) || Number(s.weight) || 0)
-                * (Number(s.repsRight) || Number(s.reps) || 0);
-        }
-    });
-    return total;
+    // Read-only PDF correction: a recorded right zero remains zero.
+    return trainingLoadVolume(session.sets || [], 'inherit-missing-right');
 }
 
 /**

@@ -1,0 +1,208 @@
+{
+  "completed": true,
+  "certification": "APROBADA en desarrollo Windows/x64",
+  "createdAt": "2026-10-21T21:36:57.004Z",
+  "integralCommand": {
+    "name": "integral-npm-test-final-source",
+    "exit": 0,
+    "milliseconds": 892236,
+    "args": [
+      "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-phase44-runtime-0938c5306f904b8796b159e4fc5a540d\\node-v24.22.0-win-x64\\node_modules\\npm\\bin\\npm-cli.js",
+      "test"
+    ],
+    "cwd": "C:/Users/guerr/OneDrive/Escritorio/NexLift",
+    "log": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-phase53-received-a71e438b-42f4-4649-9c81-21948407a842\\runs\\1792617665282\\integral-npm-test-final-source.log"
+  },
+  "finalCommands": 62,
+  "allFinalExitZero": true,
+  "uniqueTests": 1202,
+  "historicalTests": 1173,
+  "newTests": 29,
+  "repeatedTests": 551,
+  "receivedFiles": 561,
+  "identicalReceived": 544,
+  "modifiedFiles": [
+    "client/src/domain/training.ts",
+    "client/src/generated/cloudinary.js",
+    "client/src/generated/training.js",
+    "client/src/utils/smartLoading.js",
+    "docs/TRAINING-ENGINE-AUDIT.md",
+    "docs/TRAINING-ENGINE-CASES.md",
+    "docs/TRAINING-ENGINE-INVENTORY.md",
+    "docs/TRAINING-PERFORMANCE.md",
+    "docs/TYPESCRIPT.md",
+    "package.json",
+    "packages/shared/src/index.ts",
+    "scripts/check-tooling.mjs",
+    "scripts/verify-monorepo.mjs",
+    "server/src/domain/training.ts",
+    "server/src/generated/errors.cjs",
+    "server/src/generated/training.cjs",
+    "server/src/logic.js"
+  ],
+  "newFiles": [
+    "client/test/phase53-harness.html",
+    "client/test/phase53-harness.jsx",
+    "docs/TRAINING-SMART-LOADING.md",
+    "packages/shared/src/domain/training/smartLoading.ts",
+    "packages/shared/test/fixtures/smartLoading.ts",
+    "scripts/fixtures/phase53/golden.json",
+    "scripts/fixtures/phase53/index.reference.txt",
+    "scripts/fixtures/phase53/logic.reference.txt",
+    "scripts/fixtures/phase53/smartLoading.js",
+    "scripts/fixtures/phase53/Workout.reference.txt",
+    "scripts/test/smart-loading.test.mjs",
+    "server/test/run-smart-loading-integration.mjs",
+    "server/test/smart-loading.integration.test.js"
+  ],
+  "deletedReceived": [],
+  "protectedFiles": 218,
+  "originalFixturesExact": true,
+  "sourceHashesVerified": 476,
+  "copiedSame": 388,
+  "copyExceptions": [
+    {
+      "file": "server/package-lock.json",
+      "reason": "npm prune reindented isolated lock; JSON dependency graph is identical; source locks unchanged"
+    }
+  ],
+  "generated": {
+    "count": 11,
+    "changedBytes": 4,
+    "changedExecutable": 2
+  },
+  "globalLint": {
+    "files": 100,
+    "errors": 27,
+    "warnings": 3
+  },
+  "globalLintSignaturesEqual": true,
+  "performance": {
+    "rows": [
+      {
+        "sets": 0,
+        "iterations": 100,
+        "oldMs": [
+          0.15949999999998,
+          0.06839999999988322,
+          0.06700000000000728,
+          0.06300000000010186,
+          0.06780000000003383
+        ],
+        "sharedMs": [
+          0.08380000000011023,
+          0.06910000000016225,
+          0.07709999999997308,
+          0.06880000000001019,
+          0.07330000000001746
+        ],
+        "preparationMs": 0.02130000000011023
+      },
+      {
+        "sets": 10,
+        "iterations": 100,
+        "oldMs": [
+          0.8563999999998941,
+          0.6288999999999305,
+          0.6772000000000844,
+          0.6136000000001332,
+          0.6559999999999491
+        ],
+        "sharedMs": [
+          0.9225999999998749,
+          1.2422999999998865,
+          0.9646000000000186,
+          0.945299999999861,
+          1.033200000000079
+        ],
+        "preparationMs": 0.33789999999999054
+      },
+      {
+        "sets": 100,
+        "iterations": 100,
+        "oldMs": [
+          4.35590000000002,
+          3.7473999999999705,
+          5.751499999999851,
+          2.9727000000000317,
+          2.7946999999999207
+        ],
+        "sharedMs": [
+          5.50409999999988,
+          4.101199999999835,
+          3.038300000000163,
+          3.036100000000033,
+          3.030899999999747
+        ],
+        "preparationMs": 1.1645000000000891
+      },
+      {
+        "sets": 1000,
+        "iterations": 100,
+        "oldMs": [
+          40.46569999999974,
+          31.82430000000022,
+          26.05709999999999,
+          25.926400000000285,
+          24.939499999999953
+        ],
+        "sharedMs": [
+          32.81050000000005,
+          31.282400000000052,
+          27.932500000000346,
+          29.298399999999674,
+          25.940900000000056
+        ],
+        "preparationMs": 6.742000000000189
+      }
+    ],
+    "exercises": 100,
+    "exerciseSets": 10,
+    "fullReconstructionMs": 0.4378999999998996,
+    "persistentCache": false,
+    "newQueries": 0,
+    "medians": [
+      {
+        "sets": 0,
+        "iterations": 100,
+        "oldMs": 0.06780000000003383,
+        "sharedMs": 0.07330000000001746,
+        "preparationMs": 0.02130000000011023
+      },
+      {
+        "sets": 10,
+        "iterations": 100,
+        "oldMs": 0.6559999999999491,
+        "sharedMs": 0.9646000000000186,
+        "preparationMs": 0.33789999999999054
+      },
+      {
+        "sets": 100,
+        "iterations": 100,
+        "oldMs": 3.7473999999999705,
+        "sharedMs": 3.038300000000163,
+        "preparationMs": 1.1645000000000891
+      },
+      {
+        "sets": 1000,
+        "iterations": 100,
+        "oldMs": 26.05709999999999,
+        "sharedMs": 29.298399999999674,
+        "preparationMs": 6.742000000000189
+      }
+    ]
+  },
+  "archive": "C:/Users/guerr/.codex/artifacts/nexlift-phase53-final-44fd5c04-5769-432b-8a06-acc6c093e5ed",
+  "productionTouched": false,
+  "productionCredentialsRead": false,
+  "persistentDatabaseAccessed": false,
+  "migrationsAppliedToPersistentDatabase": false,
+  "baseline": "PROVISIONAL",
+  "productionSyncEnabled": false,
+  "commits": false,
+  "deployed": false,
+  "phase54Started": false,
+  "coachImplemented": false,
+  "gitDiffCheckExit": 0,
+  "staged": false
+}

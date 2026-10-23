@@ -1,0 +1,867 @@
+import { parseLegacyShortcutEffort, convertLegacyShortcutRir } from './generated/training.cjs';
+
+// Funciones puras extraídas de server/src/index.js (P1 del plan de mejoras) para
+// poder testearlas sin DB ni servidor levantado. Extracción literal — el
+// comportamiento numérico debe seguir siendo idéntico al de antes de mover este
+// código; si algo necesita cambiar, cambiarlo aquí (única copia) y no en index.js.
+
+// ============================================
+// ZONA HORARIA — app de un solo usuario, siempre en Ciudad de México. TODA fecha
+// "de calendario" (qué día es hoy, dónde empieza/termina un día) debe resolverse
+// aquí. El contenedor corre en UTC (Docker/Alpine sin TZ fijada), así que
+// new Date()/getFullYear()/getMonth()/getDate()/getDay() usados directo quedan
+// desalineados hasta 6 horas: cualquier cosa registrada después de las 6pm hora de
+// CDMX caía en el "día" siguiente. Usado por: racha y heatmap (stats/overview,
+// stats/consistency), los endpoints de Atajos iOS, y el filtro por día de semana.
+// ============================================
+export const APP_TIMEZONE = 'America/Mexico_City';
+
+// "YYYY-MM-DD" del día calendario de CDMX que contiene `date`.
+export function mexicoCityDateStr(date = new Date()) {
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: APP_TIMEZONE,
+        year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(date);
+}
+
+// Offset UTC de CDMX (minutos, negativo = detrás de UTC) en el instante `date`.
+// Se calcula en vivo vía Intl en vez de fijar -06:00 a mano, para no romper si
+// México reactivara el horario de verano.
+export function mexicoCityUtcOffsetMinutes(date = new Date()) {
+    const part = new Intl.DateTimeFormat('en-US', { timeZone: APP_TIMEZONE, timeZoneName: 'shortOffset' })
+        .formatToParts(date).find(p => p.type === 'timeZoneName')?.value || 'GMT-6';
+    const match = part.match(/GMT([+-])(\d+)(?::(\d+))?/);
+    if (!match) return -360;
+    const sign = match[1] === '-' ? -1 : 1;
+    return sign * (parseInt(match[2], 10) * 60 + (match[3] ? parseInt(match[3], 10) : 0));
+}
+
+// Límites reales [inicio, fin) del día calendario de CDMX que contiene `date`,
+// como instantes UTC — para filtrar columnas DateTime con gte/lt correctamente.
+export function mexicoCityDayBounds(date = new Date()) {
+    const dateStr = mexicoCityDateStr(date);
+    const offsetMin = mexicoCityUtcOffsetMinutes(date);
+    const sign = offsetMin <= 0 ? '-' : '+';
+    const abs = Math.abs(offsetMin);
+    const offsetStr = `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+    const start = new Date(`${dateStr}T00:00:00${offsetStr}`);
+    return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000), dateStr };
+}
+
+// Día de la semana (0=domingo) de un "YYYY-MM-DD", sin ambigüedad de zona horaria
+// (ancla a mediodía UTC antes de leer getUTCDay, así nunca cruza al día vecino).
+export function dayOfWeekFromDateStr(dateStr) {
+    return new Date(`${dateStr}T12:00:00Z`).getUTCDay();
+}
+
+// Resuelve el día objetivo para los endpoints de Atajos: ?date=YYYY-MM-DD explícito
+// (backfill, se interpreta como medianoche de CDMX de ese día) o el día calendario
+// real de CDMX ahora mismo. Devuelve esa medianoche como instante UTC real — ya
+// sirve directo como límite inferior de "hoy" (ver next-set/log-set).
+export function resolveTargetDate(dateParam) {
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+        // Ancla a mediodía UTC de esa fecha para que, al leer el día calendario de
+        // CDMX de ese instante, nunca se cruce al día anterior/siguiente.
+        return mexicoCityDayBounds(new Date(`${dateParam}T12:00:00Z`)).start;
+    }
+    return mexicoCityDayBounds(new Date()).start;
+}
+
+// Hora del día (0-23) de un instante, en CDMX — usado para inferir la hora
+// habitual de entrenar del usuario (ver checkReengagementReminders).
+export function mexicoCityHour(date = new Date()) {
+    const h = parseInt(new Intl.DateTimeFormat('en-US', {
+        timeZone: APP_TIMEZONE, hour: '2-digit', hour12: false
+    }).format(date), 10);
+    return h === 24 ? 0 : h; // algunos runtimes devuelven "24" para medianoche
+}
+
+// ============================================
+// "Qué día toca" — usado por GET /api/shortcuts/next-set y resolución de RoutineDay.
+// INVARIANTE: el día de la semana se calcula en calendario CDMX, NUNCA con
+// dateObj.getDay() (eso es la zona del proceso/contenedor UTC y fallaba 18:00–24:00 CDMX).
+// Misma semántica que client mexicoCityTodayName().
+// ============================================
+const DAY_NAMES_ES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+// Día de la semana (0=Domingo..6=Sábado) del calendario CDMX — mismo índice
+// que espera RoutineDay.weekday. Espejo de mexicoCityDayOfWeek en client/src/utils/dates.js.
+export function mexicoCityDayOfWeek(dateObj = new Date()) {
+    return dayOfWeekFromDateStr(mexicoCityDateStr(dateObj));
+}
+
+export function getTodayName(dateObj = new Date()) {
+    return DAY_NAMES_ES[mexicoCityDayOfWeek(dateObj)];
+}
+
+// Parsea dateFrom/dateTo de query (?dateFrom=YYYY-MM-DD) como día calendario CDMX.
+// Antes: `new Date(dateTo); setHours(23,59,59)` usaba la zona del contenedor (UTC)
+// y cortaba mal el final del día en horario de gym (tarde/noche CDMX).
+export function parseCdmxDateRangeQuery(dateFrom, dateTo) {
+    const range = {};
+    if (dateFrom && /^\d{4}-\d{2}-\d{2}$/.test(String(dateFrom))) {
+        range.gte = mexicoCityDayBounds(new Date(`${dateFrom}T12:00:00Z`)).start;
+    } else if (dateFrom) {
+        // Fallback ISO u otro: no inventar
+        const d = new Date(dateFrom);
+        if (!Number.isNaN(d.getTime())) range.gte = mexicoCityDayBounds(d).start;
+    }
+    if (dateTo && /^\d{4}-\d{2}-\d{2}$/.test(String(dateTo))) {
+        range.lt = mexicoCityDayBounds(new Date(`${dateTo}T12:00:00Z`)).end;
+    } else if (dateTo) {
+        const d = new Date(dateTo);
+        if (!Number.isNaN(d.getTime())) range.lt = mexicoCityDayBounds(d).end;
+    }
+    return Object.keys(range).length ? range : null;
+}
+
+// ============================================
+// VALIDACIÓN de series (camino caliente) — pura, testeable, única fuente
+// ============================================
+
+/**
+ * Normaliza/valida un array de series antes de persistir.
+ * rpe en DB = 10 - RIR (convención del proyecto). Si viene rir crudo, no usar aquí
+ * (el Atajo llama convertShortcutRir antes).
+ * @returns {{ sets?: object[], error?: string }}
+ */
+export function sanitizeSets(rawSets) {
+    if (!Array.isArray(rawSets) || rawSets.length === 0) {
+        return { error: 'Se requiere al menos una serie' };
+    }
+    if (rawSets.length > 50) {
+        return { error: 'Demasiadas series (máx. 50)' };
+    }
+    const sets = [];
+    for (let i = 0; i < rawSets.length; i++) {
+        const s = rawSets[i] || {};
+        const weight = parseFloat(s.weight);
+        const reps = parseInt(s.reps, 10);
+        if (!Number.isFinite(weight) || weight < 0 || weight > 2000) {
+            return { error: `Serie ${i + 1}: peso inválido (0-2000 kg)` };
+        }
+        if (!Number.isInteger(reps) || reps < 0 || reps > 1000) {
+            return { error: `Serie ${i + 1}: repeticiones inválidas (0-1000)` };
+        }
+        // completed: false solo si se manda explícito (filas del form sin marcar ✓)
+        const completed = s.completed !== false && s.completed !== 'false';
+        if (completed && (weight <= 0 || reps <= 0)) {
+            return { error: `Serie ${i + 1}: peso y reps deben ser > 0 si está completada` };
+        }
+        let rpe = null;
+        if (s.rpe != null && s.rpe !== '') {
+            const r = parseFloat(s.rpe);
+            // Guardado: 10-RIR → típico 6–10 para RIR 0–4; permitir 0–10 por compat
+            if (!Number.isFinite(r) || r < 0 || r > 10) {
+                return { error: `Serie ${i + 1}: RPE/RIR guardado inválido (0-10)` };
+            }
+            rpe = r;
+        }
+        // INVARIANTE: cualquier serie con trabajo real exige RIR (rpe = 10-RIR en DB)
+        if (weight > 0 && reps > 0 && rpe == null) {
+            return { error: `Serie ${i + 1}: RIR obligatorio` };
+        }
+        const clean = {
+            weight,
+            reps,
+            rpe,
+            completed
+        };
+        if (s.weightRight != null && s.weightRight !== '') {
+            const wR = parseFloat(s.weightRight);
+            if (!Number.isFinite(wR) || wR < 0 || wR > 2000) {
+                return { error: `Serie ${i + 1}: peso derecho inválido` };
+            }
+            clean.weightRight = wR;
+        } else {
+            clean.weightRight = null;
+        }
+        if (s.repsRight != null && s.repsRight !== '') {
+            const rR = parseInt(s.repsRight, 10);
+            if (!Number.isInteger(rR) || rR < 0 || rR > 1000) {
+                return { error: `Serie ${i + 1}: reps derecha inválidas` };
+            }
+            clean.repsRight = rR;
+        } else {
+            clean.repsRight = null;
+        }
+        sets.push(clean);
+    }
+    return { sets };
+}
+
+/**
+ * Body del Atajo log-set: exerciseId + peso/reps + RIR/RPE opcional.
+ * Acepta tanto `body.rir` como `body.rpe` de forma indistinta:
+ *  - Si viene `rir` (0-4) o `rpe` en rango 0-4 → se interpreta como RIR y se convierte a `rpe = 10 - rir`.
+ *  - Si viene `rpe` en rango 6-10 (sin `rir`) → se acepta directo como RPE (`rawRir = 10 - rpe`).
+ *  - Si ambos vienen vacíos/nulos/omitidos → aplica fallback seguro `rir: 0` (`rpe: 10`).
+ * @returns {{ clean?: object, error?: string }}
+ */
+export function sanitizeShortcutLogSet(body) {
+    if (!body || typeof body !== 'object') {
+        return { error: 'Body inválido' };
+    }
+    const exerciseId = body.exerciseId;
+    if (!exerciseId || typeof exerciseId !== 'string') {
+        return { error: 'Required: exerciseId' };
+    }
+
+    const effort = parseLegacyShortcutEffort(body);
+    if (effort.state === 'invalid') return { error: effort.error };
+    const { rawRir, storedRpe: convertedRpe } = effort;
+
+    const { sets, error } = sanitizeSets([{
+        weight: body.weight,
+        reps: body.reps,
+        rpe: convertedRpe,
+        weightRight: body.weightRight,
+        repsRight: body.repsRight,
+        completed: true
+    }]);
+    if (error) return { error };
+    return {
+        clean: {
+            exerciseId,
+            set: sets[0],
+            rawRir
+        }
+    };
+}
+
+/**
+ * POST /workouts/log body
+ */
+export function sanitizeWorkoutLogBody(body) {
+    if (!body || typeof body !== 'object') return { error: 'Body inválido' };
+    if (!body.exerciseId || typeof body.exerciseId !== 'string') {
+        return { error: 'Required: exerciseId, sets[]' };
+    }
+    if (!Array.isArray(body.sets)) {
+        return { error: 'Required: exerciseId, sets[]' };
+    }
+    const { sets, error } = sanitizeSets(body.sets);
+    if (error) return { error };
+    // Al menos una serie con trabajo real
+    const hasWork = sets.some(s => s.weight > 0 && s.reps > 0);
+    if (!hasWork) return { error: 'Se requiere al menos una serie con peso y reps' };
+    const notes = body.notes == null ? null : String(body.notes).slice(0, 2000);
+    return { clean: { exerciseId: body.exerciseId, sets, notes } };
+}
+
+export function normalizeDay(day) {
+    return day.toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .slice(0, 3);
+}
+
+// ============================================
+// RUTINA MANUAL — día de la semana explícito (RoutineDay.weekday)
+// INVARIANTE: `dayName` es decorativo. Toda resolución de "qué día de rutina
+// toca hoy" y "qué días son descanso programado" usa EXCLUSIVAMENTE
+// RoutineDay.weekday (0=Domingo..6=Sábado) — nunca se vuelve a parsear
+// dayName en lectura. 0 (Domingo) es un valor válido: comparar siempre con
+// `!= null`, nunca con truthiness (`d.weekday &&` descarta Domingo en silencio).
+// inferWeekdayFromName SOLO corre en escritura (import/PUT), para que un JSON
+// con "dayName": "Lunes - Torso" siga funcionando sin que el usuario asigne
+// nada a mano.
+// ============================================
+
+const WEEKDAY_FULL_ES = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+const WEEKDAY_ABBR_ES = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
+
+// Infiere el día de la semana de un `dayName` libre, TOKENIZANDO — nunca
+// `.slice(0,3)` sobre el nombre completo (ese es el bug que esto reemplaza:
+// "Día 1 — Pierna A" → "dia" no matchea jamás, y "Dominadas y remo" → "dom"
+// matchea Domingo por accidente). Un token debe calzar COMPLETO contra el
+// nombre o la abreviatura del día, nunca por prefijo.
+export function inferWeekdayFromName(dayName) {
+    if (typeof dayName !== 'string') return null;
+    const tokens = dayName
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .split(/[^a-zñ]+/)
+        .filter(Boolean);
+    for (const token of tokens) {
+        const fullIdx = WEEKDAY_FULL_ES.indexOf(token);
+        if (fullIdx !== -1) return fullIdx;
+        const abbrIdx = WEEKDAY_ABBR_ES.indexOf(token);
+        if (abbrIdx !== -1) return abbrIdx;
+    }
+    return null;
+}
+
+// Día de rutina programado para `weekday`, o null si ninguno lo tiene
+// asignado. Si dos días quedan con el mismo weekday (estado inválido que la
+// validación de escritura impide, pero la lectura no debe reventar por datos
+// existentes) gana el de menor `order`.
+export function findRoutineDayForWeekday(days, weekday) {
+    if (!Array.isArray(days)) return null;
+    let best = null;
+    for (const d of days) {
+        if (d.weekday == null || d.weekday !== weekday) continue;
+        if (!best || d.order < best.order) best = d;
+    }
+    return best;
+}
+
+// Días de la semana que son descanso PROGRAMADO — para que la racha/heatmap
+// los cuenten como continuidad aunque no haya un RestLog explícito ese día.
+// Solo cuenta un día con isRestDay=true Y weekday asignado: un weekday sin
+// ningún RoutineDay asignado no es "descanso", simplemente no dice nada —
+// tratarlo como descanso inflaría la racha de cualquier rutina con menos de
+// 7 días definidos.
+export function scheduledRestWeekdays(days) {
+    const set = new Set();
+    if (!Array.isArray(days)) return set;
+    for (const d of days) {
+        if (d.isRestDay && d.weekday != null) set.add(d.weekday);
+    }
+    return set;
+}
+
+// Normaliza un valor de weekday recibido tal cual del body: entero 0-6
+// válido, `null` (el usuario lo dejó sin asignar a propósito), o `undefined`
+// si el valor es inválido (fuera de rango, no numérico, decimal).
+export function normalizeIncomingWeekday(value) {
+    if (value === null) return null;
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 6) return undefined;
+    return value;
+}
+
+// Decide el `weekday` a persistir para un día entrante de POST /api/routines/import
+// o PUT /api/routines/:id: si el cliente mandó la clave explícitamente (aunque
+// sea `null`, que significa "lo limpié a propósito"), se respeta tal cual; si
+// no vino la clave, se infiere del nombre. Sin esta distinción, limpiar el
+// weekday de un día ya inferido ("Lunes - Torso") se revertiría solo en el
+// siguiente guardado.
+export function resolveIncomingWeekday(day) {
+    if (day && Object.prototype.hasOwnProperty.call(day, 'weekday')) {
+        return normalizeIncomingWeekday(day.weekday);
+    }
+    return inferWeekdayFromName(day?.dayName);
+}
+
+// Valida el array final de días (weekday ya resuelto vía resolveIncomingWeekday)
+// antes de persistir: rechaza valores inválidos/fuera de rango y dos días con
+// el mismo weekday. Los `null` (sin asignar) nunca cuentan como duplicado.
+export function validateRoutineDayWeekdays(days) {
+    if (!Array.isArray(days)) return {};
+    const seen = new Set();
+    for (const d of days) {
+        const w = d.weekday;
+        if (w === undefined || (w !== null && (!Number.isInteger(w) || w < 0 || w > 6))) {
+            return { error: 'weekday inválido: debe ser un entero 0-6 (0=Domingo) o null' };
+        }
+        if (w == null) continue;
+        if (seen.has(w)) {
+            return { error: `Dos días de la rutina tienen asignado el mismo día de la semana (${DAY_NAMES_ES[w]})` };
+        }
+        seen.add(w);
+    }
+    return {};
+}
+
+// ============================================
+// MESOCICLOS (RoutineBlock) — bloques de periodización opcionales por rutina
+// ============================================
+
+// Bloque activo = el de `startedAt` no-nulo más reciente. Calculado en lectura a
+// propósito (no un `isActive` guardado): arrancar un bloque nuevo reemplaza al
+// viejo sin ningún paso de limpieza, y no hay invariante "a lo más un activo" que
+// mantener a mano en cada escritura.
+export function getActiveBlock(blocks) {
+    const started = (blocks || []).filter(b => b.startedAt != null);
+    if (!started.length) return null;
+    return started.reduce((latest, b) => (b.startedAt > latest.startedAt ? b : latest), started[0]);
+}
+
+// Semana actual dentro de un bloque (1-indexed), o null si el bloque no ha arrancado.
+export function currentWeekInBlock(block, now = new Date()) {
+    if (!block?.startedAt) return null;
+    const daysSince = Math.floor((now.getTime() - block.startedAt.getTime()) / (24 * 60 * 60 * 1000));
+    return Math.floor(daysSince / 7) + 1;
+}
+
+// Fuente única de verdad para "en qué fase está esta rutina ahora mismo". Prioridad
+// fija: un bloque activo (cualquier fase) manda siempre; si no hay ninguno, cae al
+// mecanismo adaptativo standalone (que solo conoce 'deload', no hay forma de
+// "acumular/intensificar automáticamente" sin un bloque configurado — ver discusión
+// con el usuario). NINGÚN otro lugar del código debe recalcular esto por su cuenta —
+// todo lector nuevo (suggestion, UI, lo que sea) debe llamar a esta función.
+export function getRoutinePhaseStatus(routine) {
+    const activeBlock = getActiveBlock(routine.blocks || []);
+    if (activeBlock) {
+        return { isDeload: activeBlock.phase === 'deload', source: 'block', phase: activeBlock.phase, block: activeBlock };
+    }
+    if (routine.adaptiveDeloadUntil && routine.adaptiveDeloadUntil > new Date()) {
+        return { isDeload: true, source: 'adaptive', phase: 'deload', until: routine.adaptiveDeloadUntil };
+    }
+    return { isDeload: false, source: null, phase: null };
+}
+
+// ============================================
+// RUTINA DIARIA CON IA — rotación del split (server/src/services/aiRoutineService.js)
+// ============================================
+
+// Qué día del split toca ahora: round-robin puro sobre el último splitLabel
+// entrenado. `recentLabels` = labels de los últimos días entrenados por la
+// rutina IA, del más viejo al más reciente. Sin historial (o un label que ya no
+// existe en splitLabels, ej. el usuario reconfiguró su perfil) -> el primero de
+// la lista. La cuota real de "cuántas veces por semana" NO vive aquí (necesita
+// leer la base de datos) — esto solo decide LA FORMA de la rotación.
+export function pickNextSplitDay(splitLabels, recentLabels) {
+    if (!splitLabels || splitLabels.length === 0) return null;
+    const lastLabel = (recentLabels || []).length ? recentLabels[recentLabels.length - 1] : null;
+    const lastIndex = lastLabel != null ? splitLabels.indexOf(lastLabel) : -1;
+    if (lastIndex === -1) return splitLabels[0];
+    return splitLabels[(lastIndex + 1) % splitLabels.length];
+}
+
+// ============================================
+// Smart Loading (port literal de client/src/pages/Workout.jsx:50-139, usado por el
+// Atajo de iOS vía GET /api/shortcuts/next-set). El comportamiento numérico debe
+// coincidir exacto con lo que la PWA ya sugiere en /workout.
+// ============================================
+
+// Parsea el rango de reps objetivo ("8-12", "5", "AMRAP") -> { lo, hi }
+export function parseRepRange(targetReps) {
+    const nums = String(targetReps || '').match(/\d+/g);
+    if (!nums) return { lo: 8, hi: 12 };
+    const a = parseInt(nums[0], 10);
+    const b = nums[1] ? parseInt(nums[1], 10) : a;
+    return { lo: Math.min(a, b), hi: Math.max(a, b) };
+}
+
+// Incremento de carga por grupo: 5kg piernas, 2.5kg el resto.
+// Si muscleGroup viene vacío (import/edición a mano — caso real en la cuenta
+// principal), infiere piernas por el nombre del ejercicio para no quedarse en
+// +2.5kg en hack/prensa/etc.
+const LEGS_NAME_RE = /sentadilla|prensa|hack|femoral|cuadr[ií]cep|aductor|abductor|gemelo|pantorrilla|zancada|b[uú]lgara|hip\s*thrust|peso\s*muerto|deadlift|\bleg\b|extensi[oó]n(es)?\s+de\s+cu[aá]/i;
+export function resolveWeightIncrement(muscleGroup, exerciseName = '') {
+    // 'Piernas' (canónico) o 'legs' (catálogo cliente en inglés, por si llegó sin normalizar)
+    if (muscleGroup === 'Piernas' || muscleGroup === 'legs') return 5;
+    if (!muscleGroup && LEGS_NAME_RE.test(exerciseName || '')) return 5;
+    return 2.5;
+}
+
+// Devuelve los valores efectivos de una serie (en unilateral usa el lado débil,
+// que es el que limita la progresión)
+export function effectiveWorkoutSet(set) {
+    const w = Number(set.weight) || 0;
+    const r = Number(set.reps) || 0;
+    const hasRight = set.weightRight != null || set.repsRight != null;
+    const wR = set.weightRight != null ? Number(set.weightRight) : w;
+    const rR = set.repsRight != null ? Number(set.repsRight) : r;
+    const rir = set.rpe != null ? (10 - set.rpe) : (set.rir != null ? set.rir : null);
+    return {
+        weight: hasRight ? Math.min(w, wR) : w,
+        reps: hasRight ? Math.min(r, rR) : r,
+        rir
+    };
+}
+
+// Redondea el peso a una rejilla sensata. Si el peso base ya cae en la rejilla del
+// incremento (barras/discos), se mantiene esa rejilla; si no (poleas/placas con
+// valores raros como 6.8kg), se redondea al medio kilo para no distorsionar el peso real.
+export function roundWorkoutWeight(w, increment, base) {
+    const grid = (Math.abs(base % increment) < 0.01) ? increment : 0.5;
+    return Math.round(w / grid) * grid;
+}
+
+// Plateau para UN ejercicio (por id) — usado por el trigger adaptativo de descarga.
+// A diferencia del cliente (exerciseName.js), aquí NO hace falta consolidar variantes
+// de nombre: cada Exercise ya tiene un id estable dentro de la rutina activa, así que
+// se agrupa directo por WorkoutLogs de ese id. Mismo criterio que detectPlateau:
+// últimas min(6, N) sesiones (día local CDMX), mitad reciente no supera a la antigua,
+// requiere >=4 sesiones para tener señal.
+export function detectPlateauForExercise(workoutLogs) {
+    const byDay = new Map();
+    for (const log of workoutLogs) {
+        const dayKey = mexicoCityDateStr(log.date);
+        let best = byDay.get(dayKey) || 0;
+        for (const set of log.sets) {
+            const eff = effectiveWorkoutSet(set);
+            if (eff.weight <= 0 || eff.reps <= 0) continue;
+            const rm = (eff.reps > 1 && eff.reps < 37) ? eff.weight * (1 + eff.reps / 30) : eff.weight;
+            if (rm > best) best = rm;
+        }
+        byDay.set(dayKey, best);
+    }
+    const sessions = [...byDay.keys()].sort().map(day => byDay.get(day));
+    if (sessions.length < 4) return false;
+
+    const window = sessions.slice(-Math.min(6, sessions.length));
+    const splitAt = Math.floor(window.length / 2);
+    const olderBest = Math.max(0, ...window.slice(0, splitAt));
+    const recentBest = Math.max(0, ...window.slice(splitAt));
+    return recentBest <= olderBest;
+}
+
+// Ajusta el rango de reps objetivo según la fase activa — NO modifica el rango
+// guardado del ejercicio (Exercise.targetReps), solo el usado para ESTA sugerencia:
+// - intensificación: rango a la mitad (menos reps -> exige más peso para llegar al tope)
+// - acumulación: techo del rango +50% (más reps antes de subir peso)
+// - descarga/personalizado/sin bloque activo: rango sin cambios (descarga solo ajusta
+//   el peso final, ver computeWorkoutSuggestion)
+export function adjustRepRangeForPhase(lo, hi, phase) {
+    if (phase === 'intensification') {
+        const newLo = Math.max(1, Math.round(lo * 0.5));
+        return { lo: newLo, hi: Math.max(newLo, Math.round(hi * 0.5)) };
+    }
+    if (phase === 'accumulation') {
+        return { lo, hi: Math.round(hi * 1.5) };
+    }
+    return { lo, hi };
+}
+
+/**
+ * Elige la serie de TRABAJO de la última sesión (no el single de tope ni el drop).
+ *
+ * Antes se usaba la de mayor 1RM estimado: con top-set + backoffs (p.ej. 110×1,
+ * 100×4, 100×3) anclaba en 110×1 y sugería "110×2" — inútil para progresar el
+ * trabajo real. Ahora:
+ *  1. Descarta drop/backoff claros (<75% del peso máximo de la sesión).
+ *  2. Prefiere el peso MÁS PESADO con el que ya tocaste el suelo del rango (lo).
+ *  3. Si ninguno llegó al suelo, el peso más pesado entre los de MÁS reps
+ *     (compromiso entre top set fallido y trabajo real).
+ *  4. Fallback: mayor 1RM entre las series principales.
+ */
+export function pickWorkReference(working, lo) {
+    if (!working || working.length === 0) return null;
+    // Protección contra Singles/Doubles (Ego Lifting): ignora series de 1 o 2 reps
+    // a menos que el rango objetivo de la rutina sea explícitamente de fuerza máxima (lo <= 3).
+    const nonEgo = lo > 3 ? working.filter(s => s.reps >= 3) : working;
+    const baseWorking = nonEgo.length > 0 ? nonEgo : working;
+
+    const maxW = Math.max(...baseWorking.map(s => s.weight));
+    const main = baseWorking.filter(s => s.weight >= maxW * 0.75);
+    const pool = main.length > 0 ? main : baseWorking;
+
+    // Si existe un Top Set pesado de alta intensidad (RIR <= 1 / RPE >= 9) al peso máximo
+    // del pool válido, anclar en ese peso para que un Back-off set no lo eclipse.
+    const topWeight = Math.max(...pool.map(s => s.weight));
+    const atTopWeight = pool.filter(s => Math.abs(s.weight - topWeight) < 0.01);
+    const hasHeavyTopSet = atTopWeight.some(s => s.rir != null && s.rir <= 1);
+
+    let refWeight;
+    if (hasHeavyTopSet) {
+        refWeight = topWeight;
+    } else {
+        let candidates = pool.filter(s => s.reps >= lo);
+        if (candidates.length === 0) {
+            const maxReps = Math.max(...pool.map(s => s.reps));
+            candidates = pool.filter(s => s.reps === maxReps);
+        }
+        if (candidates.length === 0) candidates = pool;
+        refWeight = Math.max(...candidates.map(s => s.weight));
+    }
+
+    const sameWeight = pool.filter(s => Math.abs(s.weight - refWeight) < 0.01);
+    const refReps = Math.max(...sameWeight.map(s => s.reps));
+    const knownRir = sameWeight.map(s => s.rir).filter(v => v != null);
+    const rir = knownRir.length ? Math.min(...knownRir) : null;
+    const minReps = Math.min(...sameWeight.map(s => s.reps));
+
+    return { weight: refWeight, reps: refReps, minReps, rir, setsAtWeight: sameWeight };
+}
+
+/**
+ * Sugerencia de peso y reps por Top Set + Back-off / Doble Progresión — idéntico a client smartLoading.
+ * `sessions` debe venir ordenado por fecha DESC (igual que el historial del ejercicio).
+ *
+ * Reglas:
+ *  - Referencia = serie de trabajo real (ver pickWorkReference), con protección contra singles/doubles.
+ *  - Desbloquea incremento de peso cuando el Top Set alcanzó el techo del rango (reps >= hi)
+ *    con RIR 0 o 1 (RPE 9-10), o cuando todas las series a ese peso alcanzaron >= hi.
+ *  - Si solo la mejor llegó al tope con RIR >= 2, mantiene peso y empareja reps hacia el mínimo rezagado.
+ *  - Si aún no: +1 rep (o +2 si RIR≥3). Nunca sugiere bajar el peso.
+ */
+export function computeWorkoutSuggestion(sessions, targetReps, increment, phase = null) {
+    if (!sessions || sessions.length === 0) return null;
+    const resolvedPhase = (phase && typeof phase === 'object') ? (phase.phase ?? null) : (phase ?? null);
+    const parsedRange = parseRepRange(targetReps);
+    const { lo, hi } = adjustRepRangeForPhase(parsedRange.lo, parsedRange.hi, resolvedPhase);
+
+    const working = (sessions[0].sets || [])
+        .map(effectiveWorkoutSet)
+        .filter(s => s.weight > 0 && s.reps > 0);
+    if (working.length === 0) return null;
+
+    const ref = pickWorkReference(working, lo);
+    if (!ref) return null;
+
+    const { weight: refWeight, reps: refReps, minReps, rir, setsAtWeight } = ref;
+    const allHitTop = setsAtWeight.every(s => s.reps >= hi);
+    const topSetPassed = setsAtWeight.find(s => s.reps >= hi && s.rir != null && s.rir <= 1);
+
+    let weight, reps, rationale;
+
+    if (topSetPassed || allHitTop) {
+        // Top Set superado a alta intensidad (RIR <= 1) o todas las series tocaron el techo → progresión de carga
+        weight = roundWorkoutWeight(refWeight + increment, increment, refWeight);
+        reps = lo;
+        if (topSetPassed && !allHitTop) {
+            rationale = `Top Set superado (${refWeight}kg × ${topSetPassed.reps} a RIR ${topSetPassed.rir}): sube a ${weight}kg y reinicia en ${lo}.`;
+        } else {
+            rationale = setsAtWeight.length > 1
+                ? `Todas las series a ${refWeight}kg llegaron a ≥${hi} reps: sube a ${weight}kg y reinicia en ${lo}.`
+                : `Alcanzaste ${refReps} reps con ${refWeight}kg (tope del rango): sube a ${weight}kg y reinicia en ${lo}.`;
+        }
+    } else if (refReps >= hi) {
+        // La mejor tocó el techo pero otras se quedaron atrás → emparejar, no subir
+        weight = refWeight;
+        reps = Math.min(hi, minReps + 1);
+        rationale = `La mejor serie fue ${refWeight}kg × ${refReps}, pero no todas llegaron a ${hi}: mantén ${weight}kg y apunta a ${reps} en todas.`;
+    } else {
+        const bump = (rir != null && rir >= 3) ? 2 : 1;
+        weight = refWeight;
+        reps = Math.min(hi, refReps + bump);
+        if (refReps < lo) {
+            rationale = rir != null
+                ? `Trabajo de referencia ${refWeight}kg × ${refReps} (RIR ${rir}), por debajo del rango ${lo}–${hi}: mantén el peso y apunta a ${reps} reps.`
+                : `Trabajo de referencia ${refWeight}kg × ${refReps}, por debajo del rango ${lo}–${hi}: mantén el peso y apunta a ${reps} reps.`;
+        } else {
+            rationale = rir != null
+                ? `Hiciste ${refWeight}kg × ${refReps} (RIR ${rir}): mantén el peso y apunta a ${reps} reps.`
+                : `Hiciste ${refWeight}kg × ${refReps}: mantén el peso y apunta a ${reps} reps.`;
+        }
+    }
+
+    if (weight <= 0 || reps <= 0) return null;
+    return { weight, reps, rationale, basedOn: sessions.length, phase: resolvedPhase };
+}
+
+/**
+ * Autorregulación INTRA-sesión — espejo de client/src/utils/smartLoading.js.
+ * Mira TODAS las series completadas HOY (con RIR obligatorio). Puede bajar peso.
+ * Si la Serie 1 (Top Set) se registra al fallo absoluto (RIR === 0 / RPE === 10),
+ * calcula automáticamente un Back-off Set (-12.5% de peso) apuntando al techo
+ * del rango (+1 o +2 reps respecto al Top Set).
+ * Usada por el Atajo si hay series de hoy; la PWA calcula en el cliente.
+ */
+export function suggestNextSetFromToday(completedToday, optsOrTargetReps = {}, legacyIncrement = 2.5, legacyPhase = null) {
+    if (!completedToday || completedToday.length === 0) return null;
+
+    let lo = 8, hi = 12, increment = 2.5, phase = null;
+    if (typeof optsOrTargetReps === 'string') {
+        const parsed = parseRepRange(optsOrTargetReps);
+        lo = parsed.lo;
+        hi = parsed.hi;
+        increment = typeof legacyIncrement === 'number' ? legacyIncrement : 2.5;
+        phase = (legacyPhase && typeof legacyPhase === 'object') ? (legacyPhase.phase ?? null) : (legacyPhase ?? null);
+    } else if (optsOrTargetReps && typeof optsOrTargetReps === 'object') {
+        lo = optsOrTargetReps.lo ?? 8;
+        hi = optsOrTargetReps.hi ?? 12;
+        increment = optsOrTargetReps.increment ?? 2.5;
+        phase = optsOrTargetReps.phase ?? null;
+    }
+
+    const sets = completedToday
+        .map(s => ({
+            weight: Number(s.weight) || 0,
+            reps: Number(s.reps) || 0,
+            rir: s.rir != null && s.rir !== '' ? Number(s.rir) : null
+        }))
+        .filter(s => s.weight > 0 && s.reps > 0);
+
+    if (!sets.length) return null;
+    if (sets.some(s => s.rir == null || !Number.isFinite(s.rir))) return null;
+
+    const range = adjustRepRangeForPhase(lo, hi, phase);
+    const adjLo = range.lo;
+    const adjHi = range.hi;
+
+    const last = sets[sets.length - 1];
+    const first = sets[0];
+    const minRir = Math.min(...sets.map(s => s.rir));
+    const avgRir = sets.reduce((a, s) => a + s.rir, 0) / sets.length;
+    const rirDrop = first.rir - last.rir;
+    const repDrop = first.reps - last.reps;
+
+    let weight = last.weight;
+    let reps = last.reps;
+    let rationale;
+
+    if (sets.length === 1 && first.rir <= 0) {
+        // Serie 1 (Top Set) al fallo absoluto (RIR 0 / RPE 10) → Back-off Set (-12.5%, entre 10-15%)
+        const rawBackoff = first.weight * 0.875;
+        const roundedBackoff = roundWorkoutWeight(rawBackoff, increment, first.weight);
+        weight = roundedBackoff < first.weight
+            ? Math.max(increment > 0 ? increment : 0.5, roundedBackoff)
+            : roundWorkoutWeight(Math.max(0.5, first.weight - Math.max(increment, 0.5)), increment, first.weight);
+        reps = first.reps < adjHi
+            ? Math.min(adjHi, Math.max(adjLo, first.reps + 2))
+            : first.reps + 1;
+        rationale = `Top Set al fallo (RIR 0) → Back-off Set (-12.5%): ${weight} kg × ${reps} reps.`;
+    } else if (last.rir <= 0 || last.reps < adjLo) {
+        const stepped = roundWorkoutWeight(
+            Math.max(0, last.weight - increment),
+            increment,
+            last.weight
+        );
+        weight = stepped < last.weight
+            ? Math.max(increment > 0 ? increment : 0.5, stepped)
+            : roundWorkoutWeight(Math.max(0.5, last.weight - Math.max(increment, 0.5)), increment, last.weight);
+        reps = Math.min(adjHi, Math.max(adjLo, last.reps));
+        rationale = last.rir <= 0
+            ? `Hoy RIR ${last.rir} en alguna serie → baja a ${weight} kg × ${reps}.`
+            : `Reps bajo el rango ${adjLo}–${adjHi} → baja a ${weight} kg × ${reps}.`;
+    } else if (last.rir === 1 || rirDrop >= 2 || (repDrop >= 2 && last.rir <= 2)) {
+        // Fatiga: mismo peso, no empujar reps
+        weight = last.weight;
+        reps = Math.min(adjHi, Math.max(adjLo, last.reps));
+        rationale = `Fatiga de hoy (RIR min ${minRir}) → mantén ${weight} kg × ${reps}.`;
+    } else if (avgRir >= 2.5 && minRir >= 2 && last.reps >= adjLo) {
+        // Cómodo: mismo peso, +1/+2 reps (doble progresión intra-sesión — no clonar la serie anterior)
+        weight = last.weight;
+        const bump = avgRir >= 3 ? 2 : 1;
+        reps = Math.min(adjHi, last.reps + bump);
+        if (reps > last.reps) {
+            rationale = `Series de hoy cómodas (RIR min ${minRir}) → ${weight} kg × ${reps} (+${reps - last.reps} rep).`;
+        } else {
+            rationale = `Techo del rango ${adjLo}–${adjHi} con RIR alto → mantén ${weight} kg × ${reps}; la próxima sesión sube peso.`;
+        }
+    } else {
+        // Neutro (RIR ~2): mismo peso; si aún no llegas al techo, pide al menos last.reps
+        weight = last.weight;
+        reps = Math.min(adjHi, Math.max(adjLo, last.reps));
+        rationale = `Según series de hoy (RIR min ${minRir}) → ${weight} kg × ${reps}.`;
+    }
+
+    if (weight <= 0 || reps <= 0) return null;
+    return { weight, reps, rationale, phase, source: 'intra' };
+}
+
+// ============================================
+// Atajo de iOS: convención de RIR (ver POST /api/shortcuts/log-set)
+// ============================================
+
+// El Atajo pregunta "RIR?" y manda ese número crudo (0-4) bajo el nombre `rpe` —
+// pero el resto de la app (guardado manual en Workout.jsx) guarda en SetLog.rpe el
+// valor invertido `10 - RIR`, no el RIR crudo, y lo revierte igual al leer. Sin
+// esta conversión, la PWA relee un valor fuera del rango 0-3 de sus botones de RIR
+// y lo muestra como "sin registrar". Ida y vuelta: 10 - x es su propia inversa.
+export function convertShortcutRir(rawRir) {
+    return convertLegacyShortcutRir(rawRir);
+}
+
+/**
+ * Minutos transcurridos desde medianoche CDMX (0..1439) para `date`.
+ */
+export function mexicoCityMinutesOfDay(date = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: APP_TIMEZONE,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    }).formatToParts(date);
+    const rawHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+    const hour = rawHour === 24 ? 0 : rawHour;
+    const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+    return hour * 60 + minute;
+}
+
+/**
+ * Evalúa qué etapa (1, 2 o 3) de recordatorio de creatina corresponde enviar hoy
+ * en horario de Ciudad de México (`America/Mexico_City`), evitando duplicados.
+ *
+ * Etapas:
+ *  - Etapa 1 (hora configurada, ej. 16:00 CDMX): "⚡ Hora de tu creatina (5g). Márcala en NexLift."
+ *  - Etapa 2 (+3 horas después): "⏳ Pasaron 3 horas y aún no registras tu creatina de hoy."
+ *  - Etapa 3 (23:00 CDMX): "🚨 Última llamada (11 PM): No te vayas a dormir sin tomar tus 5g de creatina."
+ */
+export function evaluateCreatineReminderStage(nowDate = new Date(), reminderTimeStr = '16:00', lastDateStr = null, lastStage = 0) {
+    const todayStr = mexicoCityDateStr(nowDate);
+    const sentStage = lastDateStr === todayStr ? (Number(lastStage) || 0) : 0;
+
+    const match = String(reminderTimeStr || '16:00').match(/^(\d{1,2}):(\d{2})$/);
+    const baseH = match ? Math.min(23, Math.max(0, parseInt(match[1], 10))) : 16;
+    const baseM = match ? Math.min(59, Math.max(0, parseInt(match[2], 10))) : 0;
+
+    const baseMinutes = baseH * 60 + baseM;
+    const plus3Minutes = Math.min(22 * 60 + 59, baseMinutes + 180);
+    const finalCallMinutes = 23 * 60; // 23:00 CDMX
+    const nowMinutes = mexicoCityMinutesOfDay(nowDate);
+
+    if (nowMinutes >= finalCallMinutes && sentStage < 3) {
+        return {
+            stage: 3,
+            dateStr: todayStr,
+            title: 'NexLift • Creatina',
+            body: '🚨 Última llamada (11 PM): No te vayas a dormir sin tomar tus 5g de creatina.',
+            tag: `creatine-${todayStr}-3`,
+            url: '/'
+        };
+    }
+
+    if (nowMinutes >= plus3Minutes && nowMinutes < finalCallMinutes && sentStage < 2 && baseMinutes + 180 < finalCallMinutes) {
+        return {
+            stage: 2,
+            dateStr: todayStr,
+            title: 'NexLift • Creatina',
+            body: '⏳ Pasaron 3 horas y aún no registras tu creatina de hoy.',
+            tag: `creatine-${todayStr}-2`,
+            url: '/'
+        };
+    }
+
+    if (nowMinutes >= baseMinutes && nowMinutes < plus3Minutes && sentStage < 1) {
+        return {
+            stage: 1,
+            dateStr: todayStr,
+            title: 'NexLift • Creatina',
+            body: '⚡ Hora de tu creatina (5g). Márcala en NexLift.',
+            tag: `creatine-${todayStr}-1`,
+            url: '/'
+        };
+    }
+
+    // Si la hora base configurada es >= 20:00 (donde +3h alcanza/supera 23:00), asegurar etapa 1 antes de 23:00
+    if (nowMinutes >= baseMinutes && nowMinutes < finalCallMinutes && sentStage < 1) {
+        return {
+            stage: 1,
+            dateStr: todayStr,
+            title: 'NexLift • Creatina',
+            body: '⚡ Hora de tu creatina (5g). Márcala en NexLift.',
+            tag: `creatine-${todayStr}-1`,
+            url: '/'
+        };
+    }
+
+    return null;
+}
+
+/**
+ * Normaliza un registro de bodyLogs proveniente de un archivo JSON de backup
+ * (v1 de Cloudinary o v2.7.0+ descargado desde Settings.jsx), preservando
+ * los hábitos diarios con fallback explícito a `false` para retrocompatibilidad.
+ */
+export function normalizeBackupBodyLog(b = {}) {
+    return {
+        ...(b.id ? { id: b.id } : {}),
+        date: b.date ? new Date(b.date) : new Date(),
+        weight: b.weight != null && b.weight !== '' ? Number(b.weight) : null,
+        photoUrl: b.photoUrl ?? b.photo ?? null,
+        note: b.note ?? null,
+        bmi: b.bmi != null && b.bmi !== '' ? Number(b.bmi) : null,
+        bodyFat: b.bodyFat != null && b.bodyFat !== '' ? Number(b.bodyFat) : null,
+        muscleMass: b.muscleMass != null && b.muscleMass !== '' ? Number(b.muscleMass) : null,
+        bmr: b.bmr != null && b.bmr !== '' ? Number(b.bmr) : null,
+        bodyWater: b.bodyWater != null && b.bodyWater !== '' ? Number(b.bodyWater) : null,
+        visceralFat: b.visceralFat != null && b.visceralFat !== '' ? Number(b.visceralFat) : null,
+        boneMass: b.boneMass != null && b.boneMass !== '' ? Number(b.boneMass) : null,
+        protein: b.protein != null && b.protein !== '' ? Number(b.protein) : null,
+        creatineTaken: Boolean(b.creatineTaken ?? false),
+        dietCompliant: Boolean(b.dietCompliant ?? false),
+        zeroLiquidCalories: Boolean(b.zeroLiquidCalories ?? false)
+    };
+}
+
+export function normalizeBackupBodyLogs(bodyLogs = []) {
+    if (!Array.isArray(bodyLogs)) return [];
+    return bodyLogs.map(normalizeBackupBodyLog);
+}
+

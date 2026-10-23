@@ -1,0 +1,20 @@
+{
+  "exit": 0,
+  "copy": "C:\\Users\\guerr\\AppData\\Local\\Temp\\nexlift-phase53-verification-CTKwRQ",
+  "nodeEnv": "production",
+  "node": "v24.22.0",
+  "write": false,
+  "envFile": false,
+  "modules": 2669,
+  "reactRuntime": "production",
+  "css": [
+    {
+      "file": "assets/index-Bq6ij0Fo.css",
+      "bytes": 107239,
+      "sha256": "50cd2c0ab880c45a97a2dfd308f16dc6d05290e77aa9c9a545d85b11caf9461f"
+    }
+  ],
+  "productionAccessed": false,
+  "persistentDatabaseAccessed": false,
+  "scope": "Read-only production frontend compilation, no server startup or deployment"
+}

@@ -1,0 +1,25 @@
+{
+  "nodeEnv": "test",
+  "variants": [
+    {
+      "name": "received",
+      "reactModules": [
+        {
+          "file": "/node_modules/react-dom/cjs/react-dom-client.development.js",
+          "renderedLength": 931996
+        }
+      ],
+      "strictEffectsDev": false
+    },
+    {
+      "name": "explicit-production",
+      "reactModules": [
+        {
+          "file": "/node_modules/react-dom/cjs/react-dom-client.production.js",
+          "renderedLength": 552879
+        }
+      ],
+      "strictEffectsDev": false
+    }
+  ]
+}

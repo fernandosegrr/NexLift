@@ -1,0 +1,45 @@
+{
+  "createdAt": "2026-10-21T04:15:05.896Z",
+  "status": "COMPLETADO en desarrollo por checkpoints",
+  "uniqueTests": 1141,
+  "newTests": 37,
+  "oldTests": 1104,
+  "originalNpmTestExit": 1,
+  "finalContinuationExit": 0,
+  "codeAndConfigFilesMatched": 348,
+  "sourceHashesMatched": 448,
+  "localLinksResolved": 28,
+  "jsonFilesParsed": 21,
+  "modifiedReceived": 11,
+  "newSourceTestConfigDocumentation": 15,
+  "deletedReceived": 0,
+  "protectedInputsUnchanged": 109,
+  "offlineApprovedByRuntimeEquivalentReference": true,
+  "offlineEquivalentInputs": 361,
+  "offlineReferenceNonRuntimeDifferences": 3,
+  "fullReferenceInstalledGraphRereadAvailable": false,
+  "referenceDependencyBasis": "Three exact lockfiles; original npm ci/ls/project check exit 0 with pinned Node/npm and installation config; current full installed graph verified",
+  "globalLint": {
+    "errors": 27,
+    "warnings": 3,
+    "newDiagnostics": 0
+  },
+  "typescriptLint": {
+    "files": 25,
+    "errors": 0,
+    "warnings": 0
+  },
+  "toolingLint": {
+    "files": 44,
+    "errors": 0,
+    "warnings": 0
+  },
+  "staged": false,
+  "productionTouched": false,
+  "persistentMigrations": false,
+  "baseline": "PROVISIONAL",
+  "productionNewSyncEnabled": false,
+  "commits": false,
+  "deployments": false,
+  "phase52Started": false
+}

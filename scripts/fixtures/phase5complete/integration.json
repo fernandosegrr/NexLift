@@ -1,0 +1,118 @@
+[
+  {
+    "file": "client/src/utils/dayPdf.js",
+    "changes": [
+      {
+        "before": "import { mexicoCityDateStr } from './dates';",
+        "after": "import { mexicoCityDateStr } from './dates';\nimport { trainingLoadVolume } from '../generated/training.js';"
+      },
+      {
+        "before": "function sessionVolume(session) {\n    let total = 0;\n    (session.sets || []).forEach(s => {\n        total += (Number(s.weight) || 0) * (Number(s.reps) || 0);\n        if (s.weightRight != null || s.repsRight != null) {\n            total += (Number(s.weightRight) || Number(s.weight) || 0)\n                * (Number(s.repsRight) || Number(s.reps) || 0);\n        }\n    });\n    return total;\n}",
+        "after": "function sessionVolume(session) {\n    // Read-only PDF correction: a recorded right zero remains zero.\n    return trainingLoadVolume(session.sets || [], 'inherit-missing-right');\n}"
+      }
+    ]
+  },
+  {
+    "file": "client/src/utils/sessionPdf.js",
+    "changes": [
+      {
+        "before": "import { mexicoCityDateStr } from './dates';",
+        "after": "import { mexicoCityDateStr } from './dates';\nimport { trainingLoadVolume } from '../generated/training.js';"
+      },
+      {
+        "before": "    let volume = 0;",
+        "after": "    const volume = trainingLoadVolume(sets, 'inherit-missing-right');"
+      },
+      {
+        "before": "        volume += w * r;\n        if (s.weightRight != null || s.repsRight != null) {\n            volume += (Number(s.weightRight) || w) * (Number(s.repsRight) || r);\n        }",
+        "after": ""
+      }
+    ]
+  },
+  {
+    "file": "client/src/pages/ExportReport.jsx",
+    "changes": [
+      {
+        "before": "import React, { useState, useEffect, useMemo } from 'react';",
+        "after": "import { trainingSessionLoadSummary, shiftTrainingCivilDate } from '../generated/training.js';\nimport React, { useState, useEffect, useMemo } from 'react';"
+      },
+      {
+        "before": "(sessions) => {\r\n                let total = 0;\r\n                let sets = 0;\r\n                sessions.forEach(session => {\r\n                    (session.sets || []).forEach(s => {\r\n                        total += (s.weight || 0) * (s.reps || 0);\r\n                        if (s.repsRight != null || s.weightRight != null) {\r\n                            total += (s.weightRight ?? s.weight ?? 0) * (s.repsRight ?? s.reps ?? 0);\r\n                        }\r\n                        sets++;\r\n                    });\r\n                });\r\n                return { volume: total, sets };\r\n            }",
+        "after": "(sessions) => trainingSessionLoadSummary(sessions)"
+      },
+      {
+        "before": "mexicoCityDateStr(new Date(anchor.getTime() - 7 * 24 * 60 * 60 * 1000))",
+        "after": "shiftTrainingCivilDate(mexicoCityDateStr(anchor), -7)"
+      }
+    ]
+  },
+  {
+    "file": "server/src/index.js",
+    "changes": [
+      {
+        "before": "import express from 'express';",
+        "after": "import { trainingLoadVolume } from './generated/training.cjs';\nimport express from 'express';",
+        "start": 0
+      },
+      {
+        "before": "weekSets.reduce((acc, set) => {\r\n            const leftVol = (set.weight || 0) * (set.reps || 0);\r\n            const rightVol = (set.weightRight || 0) * (set.repsRight || 0);\r\n            return acc + leftVol + rightVol;\r\n        }, 0)",
+        "after": "trainingLoadVolume(weekSets, 'recorded-sides')",
+        "start": 112000
+      },
+      {
+        "before": "weekSets.reduce((acc, s) => {\r\n            const leftVol = (s.weight || 0) * (s.reps || 0);\r\n            const rightVol = (s.weightRight || 0) * (s.repsRight || 0);\r\n            return acc + leftVol + rightVol;\r\n        }, 0)",
+        "after": "trainingLoadVolume(weekSets, 'recorded-sides')",
+        "start": 125700
+      },
+      {
+        "before": "weekSets.reduce((acc, s) => {\r\n                const leftVol = (s.weight || 0) * (s.reps || 0);\r\n                const rightVol = (s.weightRight || 0) * (s.repsRight || 0);\r\n                return acc + leftVol + rightVol;\r\n            }, 0)",
+        "after": "trainingLoadVolume(weekSets, 'recorded-sides')",
+        "start": 135099
+      },
+      {
+        "before": "currentWeekSets.reduce((acc, s) => acc + s.weight * s.reps, 0)",
+        "after": "trainingLoadVolume(currentWeekSets, 'left-only')",
+        "start": 28317
+      },
+      {
+        "before": "previousWeekSets.reduce((acc, s) => acc + s.weight * s.reps, 0)",
+        "after": "trainingLoadVolume(previousWeekSets, 'left-only')",
+        "start": 28399
+      }
+    ]
+  },
+  {
+    "file": "scripts/test/training-characterization.test.mjs",
+    "changes": [
+      {
+        "before": "const pdfVolume = await sourceFunction('client/src/utils/dayPdf.js', 'sessionVolume');",
+        "after": "const pdfVolume = await sourceFunction('scripts/fixtures/phase5complete/dayPdf.reference.txt', 'sessionVolume');"
+      },
+      {
+        "before": "const reportVolume = await sourceFunction('client/src/pages/ExportReport.jsx', 'calculateVolume');",
+        "after": "const reportVolume = await sourceFunction('client/src/pages/ExportReport.jsx', 'calculateVolume', { trainingSessionLoadSummary });"
+      },
+      {
+        "before": "const regression = await sourceFunction('client/src/utils/goalPlanner.js', 'linearRegression');",
+        "after": "const regression = linearRegression;"
+      },
+      {
+        "before": "import test from 'node:test';",
+        "after": "import test from 'node:test';\nimport { linearRegression, trainingSessionLoadSummary } from '../../packages/shared/dist/index.js';"
+      }
+    ]
+  },
+  {
+    "file": "scripts/test/smart-loading.test.mjs",
+    "changes": [
+      {
+        "before": "for (const [name, body] of b) if (names.includes(name)) assert(!a.has(name)); else assert.equal(a.get(name), body, name);",
+        "after": "const migrated = ['mexicoCityDateStr', 'mexicoCityUtcOffsetMinutes', 'mexicoCityDayBounds', 'dayOfWeekFromDateStr', 'getActiveBlock', 'currentWeekInBlock', 'getRoutinePhaseStatus', 'detectPlateauForExercise'];\n    for (const [name, body] of b) if (names.includes(name)) assert(!a.has(name)); else if (migrated.includes(name)) assert.equal(typeof server[name], 'function'); else assert.equal(a.get(name), body, name);"
+      },
+      {
+        "before": "for (const [file, fixture] of [['client/src/pages/Workout.jsx', 'Workout.reference.txt'], ['server/src/index.js', 'index.reference.txt']]) assert.deepEqual(await readFile(path.join(root, file)), await readFile(path.join(root, 'scripts/fixtures/phase53', fixture)));",
+        "after": "assert.deepEqual(await readFile(path.join(root, 'client/src/pages/Workout.jsx')), await readFile(path.join(root, 'scripts/fixtures/phase53/Workout.reference.txt')));\n    const integration = JSON.parse(await readFile(path.join(root, 'scripts/fixtures/phase5complete/integration.json'), 'utf8'));\n    let routeSource = await readFile(path.join(root, 'server/src/index.js'), 'utf8');\n    for (const change of integration.find(row => row.file === 'server/src/index.js').changes.toReversed()) {\n        assert(routeSource.includes(change.after)); routeSource = routeSource.replace(change.after, change.before);\n    }\n    assert.equal(routeSource, await readFile(path.join(root, 'scripts/fixtures/phase53/index.reference.txt'), 'utf8'));"
+      }
+    ]
+  }
+]

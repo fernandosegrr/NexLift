@@ -1,6 +1,7 @@
 // PDF de UNA sesión de entrenamiento (WorkoutLog + sets).
 // Lazy-importa jsPDF igual que ExportReport — no hincha el bundle inicial.
 import { mexicoCityDateStr } from './dates';
+import { trainingLoadVolume } from '../generated/training.js';
 
 function rirFromRpe(rpe) {
     return rpe != null && Number.isFinite(Number(rpe)) ? 10 - Number(rpe) : null;
@@ -85,17 +86,14 @@ export async function downloadSessionPdf(session, opts = {}) {
 
     // Stats summary
     const sets = [...(session.sets || [])].sort((a, b) => (a.setNumber || 0) - (b.setNumber || 0));
-    let volume = 0;
+    const volume = trainingLoadVolume(sets, 'inherit-missing-right');
     let best1RM = 0;
     let bestLabel = '';
 
     sets.forEach(s => {
         const w = Number(s.weight) || 0;
         const r = Number(s.reps) || 0;
-        volume += w * r;
-        if (s.weightRight != null || s.repsRight != null) {
-            volume += (Number(s.weightRight) || w) * (Number(s.repsRight) || r);
-        }
+
         const effW = s.weightRight != null
             ? Math.min(w, Number(s.weightRight) || w)
             : w;

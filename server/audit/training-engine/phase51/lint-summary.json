@@ -1,0 +1,19 @@
+{
+  "before": {
+    "errors": 27,
+    "warnings": 3
+  },
+  "after": {
+    "errors": 27,
+    "warnings": 3
+  },
+  "signaturesIdentical": true,
+  "lineShiftsAllowed": true,
+  "modifiedBackendJS": [
+    {
+      "file": "server\\src\\utils\\exerciseName.js",
+      "errors": 0,
+      "warnings": 0
+    }
+  ]
+}

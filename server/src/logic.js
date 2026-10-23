@@ -1,3 +1,8 @@
+import { trainingCivilDate, trainingUtcOffsetMinutes, legacyTrainingDayBounds, civilDayOfWeek, getActiveTrainingBlock, elapsedWeekInBlock, routinePhaseStatusAt, detectPlateauForExercise as sharedDetectPlateauForExercise } from './generated/training.cjs';
+import { parseRepRange, resolveWeightIncrement, effectiveWorkoutSet, roundWorkoutWeight, adjustRepRangeForPhase, pickWorkReference, computeWorkoutSuggestion, suggestNextSetFromToday } from './generated/training.cjs';
+export { parseRepRange, resolveWeightIncrement, effectiveWorkoutSet, roundWorkoutWeight, adjustRepRangeForPhase, pickWorkReference, computeWorkoutSuggestion, suggestNextSetFromToday };
+import { parseLegacyShortcutEffort, convertLegacyShortcutRir } from './generated/training.cjs';
+
 // Funciones puras extraídas de server/src/index.js (P1 del plan de mejoras) para
 // poder testearlas sin DB ni servidor levantado. Extracción literal — el
 // comportamiento numérico debe seguir siendo idéntico al de antes de mover este
@@ -15,42 +20,20 @@
 export const APP_TIMEZONE = 'America/Mexico_City';
 
 // "YYYY-MM-DD" del día calendario de CDMX que contiene `date`.
-export function mexicoCityDateStr(date = new Date()) {
-    return new Intl.DateTimeFormat('en-CA', {
-        timeZone: APP_TIMEZONE,
-        year: 'numeric', month: '2-digit', day: '2-digit'
-    }).format(date);
-}
+export function mexicoCityDateStr(date = new Date()) { return trainingCivilDate(date); }
 
 // Offset UTC de CDMX (minutos, negativo = detrás de UTC) en el instante `date`.
 // Se calcula en vivo vía Intl en vez de fijar -06:00 a mano, para no romper si
 // México reactivara el horario de verano.
-export function mexicoCityUtcOffsetMinutes(date = new Date()) {
-    const part = new Intl.DateTimeFormat('en-US', { timeZone: APP_TIMEZONE, timeZoneName: 'shortOffset' })
-        .formatToParts(date).find(p => p.type === 'timeZoneName')?.value || 'GMT-6';
-    const match = part.match(/GMT([+-])(\d+)(?::(\d+))?/);
-    if (!match) return -360;
-    const sign = match[1] === '-' ? -1 : 1;
-    return sign * (parseInt(match[2], 10) * 60 + (match[3] ? parseInt(match[3], 10) : 0));
-}
+export function mexicoCityUtcOffsetMinutes(date = new Date()) { return trainingUtcOffsetMinutes(date); }
 
 // Límites reales [inicio, fin) del día calendario de CDMX que contiene `date`,
 // como instantes UTC — para filtrar columnas DateTime con gte/lt correctamente.
-export function mexicoCityDayBounds(date = new Date()) {
-    const dateStr = mexicoCityDateStr(date);
-    const offsetMin = mexicoCityUtcOffsetMinutes(date);
-    const sign = offsetMin <= 0 ? '-' : '+';
-    const abs = Math.abs(offsetMin);
-    const offsetStr = `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
-    const start = new Date(`${dateStr}T00:00:00${offsetStr}`);
-    return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000), dateStr };
-}
+export function mexicoCityDayBounds(date = new Date()) { return legacyTrainingDayBounds(date); }
 
 // Día de la semana (0=domingo) de un "YYYY-MM-DD", sin ambigüedad de zona horaria
 // (ancla a mediodía UTC antes de leer getUTCDay, así nunca cruza al día vecino).
-export function dayOfWeekFromDateStr(dateStr) {
-    return new Date(`${dateStr}T12:00:00Z`).getUTCDay();
-}
+export function dayOfWeekFromDateStr(dateStr) { return civilDayOfWeek(dateStr); }
 
 // Resuelve el día objetivo para los endpoints de Atajos: ?date=YYYY-MM-DD explícito
 // (backfill, se interpreta como medianoche de CDMX de ese día) o el día calendario
@@ -205,34 +188,9 @@ export function sanitizeShortcutLogSet(body) {
         return { error: 'Required: exerciseId' };
     }
 
-    const hasRir = body.rir != null && String(body.rir).trim() !== '';
-    const hasRpe = body.rpe != null && String(body.rpe).trim() !== '';
-
-    let rawRir = 0;
-    let convertedRpe = 10;
-
-    if (hasRir) {
-        const parsedRir = parseFloat(body.rir);
-        if (!Number.isFinite(parsedRir) || parsedRir < 0 || parsedRir > 4) {
-            return { error: 'RIR inválido (usa 0-4, reps en recámara)' };
-        }
-        rawRir = parsedRir;
-        convertedRpe = convertShortcutRir(rawRir);
-    } else if (hasRpe) {
-        const parsedVal = parseFloat(body.rpe);
-        if (!Number.isFinite(parsedVal)) {
-            return { error: 'RIR inválido (usa 0-4, reps en recámara)' };
-        }
-        if (parsedVal >= 0 && parsedVal <= 4) {
-            rawRir = parsedVal;
-            convertedRpe = convertShortcutRir(rawRir);
-        } else if (parsedVal >= 6 && parsedVal <= 10) {
-            convertedRpe = parsedVal;
-            rawRir = 10 - parsedVal;
-        } else {
-            return { error: 'RIR inválido (usa 0-4, reps en recámara)' };
-        }
-    }
+    const effort = parseLegacyShortcutEffort(body);
+    if (effort.state === 'invalid') return { error: effort.error };
+    const { rawRir, storedRpe: convertedRpe } = effort;
 
     const { sets, error } = sanitizeSets([{
         weight: body.weight,
@@ -395,18 +353,10 @@ export function validateRoutineDayWeekdays(days) {
 // propósito (no un `isActive` guardado): arrancar un bloque nuevo reemplaza al
 // viejo sin ningún paso de limpieza, y no hay invariante "a lo más un activo" que
 // mantener a mano en cada escritura.
-export function getActiveBlock(blocks) {
-    const started = (blocks || []).filter(b => b.startedAt != null);
-    if (!started.length) return null;
-    return started.reduce((latest, b) => (b.startedAt > latest.startedAt ? b : latest), started[0]);
-}
+export function getActiveBlock(blocks) { return getActiveTrainingBlock(blocks); }
 
 // Semana actual dentro de un bloque (1-indexed), o null si el bloque no ha arrancado.
-export function currentWeekInBlock(block, now = new Date()) {
-    if (!block?.startedAt) return null;
-    const daysSince = Math.floor((now.getTime() - block.startedAt.getTime()) / (24 * 60 * 60 * 1000));
-    return Math.floor(daysSince / 7) + 1;
-}
+export function currentWeekInBlock(block, now = new Date()) { return elapsedWeekInBlock(block, now); }
 
 // Fuente única de verdad para "en qué fase está esta rutina ahora mismo". Prioridad
 // fija: un bloque activo (cualquier fase) manda siempre; si no hay ninguno, cae al
@@ -414,16 +364,7 @@ export function currentWeekInBlock(block, now = new Date()) {
 // "acumular/intensificar automáticamente" sin un bloque configurado — ver discusión
 // con el usuario). NINGÚN otro lugar del código debe recalcular esto por su cuenta —
 // todo lector nuevo (suggestion, UI, lo que sea) debe llamar a esta función.
-export function getRoutinePhaseStatus(routine) {
-    const activeBlock = getActiveBlock(routine.blocks || []);
-    if (activeBlock) {
-        return { isDeload: activeBlock.phase === 'deload', source: 'block', phase: activeBlock.phase, block: activeBlock };
-    }
-    if (routine.adaptiveDeloadUntil && routine.adaptiveDeloadUntil > new Date()) {
-        return { isDeload: true, source: 'adaptive', phase: 'deload', until: routine.adaptiveDeloadUntil };
-    }
-    return { isDeload: false, source: null, phase: null };
-}
+export function getRoutinePhaseStatus(routine) { return routinePhaseStatusAt(routine, new Date()); }
 
 // ============================================
 // RUTINA DIARIA CON IA — rotación del split (server/src/services/aiRoutineService.js)
@@ -443,56 +384,9 @@ export function pickNextSplitDay(splitLabels, recentLabels) {
     return splitLabels[(lastIndex + 1) % splitLabels.length];
 }
 
-// ============================================
-// Smart Loading (port literal de client/src/pages/Workout.jsx:50-139, usado por el
-// Atajo de iOS vía GET /api/shortcuts/next-set). El comportamiento numérico debe
-// coincidir exacto con lo que la PWA ya sugiere en /workout.
-// ============================================
-
-// Parsea el rango de reps objetivo ("8-12", "5", "AMRAP") -> { lo, hi }
-export function parseRepRange(targetReps) {
-    const nums = String(targetReps || '').match(/\d+/g);
-    if (!nums) return { lo: 8, hi: 12 };
-    const a = parseInt(nums[0], 10);
-    const b = nums[1] ? parseInt(nums[1], 10) : a;
-    return { lo: Math.min(a, b), hi: Math.max(a, b) };
-}
-
-// Incremento de carga por grupo: 5kg piernas, 2.5kg el resto.
-// Si muscleGroup viene vacío (import/edición a mano — caso real en la cuenta
-// principal), infiere piernas por el nombre del ejercicio para no quedarse en
-// +2.5kg en hack/prensa/etc.
-const LEGS_NAME_RE = /sentadilla|prensa|hack|femoral|cuadr[ií]cep|aductor|abductor|gemelo|pantorrilla|zancada|b[uú]lgara|hip\s*thrust|peso\s*muerto|deadlift|\bleg\b|extensi[oó]n(es)?\s+de\s+cu[aá]/i;
-export function resolveWeightIncrement(muscleGroup, exerciseName = '') {
-    // 'Piernas' (canónico) o 'legs' (catálogo cliente en inglés, por si llegó sin normalizar)
-    if (muscleGroup === 'Piernas' || muscleGroup === 'legs') return 5;
-    if (!muscleGroup && LEGS_NAME_RE.test(exerciseName || '')) return 5;
-    return 2.5;
-}
-
-// Devuelve los valores efectivos de una serie (en unilateral usa el lado débil,
-// que es el que limita la progresión)
-export function effectiveWorkoutSet(set) {
-    const w = Number(set.weight) || 0;
-    const r = Number(set.reps) || 0;
-    const hasRight = set.weightRight != null || set.repsRight != null;
-    const wR = set.weightRight != null ? Number(set.weightRight) : w;
-    const rR = set.repsRight != null ? Number(set.repsRight) : r;
-    const rir = set.rpe != null ? (10 - set.rpe) : (set.rir != null ? set.rir : null);
-    return {
-        weight: hasRight ? Math.min(w, wR) : w,
-        reps: hasRight ? Math.min(r, rR) : r,
-        rir
-    };
-}
-
-// Redondea el peso a una rejilla sensata. Si el peso base ya cae en la rejilla del
-// incremento (barras/discos), se mantiene esa rejilla; si no (poleas/placas con
-// valores raros como 6.8kg), se redondea al medio kilo para no distorsionar el peso real.
-export function roundWorkoutWeight(w, increment, base) {
-    const grid = (Math.abs(base % increment) < 0.01) ? increment : 0.5;
-    return Math.round(w / grid) * grid;
-}
+// Smart Loading is implemented in shared strict TypeScript and re-exported
+// above through the existing generated CJS boundary. Plateau remains here,
+// with its exact historical policy and the equivalent effective-set helper.
 
 // Plateau para UN ejercicio (por id) — usado por el trigger adaptativo de descarga.
 // A diferencia del cliente (exerciseName.js), aquí NO hace falta consolidar variantes
@@ -500,263 +394,7 @@ export function roundWorkoutWeight(w, increment, base) {
 // se agrupa directo por WorkoutLogs de ese id. Mismo criterio que detectPlateau:
 // últimas min(6, N) sesiones (día local CDMX), mitad reciente no supera a la antigua,
 // requiere >=4 sesiones para tener señal.
-export function detectPlateauForExercise(workoutLogs) {
-    const byDay = new Map();
-    for (const log of workoutLogs) {
-        const dayKey = mexicoCityDateStr(log.date);
-        let best = byDay.get(dayKey) || 0;
-        for (const set of log.sets) {
-            const eff = effectiveWorkoutSet(set);
-            if (eff.weight <= 0 || eff.reps <= 0) continue;
-            const rm = (eff.reps > 1 && eff.reps < 37) ? eff.weight * (1 + eff.reps / 30) : eff.weight;
-            if (rm > best) best = rm;
-        }
-        byDay.set(dayKey, best);
-    }
-    const sessions = [...byDay.keys()].sort().map(day => byDay.get(day));
-    if (sessions.length < 4) return false;
-
-    const window = sessions.slice(-Math.min(6, sessions.length));
-    const splitAt = Math.floor(window.length / 2);
-    const olderBest = Math.max(0, ...window.slice(0, splitAt));
-    const recentBest = Math.max(0, ...window.slice(splitAt));
-    return recentBest <= olderBest;
-}
-
-// Ajusta el rango de reps objetivo según la fase activa — NO modifica el rango
-// guardado del ejercicio (Exercise.targetReps), solo el usado para ESTA sugerencia:
-// - intensificación: rango a la mitad (menos reps -> exige más peso para llegar al tope)
-// - acumulación: techo del rango +50% (más reps antes de subir peso)
-// - descarga/personalizado/sin bloque activo: rango sin cambios (descarga solo ajusta
-//   el peso final, ver computeWorkoutSuggestion)
-export function adjustRepRangeForPhase(lo, hi, phase) {
-    if (phase === 'intensification') {
-        const newLo = Math.max(1, Math.round(lo * 0.5));
-        return { lo: newLo, hi: Math.max(newLo, Math.round(hi * 0.5)) };
-    }
-    if (phase === 'accumulation') {
-        return { lo, hi: Math.round(hi * 1.5) };
-    }
-    return { lo, hi };
-}
-
-/**
- * Elige la serie de TRABAJO de la última sesión (no el single de tope ni el drop).
- *
- * Antes se usaba la de mayor 1RM estimado: con top-set + backoffs (p.ej. 110×1,
- * 100×4, 100×3) anclaba en 110×1 y sugería "110×2" — inútil para progresar el
- * trabajo real. Ahora:
- *  1. Descarta drop/backoff claros (<75% del peso máximo de la sesión).
- *  2. Prefiere el peso MÁS PESADO con el que ya tocaste el suelo del rango (lo).
- *  3. Si ninguno llegó al suelo, el peso más pesado entre los de MÁS reps
- *     (compromiso entre top set fallido y trabajo real).
- *  4. Fallback: mayor 1RM entre las series principales.
- */
-export function pickWorkReference(working, lo) {
-    if (!working || working.length === 0) return null;
-    // Protección contra Singles/Doubles (Ego Lifting): ignora series de 1 o 2 reps
-    // a menos que el rango objetivo de la rutina sea explícitamente de fuerza máxima (lo <= 3).
-    const nonEgo = lo > 3 ? working.filter(s => s.reps >= 3) : working;
-    const baseWorking = nonEgo.length > 0 ? nonEgo : working;
-
-    const maxW = Math.max(...baseWorking.map(s => s.weight));
-    const main = baseWorking.filter(s => s.weight >= maxW * 0.75);
-    const pool = main.length > 0 ? main : baseWorking;
-
-    // Si existe un Top Set pesado de alta intensidad (RIR <= 1 / RPE >= 9) al peso máximo
-    // del pool válido, anclar en ese peso para que un Back-off set no lo eclipse.
-    const topWeight = Math.max(...pool.map(s => s.weight));
-    const atTopWeight = pool.filter(s => Math.abs(s.weight - topWeight) < 0.01);
-    const hasHeavyTopSet = atTopWeight.some(s => s.rir != null && s.rir <= 1);
-
-    let refWeight;
-    if (hasHeavyTopSet) {
-        refWeight = topWeight;
-    } else {
-        let candidates = pool.filter(s => s.reps >= lo);
-        if (candidates.length === 0) {
-            const maxReps = Math.max(...pool.map(s => s.reps));
-            candidates = pool.filter(s => s.reps === maxReps);
-        }
-        if (candidates.length === 0) candidates = pool;
-        refWeight = Math.max(...candidates.map(s => s.weight));
-    }
-
-    const sameWeight = pool.filter(s => Math.abs(s.weight - refWeight) < 0.01);
-    const refReps = Math.max(...sameWeight.map(s => s.reps));
-    const knownRir = sameWeight.map(s => s.rir).filter(v => v != null);
-    const rir = knownRir.length ? Math.min(...knownRir) : null;
-    const minReps = Math.min(...sameWeight.map(s => s.reps));
-
-    return { weight: refWeight, reps: refReps, minReps, rir, setsAtWeight: sameWeight };
-}
-
-/**
- * Sugerencia de peso y reps por Top Set + Back-off / Doble Progresión — idéntico a client smartLoading.
- * `sessions` debe venir ordenado por fecha DESC (igual que el historial del ejercicio).
- *
- * Reglas:
- *  - Referencia = serie de trabajo real (ver pickWorkReference), con protección contra singles/doubles.
- *  - Desbloquea incremento de peso cuando el Top Set alcanzó el techo del rango (reps >= hi)
- *    con RIR 0 o 1 (RPE 9-10), o cuando todas las series a ese peso alcanzaron >= hi.
- *  - Si solo la mejor llegó al tope con RIR >= 2, mantiene peso y empareja reps hacia el mínimo rezagado.
- *  - Si aún no: +1 rep (o +2 si RIR≥3). Nunca sugiere bajar el peso.
- */
-export function computeWorkoutSuggestion(sessions, targetReps, increment, phase = null) {
-    if (!sessions || sessions.length === 0) return null;
-    const resolvedPhase = (phase && typeof phase === 'object') ? (phase.phase ?? null) : (phase ?? null);
-    const parsedRange = parseRepRange(targetReps);
-    const { lo, hi } = adjustRepRangeForPhase(parsedRange.lo, parsedRange.hi, resolvedPhase);
-
-    const working = (sessions[0].sets || [])
-        .map(effectiveWorkoutSet)
-        .filter(s => s.weight > 0 && s.reps > 0);
-    if (working.length === 0) return null;
-
-    const ref = pickWorkReference(working, lo);
-    if (!ref) return null;
-
-    const { weight: refWeight, reps: refReps, minReps, rir, setsAtWeight } = ref;
-    const allHitTop = setsAtWeight.every(s => s.reps >= hi);
-    const topSetPassed = setsAtWeight.find(s => s.reps >= hi && s.rir != null && s.rir <= 1);
-
-    let weight, reps, rationale;
-
-    if (topSetPassed || allHitTop) {
-        // Top Set superado a alta intensidad (RIR <= 1) o todas las series tocaron el techo → progresión de carga
-        weight = roundWorkoutWeight(refWeight + increment, increment, refWeight);
-        reps = lo;
-        if (topSetPassed && !allHitTop) {
-            rationale = `Top Set superado (${refWeight}kg × ${topSetPassed.reps} a RIR ${topSetPassed.rir}): sube a ${weight}kg y reinicia en ${lo}.`;
-        } else {
-            rationale = setsAtWeight.length > 1
-                ? `Todas las series a ${refWeight}kg llegaron a ≥${hi} reps: sube a ${weight}kg y reinicia en ${lo}.`
-                : `Alcanzaste ${refReps} reps con ${refWeight}kg (tope del rango): sube a ${weight}kg y reinicia en ${lo}.`;
-        }
-    } else if (refReps >= hi) {
-        // La mejor tocó el techo pero otras se quedaron atrás → emparejar, no subir
-        weight = refWeight;
-        reps = Math.min(hi, minReps + 1);
-        rationale = `La mejor serie fue ${refWeight}kg × ${refReps}, pero no todas llegaron a ${hi}: mantén ${weight}kg y apunta a ${reps} en todas.`;
-    } else {
-        const bump = (rir != null && rir >= 3) ? 2 : 1;
-        weight = refWeight;
-        reps = Math.min(hi, refReps + bump);
-        if (refReps < lo) {
-            rationale = rir != null
-                ? `Trabajo de referencia ${refWeight}kg × ${refReps} (RIR ${rir}), por debajo del rango ${lo}–${hi}: mantén el peso y apunta a ${reps} reps.`
-                : `Trabajo de referencia ${refWeight}kg × ${refReps}, por debajo del rango ${lo}–${hi}: mantén el peso y apunta a ${reps} reps.`;
-        } else {
-            rationale = rir != null
-                ? `Hiciste ${refWeight}kg × ${refReps} (RIR ${rir}): mantén el peso y apunta a ${reps} reps.`
-                : `Hiciste ${refWeight}kg × ${refReps}: mantén el peso y apunta a ${reps} reps.`;
-        }
-    }
-
-    if (weight <= 0 || reps <= 0) return null;
-    return { weight, reps, rationale, basedOn: sessions.length, phase: resolvedPhase };
-}
-
-/**
- * Autorregulación INTRA-sesión — espejo de client/src/utils/smartLoading.js.
- * Mira TODAS las series completadas HOY (con RIR obligatorio). Puede bajar peso.
- * Si la Serie 1 (Top Set) se registra al fallo absoluto (RIR === 0 / RPE === 10),
- * calcula automáticamente un Back-off Set (-12.5% de peso) apuntando al techo
- * del rango (+1 o +2 reps respecto al Top Set).
- * Usada por el Atajo si hay series de hoy; la PWA calcula en el cliente.
- */
-export function suggestNextSetFromToday(completedToday, optsOrTargetReps = {}, legacyIncrement = 2.5, legacyPhase = null) {
-    if (!completedToday || completedToday.length === 0) return null;
-
-    let lo = 8, hi = 12, increment = 2.5, phase = null;
-    if (typeof optsOrTargetReps === 'string') {
-        const parsed = parseRepRange(optsOrTargetReps);
-        lo = parsed.lo;
-        hi = parsed.hi;
-        increment = typeof legacyIncrement === 'number' ? legacyIncrement : 2.5;
-        phase = (legacyPhase && typeof legacyPhase === 'object') ? (legacyPhase.phase ?? null) : (legacyPhase ?? null);
-    } else if (optsOrTargetReps && typeof optsOrTargetReps === 'object') {
-        lo = optsOrTargetReps.lo ?? 8;
-        hi = optsOrTargetReps.hi ?? 12;
-        increment = optsOrTargetReps.increment ?? 2.5;
-        phase = optsOrTargetReps.phase ?? null;
-    }
-
-    const sets = completedToday
-        .map(s => ({
-            weight: Number(s.weight) || 0,
-            reps: Number(s.reps) || 0,
-            rir: s.rir != null && s.rir !== '' ? Number(s.rir) : null
-        }))
-        .filter(s => s.weight > 0 && s.reps > 0);
-
-    if (!sets.length) return null;
-    if (sets.some(s => s.rir == null || !Number.isFinite(s.rir))) return null;
-
-    const range = adjustRepRangeForPhase(lo, hi, phase);
-    const adjLo = range.lo;
-    const adjHi = range.hi;
-
-    const last = sets[sets.length - 1];
-    const first = sets[0];
-    const minRir = Math.min(...sets.map(s => s.rir));
-    const avgRir = sets.reduce((a, s) => a + s.rir, 0) / sets.length;
-    const rirDrop = first.rir - last.rir;
-    const repDrop = first.reps - last.reps;
-
-    let weight = last.weight;
-    let reps = last.reps;
-    let rationale;
-
-    if (sets.length === 1 && first.rir <= 0) {
-        // Serie 1 (Top Set) al fallo absoluto (RIR 0 / RPE 10) → Back-off Set (-12.5%, entre 10-15%)
-        const rawBackoff = first.weight * 0.875;
-        const roundedBackoff = roundWorkoutWeight(rawBackoff, increment, first.weight);
-        weight = roundedBackoff < first.weight
-            ? Math.max(increment > 0 ? increment : 0.5, roundedBackoff)
-            : roundWorkoutWeight(Math.max(0.5, first.weight - Math.max(increment, 0.5)), increment, first.weight);
-        reps = first.reps < adjHi
-            ? Math.min(adjHi, Math.max(adjLo, first.reps + 2))
-            : first.reps + 1;
-        rationale = `Top Set al fallo (RIR 0) → Back-off Set (-12.5%): ${weight} kg × ${reps} reps.`;
-    } else if (last.rir <= 0 || last.reps < adjLo) {
-        const stepped = roundWorkoutWeight(
-            Math.max(0, last.weight - increment),
-            increment,
-            last.weight
-        );
-        weight = stepped < last.weight
-            ? Math.max(increment > 0 ? increment : 0.5, stepped)
-            : roundWorkoutWeight(Math.max(0.5, last.weight - Math.max(increment, 0.5)), increment, last.weight);
-        reps = Math.min(adjHi, Math.max(adjLo, last.reps));
-        rationale = last.rir <= 0
-            ? `Hoy RIR ${last.rir} en alguna serie → baja a ${weight} kg × ${reps}.`
-            : `Reps bajo el rango ${adjLo}–${adjHi} → baja a ${weight} kg × ${reps}.`;
-    } else if (last.rir === 1 || rirDrop >= 2 || (repDrop >= 2 && last.rir <= 2)) {
-        // Fatiga: mismo peso, no empujar reps
-        weight = last.weight;
-        reps = Math.min(adjHi, Math.max(adjLo, last.reps));
-        rationale = `Fatiga de hoy (RIR min ${minRir}) → mantén ${weight} kg × ${reps}.`;
-    } else if (avgRir >= 2.5 && minRir >= 2 && last.reps >= adjLo) {
-        // Cómodo: mismo peso, +1/+2 reps (doble progresión intra-sesión — no clonar la serie anterior)
-        weight = last.weight;
-        const bump = avgRir >= 3 ? 2 : 1;
-        reps = Math.min(adjHi, last.reps + bump);
-        if (reps > last.reps) {
-            rationale = `Series de hoy cómodas (RIR min ${minRir}) → ${weight} kg × ${reps} (+${reps - last.reps} rep).`;
-        } else {
-            rationale = `Techo del rango ${adjLo}–${adjHi} con RIR alto → mantén ${weight} kg × ${reps}; la próxima sesión sube peso.`;
-        }
-    } else {
-        // Neutro (RIR ~2): mismo peso; si aún no llegas al techo, pide al menos last.reps
-        weight = last.weight;
-        reps = Math.min(adjHi, Math.max(adjLo, last.reps));
-        rationale = `Según series de hoy (RIR min ${minRir}) → ${weight} kg × ${reps}.`;
-    }
-
-    if (weight <= 0 || reps <= 0) return null;
-    return { weight, reps, rationale, phase, source: 'intra' };
-}
+export function detectPlateauForExercise(workoutLogs) { return sharedDetectPlateauForExercise(workoutLogs); }
 
 // ============================================
 // Atajo de iOS: convención de RIR (ver POST /api/shortcuts/log-set)
@@ -768,7 +406,7 @@ export function suggestNextSetFromToday(completedToday, optsOrTargetReps = {}, l
 // esta conversión, la PWA relee un valor fuera del rango 0-3 de sus botones de RIR
 // y lo muestra como "sin registrar". Ida y vuelta: 10 - x es su propia inversa.
 export function convertShortcutRir(rawRir) {
-    return rawRir != null && Number.isFinite(parseFloat(rawRir)) ? 10 - parseFloat(rawRir) : null;
+    return convertLegacyShortcutRir(rawRir);
 }
 
 /**

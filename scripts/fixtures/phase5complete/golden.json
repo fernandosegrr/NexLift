@@ -1,0 +1,388 @@
+{
+  "origin": "Received 1202-test source captured before Phase 5.4 extraction; defects retain independent legacy and corrected expectations",
+  "cases": [
+    {
+      "kind": "plateau",
+      "values": [],
+      "expected": {
+        "isPlateaued": false,
+        "sessionsConsidered": 0,
+        "olderBest1RM": 0,
+        "recentBest1RM": 0
+      },
+      "backend": false
+    },
+    {
+      "kind": "plateau",
+      "values": [
+        100
+      ],
+      "expected": {
+        "isPlateaued": false,
+        "sessionsConsidered": 1,
+        "olderBest1RM": 0,
+        "recentBest1RM": 0
+      },
+      "backend": false
+    },
+    {
+      "kind": "plateau",
+      "values": [
+        100,
+        100,
+        100
+      ],
+      "expected": {
+        "isPlateaued": false,
+        "sessionsConsidered": 3,
+        "olderBest1RM": 0,
+        "recentBest1RM": 0
+      },
+      "backend": false
+    },
+    {
+      "kind": "plateau",
+      "values": [
+        100,
+        100,
+        100,
+        100
+      ],
+      "expected": {
+        "isPlateaued": true,
+        "sessionsConsidered": 4,
+        "olderBest1RM": 100,
+        "recentBest1RM": 100
+      },
+      "backend": true
+    },
+    {
+      "kind": "plateau",
+      "values": [
+        100,
+        100,
+        100,
+        101
+      ],
+      "expected": {
+        "isPlateaued": false,
+        "sessionsConsidered": 4,
+        "olderBest1RM": 100,
+        "recentBest1RM": 101
+      },
+      "backend": false
+    },
+    {
+      "kind": "plateau",
+      "values": [
+        100,
+        100,
+        99,
+        98
+      ],
+      "expected": {
+        "isPlateaued": true,
+        "sessionsConsidered": 4,
+        "olderBest1RM": 100,
+        "recentBest1RM": 99
+      },
+      "backend": true
+    },
+    {
+      "kind": "plateau",
+      "values": [
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "expected": {
+        "isPlateaued": true,
+        "sessionsConsidered": 5,
+        "olderBest1RM": 100,
+        "recentBest1RM": 100
+      },
+      "backend": true
+    },
+    {
+      "kind": "plateau",
+      "values": [
+        999,
+        100,
+        100,
+        100,
+        100,
+        100,
+        101
+      ],
+      "expected": {
+        "isPlateaued": false,
+        "sessionsConsidered": 6,
+        "olderBest1RM": 100,
+        "recentBest1RM": 101
+      },
+      "backend": false
+    },
+    {
+      "kind": "plateau",
+      "values": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "expected": {
+        "isPlateaued": true,
+        "sessionsConsidered": 4,
+        "olderBest1RM": 0,
+        "recentBest1RM": 0
+      },
+      "backend": true
+    },
+    {
+      "kind": "volume",
+      "sets": [],
+      "legacyPdf": 0,
+      "form": 0,
+      "report": {
+        "volume": 0,
+        "sets": 0
+      }
+    },
+    {
+      "kind": "volume",
+      "sets": [
+        {
+          "weight": 80,
+          "reps": 10
+        }
+      ],
+      "legacyPdf": 800,
+      "form": 800,
+      "report": {
+        "volume": 800,
+        "sets": 1
+      }
+    },
+    {
+      "kind": "volume",
+      "sets": [
+        {
+          "weight": 80,
+          "reps": 10,
+          "weightRight": 0,
+          "repsRight": 0
+        }
+      ],
+      "legacyPdf": 1600,
+      "form": 800,
+      "report": {
+        "volume": 800,
+        "sets": 1
+      }
+    },
+    {
+      "kind": "volume",
+      "sets": [
+        {
+          "weight": 80,
+          "reps": 10,
+          "weightRight": 60
+        }
+      ],
+      "legacyPdf": 1400,
+      "form": 800,
+      "report": {
+        "volume": 1400,
+        "sets": 1
+      }
+    },
+    {
+      "kind": "volume",
+      "sets": [
+        {
+          "weight": 80,
+          "reps": 10,
+          "repsRight": 5
+        }
+      ],
+      "legacyPdf": 1200,
+      "form": 800,
+      "report": {
+        "volume": 1200,
+        "sets": 1
+      }
+    },
+    {
+      "kind": "volume",
+      "sets": [
+        {
+          "weight": 80,
+          "reps": 10,
+          "weightRight": 60,
+          "repsRight": 8,
+          "completed": false
+        }
+      ],
+      "legacyPdf": 1280,
+      "form": 1280,
+      "report": {
+        "volume": 1280,
+        "sets": 1
+      }
+    },
+    {
+      "kind": "volume",
+      "sets": [
+        {
+          "weight": "80.5kg",
+          "reps": "10.5",
+          "weightR": "60",
+          "repsR": "8"
+        }
+      ],
+      "legacyPdf": 0,
+      "form": 1325.25,
+      "report": {
+        "volume": {
+          "nonfinite": "NaN"
+        },
+        "sets": 1
+      }
+    },
+    {
+      "kind": "regression",
+      "points": [],
+      "expected": {
+        "slope": 0,
+        "r2": 0
+      }
+    },
+    {
+      "kind": "regression",
+      "points": [
+        {
+          "x": 0,
+          "y": 1
+        }
+      ],
+      "expected": {
+        "slope": 0,
+        "r2": 0
+      }
+    },
+    {
+      "kind": "regression",
+      "points": [
+        {
+          "x": 0,
+          "y": 10
+        },
+        {
+          "x": 0,
+          "y": 20
+        }
+      ],
+      "expected": {
+        "slope": 0,
+        "r2": 0
+      }
+    },
+    {
+      "kind": "regression",
+      "points": [
+        {
+          "x": 0,
+          "y": 10
+        },
+        {
+          "x": 1,
+          "y": 10
+        }
+      ],
+      "expected": {
+        "slope": 0,
+        "r2": 0
+      }
+    },
+    {
+      "kind": "regression",
+      "points": [
+        {
+          "x": 0,
+          "y": 10
+        },
+        {
+          "x": 1,
+          "y": 12
+        },
+        {
+          "x": 2,
+          "y": 14
+        }
+      ],
+      "expected": {
+        "slope": 2,
+        "r2": 1
+      }
+    },
+    {
+      "kind": "regression",
+      "points": [
+        {
+          "x": 0,
+          "y": 12
+        },
+        {
+          "x": 1,
+          "y": 10
+        },
+        {
+          "x": 2,
+          "y": 8
+        }
+      ],
+      "expected": {
+        "slope": -2,
+        "r2": 1
+      }
+    },
+    {
+      "kind": "calendar",
+      "iso": "2021-04-04T12:00:00Z",
+      "legacyBounds": {
+        "start": "2021-04-04T05:00:00.000Z",
+        "end": "2021-04-05T05:00:00.000Z",
+        "dateStr": "2021-04-04"
+      }
+    },
+    {
+      "kind": "calendar",
+      "iso": "2021-10-31T12:00:00Z",
+      "legacyBounds": {
+        "start": "2021-10-31T06:00:00.000Z",
+        "end": "2021-11-01T06:00:00.000Z",
+        "dateStr": "2021-10-31"
+      }
+    },
+    {
+      "kind": "calendar",
+      "iso": "2026-10-19T05:30:00Z",
+      "legacyBounds": {
+        "start": "2026-10-18T06:00:00.000Z",
+        "end": "2026-10-19T06:00:00.000Z",
+        "dateStr": "2026-10-18"
+      }
+    },
+    {
+      "kind": "calendar",
+      "iso": "2026-01-01T05:59:59Z",
+      "legacyBounds": {
+        "start": "2025-12-31T06:00:00.000Z",
+        "end": "2026-01-01T06:00:00.000Z",
+        "dateStr": "2025-12-31"
+      }
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "exit": 0,
+  "sourceAndArchiveHashes": 476,
+  "reportLinks": [
+    "phase53/environment.json",
+    "phase53/source-before-matrix.json",
+    "../../../docs/TRAINING-SMART-LOADING.md",
+    "phase53/smart-loading-inventory.json",
+    "phase53/final-checks.json",
+    "phase53/lint-comparison.json",
+    "phase53/development-checks.json",
+    "phase53/phase53-evidence.json",
+    "phase53/final-checks.json",
+    "../../../docs/TRAINING-SMART-LOADING.md"
+  ],
+  "jsonFiles": 15,
+  "uniqueTests": 1202,
+  "newTests": 29,
+  "repeatedTests": 551,
+  "commands": 62,
+  "allFinalCommandsExitZero": true,
+  "typescriptLint": {
+    "files": 28,
+    "errors": 0,
+    "warnings": 0
+  },
+  "toolingLint": {
+    "files": 54,
+    "errors": 0,
+    "warnings": 0
+  },
+  "globalLint": {
+    "errors": 27,
+    "warnings": 3,
+    "regression": false
+  },
+  "generated": {
+    "count": 11,
+    "changedBytes": 4,
+    "changedExecutable": 2
+  },
+  "gitDiffCheckExit": 0,
+  "staged": false,
+  "productionTouched": false,
+  "persistentDatabaseAccessed": false,
+  "phase54Started": false
+}

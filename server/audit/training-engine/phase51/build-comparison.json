@@ -1,0 +1,13 @@
+{
+  "css": [
+    {
+      "file": "index-Bq6ij0Fo.css",
+      "bytes": 107239,
+      "sha256": "50cd2c0ab880c45a97a2dfd308f16dc6d05290e77aa9c9a545d85b11caf9461f"
+    }
+  ],
+  "cssIdenticalToPhase44": true,
+  "browserModules": 2669,
+  "noServerPrismaNodePrivateInBrowser": true,
+  "allJavascriptAssetsClaimedIdentical": false
+}

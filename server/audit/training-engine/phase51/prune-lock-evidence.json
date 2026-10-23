@@ -1,0 +1,8 @@
+{
+  "sourceLockUnchanged": true,
+  "testCopyByteIdentical": false,
+  "entireJsonEqual": true,
+  "sourceSha256": "e811077ed547b5969c3c08088567d088c4c5e68604c989abd1bcb13a8f57684d",
+  "testCopySha256Before": "357bcfd94c00a85bc6eaf10e0015678c274c5276721dc8baca8587440c5da9c9",
+  "onlyIsolatedCopyBytesRestored": true
+}

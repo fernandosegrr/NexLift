@@ -1,0 +1,880 @@
+{
+  "origin": "Captured received implementation before integration, explicit numeric expectations verified independently",
+  "cases": [
+    {
+      "id": "stable",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 80,
+                "reps": 10,
+                "rpe": 8
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        null
+      ],
+      "expectedNumeric": [
+        80,
+        11
+      ],
+      "expected": {
+        "weight": 80,
+        "reps": 11,
+        "rationale": "Hiciste 80kg × 10 (RIR 2): mantén el peso y apunta a 11 reps.",
+        "basedOn": 1,
+        "phase": null
+      }
+    },
+    {
+      "id": "high-rir",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 80,
+                "reps": 8,
+                "rpe": 7
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        null
+      ],
+      "expectedNumeric": [
+        80,
+        10
+      ],
+      "expected": {
+        "weight": 80,
+        "reps": 10,
+        "rationale": "Hiciste 80kg × 8 (RIR 3): mantén el peso y apunta a 10 reps.",
+        "basedOn": 1,
+        "phase": null
+      }
+    },
+    {
+      "id": "all-top",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 80,
+                "reps": 12,
+                "rpe": 8
+              },
+              {
+                "weight": 80,
+                "reps": 12,
+                "rpe": 8
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        null
+      ],
+      "expectedNumeric": [
+        82.5,
+        8
+      ],
+      "expected": {
+        "weight": 82.5,
+        "reps": 8,
+        "rationale": "Todas las series a 80kg llegaron a ≥12 reps: sube a 82.5kg y reinicia en 8.",
+        "basedOn": 1,
+        "phase": null
+      }
+    },
+    {
+      "id": "top-low-rir",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 80,
+                "reps": 12,
+                "rpe": 9
+              },
+              {
+                "weight": 80,
+                "reps": 8,
+                "rpe": 8
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        null
+      ],
+      "expectedNumeric": [
+        82.5,
+        8
+      ],
+      "expected": {
+        "weight": 82.5,
+        "reps": 8,
+        "rationale": "Top Set superado (80kg × 12 a RIR 1): sube a 82.5kg y reinicia en 8.",
+        "basedOn": 1,
+        "phase": null
+      }
+    },
+    {
+      "id": "equalize",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 80,
+                "reps": 12,
+                "rpe": 8
+              },
+              {
+                "weight": 80,
+                "reps": 8,
+                "rpe": 8
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        null
+      ],
+      "expectedNumeric": [
+        80,
+        9
+      ],
+      "expected": {
+        "weight": 80,
+        "reps": 9,
+        "rationale": "La mejor serie fue 80kg × 12, pero no todas llegaron a 12: mantén 80kg y apunta a 9 en todas.",
+        "basedOn": 1,
+        "phase": null
+      }
+    },
+    {
+      "id": "below-range",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 80,
+                "reps": 4,
+                "rpe": 8
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        null
+      ],
+      "expectedNumeric": [
+        80,
+        5
+      ],
+      "expected": {
+        "weight": 80,
+        "reps": 5,
+        "rationale": "Trabajo de referencia 80kg × 4 (RIR 2), por debajo del rango 8–12: mantén el peso y apunta a 5 reps.",
+        "basedOn": 1,
+        "phase": null
+      }
+    },
+    {
+      "id": "single-guard",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 110,
+                "reps": 1,
+                "rpe": 8
+              },
+              {
+                "weight": 100,
+                "reps": 4,
+                "rpe": 8
+              },
+              {
+                "weight": 100,
+                "reps": 3,
+                "rpe": 8
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        null
+      ],
+      "expectedNumeric": [
+        100,
+        5
+      ],
+      "expected": {
+        "weight": 100,
+        "reps": 5,
+        "rationale": "Trabajo de referencia 100kg × 4 (RIR 2), por debajo del rango 8–12: mantén el peso y apunta a 5 reps.",
+        "basedOn": 1,
+        "phase": null
+      }
+    },
+    {
+      "id": "heavy-anchor",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 100,
+                "reps": 5,
+                "rpe": 9
+              },
+              {
+                "weight": 80,
+                "reps": 12,
+                "rpe": 7
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        null
+      ],
+      "expectedNumeric": [
+        100,
+        6
+      ],
+      "expected": {
+        "weight": 100,
+        "reps": 6,
+        "rationale": "Trabajo de referencia 100kg × 5 (RIR 1), por debajo del rango 8–12: mantén el peso y apunta a 6 reps.",
+        "basedOn": 1,
+        "phase": null
+      }
+    },
+    {
+      "id": "drop-exclusion",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 100,
+                "reps": 8,
+                "rpe": 8
+              },
+              {
+                "weight": 50,
+                "reps": 20,
+                "rpe": 8
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        null
+      ],
+      "expectedNumeric": [
+        100,
+        9
+      ],
+      "expected": {
+        "weight": 100,
+        "reps": 9,
+        "rationale": "Hiciste 100kg × 8 (RIR 2): mantén el peso y apunta a 9 reps.",
+        "basedOn": 1,
+        "phase": null
+      }
+    },
+    {
+      "id": "decimal-grid",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 6.8,
+                "reps": 12,
+                "rpe": 8
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        null
+      ],
+      "expectedNumeric": [
+        9.5,
+        8
+      ],
+      "expected": {
+        "weight": 9.5,
+        "reps": 8,
+        "rationale": "Alcanzaste 12 reps con 6.8kg (tope del rango): sube a 9.5kg y reinicia en 8.",
+        "basedOn": 1,
+        "phase": null
+      }
+    },
+    {
+      "id": "legs-grid",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 100,
+                "reps": 12,
+                "rpe": 8
+              }
+            ]
+          }
+        ],
+        "8-12",
+        5,
+        null
+      ],
+      "expectedNumeric": [
+        105,
+        8
+      ],
+      "expected": {
+        "weight": 105,
+        "reps": 8,
+        "rationale": "Alcanzaste 12 reps con 100kg (tope del rango): sube a 105kg y reinicia en 8.",
+        "basedOn": 1,
+        "phase": null
+      }
+    },
+    {
+      "id": "intensification",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 80,
+                "reps": 6,
+                "rpe": 8
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        "intensification"
+      ],
+      "expectedNumeric": [
+        82.5,
+        4
+      ],
+      "expected": {
+        "weight": 82.5,
+        "reps": 4,
+        "rationale": "Alcanzaste 6 reps con 80kg (tope del rango): sube a 82.5kg y reinicia en 4.",
+        "basedOn": 1,
+        "phase": "intensification"
+      }
+    },
+    {
+      "id": "accumulation",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 80,
+                "reps": 12,
+                "rpe": 8
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        "accumulation"
+      ],
+      "expectedNumeric": [
+        80,
+        13
+      ],
+      "expected": {
+        "weight": 80,
+        "reps": 13,
+        "rationale": "Hiciste 80kg × 12 (RIR 2): mantén el peso y apunta a 13 reps.",
+        "basedOn": 1,
+        "phase": "accumulation"
+      }
+    },
+    {
+      "id": "deload-core-no-reduction",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 80,
+                "reps": 12,
+                "rpe": 8
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        "deload"
+      ],
+      "expectedNumeric": [
+        82.5,
+        8
+      ],
+      "expected": {
+        "weight": 82.5,
+        "reps": 8,
+        "rationale": "Alcanzaste 12 reps con 80kg (tope del rango): sube a 82.5kg y reinicia en 8.",
+        "basedOn": 1,
+        "phase": "deload"
+      }
+    },
+    {
+      "id": "weak-independent-minima",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 100,
+                "reps": 8,
+                "rpe": 8,
+                "weightRight": 80,
+                "repsRight": 10
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        null
+      ],
+      "expectedNumeric": [
+        80,
+        9
+      ],
+      "expected": {
+        "weight": 80,
+        "reps": 9,
+        "rationale": "Hiciste 80kg × 8 (RIR 2): mantén el peso y apunta a 9 reps.",
+        "basedOn": 1,
+        "phase": null
+      }
+    },
+    {
+      "id": "zero-right",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 80,
+                "reps": 10,
+                "rpe": 8,
+                "weightRight": 0,
+                "repsRight": 0
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        null
+      ],
+      "expectedNumeric": null,
+      "expected": null
+    },
+    {
+      "id": "incomplete-not-filtered",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 80,
+                "reps": 10,
+                "rpe": 8,
+                "completed": false
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        null
+      ],
+      "expectedNumeric": [
+        80,
+        11
+      ],
+      "expected": {
+        "weight": 80,
+        "reps": 11,
+        "rationale": "Hiciste 80kg × 10 (RIR 2): mantén el peso y apunta a 11 reps.",
+        "basedOn": 1,
+        "phase": null
+      }
+    },
+    {
+      "id": "high-reps",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": [
+              {
+                "weight": 80,
+                "reps": 1000,
+                "rpe": 8
+              }
+            ]
+          }
+        ],
+        "8-12",
+        2.5,
+        null
+      ],
+      "expectedNumeric": [
+        82.5,
+        8
+      ],
+      "expected": {
+        "weight": 82.5,
+        "reps": 8,
+        "rationale": "Alcanzaste 1000 reps con 80kg (tope del rango): sube a 82.5kg y reinicia en 8.",
+        "basedOn": 1,
+        "phase": null
+      }
+    },
+    {
+      "id": "empty",
+      "mode": "inter",
+      "args": [
+        [
+          {
+            "sets": []
+          }
+        ],
+        "8-12",
+        2.5,
+        null
+      ],
+      "expectedNumeric": null,
+      "expected": null
+    },
+    {
+      "id": "first-failure",
+      "mode": "intra",
+      "args": [
+        [
+          {
+            "weight": 80,
+            "reps": 8,
+            "rir": 0
+          }
+        ],
+        {
+          "lo": 8,
+          "hi": 12,
+          "increment": 2.5,
+          "phase": null
+        }
+      ],
+      "expectedNumeric": [
+        70,
+        10
+      ],
+      "expected": {
+        "weight": 70,
+        "reps": 10,
+        "rationale": "Top Set al fallo (RIR 0) → Back-off Set (-12.5%): 70 kg × 10 reps.",
+        "phase": null,
+        "source": "intra"
+      }
+    },
+    {
+      "id": "subsequent-failure",
+      "mode": "intra",
+      "args": [
+        [
+          {
+            "weight": 80,
+            "reps": 10,
+            "rir": 2
+          },
+          {
+            "weight": 80,
+            "reps": 8,
+            "rir": 0
+          }
+        ],
+        {
+          "lo": 8,
+          "hi": 12,
+          "increment": 2.5,
+          "phase": null
+        }
+      ],
+      "expectedNumeric": [
+        77.5,
+        8
+      ],
+      "expected": {
+        "weight": 77.5,
+        "reps": 8,
+        "rationale": "Hoy RIR 0 en alguna serie → baja a 77.5 kg × 8.",
+        "phase": null,
+        "source": "intra"
+      }
+    },
+    {
+      "id": "under-range",
+      "mode": "intra",
+      "args": [
+        [
+          {
+            "weight": 80,
+            "reps": 7,
+            "rir": 3
+          }
+        ],
+        {
+          "lo": 8,
+          "hi": 12,
+          "increment": 2.5,
+          "phase": null
+        }
+      ],
+      "expectedNumeric": [
+        77.5,
+        8
+      ],
+      "expected": {
+        "weight": 77.5,
+        "reps": 8,
+        "rationale": "Reps bajo el rango 8–12 → baja a 77.5 kg × 8.",
+        "phase": null,
+        "source": "intra"
+      }
+    },
+    {
+      "id": "fatigue-drop",
+      "mode": "intra",
+      "args": [
+        [
+          {
+            "weight": 80,
+            "reps": 10,
+            "rir": 3
+          },
+          {
+            "weight": 80,
+            "reps": 8,
+            "rir": 1
+          }
+        ],
+        {
+          "lo": 8,
+          "hi": 12,
+          "increment": 2.5,
+          "phase": null
+        }
+      ],
+      "expectedNumeric": [
+        80,
+        8
+      ],
+      "expected": {
+        "weight": 80,
+        "reps": 8,
+        "rationale": "Fatiga de hoy (RIR min 1) → mantén 80 kg × 8.",
+        "phase": null,
+        "source": "intra"
+      }
+    },
+    {
+      "id": "comfortable",
+      "mode": "intra",
+      "args": [
+        [
+          {
+            "weight": 80,
+            "reps": 8,
+            "rir": 3
+          }
+        ],
+        {
+          "lo": 8,
+          "hi": 12,
+          "increment": 2.5,
+          "phase": null
+        }
+      ],
+      "expectedNumeric": [
+        80,
+        10
+      ],
+      "expected": {
+        "weight": 80,
+        "reps": 10,
+        "rationale": "Series de hoy cómodas (RIR min 3) → 80 kg × 10 (+2 rep).",
+        "phase": null,
+        "source": "intra"
+      }
+    },
+    {
+      "id": "neutral",
+      "mode": "intra",
+      "args": [
+        [
+          {
+            "weight": 80,
+            "reps": 8,
+            "rir": 2
+          }
+        ],
+        {
+          "lo": 8,
+          "hi": 12,
+          "increment": 2.5,
+          "phase": null
+        }
+      ],
+      "expectedNumeric": [
+        80,
+        8
+      ],
+      "expected": {
+        "weight": 80,
+        "reps": 8,
+        "rationale": "Según series de hoy (RIR min 2) → 80 kg × 8.",
+        "phase": null,
+        "source": "intra"
+      }
+    },
+    {
+      "id": "ceiling",
+      "mode": "intra",
+      "args": [
+        [
+          {
+            "weight": 80,
+            "reps": 12,
+            "rir": 4
+          }
+        ],
+        {
+          "lo": 8,
+          "hi": 12,
+          "increment": 2.5,
+          "phase": null
+        }
+      ],
+      "expectedNumeric": [
+        80,
+        12
+      ],
+      "expected": {
+        "weight": 80,
+        "reps": 12,
+        "rationale": "Techo del rango 8–12 con RIR alto → mantén 80 kg × 12; la próxima sesión sube peso.",
+        "phase": null,
+        "source": "intra"
+      }
+    },
+    {
+      "id": "missing-rir",
+      "mode": "intra",
+      "args": [
+        [
+          {
+            "weight": 80,
+            "reps": 8
+          }
+        ],
+        {
+          "lo": 8,
+          "hi": 12,
+          "increment": 2.5,
+          "phase": null
+        }
+      ],
+      "expectedNumeric": null,
+      "expected": null
+    },
+    {
+      "id": "single-top-over-ceiling",
+      "mode": "intra",
+      "args": [
+        [
+          {
+            "weight": 80,
+            "reps": 12,
+            "rir": 0
+          }
+        ],
+        {
+          "lo": 8,
+          "hi": 12,
+          "increment": 2.5,
+          "phase": null
+        }
+      ],
+      "expectedNumeric": [
+        70,
+        13
+      ],
+      "expected": {
+        "weight": 70,
+        "reps": 13,
+        "rationale": "Top Set al fallo (RIR 0) → Back-off Set (-12.5%): 70 kg × 13 reps.",
+        "phase": null,
+        "source": "intra"
+      }
+    }
+  ]
+}

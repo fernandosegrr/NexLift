@@ -1,0 +1,235 @@
+{
+  "completed": true,
+  "phase54": "COMPLETADO",
+  "phase55": "COMPLETADO",
+  "certification": "APROBADA en desarrollo Windows/x64",
+  "createdAt": "2026-10-22T01:48:45.070Z",
+  "integralCommand": {
+    "name": "npm-test-final-integral",
+    "exit": 0,
+    "milliseconds": 1130154,
+    "args": [
+      "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-phase44-runtime-0938c5306f904b8796b159e4fc5a540d\\node-v24.22.0-win-x64\\node_modules\\npm\\bin\\npm-cli.js",
+      "test"
+    ],
+    "cwd": "C:/Users/guerr/OneDrive/Escritorio/NexLift",
+    "log": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-phase5-complete-received-b113f146-be95-4ca2-b143-48ce4ec138cb\\runs\\1792632519125\\npm-test-final-integral.log"
+  },
+  "finalCommands": 64,
+  "allFinalExitZero": true,
+  "uniqueTests": 1236,
+  "historicalTests": 1202,
+  "newTests": 34,
+  "repeatedTests": 551,
+  "receivedFiles": 593,
+  "identicalReceived": 566,
+  "modifiedFiles": [
+    "client/src/domain/training.ts",
+    "client/src/generated/cloudinary.js",
+    "client/src/generated/training.js",
+    "client/src/pages/ExportReport.jsx",
+    "client/src/utils/dates.js",
+    "client/src/utils/dayPdf.js",
+    "client/src/utils/exerciseName.js",
+    "client/src/utils/goalPlanner.js",
+    "client/src/utils/sessionPdf.js",
+    "docs/TRAINING-ENGINE-AUDIT.md",
+    "docs/TRAINING-ENGINE-CASES.md",
+    "docs/TRAINING-ENGINE-INVENTORY.md",
+    "docs/TRAINING-PERFORMANCE.md",
+    "docs/TRAINING-SMART-LOADING.md",
+    "docs/TYPESCRIPT.md",
+    "package.json",
+    "packages/shared/src/index.ts",
+    "scripts/check-tooling.mjs",
+    "scripts/test/smart-loading.test.mjs",
+    "scripts/test/training-characterization.test.mjs",
+    "scripts/verify-monorepo.mjs",
+    "server/src/domain/training.ts",
+    "server/src/generated/errors.cjs",
+    "server/src/generated/training.cjs",
+    "server/src/index.js",
+    "server/src/logic.js",
+    "server/src/utils/exerciseName.js"
+  ],
+  "newFiles": [
+    "client/test/analysis-harness.html",
+    "client/test/analysis-harness.jsx",
+    "docs/TRAINING-ANALYSIS.md",
+    "packages/shared/src/domain/training/calendar.ts",
+    "packages/shared/src/domain/training/exerciseIdentity.ts",
+    "packages/shared/src/domain/training/mesocycles.ts",
+    "packages/shared/src/domain/training/progress.ts",
+    "packages/shared/src/domain/training/volume.ts",
+    "packages/shared/test/fixtures/analysis.ts",
+    "scripts/fixtures/phase5complete/client-exercise.reference.txt",
+    "scripts/fixtures/phase5complete/dates.reference.txt",
+    "scripts/fixtures/phase5complete/dayPdf.reference.txt",
+    "scripts/fixtures/phase5complete/extraction.json",
+    "scripts/fixtures/phase5complete/goal.reference.txt",
+    "scripts/fixtures/phase5complete/golden.json",
+    "scripts/fixtures/phase5complete/hashes.json",
+    "scripts/fixtures/phase5complete/integration.json",
+    "scripts/fixtures/phase5complete/logic-port.json",
+    "scripts/fixtures/phase5complete/logic.reference.txt",
+    "scripts/fixtures/phase5complete/report.reference.txt",
+    "scripts/fixtures/phase5complete/server-exercise.reference.txt",
+    "scripts/fixtures/phase5complete/sessionPdf.reference.txt",
+    "scripts/test/training-analysis.test.mjs",
+    "server/test/run-training-analysis-integration.mjs",
+    "server/test/training-analysis.integration.test.js"
+  ],
+  "deletedReceived": [],
+  "protectedFiles": 218,
+  "sourceHashesVerified": 501,
+  "copiedSame": 412,
+  "copyExceptions": [
+    {
+      "file": "server/package-lock.json",
+      "reason": "Isolated npm prune reindent only; full JSON dependency graph equal; all source locks byte-identical"
+    }
+  ],
+  "generated": {
+    "count": 11,
+    "changedBytes": 4,
+    "changedExecutable": 2
+  },
+  "globalLint": {
+    "files": 101,
+    "errors": 27,
+    "warnings": 3
+  },
+  "globalLintSignaturesEqual": true,
+  "typescriptLint": {
+    "files": 33,
+    "errors": 0,
+    "warnings": 0
+  },
+  "toolingLint": {
+    "files": 57,
+    "errors": 0,
+    "warnings": 0
+  },
+  "performance": {
+    "measurements": [
+      {
+        "sessions": 0,
+        "sets": 0,
+        "iterations": 3,
+        "oldMs": [
+          0.005400000000008731,
+          0.001099999999951251,
+          0.0009999999997489795
+        ],
+        "sharedMs": [
+          0.0079000000000633,
+          0.0025000000000545697,
+          0.0020999999997002305
+        ],
+        "combinedReadMs": 0.06259999999974752
+      },
+      {
+        "sessions": 10,
+        "sets": 100,
+        "iterations": 3,
+        "oldMs": [
+          3.030999999999949,
+          2.6829999999999927,
+          2.261700000000019
+        ],
+        "sharedMs": [
+          0.146900000000187,
+          0.120600000000195,
+          0.11599999999998545
+        ],
+        "combinedReadMs": 0.4103999999997541
+      },
+      {
+        "sessions": 100,
+        "sets": 1000,
+        "iterations": 3,
+        "oldMs": [
+          20.32719999999972,
+          18.43010000000004,
+          18.18060000000014
+        ],
+        "sharedMs": [
+          1.0815000000002328,
+          0.8889999999996689,
+          1.159599999999955
+        ],
+        "combinedReadMs": 1.0160000000000764
+      },
+      {
+        "sessions": 500,
+        "sets": 5000,
+        "iterations": 3,
+        "oldMs": [
+          92.8143,
+          106.56660000000011,
+          117.4690999999998
+        ],
+        "sharedMs": [
+          3.5960000000000036,
+          3.6250999999997475,
+          4.617099999999937
+        ],
+        "combinedReadMs": 4.425899999999729
+      }
+    ],
+    "mesocycles": {
+      "blocks": 200,
+      "iterations": 100,
+      "ms": 4.136599999999817
+    },
+    "newQueries": 0,
+    "persistentCache": false,
+    "medians": [
+      {
+        "sessions": 0,
+        "sets": 0,
+        "iterations": 3,
+        "oldMs": 0.001099999999951251,
+        "sharedMs": 0.0025000000000545697,
+        "combinedReadMs": 0.06259999999974752
+      },
+      {
+        "sessions": 10,
+        "sets": 100,
+        "iterations": 3,
+        "oldMs": 2.6829999999999927,
+        "sharedMs": 0.120600000000195,
+        "combinedReadMs": 0.4103999999997541
+      },
+      {
+        "sessions": 100,
+        "sets": 1000,
+        "iterations": 3,
+        "oldMs": 18.43010000000004,
+        "sharedMs": 1.0815000000002328,
+        "combinedReadMs": 1.0160000000000764
+      },
+      {
+        "sessions": 500,
+        "sets": 5000,
+        "iterations": 3,
+        "oldMs": 106.56660000000011,
+        "sharedMs": 3.6250999999997475,
+        "combinedReadMs": 4.425899999999729
+      }
+    ]
+  },
+  "archive": "C:/Users/guerr/.codex/artifacts/nexlift-phase5-complete-final-5c9aa50c-c64e-4662-9278-b43dba399e72",
+  "productionTouched": false,
+  "productionCredentialsRead": false,
+  "persistentDatabaseAccessed": false,
+  "migrationsAppliedToPersistentDatabase": false,
+  "baseline": "PROVISIONAL",
+  "productionSyncEnabled": false,
+  "commits": false,
+  "deployed": false,
+  "phase6Started": false,
+  "coachImplemented": false,
+  "gitDiffCheckExit": 0,
+  "staged": false
+}

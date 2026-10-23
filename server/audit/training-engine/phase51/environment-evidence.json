@@ -1,0 +1,29 @@
+{
+  "createdAt": "2026-10-21T03:22:00.542Z",
+  "platform": "win32",
+  "arch": "x64",
+  "versions": {
+    "node": "24.22.0",
+    "npm": "11.19.1",
+    "typescript": "5.9.3",
+    "prisma": "6.19.3",
+    "prismaClient": "6.19.3",
+    "react": "19.2.3",
+    "vite": "7.3.6",
+    "express": "4.22.2",
+    "postgres": "postgres (PostgreSQL) 18.4",
+    "edge": "155.0.4283.62"
+  },
+  "runtime": "C:\\Users\\guerr\\.codex\\artifacts\\nexlift-phase44-runtime-0938c5306f904b8796b159e4fc5a540d\\node-v24.22.0-win-x64\\node.exe",
+  "runtimeOutsideTemp": true,
+  "nodeSha256": "ba93f9a70bd86fce3ebbb39ec758501458453467aa92a34a0a3602d1e3fc2b9c",
+  "npmCliSha256": "3ce7cba6f5128dd5f54c98b6a5036b0f850496878cc2e21044b675fe3c594e3e",
+  "globalRuntimeChanged": false,
+  "dependenciesAdded": false,
+  "productionTouched": false,
+  "persistentDatabasesAccessed": false,
+  "productionNewSyncEnabled": false,
+  "baseline": "PROVISIONAL",
+  "dockerExecuted": false,
+  "physicalIosTested": false
+}

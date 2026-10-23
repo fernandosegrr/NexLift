@@ -1,0 +1,161 @@
+{
+  "exported": 22,
+  "internal": 4,
+  "moduleInventory": [
+    {
+      "file": "exerciseIdentity.ts",
+      "functions": [
+        {
+          "name": "stripMuscleParentheticals",
+          "exported": false,
+          "line": 16
+        },
+        {
+          "name": "normalizeExerciseName",
+          "exported": true,
+          "line": 46
+        },
+        {
+          "name": "canonicalExerciseKey",
+          "exported": true,
+          "line": 59
+        },
+        {
+          "name": "isSameExercise",
+          "exported": true,
+          "line": 68
+        }
+      ]
+    },
+    {
+      "file": "progress.ts",
+      "functions": [
+        {
+          "name": "effectiveSet",
+          "exported": false,
+          "line": 17
+        },
+        {
+          "name": "groupTrainingHistory",
+          "exported": true,
+          "line": 31
+        },
+        {
+          "name": "best1RMRecent",
+          "exported": true,
+          "line": 68
+        },
+        {
+          "name": "bestOneRepMaxForTarget",
+          "exported": true,
+          "line": 86
+        },
+        {
+          "name": "detectPlateau",
+          "exported": true,
+          "line": 108
+        },
+        {
+          "name": "detectPlateauForExercise",
+          "exported": true,
+          "line": 130
+        },
+        {
+          "name": "linearRegression",
+          "exported": true,
+          "line": 148
+        }
+      ]
+    },
+    {
+      "file": "volume.ts",
+      "functions": [
+        {
+          "name": "addTrainingLoad",
+          "exported": false,
+          "line": 5
+        },
+        {
+          "name": "trainingLoadVolume",
+          "exported": true,
+          "line": 18
+        },
+        {
+          "name": "trainingSessionLoadSummary",
+          "exported": true,
+          "line": 24
+        }
+      ]
+    },
+    {
+      "file": "mesocycles.ts",
+      "functions": [
+        {
+          "name": "getActiveTrainingBlock",
+          "exported": true,
+          "line": 9
+        },
+        {
+          "name": "elapsedWeekInBlock",
+          "exported": true,
+          "line": 14
+        },
+        {
+          "name": "routinePhaseStatusAt",
+          "exported": true,
+          "line": 19
+        }
+      ]
+    },
+    {
+      "file": "calendar.ts",
+      "functions": [
+        {
+          "name": "trainingCivilDate",
+          "exported": true,
+          "line": 11
+        },
+        {
+          "name": "trainingUtcOffsetMinutes",
+          "exported": true,
+          "line": 14
+        },
+        {
+          "name": "civilDayOfWeek",
+          "exported": true,
+          "line": 21
+        },
+        {
+          "name": "shiftTrainingCivilDate",
+          "exported": true,
+          "line": 24
+        },
+        {
+          "name": "lastTrainingCivilDays",
+          "exported": true,
+          "line": 31
+        },
+        {
+          "name": "legacyTrainingDayBounds",
+          "exported": true,
+          "line": 39
+        },
+        {
+          "name": "civilMidnight",
+          "exported": false,
+          "line": 46
+        },
+        {
+          "name": "trainingCivilDayBounds",
+          "exported": true,
+          "line": 58
+        },
+        {
+          "name": "trainingCivilWeek",
+          "exported": true,
+          "line": 63
+        }
+      ]
+    }
+  ]
+}

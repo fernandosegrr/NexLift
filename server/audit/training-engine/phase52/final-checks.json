@@ -1,0 +1,547 @@
+{
+  "createdAt": "2026-10-21T20:57:27.439Z",
+  "implementation": "COMPLETADO",
+  "integralCertification": "APROBADA",
+  "integralCommand": "npm test",
+  "integralExit": 0,
+  "uniqueTests": 1173,
+  "historicalTests": 1141,
+  "newTests": 32,
+  "results": [
+    {
+      "name": "root-ci",
+      "exit": 0,
+      "milliseconds": 46144,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "root-workspaces",
+      "exit": 0,
+      "milliseconds": 1677,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "root-project-check",
+      "exit": 0,
+      "milliseconds": 1060,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "initial-typescript-build",
+      "exit": 0,
+      "milliseconds": 5715,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "strict-typechecks-generated-and-lint",
+      "exit": 0,
+      "milliseconds": 16707,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "shared-resolution",
+      "exit": 0,
+      "milliseconds": 2725,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "prisma-generate",
+      "exit": 0,
+      "milliseconds": 5812,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "server-test",
+      "exit": 0,
+      "milliseconds": 1329,
+      "repeat": false,
+      "tests": 104
+    },
+    {
+      "name": "server-test-integration",
+      "exit": 0,
+      "milliseconds": 10038,
+      "repeat": false,
+      "tests": 48
+    },
+    {
+      "name": "server-test-backup",
+      "exit": 0,
+      "milliseconds": 910,
+      "repeat": false,
+      "tests": 17
+    },
+    {
+      "name": "server-test-backup-integration",
+      "exit": 0,
+      "milliseconds": 28151,
+      "repeat": false,
+      "tests": 41
+    },
+    {
+      "name": "server-test-import",
+      "exit": 0,
+      "milliseconds": 942,
+      "repeat": false,
+      "tests": 22
+    },
+    {
+      "name": "server-test-import-integration",
+      "exit": 0,
+      "milliseconds": 11436,
+      "repeat": false,
+      "tests": 39
+    },
+    {
+      "name": "server-test-workout-integration",
+      "exit": 0,
+      "milliseconds": 20569,
+      "repeat": false,
+      "tests": 84
+    },
+    {
+      "name": "server-test-workout-baseline",
+      "exit": 0,
+      "milliseconds": 7525,
+      "repeat": false,
+      "tests": 13
+    },
+    {
+      "name": "server-test-schema-audit",
+      "exit": 0,
+      "milliseconds": 32238,
+      "repeat": false,
+      "tests": 54
+    },
+    {
+      "name": "server-test-baseline",
+      "exit": 0,
+      "milliseconds": 61822,
+      "repeat": false,
+      "tests": 46
+    },
+    {
+      "name": "server-test-infra",
+      "exit": 0,
+      "milliseconds": 3869,
+      "repeat": false,
+      "tests": 37
+    },
+    {
+      "name": "server-test-infra-integration",
+      "exit": 0,
+      "milliseconds": 25086,
+      "repeat": false,
+      "tests": 14
+    },
+    {
+      "name": "client-historical-tests",
+      "exit": 0,
+      "milliseconds": 4114,
+      "repeat": false,
+      "tests": 176
+    },
+    {
+      "name": "default-workspace-build",
+      "exit": 0,
+      "milliseconds": 28301,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "client-bundle-boundaries",
+      "exit": 0,
+      "milliseconds": 9771,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "staging-unit",
+      "exit": 0,
+      "milliseconds": 1090,
+      "repeat": false,
+      "tests": 12
+    },
+    {
+      "name": "staging-integration",
+      "exit": 0,
+      "milliseconds": 114625,
+      "repeat": false,
+      "tests": 23
+    },
+    {
+      "name": "infra-static",
+      "exit": 0,
+      "milliseconds": 2498,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "staging-static",
+      "exit": 0,
+      "milliseconds": 2147,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "operations-unit",
+      "exit": 0,
+      "milliseconds": 673,
+      "repeat": false,
+      "tests": 30
+    },
+    {
+      "name": "operations-integration",
+      "exit": 0,
+      "milliseconds": 25426,
+      "repeat": false,
+      "tests": 40
+    },
+    {
+      "name": "operations-static",
+      "exit": 0,
+      "milliseconds": 2132,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "sync-client",
+      "exit": 0,
+      "milliseconds": 2939,
+      "repeat": false,
+      "tests": 51
+    },
+    {
+      "name": "sync-postgres-browser",
+      "exit": 0,
+      "milliseconds": 26745,
+      "repeat": false,
+      "tests": 19
+    },
+    {
+      "name": "sync-static",
+      "exit": 0,
+      "milliseconds": 9877,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "storage-postgres-browser",
+      "exit": 0,
+      "milliseconds": 23638,
+      "repeat": false,
+      "tests": 47
+    },
+    {
+      "name": "storage-static",
+      "exit": 0,
+      "milliseconds": 3272,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "conflicts-postgres-browser",
+      "exit": 0,
+      "milliseconds": 25978,
+      "repeat": false,
+      "tests": 56
+    },
+    {
+      "name": "conflicts-static",
+      "exit": 0,
+      "milliseconds": 8452,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "offline-sw",
+      "exit": 0,
+      "milliseconds": 603,
+      "repeat": false,
+      "tests": 3
+    },
+    {
+      "name": "offline-postgres-browser",
+      "exit": 0,
+      "milliseconds": 226278,
+      "repeat": false,
+      "tests": 31
+    },
+    {
+      "name": "offline-static",
+      "exit": 0,
+      "milliseconds": 7875,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "monorepo-tests",
+      "exit": 0,
+      "milliseconds": 1732,
+      "repeat": false,
+      "tests": 12
+    },
+    {
+      "name": "typescript-tests",
+      "exit": 0,
+      "milliseconds": 3425,
+      "repeat": false,
+      "tests": 12
+    },
+    {
+      "name": "typescript-development-entry",
+      "exit": 0,
+      "milliseconds": 7645,
+      "repeat": false,
+      "tests": 1
+    },
+    {
+      "name": "shared-contracts-and-http-consumers",
+      "exit": 0,
+      "milliseconds": 3424,
+      "repeat": false,
+      "tests": 56
+    },
+    {
+      "name": "client-import-response-contracts",
+      "exit": 0,
+      "milliseconds": 2397,
+      "repeat": false,
+      "tests": 3
+    },
+    {
+      "name": "phase44-real-typescript-consumers",
+      "exit": 0,
+      "milliseconds": 9121,
+      "repeat": false,
+      "tests": 13
+    },
+    {
+      "name": "phase52-training-engine",
+      "exit": 0,
+      "milliseconds": 5061,
+      "repeat": false,
+      "tests": 37
+    },
+    {
+      "name": "phase52-performance-domain",
+      "exit": 0,
+      "milliseconds": 4903,
+      "repeat": false,
+      "tests": 28
+    },
+    {
+      "name": "phase52-performance-http-postgres",
+      "exit": 0,
+      "milliseconds": 5920,
+      "repeat": false,
+      "tests": 4
+    },
+    {
+      "name": "shared-workspace-contracts",
+      "exit": 0,
+      "milliseconds": 711,
+      "repeat": true,
+      "tests": 34
+    },
+    {
+      "name": "tooling-lint",
+      "exit": 0,
+      "milliseconds": 1549,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "client-rehearsal-build",
+      "exit": 0,
+      "milliseconds": 14177,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "all-workspace-unit-tests",
+      "exit": 0,
+      "milliseconds": 4846,
+      "repeat": true,
+      "tests": 365
+    },
+    {
+      "name": "client-standalone-ci",
+      "exit": 0,
+      "milliseconds": 40647,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "client-standalone-build",
+      "exit": 0,
+      "milliseconds": 10271,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "server-standalone-ci",
+      "exit": 0,
+      "milliseconds": 12834,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "server-standalone-unit",
+      "exit": 0,
+      "milliseconds": 708,
+      "repeat": true,
+      "tests": 104
+    },
+    {
+      "name": "server-standalone-commonjs",
+      "exit": 0,
+      "milliseconds": 108,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "server-standalone-training",
+      "exit": 0,
+      "milliseconds": 116,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "production-prune",
+      "exit": 0,
+      "milliseconds": 1332,
+      "repeat": false,
+      "tests": 0
+    },
+    {
+      "name": "production-deps-smoke",
+      "exit": 0,
+      "milliseconds": 9987,
+      "repeat": true,
+      "tests": 48
+    }
+  ],
+  "repeatTests": 551,
+  "receivedFiles": 530,
+  "receivedUnchanged": 507,
+  "modified": [
+    "client/src/domain/training.ts",
+    "client/src/generated/cloudinary.js",
+    "client/src/generated/contracts.js",
+    "client/src/generated/training.js",
+    "client/src/pages/EditSession.jsx",
+    "client/src/pages/Workout.jsx",
+    "docs/TRAINING-ENGINE-AUDIT.md",
+    "docs/TRAINING-ENGINE-CASES.md",
+    "docs/TRAINING-ENGINE-INVENTORY.md",
+    "docs/TYPESCRIPT.md",
+    "package.json",
+    "packages/shared/src/contracts/workoutSessions.ts",
+    "packages/shared/src/index.ts",
+    "scripts/check-tooling.mjs",
+    "scripts/verify-monorepo.mjs",
+    "server/audit/offline/integration-evidence.json",
+    "server/src/domain/training.ts",
+    "server/src/generated/contracts.cjs",
+    "server/src/generated/errors.cjs",
+    "server/src/generated/training.cjs",
+    "server/src/logic.js",
+    "server/src/services/personalRecords.js",
+    "server/test/fixtures/stabilization-browser.mjs"
+  ],
+  "codeModified": [
+    "client/src/domain/training.ts",
+    "client/src/generated/cloudinary.js",
+    "client/src/generated/contracts.js",
+    "client/src/generated/training.js",
+    "client/src/pages/EditSession.jsx",
+    "client/src/pages/Workout.jsx",
+    "docs/TRAINING-ENGINE-AUDIT.md",
+    "docs/TRAINING-ENGINE-CASES.md",
+    "docs/TRAINING-ENGINE-INVENTORY.md",
+    "docs/TYPESCRIPT.md",
+    "package.json",
+    "packages/shared/src/contracts/workoutSessions.ts",
+    "packages/shared/src/index.ts",
+    "scripts/check-tooling.mjs",
+    "scripts/verify-monorepo.mjs",
+    "server/src/domain/training.ts",
+    "server/src/generated/contracts.cjs",
+    "server/src/generated/errors.cjs",
+    "server/src/generated/training.cjs",
+    "server/src/logic.js",
+    "server/src/services/personalRecords.js",
+    "server/test/fixtures/stabilization-browser.mjs"
+  ],
+  "newFiles": [
+    "client/test/phase52-react-build.js",
+    "docs/TRAINING-PERFORMANCE.md",
+    "packages/shared/src/domain/training/effort.ts",
+    "packages/shared/src/domain/training/personalRecords.ts",
+    "packages/shared/test/fixtures/performance.ts",
+    "scripts/fixtures/phase52/contracts.reference.txt",
+    "scripts/fixtures/phase52/EditSession.reference.txt",
+    "scripts/fixtures/phase52/logic.js",
+    "scripts/fixtures/phase52/personalRecords.js",
+    "scripts/fixtures/phase52/stabilization-browser.reference.txt",
+    "scripts/fixtures/phase52/Workout.reference.txt",
+    "scripts/fixtures/phase52/workoutSessions.reference.txt",
+    "scripts/test/training-performance.test.mjs",
+    "server/test/performance.integration.test.js",
+    "server/test/run-performance-integration.mjs"
+  ],
+  "deleted": [],
+  "previousPhaseReportsUnchanged": true,
+  "testedSourceHashes": 463,
+  "testCopyIdenticalFiles": 376,
+  "testCopyExceptions": [
+    {
+      "file": "server/package-lock.json",
+      "reason": "npm production prune reformatted isolated lock; parsed graph exactly equal",
+      "hash": "357bcfd94c00a85bc6eaf10e0015678c274c5276721dc8baca8587440c5da9c9"
+    }
+  ],
+  "css": [
+    {
+      "file": "index-Bq6ij0Fo.css",
+      "bytes": 107239,
+      "sha256": "50cd2c0ab880c45a97a2dfd308f16dc6d05290e77aa9c9a545d85b11caf9461f"
+    }
+  ],
+  "performance": {
+    "sessions": 400,
+    "sets": 2400,
+    "repetitions": 100,
+    "oldMs": [
+      47.3136999999997,
+      22.373999999999796,
+      21.331700000000183,
+      20.30029999999988,
+      19.484899999999925
+    ],
+    "sharedMs": [
+      25.30699999999979,
+      17.66969999999992,
+      16.765699999999924,
+      16.243000000000393,
+      15.669399999999769
+    ]
+  },
+  "backup": "C:/Users/guerr/.codex/artifacts/nexlift-phase52-received-b198d083-9395-458b-9acd-b0c841de47e3",
+  "archive": "C:/Users/guerr/.codex/artifacts/nexlift-phase52-final-1bf2fd89-8aff-4f2f-82fc-c7076187ab60",
+  "baseline": "PROVISIONAL",
+  "productionTouched": false,
+  "persistentDatabaseAccessed": false,
+  "commitsCreated": false,
+  "deploymentsPerformed": false,
+  "phase53Started": false,
+  "sourceGitStatus": " M .agent/changelog.md\n M .agent/checklist-cero-bugs.md\n M .agent/context.md\n M .agent/plan-mejoras-app.md\n M .gitignore\n M CLAUDE.md\n M README.md\n M client/eslint.config.js\n M client/package-lock.json\n M client/package.json\n M client/public/sw.js\n M client/src/App.jsx\n M client/src/components/layout/Layout.jsx\n M client/src/components/ui/WeekdayPicker.jsx\n M client/src/context/AuthContext.jsx\n M client/src/pages/Dashboard.jsx\n M client/src/pages/EditRoutine.jsx\n M client/src/pages/EditSession.jsx\n M client/src/pages/Import.jsx\n M client/src/pages/Settings.jsx\n M client/src/pages/Workout.jsx\n M client/src/services/api.js\n M client/src/services/offlineQueue.js\n M client/src/services/offlineQueue.test.js\n M client/src/utils/cloudinary.js\n M client/src/utils/exerciseName.js\n M client/vite.config.js\n M server/.env.example\n M server/package-lock.json\n M server/package.json\n M server/restore-backup.mjs\n M server/src/index.js\n M server/src/logic.js\n M server/src/services/backupService.js\n M server/src/utils/exerciseName.js\n?? .agent/api-reference.md\n?? .agent/architecture.md\n?? .agent/database-schema.md\n?? .dockerignore\n?? .gitattributes\n?? .node-version\n?? .npmrc\n?? .nvmrc\n?? Dockerfile.rehearsal\n?? Dockerfile.staging\n?? client/.env.example\n?? client/src/components/layout/ConflictStatus.jsx\n?? client/src/components/layout/DraftBoundary.jsx\n?? client/src/components/layout/OfflineStorageStatus.jsx\n?? client/src/components/layout/OperationStatus.jsx\n?? client/src/components/layout/SyncStatus.jsx\n?? client/src/components/ui/WeekdayPicker.tsx\n?? client/src/context/AuthContext.infra.test.jsx\n?? client/src/domain/training.ts\n?? client/src/generated/cloudinary.js\n?? client/src/generated/contracts.js\n?? client/src/generated/operationLabels.js\n?? client/src/generated/routinePayload.js\n?? client/src/generated/routineResponse.js\n?? client/src/generated/training.js\n?? client/src/services/conflictResolution.js\n?? client/src/services/contracts.ts\n?? client/src/services/offlineSync.http.test.js\n?? client/src/services/offlineSync.js\n?? client/src/services/offlineSync.regression.test.js\n?? client/src/services/operationApi.test.js\n?? client/src/services/operationLabels.ts\n?? client/src/services/operationProtocol.js\n?? client/src/services/operationRuntime.js\n?? client/src/services/operationStore.js\n?? client/src/services/operationSync.js\n?? client/src/services/operationSync.test.js\n?? client/src/services/operationTransport.js\n?? client/src/services/routineImport.http.test.js\n?? client/src/services/routineResponse.ts\n?? client/src/services/serviceWorker.test.js\n?? client/src/services/sessionChanges.js\n?? client/src/services/workoutDrafts.js\n?? client/src/services/workoutDrafts.test.js\n?? client/src/storage/conflictRepository.js\n?? client/src/storage/coordination.js\n?? client/src/storage/database.js\n?? client/src/storage/draftRepository.js\n?? client/src/storage/localBackup.js\n?? client/src/storage/migrationService.js\n?? client/src/storage/operationRepository.js\n?? client/src/storage/runtime.js\n?? client/src/storage/storageHealth.js\n?? client/src/storage/usePreparedDraft.js\n?? client/src/utils/cloudinary.ts\n?? client/src/utils/routineDays.d.ts\n?? client/src/utils/routinePayload.js\n?? client/src/utils/routinePayload.test.js\n?? client/src/utils/routinePayload.ts\n?? client/test/PHASE-1.2.md\n?? client/test/conflict-cases.js\n?? client/test/conflict-harness.html\n?? client/test/contracts-api.cases.js\n?? client/test/contracts.config.js\n?? client/test/phase44-harness.html\n?? client/test/phase44-harness.jsx\n?? client/test/phase44-types.fixture.tsx\n?? client/test/phase51-harness.html\n?? client/test/phase51-harness.jsx\n?? client/test/phase52-react-build.js\n?? client/test/stabilization-cases.js\n?? client/test/stabilization-harness.html\n?? client/test/storage-cases.js\n?? client/test/storage-harness.html\n?? client/tsconfig.build.json\n?? client/tsconfig.json\n?? client/type-tests/cloudinary.ts\n?? compose.staging.yaml\n?? configs/tsconfig.base.json\n?? configs/tsconfig.node.json\n?? configs/tsconfig.vite.json\n?? docs/MONOREPO.md\n?? docs/TRAINING-ENGINE-AUDIT.md\n?? docs/TRAINING-ENGINE-CASES.md\n?? docs/TRAINING-ENGINE-INVENTORY.md\n?? docs/TRAINING-PERFORMANCE.md\n?? docs/TYPESCRIPT.md\n?? package-lock.json\n?? package.json\n?? packages/shared/package.json\n?? packages/shared/src/contracts/apiErrors.ts\n?? packages/shared/src/contracts/conflicts.ts\n?? packages/shared/src/contracts/receipts.ts\n?? packages/shared/src/contracts/routines.ts\n?? packages/shared/src/contracts/workoutOperations.ts\n?? packages/shared/src/contracts/workoutSessions.ts\n?? packages/shared/src/domain/training/effort.ts\n?? packages/shared/src/domain/training/performance.ts\n?? packages/shared/src/domain/training/personalRecords.ts\n?? packages/shared/src/index.js\n?? packages/shared/src/index.ts\n?? packages/shared/src/validation/primitives.ts\n?? packages/shared/src/validation/results.ts\n?? packages/shared/test/contract-fixtures.mjs\n?? packages/shared/test/contracts.test.mjs\n?? packages/shared/test/fixtures/performance.ts\n?? packages/shared/test/fixtures/training.ts\n?? packages/shared/test/imports.test.mjs\n?? packages/shared/tsconfig.build.json\n?? packages/shared/tsconfig.json\n?? packages/shared/type-tests/exports.cts\n?? scripts/build-typescript.mjs\n?? scripts/check-client-bundle.mjs\n?? scripts/check-project.mjs\n?? scripts/check-server.mjs\n?? scripts/check-shared.mjs\n?? scripts/check-tooling.mjs\n?? scripts/fixtures/contracts-types.ts\n?? scripts/fixtures/legacy-cloudinary.js\n?? scripts/fixtures/legacy-errors.js\n?? scripts/fixtures/phase43/client/src/services/operationProtocol.js\n?? scripts/fixtures/phase43/client/src/utils/dates.js\n?? scripts/fixtures/phase43/server/src/logic.js\n?? scripts/fixtures/phase43/server/src/services/operationContract.js\n?? scripts/fixtures/phase43/server/src/services/routineImportContract.js\n?? scripts/fixtures/phase43/server/src/services/sessionPatch.js\n?? scripts/fixtures/phase44/client/src/components/ui/WeekdayPicker.jsx\n?? scripts/fixtures/phase44/client/src/utils/routineDays.js\n?? scripts/fixtures/phase44/client/src/utils/routinePayload.js\n?? scripts/fixtures/phase44/operationLabels.js\n?? scripts/fixtures/phase44/server/src/generated/contracts.cjs\n?? scripts/fixtures/phase44/server/src/logic.js\n?? scripts/fixtures/phase44/server/src/services/operationContract.js\n?? scripts/fixtures/phase44/server/src/services/routineImportContract.js\n?? scripts/fixtures/phase51/client/exerciseName.js\n?? scripts/fixtures/phase51/server/exerciseName.js\n?? scripts/fixtures/phase52/EditSession.reference.txt\n?? scripts/fixtures/phase52/Workout.reference.txt\n?? scripts/fixtures/phase52/contracts.reference.txt\n?? scripts/fixtures/phase52/logic.js\n?? scripts/fixtures/phase52/personalRecords.js\n?? scripts/fixtures/phase52/stabilization-browser.reference.txt\n?? scripts/fixtures/phase52/workoutSessions.reference.txt\n?? scripts/fixtures/shared-browser.js\n?? scripts/lib/boundaries.mjs\n?? scripts/lib/cleanup-result.mjs\n?? scripts/lib/training-characterization.mjs\n?? scripts/lint-typescript.mjs\n?? scripts/prisma-generate.mjs\n?? scripts/test/contracts.test.mjs\n?? scripts/test/monorepo.test.mjs\n?? scripts/test/phase44.test.mjs\n?? scripts/test/training-characterization.test.mjs\n?? scripts/test/training-performance.test.mjs\n?? scripts/test/training-shared.test.mjs\n?? scripts/test/typescript.test.mjs\n?? scripts/verify-monorepo.mjs\n?? server/audit/conflicts/PHASE-3.4.md\n?? server/audit/conflicts/integration-evidence.json\n?? server/audit/conflicts/phase34-evidence.json\n?? server/audit/conflicts/preservation-evidence.json\n?? server/audit/contracts/PHASE-4.3.md\n?? server/audit/contracts/build-comparison.json\n?? server/audit/contracts/checkpoint-source-equivalence.json\n?? server/audit/contracts/conflicts-integration-evidence.json\n?? server/audit/contracts/contract-coverage.md\n?? server/audit/contracts/development-diagnostics.json\n?? server/audit/contracts/environment-evidence.json\n?? server/audit/contracts/files-evidence.json\n?? server/audit/contracts/final-checkpoint.json\n?? server/audit/contracts/final-checks.json\n?? server/audit/contracts/first-matrix-diagnostic.json\n?? server/audit/contracts/lint-global.json\n?? server/audit/contracts/lint-summary.json\n?? server/audit/contracts/offline-integration-evidence.json\n?? server/audit/contracts/offline-lint-evidence.json\n?? server/audit/contracts/phase43-evidence.json\n?? server/audit/contracts/preservation-evidence.json\n?? server/audit/contracts/storage-integration-evidence.json\n?? server/audit/contracts/sync-integration-evidence.json\n?? server/audit/infrastructure/PHASE-2.3.md\n?? server/audit/infrastructure/client-lint-baseline.json\n?? server/audit/infrastructure/node24-evidence.json\n?? server/audit/monorepo/PHASE-4.1.md\n?? server/audit/monorepo/before-phase35-evidence.json\n?? server/audit/monorepo/before-run-diagnostic.json\n?? server/audit/monorepo/build-comparison.json\n?? server/audit/monorepo/conflicts-integration-evidence.json\n?? server/audit/monorepo/environment-evidence.json\n?? server/audit/monorepo/final-checks.json\n?? server/audit/monorepo/offline-integration-evidence.json\n?? server/audit/monorepo/offline-lint-evidence.json\n?? server/audit/monorepo/phase41-evidence.json\n?? server/audit/monorepo/phase41-run-diagnostic.json\n?? server/audit/monorepo/preservation-evidence.json\n?? server/audit/monorepo/retry-guard-evidence.json\n?? server/audit/monorepo/storage-integration-evidence.json\n?? server/audit/monorepo/sync-integration-evidence.json\n?? server/audit/offline/PHASE-3.5.md\n?? server/audit/offline/diagnostic-evidence.json\n?? server/audit/offline/environment-evidence.json\n?? server/audit/offline/integration-evidence.json\n?? server/audit/offline/lint-evidence.json\n?? server/audit/offline/phase35-evidence.json\n?? server/audit/offline/preservation-evidence.json\n?? server/audit/operations/PHASE-3.1.md\n?? server/audit/operations/integration-evidence.json\n?? server/audit/operations/phase31-evidence.json\n?? server/audit/postgresql/BASELINING.md\n?? server/audit/postgresql/INVENTORY.md\n?? server/audit/postgresql/PHASE-2.1.md\n?? server/audit/postgresql/PHASE-2.2.md\n?? server/audit/postgresql/README.md\n?? server/audit/postgresql/RECOVERY-2.2.md\n?? server/audit/postgresql/audit-tools.mjs\n?? server/audit/postgresql/baseline-manifest.json\n?? server/audit/postgresql/catalog.sql\n?? server/audit/postgresql/counts-and-orphans.sql\n?? server/audit/postgresql/declared-catalog.json\n?? server/audit/postgresql/declared-orphans.sql\n?? server/audit/postgresql/declared-schema.sql\n?? server/audit/postgresql/diagnostics.sql\n?? server/audit/postgresql/inspect-authorized-copy.mjs\n?? server/audit/staging/PHASE-2.4.md\n?? server/audit/staging/README.md\n?? server/audit/staging/client-lint.json\n?? server/audit/staging/final-validation.json\n?? server/audit/staging/integration-evidence.json\n?? server/audit/staging/local-evidence.json\n?? server/audit/staging/phase24-evidence.json\n?? server/audit/storage/PHASE-3.3.md\n?? server/audit/storage/integration-evidence.json\n?? server/audit/storage/phase33-evidence.json\n?? server/audit/storage/preservation-evidence.json\n?? server/audit/sync/PHASE-3.2.md\n?? server/audit/sync/final-validation.json\n?? server/audit/sync/integration-evidence.json\n?? server/audit/sync/phase32-evidence.json\n?? server/audit/training-engine/PHASE-5.1.md\n?? server/audit/training-engine/phase51/build-comparison.json\n?? server/audit/training-engine/phase51/checkpoint-evidence.json\n?? server/audit/training-engine/phase51/checkpoint2-evidence.json\n?? server/audit/training-engine/phase51/conflicts-integration-evidence.json\n?? server/audit/training-engine/phase51/development-diagnostics.json\n?? server/audit/training-engine/phase51/documentation-checks.json\n?? server/audit/training-engine/phase51/environment-evidence.json\n?? server/audit/training-engine/phase51/final-checks.json\n?? server/audit/training-engine/phase51/first-matrix-diagnostic.json\n?? server/audit/training-engine/phase51/lint-global.json\n?? server/audit/training-engine/phase51/lint-summary.json\n?? server/audit/training-engine/phase51/offline-equivalence.json\n?? server/audit/training-engine/phase51/offline-integration-evidence.json\n?? server/audit/training-engine/phase51/offline-lint-evidence.json\n?? server/audit/training-engine/phase51/phase51-evidence.json\n?? server/audit/training-engine/phase51/preflight-evidence.json\n?? server/audit/training-engine/phase51/preservation-evidence.json\n?? server/audit/training-engine/phase51/prune-lock-evidence.json\n?? server/audit/training-engine/phase51/second-matrix-diagnostic.json\n?? server/audit/training-engine/phase51/source-inventory.json\n?? server/audit/training-engine/phase51/storage-integration-evidence.json\n?? server/audit/training-engine/phase51/sync-integration-evidence.json\n?? server/audit/training-engine/phase52/conflicts-integration-evidence.json\n?? server/audit/training-engine/phase52/environment.json\n?? server/audit/training-engine/phase52/lint-comparison.json\n?? server/audit/training-engine/phase52/matrix-progress.json\n?? server/audit/training-engine/phase52/offline-integration-evidence.json\n?? server/audit/training-engine/phase52/offline-lint-evidence.json\n?? server/audit/training-engine/phase52/phase52-evidence.json\n?? server/audit/training-engine/phase52/production-build.json\n?? server/audit/training-engine/phase52/react-build-probe.json\n?? server/audit/training-engine/phase52/source-before-matrix.json\n?? server/audit/training-engine/phase52/storage-integration-evidence.json\n?? server/audit/training-engine/phase52/sync-integration-evidence.json\n?? server/audit/typescript/PHASE-4.2.md\n?? server/audit/typescript/PHASE-4.4.md\n?? server/audit/typescript/build-comparison.json\n?? server/audit/typescript/checkpoint-source-equivalence.json\n?? server/audit/typescript/conflicts-integration-evidence.json\n?? server/audit/typescript/development-diagnostics.json\n?? server/audit/typescript/environment-evidence.json\n?? server/audit/typescript/final-checks.json\n?? server/audit/typescript/lint-global.json\n?? server/audit/typescript/lint-summary.json\n?? server/audit/typescript/offline-checkpoint.json\n?? server/audit/typescript/offline-integration-evidence.json\n?? server/audit/typescript/offline-lint-evidence.json\n?? server/audit/typescript/phase42-evidence.json\n?? server/audit/typescript/phase44/artifact-evidence.json\n?? server/audit/typescript/phase44/build-comparison.json\n?? server/audit/typescript/phase44/checkpoint-evidence.json\n?? server/audit/typescript/phase44/conflicts-integration-evidence.json\n?? server/audit/typescript/phase44/development-diagnostics.json\n?? server/audit/typescript/phase44/development-offline-lint.json\n?? server/audit/typescript/phase44/documentation-checks.json\n?? server/audit/typescript/phase44/environment-evidence.json\n?? server/audit/typescript/phase44/final-checks.json\n?? server/audit/typescript/phase44/first-matrix-diagnostic.json\n?? server/audit/typescript/phase44/lint-global.json\n?? server/audit/typescript/phase44/lint-summary.json\n?? server/audit/typescript/phase44/offline-integration-evidence.json\n?? server/audit/typescript/phase44/offline-lint-evidence.json\n?? server/audit/typescript/phase44/phase44-evidence.json\n?? server/audit/typescript/phase44/preservation-evidence.json\n?? server/audit/typescript/phase44/prune-lock-evidence.json\n?? server/audit/typescript/phase44/prune-rewritten-package-lock.json\n?? server/audit/typescript/phase44/second-matrix-diagnostic.json\n?? server/audit/typescript/phase44/storage-integration-evidence.json\n?? server/audit/typescript/phase44/sync-integration-evidence.json\n?? server/audit/typescript/preservation-evidence.json\n?? server/audit/typescript/received-archive.json\n?? server/audit/typescript/static-evidence.json\n?? server/audit/typescript/storage-integration-evidence.json\n?? server/audit/typescript/sync-integration-evidence.json\n?? server/deploy/INFRASTRUCTURE-2.3.md\n?? server/deploy/README.md\n?? server/deploy/STAGING-2.4.md\n?? server/deploy/http-healthcheck.mjs\n?? server/deploy/readiness-check.mjs\n?? server/deploy/rehearsal-config.js\n?? server/deploy/rehearsal-http.mjs\n?? server/deploy/rehearsal-migrate.mjs\n?? server/deploy/releaseGate.js\n?? server/deploy/start-checked.mjs\n?? server/postgres-recovery.mjs\n?? server/prisma/migrations/0_init/migration.sql\n?? server/prisma/migrations/202610180001_phase31_operations/migration.sql\n?? server/prisma/migrations/migration_lock.toml\n?? server/src/contracts.ts\n?? server/src/domain/training.ts\n?? server/src/generated/contracts.cjs\n?? server/src/generated/errors.cjs\n?? server/src/generated/operationContract.cjs\n?? server/src/generated/routineImportContract.cjs\n?? server/src/generated/training.cjs\n?? server/src/logic.d.ts\n?? server/src/middleware/auth.js\n?? server/src/operations/errors.js\n?? server/src/operations/errors.ts\n?? server/src/operations/health.js\n?? server/src/operations/shutdown.js\n?? server/src/operations/telemetry.js\n?? server/src/routes/backup.js\n?? server/src/routes/importRoutine.js\n?? server/src/routes/operations.js\n?? server/src/routes/updateRoutine.js\n?? server/src/routes/workouts.js\n?? server/src/services/backupExport.js\n?? server/src/services/backupFormat.js\n?? server/src/services/backupLegacy.js\n?? server/src/services/backupRestore.js\n?? server/src/services/migrationHistory.js\n?? server/src/services/operationContract.js\n?? server/src/services/operationContract.ts\n?? server/src/services/operationHash.d.ts\n?? server/src/services/operationHash.js\n?? server/src/services/personalRecords.js\n?? server/src/services/postgresBackup.js\n?? server/src/services/postgresSystemBackup.js\n?? server/src/services/postgresTarget.js\n?? server/src/services/routineImportContract.js\n?? server/src/services/routineImportContract.ts\n?? server/src/services/sessionPatch.js\n?? server/src/services/workoutOperations.js\n?? server/src/services/workoutTransaction.js\n?? server/staging/capture-source.mjs\n?? server/staging/container.mjs\n?? server/staging/egress.mjs\n?? server/staging/environment.mjs\n?? server/staging/history.sql\n?? server/staging/identity.mjs\n?? server/staging/local.mjs\n?? server/staging/prepare-compose.mjs\n?? server/staging/restore-captured.mjs\n?? server/staging/runtime.mjs\n?? server/staging/validate-local.mjs\n?? server/test/PHASE-1.3.md\n?? server/test/PHASE-1.4.md\n?? server/test/PHASE-1.5.md\n?? server/test/README.md\n?? server/test/backup-cloud.test.js\n?? server/test/backup.integration.test.js\n?? server/test/baseline.integration.test.js\n?? server/test/check-conflicts.mjs\n?? server/test/check-infrastructure.mjs\n?? server/test/check-operations.mjs\n?? server/test/check-stabilization.mjs\n?? server/test/check-staging.mjs\n?? server/test/check-storage.mjs\n?? server/test/check-sync.mjs\n?? server/test/conflict.integration.test.js\n?? server/test/fixtures/backup-fixture.js\n?? server/test/fixtures/baseline-environment.js\n?? server/test/fixtures/browser-process.mjs\n?? server/test/fixtures/conflict-browser.mjs\n?? server/test/fixtures/conflict-http.mjs\n?? server/test/fixtures/infra-process.mjs\n?? server/test/fixtures/operation-http.mjs\n?? server/test/fixtures/routine-delete-before-1.5.js\n?? server/test/fixtures/routine-schema.sql\n?? server/test/fixtures/stabilization-browser.mjs\n?? server/test/fixtures/stabilization-http.mjs\n?? server/test/fixtures/storage-browser.mjs\n?? server/test/fixtures/sync-browser.mjs\n?? server/test/fixtures/sync-http.mjs\n?? server/test/fixtures/typescript-dev-guard.mjs\n?? server/test/fixtures/typescript-dev-process.mjs\n?? server/test/fixtures/workout-before-1.5.js\n?? server/test/fixtures/workout-graph-routes.js\n?? server/test/fixtures/workout-test-db.js\n?? server/test/infra-auth.test.js\n?? server/test/infra-operations.test.js\n?? server/test/infra.integration.test.js\n?? server/test/operation-contract.test.js\n?? server/test/operation.integration.test.js\n?? server/test/performance.integration.test.js\n?? server/test/routine-import-contract.test.js\n?? server/test/routine-import.integration.test.js\n?? server/test/routine-update.integration.test.js\n?? server/test/run-backup-integration.mjs\n?? server/test/run-baseline-integration.mjs\n?? server/test/run-conflict-integration.mjs\n?? server/test/run-import-integration.mjs\n?? server/test/run-infrastructure-integration.mjs\n?? server/test/run-operation-integration.mjs\n?? server/test/run-performance-integration.mjs\n?? server/test/run-routine-integration.mjs\n?? server/test/run-schema-audit.mjs\n?? server/test/run-stabilization-integration.mjs\n?? server/test/run-staging-integration.mjs\n?? server/test/run-storage-integration.mjs\n?? server/test/run-sync-integration.mjs\n?? server/test/run-typescript-dev.mjs\n?? server/test/run-workout-integration.mjs\n?? server/test/schema-audit.integration.test.js\n?? server/test/stabilization-sw.test.js\n?? server/test/stabilization.integration.test.js\n?? server/test/staging.integration.test.js\n?? server/test/staging.test.js\n?? server/test/storage.integration.test.js\n?? server/test/sync.integration.test.js\n?? server/test/typescript-dev.integration.test.js\n?? server/test/verify-backup-file.mjs\n?? server/test/verify-conflicts.mjs\n?? server/test/verify-node24.mjs\n?? server/test/verify-operations.mjs\n?? server/test/verify-stabilization.mjs\n?? server/test/verify-staging.mjs\n?? server/test/verify-storage.mjs\n?? server/test/verify-sync.mjs\n?? server/test/workout-before.integration.test.js\n?? server/test/workout-write.integration.test.js\n?? server/tsconfig.build.json\n?? server/tsconfig.json\n?? server/type-tests/errors.ts\n"
+}

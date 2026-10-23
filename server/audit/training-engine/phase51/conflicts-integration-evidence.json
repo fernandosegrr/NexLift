@@ -1,0 +1,22 @@
+{
+  "createdAt": "2026-10-21T03:45:24.560Z",
+  "source": "SYNTHETIC_ONLY_NOT_PRODUCTION",
+  "productionTouched": false,
+  "realPostgres": true,
+  "browserEvidence": {
+    "browser": "Microsoft Edge real",
+    "realIndexedDB": true,
+    "realPostgres": true,
+    "independentClients": true,
+    "physicalBrowserRestart": true,
+    "serverRestart": true,
+    "productionTouched": false
+  },
+  "counts": {
+    "logs": 43,
+    "sets": 85,
+    "rest": 2,
+    "receipts": 109
+  },
+  "prRebuildMatched": true
+}
