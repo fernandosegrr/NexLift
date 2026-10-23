@@ -61,3 +61,6 @@ server/audit/**/lint.json
 server/audit/**/lint-final.json
 server/audit/**/work-in-progress.json
 server/audit/**/prune-rewritten-package-lock.json
+
+# Read-only SQL source required by the schema audit, not a generated diagnostic.
+!server/audit/postgresql/diagnostics.sql
